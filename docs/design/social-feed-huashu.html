@@ -7,48 +7,62 @@
 <style>
 /* ═══════════════════════════════════════════
    huashu-design — "社区公告板" 物理隐喻
-   不做手机框，做真实的软木板+便签+图钉
    ═══════════════════════════════════════════ */
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2a2218;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px}
-/* 软木板 */
-.corkboard{width:375px;min-height:750px;background:linear-gradient(175deg,#c4a87c 0%,#ba9e72 20%,#c8ae84 40%,#b89a6e 60%,#c4a87c 80%,#b49868 100%);border-radius:8px;padding:16px 14px;position:relative;box-shadow:inset 0 0 60px rgba(0,0,0,0.15),0 8px 32px rgba(0,0,0,0.5);border:6px solid #8B6914;border-image:linear-gradient(180deg,#a07828,#7a5210,#a07828) 1}
-/* 软木板颗粒肌理 */
+.corkboard{width:400px;min-height:750px;background:linear-gradient(175deg,#c4a87c 0%,#ba9e72 20%,#c8ae84 40%,#b89a6e 60%,#c4a87c 80%,#b49868 100%);border-radius:8px;padding:16px 14px;position:relative;box-shadow:inset 0 0 60px rgba(0,0,0,0.15),0 8px 32px rgba(0,0,0,0.5);border:6px solid #8B6914;border-image:linear-gradient(180deg,#a07828,#7a5210,#a07828) 1}
 .corkboard::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(255,255,255,0.03) 0,transparent 50%),radial-gradient(circle at 70% 60%,rgba(0,0,0,0.04) 0,transparent 50%),radial-gradient(circle at 50% 80%,rgba(255,255,255,0.02) 0,transparent 40%);pointer-events:none;z-index:1}
-/* 顶部标题 — 手写粉笔感 */
-.board-title{text-align:center;margin-bottom:18px;position:relative;z-index:2}
+.board-title{text-align:center;margin-bottom:16px;position:relative;z-index:2}
 .board-title h1{font-size:22px;font-weight:900;color:#2a2210;letter-spacing:6px;text-shadow:0 1px 0 rgba(255,255,255,0.15);font-family:"Noto Serif SC","PingFang SC",serif}
 .board-title .rule{font-size:10px;color:#5a4a2a;letter-spacing:3px;margin-top:4px}
-/* 便签卡片 — 每张不一样 */
 .notes{display:flex;flex-direction:column;gap:14px;position:relative;z-index:2}
+/* 便签卡片 */
 .note{background:#FFFBF2;position:relative;box-shadow:2px 3px 6px rgba(0,0,0,0.2),-1px -1px 2px rgba(0,0,0,0.05);font-size:14px}
-/* huashu-design: 每张便签形状不同 */
-.note:nth-child(1){border-radius:2px 16px 2px 16px;transform:rotate(-0.8deg);margin-right:8px}
-.note:nth-child(2){border-radius:16px 2px 16px 2px;transform:rotate(0.5deg);margin-left:8px;background:#FFFDF5}
-.note:nth-child(3){border-radius:4px 4px 18px 4px;transform:rotate(-0.3deg);margin-right:4px}
-.note:nth-child(4){border-radius:18px 4px 4px 18px;transform:rotate(0.7deg);margin-left:4px;background:#FFFEF8}
+.note:nth-child(1){border-radius:2px 18px 2px 18px;transform:rotate(-0.8deg);margin-right:6px}
+.note:nth-child(2){border-radius:18px 2px 18px 2px;transform:rotate(0.5deg);margin-left:6px;background:#FFFDF5}
+.note:nth-child(3){border-radius:4px 4px 20px 4px;transform:rotate(-0.3deg);margin-right:3px}
+.note:nth-child(4){border-radius:20px 4px 4px 20px;transform:rotate(0.7deg);margin-left:3px;background:#FFFEF8}
+.note:nth-child(5){border-radius:2px 2px 18px 18px;transform:rotate(-0.5deg);margin-right:5px}
+.note:nth-child(6){border-radius:18px 18px 4px 4px;transform:rotate(0.4deg);margin-left:5px;background:#FFFDF5}
+.note:nth-child(7){border-radius:6px 20px 6px 20px;transform:rotate(-0.6deg);margin-right:7px}
+.note:nth-child(8){border-radius:20px 6px 20px 6px;transform:rotate(0.3deg);margin-left:7px;background:#FFFEF8}
 /* 图钉 */
 .note::after{content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#e8c8a0,#c04030 60%,#802020);box-shadow:1px 2px 3px rgba(0,0,0,0.3);z-index:3}
 .note:nth-child(2)::after{left:70%}
-.note:nth-child(4)::after{left:30%}
+.note:nth-child(4)::after{left:28%}
+.note:nth-child(6)::after{left:72%}
+.note:nth-child(8)::after{left:32%}
 .note-inner{padding:14px}
-/* 手写体作者 */
 .note-author{font-size:13px;font-weight:700;color:#5a3020;margin-bottom:4px;font-family:"PingFang SC",sans-serif}
 .note-meta{font-size:10px;color:#a08060;margin-bottom:8px;display:flex;gap:8px;align-items:center}
 .note-meta .bldg{background:#e8d8c0;color:#8B6914;padding:1px 6px;border-radius:2px;font-weight:700;font-size:10px}
-.note-text{font-size:14px;line-height:1.7;color:#4a3a2a}
-.note-img{width:100%;height:120px;background:#e8d8c0;border-radius:4px;margin:8px 0;display:flex;align-items:center;justify-content:center;color:#a08060;font-size:13px;border:2px dashed #d8c8b0}
-/* 互动 — 极简图标 */
-.note-actions{display:flex;gap:18px;margin-top:10px;padding-top:8px;border-top:1px dotted #e0d0b8}
+.note-text{font-size:14px;line-height:1.7;color:#4a3a2a;margin-bottom:8px}
+/* 图片区域 */
+.note-images{display:grid;gap:6px;margin-bottom:4px}
+/* 1张图：大图 */
+.grid-1{grid-template-columns:1fr}
+.grid-1 .note-img{height:180px;border-radius:6px}
+/* 2张图：左右并排 */
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-2 .note-img{height:130px;border-radius:6px}
+/* 3张图：1大2小 */
+.grid-3{grid-template-columns:1fr 1fr;grid-template-rows:auto auto}
+.grid-3 .note-img:first-child{grid-column:1/-1;height:150px;border-radius:6px}
+.grid-3 .note-img:nth-child(2),
+.grid-3 .note-img:nth-child(3){height:100px;border-radius:6px}
+/* 4张图：2x2 */
+.grid-4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.grid-4 .note-img{height:100px;border-radius:6px}
+/* 图片样式 */
+.note-img{width:100%;object-fit:cover;display:block;border:2px solid rgba(139,115,85,0.15);background:#e8d8c0}
+.note-actions{display:flex;gap:18px;margin-top:8px;padding-top:8px;border-top:1px dotted #e0d0b8}
 .note-act{display:flex;align-items:center;gap:3px;font-size:12px;color:#a08060;cursor:pointer;border:none;background:none;font-family:inherit}
 .note-act.liked{color:#c04030}
 .note-act svg{width:14px;height:14px}
-/* 评论 — 手写回复 */
-.note-comments{margin-top:8px;padding-top:6px;border-top:1px dotted #e8d8c0}
-.note-cmt{font-size:12px;color:#6a5a40;padding:3px 0;line-height:1.5}
+.note-comments{margin-top:6px;padding-top:6px;border-top:1px dotted #e8d8c0}
+.note-cmt{font-size:12px;color:#6a5a40;padding:2px 0;line-height:1.5}
 .note-cmt strong{color:#8B6914;margin-right:4px}
-/* 底部装饰 */
-.board-footer{text-align:center;margin-top:16px;position:relative;z-index:2}
+.board-footer{text-align:center;margin-top:14px;position:relative;z-index:2}
 .board-footer span{font-size:10px;color:#9a8a6a;letter-spacing:4px}
 </style>
 </head>
@@ -59,12 +73,15 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
     <div class="rule">— 东方兰园 · 社区公告板 —</div>
   </div>
   <div class="notes">
-    <!-- 帖子1 — 便签风格 -->
+
+    <!-- 帖子1：月季花开 · 1张图 -->
     <div class="note"><div class="note-inner">
       <div class="note-author">小橘子</div>
       <div class="note-meta"><span class="bldg">3号楼</span> 10分钟前</div>
-      <div class="note-text">今天小区花园的月季开了，太美了！分享给大家看看</div>
-      <div class="note-img">月季花开</div>
+      <div class="note-text">今天小区花园的月季开了，太美了！分享给大家看看 🌹</div>
+      <div class="note-images grid-1">
+        <img class="note-img" src="https://images.unsplash.com/photo-1490750967868-88aa4f44ba42?w=600&h=400&fit=crop" alt="月季花开" loading="lazy" onerror="this.style.background='#e8d5c4';this.alt='图片加载中'">
+      </div>
       <div class="note-actions">
         <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 23</button>
         <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 5</button>
@@ -74,11 +91,31 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
         <div class="note-cmt"><strong>小雨妈妈：</strong>这是在哪个位置？明天带孩子去看看</div>
       </div>
     </div></div>
-    <!-- 帖子2 — 另一种便签 -->
+
+    <!-- 帖子2：小区猫咪 · 2张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">小雨妈妈</div>
+      <div class="note-meta"><span class="bldg">2号楼</span> 30分钟前</div>
+      <div class="note-text">楼下发现一窝小奶猫，太可爱了！有人知道是流浪猫还是哪家的吗？</div>
+      <div class="note-images grid-2">
+        <img class="note-img" src="https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=300&h=300&fit=crop" alt="小奶猫1" loading="lazy" onerror="this.style.background='#d8d0c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300&h=300&fit=crop" alt="小奶猫2" loading="lazy" onerror="this.style.background='#d0d8c0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 42</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 18</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小橘子：</strong>好像是楼下花店阿姨养的！</div>
+        <div class="note-cmt"><strong>阿杰：</strong>好小一只，能领养吗？</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子3：停车位 · 纯文字 -->
     <div class="note"><div class="note-inner">
       <div class="note-author">老张</div>
       <div class="note-meta"><span class="bldg">5号楼</span> 1小时前</div>
-      <div class="note-text">有人需要停车位吗？我家闲置一个，可以共享出来</div>
+      <div class="note-text">有人需要停车位吗？我家闲置一个，地下B2层，位置好，可以按月共享。有意者私信联系 🚗</div>
       <div class="note-actions">
         <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 8</button>
         <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 12</button>
@@ -88,11 +125,12 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
         <div class="note-cmt"><strong>小橘子：</strong>支持共享！邻里互助真棒</div>
       </div>
     </div></div>
-    <!-- 帖子3 -->
+
+    <!-- 帖子4：家政推荐 · 纯文字 -->
     <div class="note"><div class="note-inner">
       <div class="note-author">小雨妈妈</div>
       <div class="note-meta"><span class="bldg">2号楼</span> 3小时前</div>
-      <div class="note-text">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式</div>
+      <div class="note-text">推荐一个靠谱的家政阿姨，在我家做了半年了，干活特别细致，人也实在。需要的邻居私信我要联系方式 😊</div>
       <div class="note-actions">
         <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 15</button>
         <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 3</button>
@@ -101,24 +139,87 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
         <div class="note-cmt"><strong>老张：</strong>我正需要！私信你了</div>
       </div>
     </div></div>
-    <!-- 帖子4 -->
+
+    <!-- 帖子5：今日晚餐 · 3张图 -->
     <div class="note"><div class="note-inner">
       <div class="note-author">阿杰</div>
-      <div class="note-meta"><span class="bldg">7号楼</span> 5小时前</div>
-      <div class="note-text">周末组织一场篮球赛，有没有一起的？报名的楼下扣1</div>
+      <div class="note-meta"><span class="bldg">7号楼</span> 4小时前</div>
+      <div class="note-text">今天在家做了顿好的，红烧排骨+清炒时蔬，住咱们小区就是方便，楼下菜市场食材新鲜！🍳</div>
+      <div class="note-images grid-3">
+        <img class="note-img" src="https://images.unsplash.com/photo-1544025162-d76694265947?w=600&h=300&fit=crop" alt="排骨" loading="lazy" onerror="this.style.background='#e0d0c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=300&fit=crop" alt="蔬菜" loading="lazy" onerror="this.style.background='#d0e0c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=300&h=300&fit=crop" alt="美食" loading="lazy" onerror="this.style.background='#e0d8c0'">
+      </div>
       <div class="note-actions">
-        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 31</button>
+        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 28</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 9</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小橘子：</strong>看着太香了！能去蹭饭吗 😂</div>
+        <div class="note-cmt"><strong>小雨妈妈：</strong>排骨怎么做？求教程！</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子6：周末市集 · 4张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">物业小助手</div>
+      <div class="note-meta"><span class="bldg">物业</span> 6小时前</div>
+      <div class="note-text">本周末小区南广场举办「邻里跳蚤市场」！欢迎邻居们来摆摊或者闲逛，有手工甜品、旧书交换、儿童玩具区。下午3点到7点，不见不散~ 🎪</div>
+      <div class="note-images grid-4">
+        <img class="note-img" src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300&h=300&fit=crop" alt="市集1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=300&h=300&fit=crop" alt="市集2" loading="lazy" onerror="this.style.background='#d8e8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=300&h=300&fit=crop" alt="市集3" loading="lazy" onerror="this.style.background='#c0d8e8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&h=300&fit=crop" alt="市集4" loading="lazy" onerror="this.style.background='#c0e8d8'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 56</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 34</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>老张：</strong>太好了！家里一堆旧书可以拿去换</div>
+        <div class="note-cmt"><strong>小橘子：</strong>我报名摆摊！手工曲奇 🍪</div>
+        <div class="note-cmt"><strong>阿杰：</strong>儿童玩具区需要志愿者吗？</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子7：篮球赛 · 纯文字 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">阿杰</div>
+      <div class="note-meta"><span class="bldg">7号楼</span> 昨天</div>
+      <div class="note-text">周末组织一场篮球赛，周六下午3点小区篮球场。已经有8个人了，再来4个就可以打全场！报名的楼下扣1 🏀</div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 31</button>
         <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 18</button>
       </div>
       <div class="note-comments">
         <div class="note-cmt"><strong>老张：</strong>1！算我一个</div>
         <div class="note-cmt"><strong>小橘子：</strong>在哪打？小区篮球场吗</div>
+        <div class="note-cmt"><strong>物业小助手：</strong>篮球场已预约，周六下午3-6点可用</div>
       </div>
     </div></div>
+
+    <!-- 帖子8：失物招领 · 1张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">老张</div>
+      <div class="note-meta"><span class="bldg">5号楼</span> 昨天</div>
+      <div class="note-text">在小区门口捡到一串钥匙，上面有个小熊猫挂件。失主看到请联系我，或者到5号楼门卫处领取 🔑</div>
+      <div class="note-images grid-1">
+        <img class="note-img" src="https://images.unsplash.com/photo-1582139329536-e7284fece509?w=600&h=400&fit=crop" alt="失物钥匙" loading="lazy" onerror="this.style.background='#e0d8c8';this.alt='图片加载中'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 19</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 6</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小雨妈妈：</strong>好像是我家小朋友丢的！我马上过来</div>
+      </div>
+    </div></div>
+
   </div>
-  <div class="board-footer"><span>📌 东方兰园 · 邻里互助</span></div>
+  <div class="board-footer"><span>📌 东方兰园 · 有温度的邻里社区</span></div>
 </div>
-<script>function toggleLike(b){b.classList.toggle('liked');var s=b.querySelector('svg'),sp=b.querySelector('span')||b.childNodes[b.childNodes.length-1],c=parseInt(sp.textContent);if(b.classList.contains('liked')){s.setAttribute('fill','currentColor');sp.textContent=c+1}else{s.setAttribute('fill','none');sp.textContent=Math.max(0,c-1)}}
+<script>
+function toggleLike(b){b.classList.toggle('liked');var s=b.querySelector('svg'),sp=b.childNodes[b.childNodes.length-1],c=parseInt(sp.textContent);b.classList.contains('liked')?(s.setAttribute('fill','currentColor'),sp.textContent=c+1):(s.setAttribute('fill','none'),sp.textContent=Math.max(0,c-1))}
 </script>
 </body>
 </html>
