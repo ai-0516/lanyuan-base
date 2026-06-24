@@ -7,36 +7,27 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
-.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
-.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
-.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:17px;font-weight:600;flex-shrink:0;border-bottom:1px solid #eee}
-.nav-bar .back{font-size:15px;color:#07C160;cursor:pointer;text-decoration:none}
-.nav-bar .edit-btn{font-size:14px;color:#07C160;cursor:pointer;border:none;background:none;padding:4px 8px}
-.nav-bar .done-btn{font-size:14px;color:#07C160;font-weight:600;cursor:pointer;border:none;background:none;padding:4px 8px;display:none}
+.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.12);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;flex-shrink:0;color:#1a1a1a}
+.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:17px;font-weight:600;flex-shrink:0}
+.nav-bar .back{font-size:15px;color:#07C160;cursor:pointer;text-decoration:none;font-weight:500}
+.nav-bar .edit-btn{font-size:14px;color:#07C160;cursor:pointer;border:none;background:none;font-weight:500}
+.nav-bar .done-btn{font-size:14px;color:#07C160;font-weight:600;cursor:pointer;border:none;background:none;display:none}
 .page-content{flex:1;overflow-y:auto}
 
-/* Empty state */
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:120px 40px;text-align:center}
-.empty-icon{font-size:56px;margin-bottom:16px;opacity:0.5}
-.empty-text{font-size:15px;color:#bbb;line-height:1.6}
-
-/* Conversation item */
-.conv-item{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background 0.15s;position:relative}
+.conv-item{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background 0.15s;gap:12px}
 .conv-item:hover{background:#fafafa}
-.conv-check{display:none;width:22px;height:22px;border-radius:50%;border:2px solid #ddd;margin-right:12px;flex-shrink:0;align-items:center;just-content:center;font-size:12px;color:#fff;transition:all 0.2s}
+.conv-check{display:none;width:22px;height:22px;border-radius:50%;border:2px solid #ddd;margin-right:2px;flex-shrink:0;align-items:center;justify-content:center;transition:all 0.2s}
+.conv-check svg{width:12px;height:12px;color:#fff;display:none}
 .conv-check.checked{background:#07C160;border-color:#07C160}
+.conv-check.checked svg{display:block}
+.conv-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#E8F0FE,#D0E4FD);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.conv-icon svg{width:20px;height:20px;color:#3B82F6}
 .conv-body{flex:1;min-width:0}
-.conv-title{font-size:15px;color:#333;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.conv-preview{font-size:13px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.conv-time{font-size:12px;color:#ccc;margin-left:12px;flex-shrink:0}
-.conv-actions{display:none;position:absolute;right:16px;top:50%;transform:translateY(-50%);gap:8px}
-.conv-actions button{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
-.btn-rename{background:#E8F0FE;color:#3B82F6}
-.btn-rename:hover{background:#D0E4FD}
-.btn-delete{background:#FFE0E0;color:#FF3B30}
-.btn-delete:hover{background:#FFD0D0}
+.conv-title{font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-preview{font-size:12px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-time{font-size:11px;color:#ccc;flex-shrink:0}
 
-/* Edit mode */
 .edit-mode .conv-item{cursor:default}
 .edit-mode .conv-item:hover{background:#fff}
 .edit-mode .conv-check{display:flex}
@@ -44,88 +35,94 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 .edit-mode .nav-bar .edit-btn{display:none}
 .edit-mode .nav-bar .done-btn{display:block}
 
-/* Batch delete bar */
-.batch-bar{display:none;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-top:1px solid #eee;flex-shrink:0}
+/* Batch bar */
+.batch-bar{display:none;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-top:1px solid #eee;flex-shrink:0}
 .batch-bar.show{display:flex}
-.batch-delete{color:#FF3B30;font-size:14px;cursor:pointer;padding:8px 16px;border-radius:8px;transition:background 0.15s}
+.batch-delete{color:#FF3B30;font-size:14px;cursor:pointer;padding:8px 16px;border-radius:8px;transition:background 0.15s;font-weight:500}
 .batch-delete:hover{background:#FFF0EF}
 .batch-count{font-size:14px;color:#666}
 
 /* Rename modal */
 .modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:50}
 .modal-overlay.show{display:flex}
-.modal-dialog{width:280px;background:#fff;border-radius:12px;padding:24px;text-align:center}
-.modal-title{font-size:17px;font-weight:600;margin-bottom:16px}
-.modal-input{width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:15px;outline:none;font-family:inherit;margin-bottom:16px}
+.modal-dialog{width:280px;background:#fff;border-radius:14px;padding:24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+.modal-title{font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:16px}
+.modal-input{width:100%;padding:10px 14px;border:1.5px solid #e5e5e5;border-radius:10px;font-size:15px;outline:none;font-family:inherit;margin-bottom:16px;transition:border-color 0.2s}
 .modal-input:focus{border-color:#07C160}
-.modal-buttons{display:flex;gap:12px}
-.modal-btn{flex:1;padding:10px;border-radius:8px;font-size:15px;cursor:pointer;border:none;transition:all 0.15s}
+.modal-buttons{display:flex;gap:10px}
+.modal-btn{flex:1;padding:11px;border-radius:10px;font-size:15px;cursor:pointer;border:none;transition:all 0.15s;font-weight:500}
 .modal-btn.cancel{background:#f5f5f5;color:#666}
 .modal-btn.cancel:hover{background:#eee}
 .modal-btn.confirm{background:#07C160;color:#fff}
 .modal-btn.confirm:hover{background:#06AD56}
 .home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
-.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+.home-indicator .bar{width:134px;height:5px;background:#1a1a1a;border-radius:3px}
 </style>
 </head>
 <body>
 <div class="phone">
-  <div class="status-bar"><span class="time">9:41</span><span>📶 🔋</span></div>
+  <div class="status-bar">
+    <span>9:41</span>
+    <svg width="66" height="12" viewBox="0 0 66 12"><rect x="0" y="0" width="18" height="12" rx="2" fill="#1a1a1a"/><rect x="20" y="2" width="18" height="8" rx="2" fill="#1a1a1a"/><rect x="40" y="4" width="18" height="4" rx="2" fill="#1a1a1a"/><rect x="60" y="1" width="4" height="10" rx="1" fill="#1a1a1a"/></svg>
+  </div>
   <div class="nav-bar" id="navBar">
     <a href="08-ai-chat.html" class="back">‹ 返回</a>
     <span>对话历史</span>
-    <button class="edit-btn" onclick="toggleEdit()">编辑</button>
+    <button class="edit-btn" onclick="toggleEdit()">管理</button>
     <button class="done-btn" onclick="toggleEdit()">完成</button>
   </div>
 
   <div class="page-content" id="convList">
-    <!-- Conversation 1 -->
     <div class="conv-item" id="conv1" onclick="openConv(this, event)">
-      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">✓</div>
+      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="conv-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <div class="conv-body">
         <div class="conv-title">小区物业电话咨询</div>
         <div class="conv-preview">兰园小区物业服务中心 ☎️ 010-8888-6666...</div>
       </div>
       <span class="conv-time">昨天</span>
-      <div class="conv-actions">
-        <button class="btn-rename" onclick="event.stopPropagation();showRename('conv1')" title="重命名">✏️</button>
-        <button class="btn-delete" onclick="event.stopPropagation();deleteConv('conv1')" title="删除">🗑️</button>
-      </div>
     </div>
 
-    <!-- Conversation 2 -->
     <div class="conv-item" id="conv2" onclick="openConv(this, event)">
-      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">✓</div>
+      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="conv-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <div class="conv-body">
         <div class="conv-title">周末去哪玩推荐</div>
         <div class="conv-preview">北京周末好去处 🌿 奥林匹克森林公园、798...</div>
       </div>
       <span class="conv-time">3天前</span>
-      <div class="conv-actions">
-        <button class="btn-rename" onclick="event.stopPropagation();showRename('conv2')" title="重命名">✏️</button>
-        <button class="btn-delete" onclick="event.stopPropagation();deleteConv('conv2')" title="删除">🗑️</button>
-      </div>
     </div>
 
-    <!-- Conversation 3 -->
     <div class="conv-item" id="conv3" onclick="openConv(this, event)">
-      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">✓</div>
+      <div class="conv-check" onclick="event.stopPropagation();toggleCheck(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="conv-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <div class="conv-body">
         <div class="conv-title">周边美食推荐</div>
         <div class="conv-preview">小区周边美食推荐 🍜 老北京炸酱面、蜀九香...</div>
       </div>
       <span class="conv-time">1周前</span>
-      <div class="conv-actions">
-        <button class="btn-rename" onclick="event.stopPropagation();showRename('conv3')" title="重命名">✏️</button>
-        <button class="btn-delete" onclick="event.stopPropagation();deleteConv('conv3')" title="删除">🗑️</button>
-      </div>
     </div>
   </div>
 
   <!-- Batch bar -->
   <div class="batch-bar" id="batchBar">
     <span class="batch-count" id="batchCount">已选择 0 项</span>
-    <span class="batch-delete" onclick="batchDelete()">删除</span>
+    <span class="batch-delete" onclick="batchDelete()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px;margin-right:2px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      删除
+    </span>
   </div>
 
   <!-- Rename modal -->
@@ -206,20 +203,11 @@ function doRename() {
   hideRename();
 }
 
-function deleteConv(id) {
-  document.getElementById(id).style.opacity = '0';
-  document.getElementById(id).style.transform = 'translateX(-100%)';
-  document.getElementById(id).style.transition = 'all 0.3s';
-  setTimeout(function() {
-    document.getElementById(id).remove();
-  }, 300);
-}
-
 function batchDelete() {
   document.querySelectorAll('.conv-check.checked').forEach(function(c) {
     var item = c.closest('.conv-item');
     item.style.opacity = '0';
-    item.style.transform = 'translateX(-100%)';
+    item.style.transform = 'translateX(-120%)';
     item.style.transition = 'all 0.3s';
     setTimeout(function() { item.remove(); }, 300);
   });

@@ -6,42 +6,63 @@
 <title>兰园 · 小程序设计稿</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; background: #e8e8e8; color: #333; }
-.header { background: #fff; padding: 24px 32px; border-bottom: 1px solid #e0e0e0; text-align: center; }
-.header h1 { font-size: 24px; color: #07C160; margin-bottom: 4px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; background: #e8e8e8; color: #1a1a1a; }
+.header { background: #fff; padding: 28px 32px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+.header h1 { font-size: 24px; color: #07C160; margin-bottom: 4px; letter-spacing: 1px; }
 .header p { font-size: 14px; color: #999; }
 .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
-.section-title { font-size: 18px; font-weight: 600; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #07C160; display: inline-block; }
+.section-title { font-size: 18px; font-weight: 600; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #07C160; display: inline-block; color: #1a1a1a; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-.card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: block; }
-.card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-.card h3 { font-size: 16px; margin-bottom: 6px; }
+.card { background: #fff; border-radius: 14px; padding: 22px; box-shadow: 0 2px 14px rgba(0,0,0,0.05); transition: transform 0.25s, box-shadow 0.25s; text-decoration: none; color: inherit; display: block; }
+.card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.1); }
+.card h3 { font-size: 16px; margin-bottom: 6px; color: #1a1a1a; }
 .card p { font-size: 13px; color: #888; line-height: 1.5; }
-.card .badge { display: inline-block; background: #E8F8EE; color: #07C160; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
-.phone-frame { width: 375px; height: 812px; border: 2px solid #333; border-radius: 40px; overflow: hidden; margin: 0 auto; background: #fff; position: relative; box-shadow: 0 8px 40px rgba(0,0,0,0.15); }
-.phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 150px; height: 30px; background: #333; border-radius: 0 0 20px 20px; z-index: 10; }
+.card .badge { display: inline-block; background: #E8F8EE; color: #07C160; font-size: 11px; padding: 3px 10px; border-radius: 4px; margin-top: 10px; font-weight: 500; }
+.card .badge.primary { background: #07C160; color: #fff; }
+.flow-box { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 2px 14px rgba(0,0,0,0.05); line-height: 2; font-size: 14px; }
+.flow-box em { color: #999; font-style: normal; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🏡 兰园 · 小程序设计稿</h1>
-  <p>微信小程序公共底版 — WeChat Mini Program Base</p>
+  <h1>兰园 · 小程序设计稿</h1>
+  <p>微信小程序公共底版 — 社交 ｜ AI ｜ 我的</p>
 </div>
 
 <div class="container">
 
-  <span class="section-title">📱 页面列表</span>
+  <span class="section-title">页面列表</span>
   <div class="grid">
     <a href="01-login.html" class="card">
       <h3>01 · 微信授权登录</h3>
-      <p>一键微信登录，获取头像昵称</p>
-      <span class="badge">入口</span>
+      <p>一键微信登录，获取头像昵称，进入主页</p>
+      <span class="badge primary">入口</span>
+    </a>
+    <a href="05-social-feed.html" class="card">
+      <h3>05 · 社交广场</h3>
+      <p>帖子列表 + 内联评论，点赞互动，发帖入口</p>
+      <span class="badge">Tab 1 · 社交</span>
+    </a>
+    <a href="06-create-post.html" class="card">
+      <h3>06 · 发布帖子</h3>
+      <p>图文发帖，字数统计，多图上传</p>
+      <span class="badge">子页</span>
+    </a>
+    <a href="08-ai-chat.html" class="card">
+      <h3>08 · AI 助手</h3>
+      <p>对话历史列表 + 新对话入口 + DeepSeek 聊天</p>
+      <span class="badge">Tab 2 · AI</span>
+    </a>
+    <a href="09-ai-history.html" class="card">
+      <h3>09 · 对话管理</h3>
+      <p>批量删除、重命名对话历史</p>
+      <span class="badge">子页</span>
     </a>
     <a href="02-profile.html" class="card">
       <h3>02 · 我的</h3>
-      <p>用户信息、消息通知、设置入口</p>
-      <span class="badge">Tab 1</span>
+      <p>用户信息、消息通知红点、设置入口</p>
+      <span class="badge">Tab 3 · 我的</span>
     </a>
     <a href="03-edit-profile.html" class="card">
       <h3>03 · 编辑资料</h3>
@@ -50,43 +71,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica
     </a>
     <a href="04-settings.html" class="card">
       <h3>04 · 设置</h3>
-      <p>隐私设置、关于我们、退出登录</p>
-      <span class="badge">子页</span>
-    </a>
-    <a href="05-social-feed.html" class="card">
-      <h3>05 · 社交广场</h3>
-      <p>帖子列表，类似朋友圈风格</p>
-      <span class="badge">Tab 2</span>
-    </a>
-    <a href="06-create-post.html" class="card">
-      <h3>06 · 发布帖子</h3>
-      <p>图文发帖，选择图片</p>
-      <span class="badge">子页</span>
-    </a>
-    <a href="07-post-detail.html" class="card">
-      <h3>07 · 帖子详情</h3>
-      <p>点赞、评论、互动</p>
-      <span class="badge">子页</span>
-    </a>
-    <a href="08-ai-chat.html" class="card">
-      <h3>08 · AI 助手</h3>
-      <p>DeepSeek 对话，打字气泡</p>
-      <span class="badge">Tab 3</span>
-    </a>
-    <a href="09-ai-history.html" class="card">
-      <h3>09 · 对话历史</h3>
-      <p>历史会话列表，删除/重命名</p>
+      <p>隐私开关、关于我们、退出登录</p>
       <span class="badge">子页</span>
     </a>
   </div>
 
-  <span class="section-title">🔄 交互流程</span>
-  <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);line-height:2;font-size:14px;">
-    <strong>主线：</strong> 微信授权登录 → 进入主页（底部 3 Tab：我的 / 社交 / AI）<br>
-    <strong>我的：</strong> 查看资料 → 编辑资料 / 消息通知 → 设置（隐私/关于/退出）<br>
-    <strong>社交：</strong> 浏览帖子 → 点赞/评论 → 发帖 → 帖子详情<br>
-    <strong>AI：</strong> 与 AI 对话 → 查看/管理对话历史 → 删除/重命名会话<br><br>
-    <em style="color:#888;">所有页面可通过上方卡片直接访问，页面内可模拟 Tab 切换和导航跳转</em>
+  <span class="section-title">交互流程</span>
+  <div class="flow-box">
+    <strong>主线：</strong> 微信授权登录 → 进入主页（底部 3 Tab：社交 / AI / 我的）<br>
+    <strong>社交：</strong> 浏览帖子 → 内联点赞/评论/发评论 → FAB 发帖<br>
+    <strong>AI：</strong> 对话历史列表 → 新对话或点击历史记录 → AI 对话界面 → 历史管理<br>
+    <strong>我的：</strong> 查看资料 → 编辑资料 / 消息通知（红点可切换）→ 设置（隐私/关于/退出）<br><br>
+    <em>所有页面可通过上方卡片直接访问，页面内可模拟 Tab 切换和导航跳转。</em><br>
+    <em>设计更新：SVG 图标、WeChat 绿主色调、底部 Tab 顺序 社交→AI→我的。</em>
   </div>
 </div>
 

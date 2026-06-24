@@ -7,44 +7,49 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
-.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
-.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
-.status-bar .time{width:54px;text-align:center}
-.status-bar .icons{display:flex;gap:4px;font-size:11px}
-.content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;text-align:center}
-.logo{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#07C160,#05A34E);display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff;margin-bottom:24px;box-shadow:0 8px 24px rgba(7,193,96,0.3)}
-.app-name{font-size:22px;font-weight:700;color:#333;margin-bottom:6px}
-.app-desc{font-size:14px;color:#999;margin-bottom:48px}
-.btn-login{width:100%;max-width:280px;padding:14px 0;background:#07C160;color:#fff;border:none;border-radius:24px;font-size:17px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:16px}
-.btn-login:hover{background:#06AD56;transform:scale(1.02)}
-.btn-login:active{transform:scale(0.98)}
-.btn-close{font-size:14px;color:#999;cursor:pointer;padding:8px 16px;background:none;border:none}
-.protocol{font-size:11px;color:#bbb;margin-top:32px;line-height:1.6}
+.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.12);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;flex-shrink:0;color:#1a1a1a}
+.content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 32px;text-align:center}
+.logo-wrap{position:relative;margin-bottom:32px}
+.logo-bg{width:88px;height:88px;border-radius:22px;background:linear-gradient(135deg,#07C160 0%,#00A650 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 32px rgba(7,193,96,0.28)}
+.logo-bg svg{width:44px;height:44px}
+.app-name{font-size:26px;font-weight:700;color:#1a1a1a;letter-spacing:2px;margin-bottom:6px}
+.app-desc{font-size:14px;color:#999;margin-bottom:52px;letter-spacing:1px}
+.btn-login{width:100%;max-width:280px;padding:15px 0;background:#07C160;color:#fff;border:none;border-radius:26px;font-size:17px;font-weight:600;cursor:pointer;transition:all 0.25s;margin-bottom:8px;letter-spacing:1px;box-shadow:0 4px 16px rgba(7,193,96,0.3)}
+.btn-login:hover{background:#06AD56;transform:translateY(-1px);box-shadow:0 6px 24px rgba(7,193,96,0.4)}
+.btn-login:active{transform:scale(0.97)}
+.protocol{font-size:11px;color:#bbb;margin-top:36px;line-height:1.8}
 .protocol a{color:#07C160;text-decoration:none}
 .home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
-/* Login success state */
+.home-indicator .bar{width:134px;height:5px;background:#1a1a1a;border-radius:3px}
 .login-success{display:none}
-.avatar{width:72px;height:72px;border-radius:50%;background:#E8F8EE;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px}
-.nickname{font-size:18px;font-weight:600;margin-bottom:4px}
-.entering{font-size:14px;color:#07C160;animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.avatar{width:72px;height:72px;border-radius:50%;background:#E8F8EE;display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.avatar svg{width:36px;height:36px;color:#07C160}
+.nickname{font-size:19px;font-weight:600;margin-bottom:6px;color:#1a1a1a}
+.entering{font-size:14px;color:#07C160;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 </style>
 </head>
 <body>
 <div class="phone">
   <div class="status-bar">
-    <span class="time">9:41</span>
-    <span class="icons">📶 🔋</span>
+    <span>9:41</span>
+    <svg width="66" height="12" viewBox="0 0 66 12"><rect x="0" y="0" width="18" height="12" rx="2" fill="#1a1a1a"/><rect x="20" y="2" width="18" height="8" rx="2" fill="#1a1a1a"/><rect x="40" y="4" width="18" height="4" rx="2" fill="#1a1a1a"/><rect x="60" y="1" width="4" height="10" rx="1" fill="#1a1a1a"/></svg>
   </div>
 
   <!-- Login view -->
   <div class="content" id="loginView">
-    <div class="logo">🏡</div>
+    <div class="logo-wrap">
+      <div class="logo-bg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+    </div>
     <div class="app-name">兰 园</div>
     <div class="app-desc">小区生活服务平台</div>
     <button class="btn-login" onclick="doLogin()">微信一键登录</button>
-    <button class="btn-close" onclick="doSkip()">暂不登录，先看看</button>
     <div class="protocol">
       登录即表示同意<br>
       <a href="#">《用户服务协议》</a> 和 <a href="#">《隐私政策》</a>
@@ -53,8 +58,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 
   <!-- Login success state -->
   <div class="content login-success" id="successView">
-    <div class="avatar">👤</div>
-    <div class="nickname" id="displayNickname">兰园业主</div>
+    <div class="avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+    <div class="nickname">兰园业主</div>
     <div class="entering">正在进入...</div>
   </div>
 
@@ -69,9 +76,6 @@ function doLogin() {
   setTimeout(function() {
     window.location.href = '02-profile.html';
   }, 1500);
-}
-function doSkip() {
-  window.location.href = '02-profile.html';
 }
 </script>
 </body>
