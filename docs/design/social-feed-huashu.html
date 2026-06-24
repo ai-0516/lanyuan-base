@@ -53,8 +53,23 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
 /* 4张图：2x2 */
 .grid-4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .grid-4 .note-img{height:100px;border-radius:6px}
+/* 5-9张图：统一3列网格 */
+.grid-5,.grid-6,.grid-7,.grid-8,.grid-9{grid-template-columns:1fr 1fr 1fr}
+.grid-5 .note-img,.grid-6 .note-img,.grid-7 .note-img,.grid-8 .note-img,.grid-9 .note-img{height:85px;border-radius:4px}
 /* 图片样式 */
 .note-img{width:100%;object-fit:cover;display:block;border:2px solid rgba(139,115,85,0.15);background:#e8d8c0}
+/* 更多便签形状 */
+.note:nth-child(9){border-radius:12px 2px 12px 2px;transform:rotate(0.6deg);margin-left:4px}
+.note:nth-child(10){border-radius:2px 14px 2px 14px;transform:rotate(-0.4deg);margin-right:8px;background:#FFFEF8}
+.note:nth-child(11){border-radius:14px 14px 4px 18px;transform:rotate(0.2deg);margin-left:5px}
+.note:nth-child(12){border-radius:4px 18px 14px 14px;transform:rotate(-0.7deg);margin-right:5px;background:#FFFDF5}
+.note:nth-child(13){border-radius:16px 4px 4px 16px;transform:rotate(0.9deg);margin-left:8px}
+/* 更多图钉位置 */
+.note:nth-child(9)::after{left:65%}
+.note:nth-child(10)::after{left:35%}
+.note:nth-child(11)::after{left:68%}
+.note:nth-child(12)::after{left:30%}
+.note:nth-child(13)::after{left:60%}
 .note-actions{display:flex;gap:18px;margin-top:8px;padding-top:8px;border-top:1px dotted #e0d0b8}
 .note-act{display:flex;align-items:center;gap:3px;font-size:12px;color:#a08060;cursor:pointer;border:none;background:none;font-family:inherit}
 .note-act.liked{color:#c04030}
@@ -212,6 +227,128 @@ body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2
       </div>
       <div class="note-comments">
         <div class="note-cmt"><strong>小雨妈妈：</strong>好像是我家小朋友丢的！我马上过来</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子9：小区秋色 · 5张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">小橘子</div>
+      <div class="note-meta"><span class="bldg">3号楼</span> 昨天</div>
+      <div class="note-text">秋天的小区太美了！满地银杏叶，随便拍拍都是大片 🍂</div>
+      <div class="note-images grid-5">
+        <img class="note-img" src="https://images.unsplash.com/photo-1506806732259-39c2d0268443?w=200&h=200&fit=crop" alt="秋色1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1477511801984-4ad318ed9846?w=200&h=200&fit=crop" alt="秋色2" loading="lazy" onerror="this.style.background='#d8e0c8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop" alt="秋色3" loading="lazy" onerror="this.style.background='#e0d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1507908708918-77a0e3d7a3e4?w=200&h=200&fit=crop" alt="秋色4" loading="lazy" onerror="this.style.background='#d8c8e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=200&h=200&fit=crop" alt="秋色5" loading="lazy" onerror="this.style.background='#c8d8e0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 67</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 22</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小雨妈妈：</strong>太美了！明天带相机去拍</div>
+        <div class="note-cmt"><strong>阿杰：</strong>第二张角度绝了</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子10：家庭聚餐 · 6张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">老张</div>
+      <div class="note-meta"><span class="bldg">5号楼</span> 昨天</div>
+      <div class="note-text">闺女周末回家，做了一桌子菜。住兰园十几年了，最幸福的就是一家人在一起 🏠</div>
+      <div class="note-images grid-6">
+        <img class="note-img" src="https://images.unsplash.com/photo-1555126634-323283e090fa?w=200&h=200&fit=crop" alt="聚餐1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=200&h=200&fit=crop" alt="聚餐2" loading="lazy" onerror="this.style.background='#d8e8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=200&h=200&fit=crop" alt="聚餐3" loading="lazy" onerror="this.style.background='#e0d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1432139555190-58524dae6a55?w=200&h=200&fit=crop" alt="聚餐4" loading="lazy" onerror="this.style.background='#d8c0e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&h=200&fit=crop" alt="聚餐5" loading="lazy" onerror="this.style.background='#c0e0d8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=200&h=200&fit=crop" alt="聚餐6" loading="lazy" onerror="this.style.background='#e0c8d0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 89</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 35</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小橘子：</strong>张叔好手艺！看着就香</div>
+        <div class="note-cmt"><strong>物业小助手：</strong>幸福的一家人 ❤️</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子11：周末郊游 · 7张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">阿杰</div>
+      <div class="note-meta"><span class="bldg">7号楼</span> 前天</div>
+      <div class="note-text">周末一家去郊野公园，小朋友玩疯了！推荐邻居们也去，开车半小时就到 🚙</div>
+      <div class="note-images grid-7">
+        <img class="note-img" src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&h=200&fit=crop" alt="郊游1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?w=200&h=200&fit=crop" alt="郊游2" loading="lazy" onerror="this.style.background='#d8e8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1519046904884-53103b34b206?w=200&h=200&fit=crop" alt="郊游3" loading="lazy" onerror="this.style.background='#e0d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1533587851505-d119e06fa0d7?w=200&h=200&fit=crop" alt="郊游4" loading="lazy" onerror="this.style.background='#d8c0e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=200&h=200&fit=crop" alt="郊游5" loading="lazy" onerror="this.style.background='#c0e0d8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=200&h=200&fit=crop" alt="郊游6" loading="lazy" onerror="this.style.background='#e0c8d0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1454496522488-7a8e488e8606?w=200&h=200&fit=crop" alt="郊游7" loading="lazy" onerror="this.style.background='#c8d8e0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 45</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 14</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小雨妈妈：</strong>哪个郊野公园？求定位！</div>
+        <div class="note-cmt"><strong>老张：</strong>下周末一起组团去啊</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子12：儿童画展 · 8张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">物业小助手</div>
+      <div class="note-meta"><span class="bldg">物业</span> 前天</div>
+      <div class="note-text">上周末小区「小小艺术家」儿童画展圆满举办！来看看孩子们的作品，每一幅都是惊喜 🎨</div>
+      <div class="note-images grid-8">
+        <img class="note-img" src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=200&h=200&fit=crop" alt="画展1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=200&h=200&fit=crop" alt="画展2" loading="lazy" onerror="this.style.background='#d8e8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=200&h=200&fit=crop" alt="画展3" loading="lazy" onerror="this.style.background='#e0d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1482160549825-59d1b23cb208?w=200&h=200&fit=crop" alt="画展4" loading="lazy" onerror="this.style.background='#d8c0e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=200&h=200&fit=crop" alt="画展5" loading="lazy" onerror="this.style.background='#c0e0d8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=200&h=200&fit=crop" alt="画展6" loading="lazy" onerror="this.style.background='#e0c8d0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1560421683-6856ea585c78?w=200&h=200&fit=crop" alt="画展7" loading="lazy" onerror="this.style.background='#c8d8e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1579762715118-a6f1d4b934f1?w=200&h=200&fit=crop" alt="画展8" loading="lazy" onerror="this.style.background='#d0c8e0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 112</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 47</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>小橘子：</strong>我家娃的画入选了！第三排那张</div>
+        <div class="note-cmt"><strong>小雨妈妈：</strong>孩子们太有才了 👏</div>
+        <div class="note-cmt"><strong>老张：</strong>下次什么时候再办？</div>
+      </div>
+    </div></div>
+
+    <!-- 帖子13：宠物聚会 · 9张图 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">小雨妈妈</div>
+      <div class="note-meta"><span class="bldg">2号楼</span> 前天</div>
+      <div class="note-text">小区宠物聚会圆满结束！十几只狗狗一起玩耍，简直就是狗狗界的社交名场面 🐕🐩🦮</div>
+      <div class="note-images grid-9">
+        <img class="note-img" src="https://images.unsplash.com/photo-1552053831-71594a27632d?w=200&h=200&fit=crop" alt="宠物1" loading="lazy" onerror="this.style.background='#e8d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=200&h=200&fit=crop" alt="宠物2" loading="lazy" onerror="this.style.background='#d8e8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=200&h=200&fit=crop" alt="宠物3" loading="lazy" onerror="this.style.background='#e0d8c0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1517849845537-4d257902454a?w=200&h=200&fit=crop" alt="宠物4" loading="lazy" onerror="this.style.background='#d8c0e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1530281700549-e82e7bf110d6?w=200&h=200&fit=crop" alt="宠物5" loading="lazy" onerror="this.style.background='#c0e0d8'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=200&h=200&fit=crop" alt="宠物6" loading="lazy" onerror="this.style.background='#e0c8d0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1561037404-61cd46aa615b?w=200&h=200&fit=crop" alt="宠物7" loading="lazy" onerror="this.style.background='#c8d8e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=200&h=200&fit=crop" alt="宠物8" loading="lazy" onerror="this.style.background='#d0c8e0'">
+        <img class="note-img" src="https://images.unsplash.com/photo-1518020382113-a7e7fc1b0231?w=200&h=200&fit=crop" alt="宠物9" loading="lazy" onerror="this.style.background='#e8c0d0'">
+      </div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 203</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 78</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>阿杰：</strong>下次什么时候？我也想带我家柯基来</div>
+        <div class="note-cmt"><strong>小橘子：</strong>金毛和柴犬那张笑死我了 😂</div>
+        <div class="note-cmt"><strong>物业小助手：</strong>大家注意牵绳哈，文明养宠~</div>
       </div>
     </div></div>
 
