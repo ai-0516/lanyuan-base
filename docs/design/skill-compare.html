@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三 Skill 对比 · 暖邻社交广场</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e0d8;color:#4A3B2F;min-height:100vh}
+.header{background:#FFFBF6;padding:24px 32px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+.header h1{font-size:20px;color:#D4845A;margin-bottom:4px;letter-spacing:2px}
+.header p{font-size:13px;color:#B8A898;line-height:1.8}
+.container{max-width:1300px;margin:0 auto;padding:28px 20px}
+.compare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.dir-card{background:#FFFBF6;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);border:1px solid #EDE4D8;transition:transform .25s,box-shadow .25s}
+.dir-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.08)}
+.dir-head{padding:18px 20px 10px;text-align:center}
+.dir-head h2{font-size:17px;margin-bottom:4px}
+.dir-head .sub{font-size:12px;color:#B8A898}
+.dir-head .tag-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.dir-head .tag{padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700}
+.tag-h{background:#FFF0E8;color:#D4845A}
+.tag-u{background:#E8EEF4;color:#5B7B9A}
+.tag-f{background:#F0E8F0;color:#8B6B9A}
+.dir-preview{height:450px;overflow:hidden;position:relative;background:#e8e0d8}
+.dir-preview iframe{width:430px;height:900px;border:none;transform:scale(0.65);transform-origin:top left;position:absolute;top:0;left:0}
+.dir-link{padding:12px 20px;text-align:center}
+.dir-link a{display:inline-block;padding:8px 24px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;background:#D4845A;transition:opacity .2s}
+.dir-link a:hover{opacity:.85}
+
+.insight-box{background:#FFFBF6;border-radius:16px;padding:28px 32px;margin-top:32px;box-shadow:0 1px 4px rgba(0,0,0,0.04);border:1px solid #EDE4D8}
+.insight-box h2{font-size:18px;color:#4A3B2F;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #EDE4D8}
+.insight-box table{width:100%;border-collapse:collapse;font-size:13px}
+.insight-box th,.insight-box td{padding:10px 14px;text-align:left;border-bottom:1px solid #F0E8DA}
+.insight-box th{color:#8B7355;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;background:#FAF7F2}
+.insight-box td{color:#6B5E53;line-height:1.6;vertical-align:top}
+.insight-box .highlight{color:#D4845A;font-weight:600}
+
+@media(max-width:900px){
+  .compare-grid{grid-template-columns:1fr}
+  .dir-preview{height:380px}
+  .dir-preview iframe{transform:scale(0.55)}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>三 Skill 独立产出对比</h1>
+  <p>同一需求（暖邻 · 邻里广场）· 同一配色 · 同一内容<br>每个版本只加载一个设计 Skill，观察各自侧重点</p>
+</div>
+<div class="container">
+  <div class="compare-grid">
+    <div class="dir-card">
+      <div class="dir-head">
+        <h2>🎨 huashu-design</h2>
+        <div class="sub">花叔设计</div>
+        <div class="tag-row"><span class="tag tag-h">反AI slop</span><span class="tag tag-h">签名元素</span><span class="tag tag-h">120%细节</span></div>
+      </div>
+      <div class="dir-preview"><iframe src="social-feed-huashu.html"></iframe></div>
+      <div class="dir-link"><a href="social-feed-huashu.html" target="_blank">全屏查看 →</a></div>
+    </div>
+    <div class="dir-card">
+      <div class="dir-head">
+        <h2>📐 ui-ux-pro-max</h2>
+        <div class="sub">交互与可访问性</div>
+        <div class="tag-row"><span class="tag tag-u">44pt触控</span><span class="tag tag-u">4.5:1对比</span><span class="tag tag-u">aria语义</span></div>
+      </div>
+      <div class="dir-preview"><iframe src="social-feed-ux.html"></iframe></div>
+      <div class="dir-link"><a href="social-feed-ux.html" target="_blank">全屏查看 →</a></div>
+    </div>
+    <div class="dir-card">
+      <div class="dir-head">
+        <h2>💡 frontend-design</h2>
+        <div class="sub">视觉辨识度</div>
+        <div class="tag-row"><span class="tag tag-f">审美冒险</span><span class="tag tag-f">排版性格</span><span class="tag tag-f">不可复制</span></div>
+      </div>
+      <div class="dir-preview"><iframe src="social-feed-frontend.html"></iframe></div>
+      <div class="dir-link"><a href="social-feed-frontend.html" target="_blank">全屏查看 →</a></div>
+    </div>
+  </div>
+
+  <div class="insight-box">
+    <h2>三版差异分析</h2>
+    <table>
+      <thead><tr><th>维度</th><th>🎨 huashu-design</th><th>📐 ui-ux-pro-max</th><th>💡 frontend-design</th></tr></thead>
+      <tbody>
+        <tr><td><b>核心关注</b></td><td>视觉品质、反模板化</td><td>可用性、可访问性</td><td>独特性、风格辨识度</td></tr>
+        <tr><td><b>签名元素</b></td><td class="highlight">软木板肌理 + 便签胶带</td><td>完整的 aria 标注 + focus ring</td><td class="highlight">门牌号样式 + 偏移卡片</td></tr>
+        <tr><td><b>卡片布局</b></td><td>统一居中，16px 圆角</td><td>统一居中，16px 圆角</td><td class="highlight">奇数贴左/偶数贴右，不对称</td></tr>
+        <tr><td><b>头像样式</b></td><td>圆形 44px</td><td>圆形 48px（≥44pt 规范）</td><td>柔方圆角 14px 42px</td></tr>
+        <tr><td><b>按钮触控</b></td><td>标准尺寸</td><td class="highlight">全部 ≥44pt + hover/active 三态</td><td>标准尺寸</td></tr>
+        <tr><td><b>焦点状态</b></td><td>默认浏览器行为</td><td class="highlight">显式 focus ring（#D4845A）</td><td>默认浏览器行为</td></tr>
+        <tr><td><b>辅助功能</b></td><td>无标注</td><td class="highlight">aria-label · role · reduced-motion</td><td>无标注</td></tr>
+        <tr><td><b>FAB 按钮</b></td><td>圆形 50px</td><td>圆形 48px + focus</td><td>16px 圆角正方形 + hover 变圆</td></tr>
+        <tr><td><b>间距系统</b></td><td>视觉舒适为主</td><td class="highlight">规范 8dp 递增</td><td>视觉节奏为主</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

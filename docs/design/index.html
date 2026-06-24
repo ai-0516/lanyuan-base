@@ -3,89 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>兰园 · 小程序设计稿</title>
+<title>兰园 · 设计稿</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; background: #e8e8e8; color: #1a1a1a; }
-.header { background: #fff; padding: 28px 32px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
-.header h1 { font-size: 24px; color: #07C160; margin-bottom: 4px; letter-spacing: 1px; }
-.header p { font-size: 14px; color: #999; }
-.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
-.section-title { font-size: 18px; font-weight: 600; margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #07C160; display: inline-block; color: #1a1a1a; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-.card { background: #fff; border-radius: 14px; padding: 22px; box-shadow: 0 2px 14px rgba(0,0,0,0.05); transition: transform 0.25s, box-shadow 0.25s; text-decoration: none; color: inherit; display: block; }
-.card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.1); }
-.card h3 { font-size: 16px; margin-bottom: 6px; color: #1a1a1a; }
-.card p { font-size: 13px; color: #888; line-height: 1.5; }
-.card .badge { display: inline-block; background: #E8F8EE; color: #07C160; font-size: 11px; padding: 3px 10px; border-radius: 4px; margin-top: 10px; font-weight: 500; }
-.card .badge.primary { background: #07C160; color: #fff; }
-.flow-box { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 2px 14px rgba(0,0,0,0.05); line-height: 2; font-size: 14px; }
-.flow-box em { color: #999; font-style: normal; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e0d8;color:#4A3B2F;min-height:100vh}
+.header{background:#FFFBF6;padding:28px 32px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+.header h1{font-size:24px;color:#D4845A;margin-bottom:4px;letter-spacing:2px;font-weight:700}
+.header .sub{font-size:14px;color:#B8A898}
+.container{max-width:1100px;margin:0 auto;padding:32px 24px}
+.section-title{font-size:16px;color:#8B7355;font-weight:600;margin:36px 0 16px;padding-left:12px;border-left:3px solid #D4845A}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.card{background:#FFFBF6;border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,0.03),0 4px 12px rgba(0,0,0,0.03);border:1px solid #EDE4D8;transition:transform .25s,box-shadow .25s;text-decoration:none;color:inherit;display:block;cursor:pointer}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.08)}
+.card h3{font-size:16px;color:#4A3B2F;margin-bottom:6px}
+.card p{font-size:13px;color:#B8A898;line-height:1.5}
+.card .badge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:4px;margin-top:10px;font-weight:600}
+.badge-main{background:#EDE4D8;color:#8B7355}
+.badge-accent{background:#D4845A;color:#fff}
+.flow-box{background:#FFFBF6;border-radius:16px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,0.03);line-height:2.2;font-size:14px;border:1px solid #EDE4D8;color:#6B5E53}
+.flow-box .arrow{color:#D4845A;font-weight:600}
 </style>
 </head>
 <body>
-
 <div class="header">
-  <h1>兰园 · 小程序设计稿</h1>
-  <p>微信小程序公共底版 — 社交 ｜ AI ｜ 我的</p>
+  <h1>兰园 · 邻里社区</h1>
+  <p class="sub">东方兰园小区 — 微信小程序设计稿 · 暖邻风格</p>
 </div>
-
 <div class="container">
-
   <span class="section-title">页面列表</span>
   <div class="grid">
     <a href="01-login.html" class="card">
       <h3>01 · 微信授权登录</h3>
-      <p>一键微信登录，获取头像昵称，进入主页</p>
-      <span class="badge primary">入口</span>
+      <p>一键微信登录，获取头像昵称，进入社区</p>
+      <span class="badge badge-accent">入口</span>
     </a>
-    <a href="05-social-feed.html" class="card">
-      <h3>05 · 社交广场</h3>
-      <p>帖子列表 + 内联评论，点赞互动，发帖入口</p>
-      <span class="badge">Tab 1 · 社交</span>
+    <a href="social-feed-warm.html" class="card">
+      <h3>02 · 邻里广场</h3>
+      <p>社区动态流，邻里分享互助，点赞评论</p>
+      <span class="badge badge-accent">首页</span>
+    </a>
+    <a href="07-post-detail.html" class="card">
+      <h3>03 · 帖子详情</h3>
+      <p>查看帖子全文、图片、评论列表</p>
+      <span class="badge badge-main">社交</span>
     </a>
     <a href="06-create-post.html" class="card">
-      <h3>06 · 发布帖子</h3>
-      <p>图文发帖，字数统计，多图上传</p>
-      <span class="badge">子页</span>
+      <h3>04 · 发布内容</h3>
+      <p>写文字、上传图片、选择话题标签</p>
+      <span class="badge badge-main">社交</span>
     </a>
     <a href="08-ai-chat.html" class="card">
-      <h3>08 · AI 助手</h3>
-      <p>对话历史列表 + 新对话入口 + DeepSeek 聊天</p>
-      <span class="badge">Tab 2 · AI</span>
+      <h3>05 · 小兰助手</h3>
+      <p>AI 社区助手，物业问答、生活咨询</p>
+      <span class="badge badge-accent">AI</span>
     </a>
     <a href="09-ai-history.html" class="card">
-      <h3>09 · 对话管理</h3>
-      <p>批量删除、重命名对话历史</p>
-      <span class="badge">子页</span>
+      <h3>06 · 对话历史</h3>
+      <p>查看过往的 AI 对话记录</p>
+      <span class="badge badge-main">AI</span>
     </a>
     <a href="02-profile.html" class="card">
-      <h3>02 · 我的</h3>
-      <p>用户信息、消息通知红点、设置入口</p>
-      <span class="badge">Tab 3 · 我的</span>
+      <h3>07 · 个人主页</h3>
+      <p>我的信息、发布的帖子、收藏</p>
+      <span class="badge badge-accent">我的</span>
     </a>
     <a href="03-edit-profile.html" class="card">
-      <h3>03 · 编辑资料</h3>
-      <p>楼号、单元、房号、个性签名</p>
-      <span class="badge">子页</span>
+      <h3>08 · 编辑资料</h3>
+      <p>修改头像、昵称、楼栋号、简介</p>
+      <span class="badge badge-main">我的</span>
     </a>
     <a href="04-settings.html" class="card">
-      <h3>04 · 设置</h3>
-      <p>隐私开关、关于我们、退出登录</p>
-      <span class="badge">子页</span>
+      <h3>09 · 设置</h3>
+      <p>消息通知、隐私、通用设置</p>
+      <span class="badge badge-main">我的</span>
     </a>
   </div>
 
-  <span class="section-title">交互流程</span>
+  <span class="section-title">用户流程</span>
   <div class="flow-box">
-    <strong>主线：</strong> 微信授权登录 → 进入主页（底部 3 Tab：社交 / AI / 我的）<br>
-    <strong>社交：</strong> 浏览帖子 → 内联点赞/评论/发评论 → FAB 发帖<br>
-    <strong>AI：</strong> 对话历史列表 → 新对话或点击历史记录 → AI 对话界面 → 历史管理<br>
-    <strong>我的：</strong> 查看资料 → 编辑资料 / 消息通知（红点可切换）→ 设置（隐私/关于/退出）<br><br>
-    <em>所有页面可通过上方卡片直接访问，页面内可模拟 Tab 切换和导航跳转。</em><br>
-    <em>设计更新：SVG 图标、WeChat 绿主色调、底部 Tab 顺序 社交→AI→我的。</em>
+    微信打开小程序 → <span class="arrow">01 登录授权</span> → 进入 <span class="arrow">02 邻里广场</span>（默认首页）<br>
+    └ 底部 Tab <span class="arrow">广场</span> / <span class="arrow">AI</span> / <span class="arrow">我的</span> 三栏切换<br>
+    └ 广场 → 点击帖子 → <span class="arrow">03 帖子详情</span><br>
+    └ 广场 → 右下角 + → <span class="arrow">04 发布内容</span><br>
+    └ AI → <span class="arrow">05 小兰助手</span> → <span class="arrow">06 对话历史</span><br>
+    └ 我的 → <span class="arrow">07 个人主页</span> → <span class="arrow">08 编辑资料</span> / <span class="arrow">09 设置</span>
   </div>
 </div>
-
 </body>
 </html>

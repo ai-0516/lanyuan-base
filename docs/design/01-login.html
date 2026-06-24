@@ -3,80 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>微信授权登录 · 兰园</title>
+<title>登录 · 兰园</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
-.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.12);display:flex;flex-direction:column}
-.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;flex-shrink:0;color:#1a1a1a}
-.content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 32px;text-align:center}
-.logo-wrap{position:relative;margin-bottom:32px}
-.logo-bg{width:88px;height:88px;border-radius:22px;background:linear-gradient(135deg,#07C160 0%,#00A650 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 32px rgba(7,193,96,0.28)}
-.logo-bg svg{width:44px;height:44px}
-.app-name{font-size:26px;font-weight:700;color:#1a1a1a;letter-spacing:2px;margin-bottom:6px}
-.app-desc{font-size:14px;color:#999;margin-bottom:52px;letter-spacing:1px}
-.btn-login{width:100%;max-width:280px;padding:15px 0;background:#07C160;color:#fff;border:none;border-radius:26px;font-size:17px;font-weight:600;cursor:pointer;transition:all 0.25s;margin-bottom:8px;letter-spacing:1px;box-shadow:0 4px 16px rgba(7,193,96,0.3)}
-.btn-login:hover{background:#06AD56;transform:translateY(-1px);box-shadow:0 6px 24px rgba(7,193,96,0.4)}
-.btn-login:active{transform:scale(0.97)}
-.protocol{font-size:11px;color:#bbb;margin-top:36px;line-height:1.8}
-.protocol a{color:#07C160;text-decoration:none}
-.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.home-indicator .bar{width:134px;height:5px;background:#1a1a1a;border-radius:3px}
-.login-success{display:none}
-.avatar{width:72px;height:72px;border-radius:50%;background:#E8F8EE;display:flex;align-items:center;justify-content:center;margin-bottom:20px}
-.avatar svg{width:36px;height:36px;color:#07C160}
-.nickname{font-size:19px;font-weight:600;margin-bottom:6px;color:#1a1a1a}
-.entering{font-size:14px;color:#07C160;animation:pulse 1.6s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e0d8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#FAF7F2;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#FAF7F2;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:#6B5E53;flex-shrink:0}
+.content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;text-align:center}
+.app-icon{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#E8D5C4,#D4845A);display:flex;align-items:center;justify-content:center;margin-bottom:24px;color:#fff;font-size:36px;font-weight:700;box-shadow:0 8px 24px rgba(212,132,90,0.25)}
+.app-name{font-size:26px;font-weight:700;color:#4A3B2F;letter-spacing:3px;margin-bottom:6px}
+.app-desc{font-size:15px;color:#B8A898;line-height:1.6;margin-bottom:48px}
+.app-desc span{color:#D4845A;font-weight:600}
+.features{display:flex;gap:28px;margin-bottom:56px}
+.feature{display:flex;flex-direction:column;align-items:center;gap:8px}
+.feature .icon{width:48px;height:48px;border-radius:14px;background:#FFFBF6;display:flex;align-items:center;justify-content:center;font-size:20px;border:1px solid #EDE4D8}
+.feature .label{font-size:12px;color:#8B7355}
+.wechat-btn{width:100%;max-width:280px;padding:14px 0;background:#07C160;color:#fff;border:none;border-radius:24px;font-size:17px;font-weight:600;cursor:pointer;letter-spacing:1px;box-shadow:0 4px 16px rgba(7,193,96,0.25);transition:transform .2s,box-shadow .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.wechat-btn:hover{transform:scale(1.02);box-shadow:0 6px 20px rgba(7,193,96,0.35)}
+.wechat-btn:active{transform:scale(0.97)}
+.wechat-btn svg{width:22px;height:22px}
+.agree-text{font-size:11px;color:#B8A898;margin-top:18px;line-height:1.6}
+.agree-text a{color:#D4845A;text-decoration:none}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#FAF7F2}
+.home-indicator .bar{width:134px;height:5px;background:#6B5E53;border-radius:3px;opacity:.3}
 </style>
 </head>
 <body>
 <div class="phone">
-  <div class="status-bar">
-    <span>9:41</span>
-    <svg width="66" height="12" viewBox="0 0 66 12"><rect x="0" y="0" width="18" height="12" rx="2" fill="#1a1a1a"/><rect x="20" y="2" width="18" height="8" rx="2" fill="#1a1a1a"/><rect x="40" y="4" width="18" height="4" rx="2" fill="#1a1a1a"/><rect x="60" y="1" width="4" height="10" rx="1" fill="#1a1a1a"/></svg>
-  </div>
-
-  <!-- Login view -->
-  <div class="content" id="loginView">
-    <div class="logo-wrap">
-      <div class="logo-bg">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-      </div>
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px">东方兰园</span></div>
+  <div class="content">
+    <div class="app-icon">兰</div>
+    <div class="app-name">东方兰园</div>
+    <div class="app-desc"><span>邻里互助</span> · <span>生活分享</span> · <span>智能问答</span><br>你的社区生活好帮手</div>
+    <div class="features">
+      <div class="feature"><div class="icon">🏡</div><div class="label">邻里广场</div></div>
+      <div class="feature"><div class="icon">🤖</div><div class="label">AI 助手</div></div>
+      <div class="feature"><div class="icon">👤</div><div class="label">个人中心</div></div>
     </div>
-    <div class="app-name">兰 园</div>
-    <div class="app-desc">小区生活服务平台</div>
-    <button class="btn-login" onclick="doLogin()">微信一键登录</button>
-    <div class="protocol">
-      登录即表示同意<br>
-      <a href="#">《用户服务协议》</a> 和 <a href="#">《隐私政策》</a>
-    </div>
+    <button class="wechat-btn" onclick="this.textContent='登录中...';this.style.opacity='0.7'">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.69 11.94c.53 0 .96.42.96.94s-.43.94-.96.94-.96-.42-.96-.94.43-.94.96-.94zm4.62 0c.53 0 .96.42.96.94s-.43.94-.96.94-.96-.42-.96-.94.43-.94.96-.94z"/><path d="M21.2 13.43c0-3.97-3.52-7.2-7.85-7.2-4.33 0-7.85 3.23-7.85 7.2 0 3.53 2.92 6.49 6.82 7.06l1.03.53-1.58 1.6-.41.41.7-.07 3.23-.34c4.33-.49 7.91-3.68 7.91-7.39zm-12.69-1.49c0-.53.43-.94.96-.94s.96.42.96.94-.43.94-.96.94-.96-.42-.96-.94zm4.62 0c0-.53.43-.94.96-.94s.96.42.96.94-.43.94-.96.94-.96-.42-.96-.94zm-2.24 5.21c-.48.23-1.03-.11-.92-.56.11-.45.64-.72 1.12-.49.48.23.67.74.28 1.05z"/></svg>
+      微信一键登录
+    </button>
+    <div class="agree-text">登录即表示同意 <a href="#">《用户协议》</a> 和 <a href="#">《隐私政策》</a></div>
   </div>
-
-  <!-- Login success state -->
-  <div class="content login-success" id="successView">
-    <div class="avatar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    </div>
-    <div class="nickname">兰园业主</div>
-    <div class="entering">正在进入...</div>
-  </div>
-
   <div class="home-indicator"><div class="bar"></div></div>
 </div>
-
-<script>
-function doLogin() {
-  document.getElementById('loginView').style.display = 'none';
-  var sv = document.getElementById('successView');
-  sv.style.display = 'flex';
-  setTimeout(function() {
-    window.location.href = '02-profile.html';
-  }, 1500);
-}
-</script>
 </body>
 </html>
