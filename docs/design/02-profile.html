@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的 · 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#f5f5f5;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
+.status-bar .time{width:54px;text-align:center}
+.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;position:relative;flex-shrink:0;border-bottom:1px solid #eee}
+.nav-bar .title{color:#333}
+.page-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+/* Profile header */
+.profile-header{background:#fff;padding:24px 20px 20px;text-align:center;margin-bottom:12px}
+.avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#E8F8EE,#D4F5E2);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px}
+.nickname{font-size:20px;font-weight:600;margin-bottom:4px}
+.community-info{display:flex;justify-content:center;gap:16px;font-size:13px;color:#888;margin-top:8px}
+.community-info span{background:#f5f5f5;padding:4px 12px;border-radius:12px}
+.edit-btn{display:inline-block;margin-top:12px;font-size:13px;color:#07C160;cursor:pointer;padding:4px 16px;border:1px solid #07C160;border-radius:16px;transition:all 0.2s}
+.edit-btn:hover{background:#E8F8EE}
+
+/* Notification badge */
+.notify-row{display:flex;align-items:center;justify-content:space-between;background:#fff;padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:background 0.15s}
+.notify-row:hover{background:#fafafa}
+.notify-left{display:flex;align-items:center;gap:12px}
+.notify-icon{width:40px;height:40px;border-radius:8px;background:#FFF3E0;display:flex;align-items:center;justify-content:center;font-size:18px}
+.notify-label{font-size:15px}
+.badge{background:#FF3B30;color:#fff;font-size:11px;min-width:20px;height:20px;border-radius:10px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.arrow{color:#ccc;font-size:16px}
+
+/* Menu section */
+.menu-section{background:#fff;margin-bottom:12px}
+.menu-item{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background 0.15s}
+.menu-item:hover{background:#fafafa}
+.menu-item:last-child{border-bottom:none}
+.menu-left{display:flex;align-items:center;gap:12px}
+.menu-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.menu-icon.green{background:#E8F8EE}
+.menu-icon.blue{background:#E8F0FE}
+.menu-icon.orange{background:#FFF3E0}
+.menu-label{font-size:15px}
+.menu-right{display:flex;align-items:center;gap:6px}
+.menu-value{font-size:13px;color:#999}
+
+/* Tab bar */
+.tab-bar{height:56px;background:#fff;border-top:1px solid #e8e8e8;display:flex;align-items:center;flex-shrink:0;padding-bottom:4px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#999;font-size:10px;gap:2px;transition:color 0.2s;text-decoration:none}
+.tab.active{color:#07C160}
+.tab .tab-icon{font-size:22px}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>📶 🔋</span></div>
+  <div class="nav-bar"><span class="title">我的</span></div>
+
+  <div class="page-content">
+    <!-- Profile header -->
+    <div class="profile-header">
+      <div class="avatar">👤</div>
+      <div class="nickname">兰园业主</div>
+      <div class="community-info">
+        <span>🏢 3号楼</span>
+        <span>2单元</span>
+        <span>1201室</span>
+      </div>
+      <a href="03-edit-profile.html" class="edit-btn">编辑资料</a>
+    </div>
+
+    <!-- Notifications -->
+    <div class="notify-row" id="notifyRow" onclick="toggleBadge()">
+      <div class="notify-left">
+        <div class="notify-icon">🔔</div>
+        <span class="notify-label">消息通知</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="badge" id="notifyBadge">3</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+    <!-- Menu group 1 -->
+    <div class="menu-section">
+      <div class="menu-item">
+        <div class="menu-left"><div class="menu-icon green">📋</div><span class="menu-label">我的帖子</span></div>
+        <div class="menu-right"><span class="menu-value">12</span><span class="arrow">›</span></div>
+      </div>
+      <div class="menu-item">
+        <div class="menu-left"><div class="menu-icon blue">❤️</div><span class="menu-label">我的点赞</span></div>
+        <span class="arrow">›</span>
+      </div>
+      <div class="menu-item">
+        <div class="menu-left"><div class="menu-icon orange">💬</div><span class="menu-label">我的评论</span></div>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+    <!-- Menu group 2 -->
+    <div class="menu-section">
+      <a href="04-settings.html" style="text-decoration:none;color:inherit;display:block" class="menu-item">
+        <div class="menu-left"><div class="menu-icon" style="background:#f0f0f0">⚙️</div><span class="menu-label">设置</span></div>
+        <span class="arrow">›</span>
+      </a>
+    </div>
+
+    <div style="height:12px"></div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <a href="02-profile.html" class="tab active">
+      <span class="tab-icon">👤</span><span>我的</span>
+    </a>
+    <a href="05-social-feed.html" class="tab">
+      <span class="tab-icon">💬</span><span>社交</span>
+    </a>
+    <a href="08-ai-chat.html" class="tab">
+      <span class="tab-icon">🤖</span><span>AI</span>
+    </a>
+  </div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+function toggleBadge() {
+  var b = document.getElementById('notifyBadge');
+  if (b.style.display === 'none') { b.style.display = 'flex'; }
+  else { b.style.display = 'none'; }
+}
+</script>
+</body>
+</html>

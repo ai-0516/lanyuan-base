@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编辑资料 · 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#f5f5f5;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
+.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;position:relative;flex-shrink:0;border-bottom:1px solid #eee}
+.nav-bar .back{position:absolute;left:12px;font-size:15px;color:#07C160;cursor:pointer;padding:4px 8px;text-decoration:none}
+.page-content{flex:1;overflow-y:auto}
+
+.section{background:#fff;margin-bottom:12px}
+.section-title{font-size:12px;color:#999;padding:12px 20px 4px}
+.field{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background 0.15s}
+.field:hover{background:#fafafa}
+.field:last-child{border-bottom:none}
+.field-label{font-size:15px;color:#333}
+.field-value{font-size:14px;color:#999;display:flex;align-items:center;gap:4px}
+.avatar-sm{width:48px;height:48px;border-radius:50%;background:#E8F8EE;display:flex;align-items:center;justify-content:center;font-size:22px}
+input,textarea{font-size:15px;color:#333;border:none;text-align:right;outline:none;background:transparent;width:180px;font-family:inherit}
+textarea{resize:none;height:24px;line-height:24px}
+.field.editing{background:#FFFBEB}
+.save-bar{position:sticky;bottom:0;background:#fff;padding:12px 20px 24px;border-top:1px solid #eee}
+.save-btn{width:100%;padding:14px;background:#07C160;color:#fff;border:none;border-radius:24px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.save-btn:hover{background:#06AD56}
+.save-btn:active{transform:scale(0.98)}
+.toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.75);color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;display:none;z-index:100}
+.toast.show{display:block;animation:fadeInOut 2s ease}
+@keyframes fadeInOut{0%{opacity:0;transform:translate(-50%,-50%) scale(0.8)}15%{opacity:1;transform:translate(-50%,-50%) scale(1)}85%{opacity:1}100%{opacity:0}}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>📶 🔋</span></div>
+  <div class="nav-bar">
+    <a href="02-profile.html" class="back">‹ 返回</a>
+    <span>编辑资料</span>
+  </div>
+
+  <div class="page-content">
+    <div class="section">
+      <div class="field">
+        <span class="field-label">头像</span>
+        <div class="field-value"><div class="avatar-sm">👤</div> ›</div>
+      </div>
+      <div class="field">
+        <span class="field-label">昵称</span>
+        <div class="field-value"><span>兰园业主</span> ›</div>
+      </div>
+    </div>
+
+    <div class="section-title">社区信息</div>
+    <div class="section">
+      <div class="field">
+        <span class="field-label">楼号</span>
+        <div class="field-value">
+          <input type="text" value="3号楼" placeholder="请选择">
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">单元</span>
+        <div class="field-value">
+          <input type="text" value="2单元" placeholder="请选择">
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">房号</span>
+        <div class="field-value">
+          <input type="text" value="1201" placeholder="请输入房号">
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">其他信息</div>
+    <div class="section">
+      <div class="field">
+        <span class="field-label">个性签名</span>
+        <div class="field-value">
+          <textarea placeholder="介绍一下自己吧" rows="1">热爱生活的小区业主 🌿</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="save-bar">
+    <button class="save-btn" onclick="saveProfile()">保存</button>
+  </div>
+
+  <div class="toast" id="toast">✅ 保存成功</div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+function saveProfile() {
+  var t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2000);
+}
+</script>
+</body>
+</html>

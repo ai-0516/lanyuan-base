@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帖子详情 · 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#f5f5f5;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
+.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;flex-shrink:0;border-bottom:1px solid #eee;position:relative}
+.nav-bar .back{position:absolute;left:12px;font-size:15px;color:#07C160;cursor:pointer;padding:4px 8px;text-decoration:none}
+.page-content{flex:1;overflow-y:auto}
+
+/* Post detail */
+.post-detail{background:#fff;padding:20px 16px}
+.post-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.post-avatar{width:44px;height:44px;border-radius:50%;background:#FFE0E0;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.post-author{font-size:16px;font-weight:600}
+.post-time{font-size:12px;color:#bbb;margin-top:2px}
+.post-text{font-size:16px;line-height:1.7;color:#333;margin-bottom:14px}
+.post-img-large{width:100%;height:220px;border-radius:12px;background:linear-gradient(135deg,#a8edea,#fed6e3);display:flex;align-items:center;justify-content:center;font-size:48px;color:#fff;margin-bottom:14px}
+.post-stats{display:flex;align-items:center;gap:20px;padding:12px 0;font-size:13px;color:#999;border-bottom:1px solid #f0f0f0}
+.post-actions-bar{display:flex;align-items:center;justify-content:space-around;padding:8px 0;border-bottom:1px solid #f0f0f0}
+.action-item{display:flex;align-items:center;gap:4px;font-size:14px;color:#666;cursor:pointer;padding:8px 16px;border-radius:8px;transition:all 0.2s;border:none;background:none}
+.action-item:hover{background:#f5f5f5}
+.action-item.liked{color:#FF3B30}
+
+/* Comments section */
+.comments-title{font-size:15px;font-weight:600;padding:16px 16px 8px;color:#333}
+.comment{display:flex;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #f8f8f8}
+.comment-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.comment-avatar.c1{background:#E0ECFF}
+.comment-avatar.c2{background:#FFF0D0}
+.comment-avatar.c3{background:#E0FFE8}
+.comment-body{flex:1}
+.comment-author{font-size:13px;font-weight:600;color:#576B95;margin-bottom:2px}
+.comment-text{font-size:14px;color:#333;line-height:1.5}
+.comment-time{font-size:11px;color:#ccc;margin-top:4px}
+
+/* Comment input */
+.comment-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;border-top:1px solid #e8e8e8;flex-shrink:0}
+.comment-input{flex:1;padding:10px 16px;background:#f5f5f5;border:none;border-radius:20px;font-size:14px;outline:none;font-family:inherit}
+.comment-input:focus{background:#eee}
+.comment-send{font-size:15px;font-weight:600;color:#07C160;cursor:pointer;padding:8px 12px;border:none;background:none}
+.comment-send:disabled{color:#ccc;cursor:not-allowed}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>📶 🔋</span></div>
+  <div class="nav-bar">
+    <a href="05-social-feed.html" class="back">‹ 返回</a>
+    <span>帖子详情</span>
+  </div>
+
+  <div class="page-content">
+    <!-- Post -->
+    <div class="post-detail">
+      <div class="post-header">
+        <div class="post-avatar">👩</div>
+        <div>
+          <div class="post-author">小橘子</div>
+          <div class="post-time">3号楼 · 10分钟前</div>
+        </div>
+      </div>
+      <div class="post-text">今天小区花园的月季开了，太美了！分享给大家看看 🌸</div>
+      <div class="post-img-large">🌸</div>
+      <div class="post-stats">
+        <span>❤️ 24人赞过</span>
+        <span>💬 6条评论</span>
+      </div>
+      <div class="post-actions-bar">
+        <button class="action-item liked" onclick="toggleDetailLike(this, 'likeCount')">❤️ <span id="likeCount">24</span></button>
+        <button class="action-item" onclick="focusComment()">💬 评论</button>
+      </div>
+    </div>
+
+    <!-- Comments -->
+    <div class="comments-title">全部评论 (6)</div>
+
+    <div class="comment">
+      <div class="comment-avatar c1">👨</div>
+      <div class="comment-body">
+        <div class="comment-author">老张</div>
+        <div class="comment-text">真好看！咱们小区的绿化越来越好了 👍</div>
+        <div class="comment-time">8分钟前</div>
+      </div>
+    </div>
+
+    <div class="comment">
+      <div class="comment-avatar c2">👧</div>
+      <div class="comment-body">
+        <div class="comment-author">小雨妈妈</div>
+        <div class="comment-text">这是在哪个位置？明天带孩子去看看 🌺</div>
+        <div class="comment-time">6分钟前</div>
+      </div>
+    </div>
+
+    <div class="comment">
+      <div class="comment-avatar c3">🧑</div>
+      <div class="comment-body">
+        <div class="comment-author">阿杰</div>
+        <div class="comment-text">拍得真好！用什么手机拍的？</div>
+        <div class="comment-time">3分钟前</div>
+      </div>
+    </div>
+
+    <div class="comment" id="newComment" style="display:none">
+      <div class="comment-avatar" style="background:#E8F8EE">👤</div>
+      <div class="comment-body">
+        <div class="comment-author">我</div>
+        <div class="comment-text" id="newCommentText"></div>
+        <div class="comment-time">刚刚</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comment input -->
+  <div class="comment-bar">
+    <input class="comment-input" id="commentInput" placeholder="说点什么..." oninput="updateSendBtn()">
+    <button class="comment-send" id="sendBtn" disabled onclick="submitComment()">发送</button>
+  </div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+function toggleDetailLike(btn, countId) {
+  btn.classList.toggle('liked');
+  var span = document.getElementById(countId);
+  var count = parseInt(span.textContent);
+  if (btn.classList.contains('liked')) {
+    span.textContent = count + 1;
+  } else {
+    span.textContent = Math.max(0, count - 1);
+  }
+}
+function focusComment() {
+  document.getElementById('commentInput').focus();
+}
+function updateSendBtn() {
+  var input = document.getElementById('commentInput');
+  var btn = document.getElementById('sendBtn');
+  btn.disabled = input.value.trim() === '';
+}
+function submitComment() {
+  var input = document.getElementById('commentInput');
+  var text = input.value.trim();
+  if (!text) return;
+  document.getElementById('newCommentText').textContent = text;
+  document.getElementById('newComment').style.display = 'flex';
+  input.value = '';
+  updateSendBtn();
+}
+</script>
+</body>
+</html>

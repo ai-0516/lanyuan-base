@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社交广场 · 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#f5f5f5;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
+.nav-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;flex-shrink:0;border-bottom:1px solid #eee;position:relative}
+.nav-bar .action-right{position:absolute;right:16px;font-size:14px;color:#07C160;cursor:pointer;text-decoration:none}
+.page-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+
+/* Post card */
+.post{background:#fff;margin-bottom:8px;padding:16px}
+.post-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.post-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.post-avatar.a1{background:#FFE0E0}
+.post-avatar.a2{background:#E0ECFF}
+.post-avatar.a3{background:#FFF0D0}
+.post-avatar.a4{background:#E0FFE8}
+.post-author{font-size:15px;font-weight:600;color:#333}
+.post-time{font-size:12px;color:#bbb;margin-top:2px}
+.post-text{font-size:15px;line-height:1.6;color:#333;margin-bottom:10px}
+.post-images{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.post-img{width:100px;height:100px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff}
+.post-img.i1{background:linear-gradient(135deg,#a8edea,#fed6e3)}
+.post-img.i2{background:linear-gradient(135deg,#d4fc79,#96e6a1)}
+.post-img.i3{background:linear-gradient(135deg,#fbc2eb,#a6c1ee)}
+/* single large image */
+.post-img.single{width:200px;height:200px}
+.post-actions{display:flex;align-items:center;gap:24px;padding-top:6px;border-top:1px solid #f5f5f5;margin-top:8px}
+.action-btn{display:flex;align-items:center;gap:4px;font-size:13px;color:#999;cursor:pointer;transition:color 0.2s;border:none;background:none;padding:4px}
+.action-btn:hover{color:#07C160}
+.action-btn.liked{color:#FF3B30}
+
+/* Empty state */
+.empty{display:none;flex-direction:column;align-items:center;justify-content:center;padding:80px 40px;text-align:center}
+.empty.show{display:flex}
+.empty-icon{font-size:64px;margin-bottom:16px;opacity:0.6}
+.empty-text{font-size:15px;color:#bbb;line-height:1.6}
+
+/* Create post FAB */
+.fab{position:absolute;bottom:120px;right:20px;width:52px;height:52px;border-radius:50%;background:#07C160;color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 16px rgba(7,193,96,0.35);cursor:pointer;z-index:20;transition:transform 0.2s;text-decoration:none}
+.fab:hover{transform:scale(1.08)}
+.fab:active{transform:scale(0.95)}
+
+/* Tab bar */
+.tab-bar{height:56px;background:#fff;border-top:1px solid #e8e8e8;display:flex;align-items:center;flex-shrink:0;padding-bottom:4px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#999;font-size:10px;gap:2px;text-decoration:none}
+.tab.active{color:#07C160}
+.tab .tab-icon{font-size:22px}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>📶 🔋</span></div>
+  <div class="nav-bar">
+    <span>兰园广场</span>
+    <a href="06-create-post.html" class="action-right">+ 发帖</a>
+  </div>
+
+  <div class="page-content">
+    <!-- Post 1 -->
+    <div class="post" onclick="window.location.href='07-post-detail.html'">
+      <div class="post-header">
+        <div class="post-avatar a1">👩</div>
+        <div>
+          <div class="post-author">小橘子</div>
+          <div class="post-time">3号楼 · 10分钟前</div>
+        </div>
+      </div>
+      <div class="post-text">今天小区花园的月季开了，太美了！分享给大家看看 🌸</div>
+      <div class="post-images">
+        <div class="post-img i1 single">🌸</div>
+      </div>
+      <div class="post-actions">
+        <button class="action-btn liked" onclick="event.stopPropagation();toggleLike(this)">❤️ <span>23</span></button>
+        <button class="action-btn" onclick="event.stopPropagation()">💬 <span>5</span></button>
+      </div>
+    </div>
+
+    <!-- Post 2 -->
+    <div class="post" onclick="window.location.href='07-post-detail.html'">
+      <div class="post-header">
+        <div class="post-avatar a2">👨</div>
+        <div>
+          <div class="post-author">老张</div>
+          <div class="post-time">5号楼 · 1小时前</div>
+        </div>
+      </div>
+      <div class="post-text">有人需要停车位吗？我家闲置一个，可以共享出来 🚗</div>
+      <div class="post-actions">
+        <button class="action-btn" onclick="event.stopPropagation();toggleLike(this)">❤️ <span>8</span></button>
+        <button class="action-btn" onclick="event.stopPropagation()">💬 <span>12</span></button>
+      </div>
+    </div>
+
+    <!-- Post 3 -->
+    <div class="post" onclick="window.location.href='07-post-detail.html'">
+      <div class="post-header">
+        <div class="post-avatar a3">👧</div>
+        <div>
+          <div class="post-author">小雨妈妈</div>
+          <div class="post-time">2号楼 · 3小时前</div>
+        </div>
+      </div>
+      <div class="post-text">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式 😊</div>
+      <div class="post-actions">
+        <button class="action-btn" onclick="event.stopPropagation();toggleLike(this)">❤️ <span>15</span></button>
+        <button class="action-btn" onclick="event.stopPropagation()">💬 <span>3</span></button>
+      </div>
+    </div>
+
+    <!-- Post 4 -->
+    <div class="post" onclick="window.location.href='07-post-detail.html'">
+      <div class="post-header">
+        <div class="post-avatar a4">🧑</div>
+        <div>
+          <div class="post-author">阿杰</div>
+          <div class="post-time">7号楼 · 5小时前</div>
+        </div>
+      </div>
+      <div class="post-text">周末组织一场篮球赛，有没有一起的？🏀 报名的楼下扣1</div>
+      <div class="post-actions">
+        <button class="action-btn" onclick="event.stopPropagation();toggleLike(this)">❤️ <span>31</span></button>
+        <button class="action-btn" onclick="event.stopPropagation()">💬 <span>18</span></button>
+      </div>
+    </div>
+  </div>
+
+  <a href="06-create-post.html" class="fab">✏️</a>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <a href="02-profile.html" class="tab">
+      <span class="tab-icon">👤</span><span>我的</span>
+    </a>
+    <a href="05-social-feed.html" class="tab active">
+      <span class="tab-icon">💬</span><span>社交</span>
+    </a>
+    <a href="08-ai-chat.html" class="tab">
+      <span class="tab-icon">🤖</span><span>AI</span>
+    </a>
+  </div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+function toggleLike(btn) {
+  btn.classList.toggle('liked');
+  var span = btn.querySelector('span');
+  var count = parseInt(span.textContent);
+  if (btn.classList.contains('liked')) {
+    span.textContent = count + 1;
+  } else {
+    span.textContent = Math.max(0, count - 1);
+  }
+}
+</script>
+</body>
+</html>

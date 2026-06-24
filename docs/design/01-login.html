@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信授权登录 · 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#fff;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+.status-bar{height:44px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;flex-shrink:0}
+.status-bar .time{width:54px;text-align:center}
+.status-bar .icons{display:flex;gap:4px;font-size:11px}
+.content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;text-align:center}
+.logo{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#07C160,#05A34E);display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff;margin-bottom:24px;box-shadow:0 8px 24px rgba(7,193,96,0.3)}
+.app-name{font-size:22px;font-weight:700;color:#333;margin-bottom:6px}
+.app-desc{font-size:14px;color:#999;margin-bottom:48px}
+.btn-login{width:100%;max-width:280px;padding:14px 0;background:#07C160;color:#fff;border:none;border-radius:24px;font-size:17px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:16px}
+.btn-login:hover{background:#06AD56;transform:scale(1.02)}
+.btn-login:active{transform:scale(0.98)}
+.btn-close{font-size:14px;color:#999;cursor:pointer;padding:8px 16px;background:none;border:none}
+.protocol{font-size:11px;color:#bbb;margin-top:32px;line-height:1.6}
+.protocol a{color:#07C160;text-decoration:none}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.home-indicator .bar{width:134px;height:5px;background:#333;border-radius:3px}
+/* Login success state */
+.login-success{display:none}
+.avatar{width:72px;height:72px;border-radius:50%;background:#E8F8EE;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px}
+.nickname{font-size:18px;font-weight:600;margin-bottom:4px}
+.entering{font-size:14px;color:#07C160;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+
+  <!-- Login view -->
+  <div class="content" id="loginView">
+    <div class="logo">🏡</div>
+    <div class="app-name">兰 园</div>
+    <div class="app-desc">小区生活服务平台</div>
+    <button class="btn-login" onclick="doLogin()">微信一键登录</button>
+    <button class="btn-close" onclick="doSkip()">暂不登录，先看看</button>
+    <div class="protocol">
+      登录即表示同意<br>
+      <a href="#">《用户服务协议》</a> 和 <a href="#">《隐私政策》</a>
+    </div>
+  </div>
+
+  <!-- Login success state -->
+  <div class="content login-success" id="successView">
+    <div class="avatar">👤</div>
+    <div class="nickname" id="displayNickname">兰园业主</div>
+    <div class="entering">正在进入...</div>
+  </div>
+
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+function doLogin() {
+  document.getElementById('loginView').style.display = 'none';
+  var sv = document.getElementById('successView');
+  sv.style.display = 'flex';
+  setTimeout(function() {
+    window.location.href = '02-profile.html';
+  }, 1500);
+}
+function doSkip() {
+  window.location.href = '02-profile.html';
+}
+</script>
+</body>
+</html>
