@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>园林雅居 · 社交广场 | 兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#d8dfd6;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.phone{width:375px;height:812px;background:#F4F7F4;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);display:flex;flex-direction:column}
+/* Top botanical line */
+.top-accent{height:4px;background:linear-gradient(90deg,transparent,#7D9B76 15%,#9DB89A 50%,#7D9B76 85%,transparent);flex-shrink:0;opacity:.6}
+/* Status Bar */
+.status-bar{height:44px;background:#F4F7F4;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:#5A6B55;flex-shrink:0}
+/* Nav */
+.nav-bar{height:48px;background:#F4F7F4;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0}
+.nav-bar .nav-title{font-size:18px;font-weight:600;color:#3A4A35;letter-spacing:2px}
+.nav-bar .nav-icon{width:36px;height:36px;border-radius:50%;background:#E8EFE6;display:flex;align-items:center;justify-content:center;color:#7D9B76;cursor:pointer}
+.page-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 0 4px}
+/* Post Card — clean white, generous spacing */
+.post{margin:0 16px 14px;background:#fff;border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,0.03),0 6px 16px rgba(0,0,0,0.04);overflow:hidden}
+.post-header{display:flex;align-items:center;gap:12px;padding:18px 18px 0}
+.post-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:600;color:#fff}
+.av1{background:#B8C9A8} .av2{background:#A8B8C4} .av3{background:#C4B8A8} .av4{background:#A8C4B8}
+.post-author{font-size:16px;font-weight:600;color:#2A3A25}
+.post-meta{font-size:12px;color:#A0B098;margin-top:3px}
+.post-body{padding:14px 18px}
+.post-text{font-size:15px;line-height:1.8;color:#4A5A45}
+.post-images{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.post-img{border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;color:rgba(255,255,255,0.8);font-weight:500;overflow:hidden}
+.post-img.i1{width:108px;height:108px;background:#C8D8B8}
+.post-img.i2{width:108px;height:108px;background:#B8C8D8}
+.post-img.i3{width:108px;height:108px;background:#D8C8B8}
+.post-img.single{width:200px;height:200px;font-size:24px}
+/* Actions */
+.post-actions{display:flex;align-items:center;gap:32px;padding:6px 18px 10px}
+.action-btn{display:flex;align-items:center;gap:6px;font-size:14px;color:#A0B098;cursor:pointer;border:none;background:none;padding:4px 0;transition:color .2s}
+.action-btn:hover,.action-btn.liked{color:#7D9B76}
+.action-btn svg{width:18px;height:18px}
+/* Comments */
+.post-comments{background:#F8FAF6;border-top:1px solid #EEF2EC;padding:8px 18px 12px}
+.comment-inline{display:flex;gap:10px;padding:6px 0}
+.ci-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:600;color:#fff}
+.ci-avatar.c1{background:#B8C9A8} .ci-avatar.c2{background:#A8B8C4} .ci-avatar.c3{background:#C4B8A8}
+.comment-inline .ci-body{flex:1;min-width:0}
+.ci-author{font-size:13px;font-weight:600;color:#7D9B76;display:inline}
+.ci-text{font-size:14px;color:#5A6B55;display:inline;margin-left:4px}
+.see-all{font-size:12px;color:#A0B098;padding:4px 0;cursor:pointer}
+/* Quick comment */
+.quick-comment{display:flex;align-items:center;gap:8px;padding:8px 18px 14px;background:#F8FAF6;border-top:1px solid #EEF2EC}
+.quick-comment input{flex:1;padding:9px 14px;background:#F4F7F4;border:1.5px solid #E0E8DC;border-radius:20px;font-size:14px;outline:none;font-family:inherit;color:#3A4A35}
+.quick-comment input::placeholder{color:#B8C8B0}
+.quick-comment input:focus{border-color:#7D9B76}
+.qc-send{font-size:14px;font-weight:600;color:#7D9B76;cursor:pointer;border:none;background:none;padding:4px 8px;flex-shrink:0}
+.qc-send:disabled{color:#C8D8C0;cursor:not-allowed}
+/* FAB */
+.fab{position:absolute;bottom:120px;right:20px;width:50px;height:50px;border-radius:50%;background:#7D9B76;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(125,155,118,0.35);cursor:pointer;z-index:20;transition:transform .2s;text-decoration:none}
+.fab:hover{transform:scale(1.06)} .fab:active{transform:scale(0.94)}
+.fab svg{width:22px;height:22px}
+/* Tab Bar */
+.tab-bar{height:56px;background:#fff;border-top:1px solid #EEF2EC;display:flex;align-items:center;flex-shrink:0}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#B0C0A8;font-size:10px;gap:4px;text-decoration:none}
+.tab.active{color:#7D9B76}
+.tab svg{width:22px;height:22px}
+.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.home-indicator .bar{width:134px;height:5px;background:#3A4A35;border-radius:3px;opacity:0.25}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="top-accent"></div>
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px">东方兰园</span></div>
+  <div class="nav-bar">
+    <div class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+    <span class="nav-title">邻里广场</span>
+    <div class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+  </div>
+
+  <div class="page-content">
+    <!-- Post 1 -->
+    <div class="post">
+      <div class="post-header">
+        <div class="post-avatar av1">橘</div>
+        <div><div class="post-author">小橘子 · 3号楼</div><div class="post-meta">10分钟前</div></div>
+      </div>
+      <div class="post-body">
+        <div class="post-text">今天小区花园的月季开了，太美了！分享给大家看看</div>
+        <div class="post-images"><div class="post-img i1 single">月季花开</div></div>
+      </div>
+      <div class="post-actions">
+        <button class="action-btn liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>23</span></button>
+        <button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>5</span></button>
+      </div>
+      <div class="post-comments">
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span><span class="ci-text">真好看！咱们小区的绿化越来越好了</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c3">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span><span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div>
+        <div class="see-all">查看全部 5 条评论</div>
+      </div>
+      <div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div>
+    </div>
+
+    <!-- Post 2 -->
+    <div class="post">
+      <div class="post-header">
+        <div class="post-avatar av2">张</div>
+        <div><div class="post-author">老张 · 5号楼</div><div class="post-meta">1小时前</div></div>
+      </div>
+      <div class="post-body"><div class="post-text">有人需要停车位吗？我家闲置一个，可以共享出来</div></div>
+      <div class="post-actions">
+        <button class="action-btn" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>8</span></button>
+        <button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>12</span></button>
+      </div>
+      <div class="post-comments">
+        <div class="comment-inline"><div class="ci-avatar c1">杰</div><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-text">多少钱一个月？我家也需要</span></div></div>
+        <div class="see-all">查看全部 12 条评论</div>
+      </div>
+      <div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div>
+    </div>
+
+    <!-- Post 3 -->
+    <div class="post">
+      <div class="post-header">
+        <div class="post-avatar av3">雨</div>
+        <div><div class="post-author">小雨妈妈 · 2号楼</div><div class="post-meta">3小时前</div></div>
+      </div>
+      <div class="post-body"><div class="post-text">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式</div></div>
+      <div class="post-actions">
+        <button class="action-btn liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>15</span></button>
+        <button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>3</span></button>
+      </div>
+      <div class="post-comments">
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span><span class="ci-text">我正需要！私信你了</span></div></div>
+      </div>
+      <div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div>
+    </div>
+
+    <!-- Post 4 -->
+    <div class="post">
+      <div class="post-header">
+        <div class="post-avatar av4">杰</div>
+        <div><div class="post-author">阿杰 · 7号楼</div><div class="post-meta">5小时前</div></div>
+      </div>
+      <div class="post-body"><div class="post-text">周末组织一场篮球赛，有没有一起的？报名的楼下扣1</div></div>
+      <div class="post-actions">
+        <button class="action-btn" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>31</span></button>
+        <button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>18</span></button>
+      </div>
+      <div class="post-comments">
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span><span class="ci-text">1！算我一个</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c1">橘</div><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-text">在哪打？小区篮球场吗</span></div></div>
+        <div class="see-all">查看全部 18 条评论</div>
+      </div>
+      <div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div>
+    </div>
+  </div>
+
+  <a href="06-create-post.html" class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></a>
+
+  <div class="tab-bar">
+    <a class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>广场</span></a>
+    <a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>AI</span></a>
+    <a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></a>
+  </div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+<script>
+function toggleLike(btn){btn.classList.toggle('liked');var svg=btn.querySelector('svg');var span=btn.querySelector('span');var count=parseInt(span.textContent);if(btn.classList.contains('liked')){svg.setAttribute('fill','currentColor');span.textContent=count+1}else{svg.setAttribute('fill','none');span.textContent=Math.max(0,count-1)}}
+</script>
+</body>
+</html>

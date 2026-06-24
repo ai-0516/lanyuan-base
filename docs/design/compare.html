@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>兰园 · 风格方向对比 | 社交广场</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#f0f0f0;color:#333;min-height:100vh}
+.header{background:#fff;padding:24px 32px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.header h1{font-size:22px;color:#333;margin-bottom:4px}
+.header p{font-size:13px;color:#999}
+.container{max-width:1300px;margin:0 auto;padding:28px 20px}
+/* Comparison grid: 3 columns */
+.compare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.direction-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);transition:transform .25s,box-shadow .25s}
+.direction-card:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.1)}
+.dir-label{padding:18px 20px 10px}
+.dir-label h2{font-size:18px;margin-bottom:4px}
+.dir-label .subtitle{font-size:12px;color:#999}
+.dir-label .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.dir-label .tag{font-size:11px;padding:3px 10px;border-radius:4px;font-weight:600}
+.tag1{background:#FFF0E8;color:#D4845A}
+.tag2{background:#E8F0E4;color:#7D9B76}
+.tag3{background:#E8EEF4;color:#5B7B9A}
+.dir-preview{background:#e8e8e8;height:500px;overflow:hidden;position:relative}
+.dir-preview iframe{width:430px;height:900px;border:none;transform:scale(0.74);transform-origin:top left;position:absolute;top:0;left:0}
+.dir-link{padding:14px 20px;text-align:center}
+.dir-link a{display:inline-block;padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;transition:all .2s}
+.link1{background:#D4845A;color:#fff}
+.link2{background:#7D9B76;color:#fff}
+.link3{background:#5B7B9A;color:#fff}
+.dir-link a:hover{opacity:.85}
+/* Specs table */
+.specs-section{margin-top:40px}
+.specs-section h2{font-size:18px;margin-bottom:16px;color:#555}
+.specs-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06)}
+.specs-table th,.specs-table td{padding:14px 18px;text-align:left;font-size:13px;border-bottom:1px solid #f0f0f0}
+.specs-table th{background:#fafafa;font-weight:700;color:#555;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.specs-table td{color:#444;line-height:1.6}
+.specs-table tr:last-child td{border-bottom:none}
+/* Mobile */
+@media(max-width:900px){
+  .compare-grid{grid-template-columns:1fr}
+  .dir-preview{height:400px}
+  .dir-preview iframe{transform:scale(0.6)}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>兰园 · 社交广场 — 风格方向对比</h1>
+  <p>三个差异化视觉方向，同一内容，不同气质。点击预览或新标签打开查看详情。</p>
+</div>
+
+<div class="container">
+  <div class="compare-grid">
+    <!-- Warm Neighbor -->
+    <div class="direction-card">
+      <div class="dir-label">
+        <h2>🏠 暖邻</h2>
+        <div class="subtitle">Warm Neighbor</div>
+        <div class="tags">
+          <span class="tag tag1">暖色调</span><span class="tag tag1">陶土橙</span><span class="tag tag1">米白底</span>
+        </div>
+      </div>
+      <div class="dir-preview">
+        <iframe src="social-feed-warm.html"></iframe>
+      </div>
+      <div class="dir-link"><a class="link1" href="social-feed-warm.html" target="_blank">全屏查看 →</a></div>
+    </div>
+
+    <!-- Garden Living -->
+    <div class="direction-card">
+      <div class="dir-label">
+        <h2>🌿 园林雅居</h2>
+        <div class="subtitle">Garden Living</div>
+        <div class="tags">
+          <span class="tag tag2">自然调</span><span class="tag tag2">鼠尾草绿</span><span class="tag tag2">留白</span>
+        </div>
+      </div>
+      <div class="dir-preview">
+        <iframe src="social-feed-garden.html"></iframe>
+      </div>
+      <div class="dir-link"><a class="link2" href="social-feed-garden.html" target="_blank">全屏查看 →</a></div>
+    </div>
+
+    <!-- Modern Community -->
+    <div class="direction-card">
+      <div class="dir-label">
+        <h2>🏢 现代社区</h2>
+        <div class="subtitle">Modern Community</div>
+        <div class="tags">
+          <span class="tag tag3">冷色调</span><span class="tag tag3">蓝灰</span><span class="tag tag3">高效</span>
+        </div>
+      </div>
+      <div class="dir-preview">
+        <iframe src="social-feed-modern.html"></iframe>
+      </div>
+      <div class="dir-link"><a class="link3" href="social-feed-modern.html" target="_blank">全屏查看 →</a></div>
+    </div>
+  </div>
+
+  <!-- Feature comparison table -->
+  <div class="specs-section">
+    <h2>设计决策对比</h2>
+    <table class="specs-table">
+      <thead>
+        <tr><th>维度</th><th>🏠 暖邻</th><th>🌿 园林雅居</th><th>🏢 现代社区</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>底色</b></td><td>#FAF7F2（米白暖底）</td><td>#F4F7F4（极浅灰绿）</td><td>#FFFFFF + #F7F8FA 分区</td></tr>
+        <tr><td><b>主色</b></td><td>#D4845A（陶土橙）</td><td>#7D9B76（鼠尾草绿）</td><td>#5B7B9A（稳重蓝灰）</td></tr>
+        <tr><td><b>卡片风格</b></td><td>暖灰底 + 柔阴影，公告栏便签感</td><td>纯白 + 充裕留白，干净清爽</td><td>极简线框 + 细分隔线</td></tr>
+        <tr><td><b>圆角</b></td><td>16px 大圆角</td><td>18px 大圆角</td><td>12px 小圆角（头像）、8px 卡片</td></tr>
+        <tr><td><b>签名元素</b></td><td>楼栋号标签（#EDE4D8 底）</td><td>顶部绿植渐变装饰线</td><td>分类筛选 Tab 栏</td></tr>
+        <tr><td><b>评论底色</b></td><td>#FFF9F2（暖）</td><td>#F8FAF6（绿调）</td><td>#F7F8FA（灰）</td></tr>
+        <tr><td><b>按钮圆角</b></td><td>20px 胶囊</td><td>20px 胶囊</td><td>8px 方角</td></tr>
+        <tr><td><b>字号</b></td><td>16px 正文（偏大，老年友好）</td><td>15px 正文（标准）</td><td>15px 正文（标准）</td></tr>
+        <tr><td><b>适用场景</b></td><td>全年龄段、重情感连接</td><td>中产社区、重品质感</td><td>青年社区、重效率</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
