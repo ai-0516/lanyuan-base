@@ -3,101 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>暖邻 · 社交广场 | huashu-design</title>
+<title>暖邻 · 社区公告板 | huashu-design</title>
 <style>
-/* ══════════════════════════════════════
-   huashu-design only 版本
-   哲学：Junior Designer · 反AI slop · 诚实占位 · 一个细节做到120%
-   签名元素：公告栏软木板肌理 + 便签卡片
-   ══════════════════════════════════════ */
+/* ═══════════════════════════════════════════
+   huashu-design — "社区公告板" 物理隐喻
+   不做手机框，做真实的软木板+便签+图钉
+   ═══════════════════════════════════════════ */
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#d4c8b8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
-.phone{width:375px;height:812px;background:#FAF7F2;border-radius:40px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.18);display:flex;flex-direction:column}
-
-/* 软木板肌理 — huashu-design 的「一个细节做到120%」 */
-.cork-texture{position:absolute;inset:44px 0 90px 0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(139,115,85,0.02) 2px,rgba(139,115,85,0.02) 4px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(139,115,85,0.015) 40px,rgba(139,115,85,0.015) 41px);pointer-events:none;z-index:0}
-
-.status-bar{height:44px;background:#FAF7F2;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:13px;font-weight:600;color:#6B5E53;flex-shrink:0;position:relative;z-index:1}
-.nav-bar{height:48px;background:#FAF7F2;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;border-bottom:1px solid #EDE4D8;position:relative;z-index:1}
-.nav-bar .nav-title{font-size:18px;font-weight:700;color:#4A3B2F;letter-spacing:2px}
-.nav-bar .nav-icon{width:36px;height:36px;border-radius:50%;background:#EDE4D8;display:flex;align-items:center;justify-content:center;color:#8B7355;cursor:pointer}
-.page-content{flex:1;overflow-y:auto;position:relative;z-index:1;padding:10px 0 4px}
-
-/* 帖子 = 公告栏上的便签 — huashu-design 签名元素 */
-.post{margin:0 14px 12px;background:#FFFBF6;border-radius:6px 18px 18px 18px;box-shadow:1px 2px 0 rgba(139,115,85,0.1),3px 4px 8px rgba(0,0,0,0.05);border:1px solid #EDE4D8;position:relative;overflow:hidden}
-/* 便签胶带/图钉 — 120% 细节 */
-.post::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(2deg);width:28px;height:10px;background:rgba(212,132,90,0.25);border-radius:2px;z-index:2}
-.post-header{display:flex;align-items:center;gap:10px;padding:18px 16px 0}
-.post-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:700;color:#fff}
-.av1{background:#E8B4A2} .av2{background:#C4A882} .av3{background:#B8C9A8} .av4{background:#A2B4C8}
-.post-author{font-size:16px;font-weight:600;color:#4A3B2F}
-/* 楼栋标签 — huashu-design 签名元素，做得最精致 */
-.post-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
-.building-tag{font-size:10px;padding:3px 8px;background:#EDE4D8;color:#8B7355;border-radius:3px;font-weight:700;letter-spacing:.5px;border:1px solid rgba(139,115,85,0.12)}
-.post-meta .time{font-size:12px;color:#B8A898}
-.post-body{padding:12px 16px}
-.post-text{font-size:16px;line-height:1.75;color:#4A3B2F;letter-spacing:0.3px}
-.post-images{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.post-img{border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:rgba(255,255,255,0.8);font-weight:600;overflow:hidden}
-.post-img.i1{width:108px;height:108px;background:#E8D5C4}
-.post-img.i2{width:108px;height:108px;background:#D4C4A8}
-.post-img.i3{width:108px;height:108px;background:#C8D4B8}
-.post-img.single{width:200px;height:200px;font-size:24px}
-
-/* 交互 — SVG 图标，无 emoji */
-.post-actions{display:flex;align-items:center;gap:24px;padding:6px 16px 10px}
-.action-btn{display:flex;align-items:center;gap:5px;font-size:14px;color:#B8A898;cursor:pointer;border:none;background:none;padding:4px 0;transition:color .2s}
-.action-btn:hover,.action-btn.liked{color:#D4845A}
-.action-btn svg{width:18px;height:18px}
-.post-comments{background:#FFF9F2;border-top:1px solid #F0E8DA;padding:6px 16px 10px}
-.comment-inline{display:flex;gap:8px;padding:5px 0}
-.ci-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:700;color:#fff}
-.ci-avatar.c1{background:#E8B4A2} .ci-avatar.c2{background:#C4A882} .ci-avatar.c3{background:#B8C9A8}
-.comment-inline .ci-body{flex:1;min-width:0}
-.ci-author{font-size:13px;font-weight:600;color:#D4845A;display:inline}
-.ci-text{font-size:14px;color:#6B5E53;display:inline}
-.see-all{font-size:12px;color:#B8A898;padding:4px 0;cursor:pointer}
-.quick-comment{display:flex;align-items:center;gap:8px;padding:8px 16px 14px;background:#FFF9F2;border-top:1px solid #F0E8DA}
-.quick-comment input{flex:1;padding:10px 14px;background:#FAF7F2;border:1px solid #EDE4D8;border-radius:20px;font-size:14px;outline:none;font-family:inherit;color:#4A3B2F}
-.quick-comment input::placeholder{color:#C8B8A8}
-.quick-comment input:focus{border-color:#D4845A}
-.qc-send{font-size:14px;font-weight:700;color:#D4845A;cursor:pointer;border:none;background:none;padding:4px 8px;flex-shrink:0;transition:opacity .2s}
-.qc-send:disabled{color:#D8C8B8;cursor:not-allowed}
-.fab{position:absolute;bottom:120px;right:20px;width:50px;height:50px;border-radius:50%;background:#D4845A;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(212,132,90,0.35);cursor:pointer;z-index:20;transition:transform .2s;text-decoration:none}
-.fab:hover{transform:scale(1.06)} .fab:active{transform:scale(0.94)}
-.fab svg{width:22px;height:22px}
-.tab-bar{height:56px;background:#FFFBF6;border-top:1px solid #EDE4D8;display:flex;align-items:center;flex-shrink:0;position:relative;z-index:1}
-.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#B8A898;font-size:10px;gap:4px;text-decoration:none}
-.tab.active{color:#D4845A}
-.tab svg{width:22px;height:22px}
-.home-indicator{height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#FAF7F2}
-.home-indicator .bar{width:134px;height:5px;background:#6B5E53;border-radius:3px;opacity:.3}
+body{font-family:"PingFang SC","Noto Serif SC",-apple-system,serif;background:#2a2218;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px}
+/* 软木板 */
+.corkboard{width:375px;min-height:750px;background:linear-gradient(175deg,#c4a87c 0%,#ba9e72 20%,#c8ae84 40%,#b89a6e 60%,#c4a87c 80%,#b49868 100%);border-radius:8px;padding:16px 14px;position:relative;box-shadow:inset 0 0 60px rgba(0,0,0,0.15),0 8px 32px rgba(0,0,0,0.5);border:6px solid #8B6914;border-image:linear-gradient(180deg,#a07828,#7a5210,#a07828) 1}
+/* 软木板颗粒肌理 */
+.corkboard::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(255,255,255,0.03) 0,transparent 50%),radial-gradient(circle at 70% 60%,rgba(0,0,0,0.04) 0,transparent 50%),radial-gradient(circle at 50% 80%,rgba(255,255,255,0.02) 0,transparent 40%);pointer-events:none;z-index:1}
+/* 顶部标题 — 手写粉笔感 */
+.board-title{text-align:center;margin-bottom:18px;position:relative;z-index:2}
+.board-title h1{font-size:22px;font-weight:900;color:#2a2210;letter-spacing:6px;text-shadow:0 1px 0 rgba(255,255,255,0.15);font-family:"Noto Serif SC","PingFang SC",serif}
+.board-title .rule{font-size:10px;color:#5a4a2a;letter-spacing:3px;margin-top:4px}
+/* 便签卡片 — 每张不一样 */
+.notes{display:flex;flex-direction:column;gap:14px;position:relative;z-index:2}
+.note{background:#FFFBF2;position:relative;box-shadow:2px 3px 6px rgba(0,0,0,0.2),-1px -1px 2px rgba(0,0,0,0.05);font-size:14px}
+/* huashu-design: 每张便签形状不同 */
+.note:nth-child(1){border-radius:2px 16px 2px 16px;transform:rotate(-0.8deg);margin-right:8px}
+.note:nth-child(2){border-radius:16px 2px 16px 2px;transform:rotate(0.5deg);margin-left:8px;background:#FFFDF5}
+.note:nth-child(3){border-radius:4px 4px 18px 4px;transform:rotate(-0.3deg);margin-right:4px}
+.note:nth-child(4){border-radius:18px 4px 4px 18px;transform:rotate(0.7deg);margin-left:4px;background:#FFFEF8}
+/* 图钉 */
+.note::after{content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#e8c8a0,#c04030 60%,#802020);box-shadow:1px 2px 3px rgba(0,0,0,0.3);z-index:3}
+.note:nth-child(2)::after{left:70%}
+.note:nth-child(4)::after{left:30%}
+.note-inner{padding:14px}
+/* 手写体作者 */
+.note-author{font-size:13px;font-weight:700;color:#5a3020;margin-bottom:4px;font-family:"PingFang SC",sans-serif}
+.note-meta{font-size:10px;color:#a08060;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.note-meta .bldg{background:#e8d8c0;color:#8B6914;padding:1px 6px;border-radius:2px;font-weight:700;font-size:10px}
+.note-text{font-size:14px;line-height:1.7;color:#4a3a2a}
+.note-img{width:100%;height:120px;background:#e8d8c0;border-radius:4px;margin:8px 0;display:flex;align-items:center;justify-content:center;color:#a08060;font-size:13px;border:2px dashed #d8c8b0}
+/* 互动 — 极简图标 */
+.note-actions{display:flex;gap:18px;margin-top:10px;padding-top:8px;border-top:1px dotted #e0d0b8}
+.note-act{display:flex;align-items:center;gap:3px;font-size:12px;color:#a08060;cursor:pointer;border:none;background:none;font-family:inherit}
+.note-act.liked{color:#c04030}
+.note-act svg{width:14px;height:14px}
+/* 评论 — 手写回复 */
+.note-comments{margin-top:8px;padding-top:6px;border-top:1px dotted #e8d8c0}
+.note-cmt{font-size:12px;color:#6a5a40;padding:3px 0;line-height:1.5}
+.note-cmt strong{color:#8B6914;margin-right:4px}
+/* 底部装饰 */
+.board-footer{text-align:center;margin-top:16px;position:relative;z-index:2}
+.board-footer span{font-size:10px;color:#9a8a6a;letter-spacing:4px}
 </style>
 </head>
 <body>
-<div class="phone">
-  <div class="cork-texture"></div>
-  <div class="status-bar"><span>9:41</span><span style="font-size:12px">东方兰园</span></div>
-  <div class="nav-bar">
-    <div class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-    <span class="nav-title">邻里广场</span>
-    <div class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+<div class="corkboard">
+  <div class="board-title">
+    <h1>邻里广场</h1>
+    <div class="rule">— 东方兰园 · 社区公告板 —</div>
   </div>
-  <div class="page-content">
-    <!-- huashu-design 哲学: 真实内容、诚实占位、不 AI slop -->
-    <div class="post"><div class="post-header"><div class="post-avatar av1">橘</div><div><div class="post-author">小橘子</div><div class="post-meta"><span class="building-tag">3号楼</span><span class="time">10分钟前</span></div></div></div><div class="post-body"><div class="post-text">今天小区花园的月季开了，太美了！分享给大家看看</div><div class="post-images"><div class="post-img i1 single">月季花开</div></div></div><div class="post-actions"><button class="action-btn liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>23</span></button><button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>5</span></button></div><div class="post-comments"><div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">真好看！咱们小区的绿化越来越好了</span></div></div><div class="comment-inline"><div class="ci-avatar c1">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div><div class="see-all">查看全部 5 条评论</div></div><div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div></div>
-    <div class="post"><div class="post-header"><div class="post-avatar av2">张</div><div><div class="post-author">老张</div><div class="post-meta"><span class="building-tag">5号楼</span><span class="time">1小时前</span></div></div></div><div class="post-body"><div class="post-text">有人需要停车位吗？我家闲置一个，可以共享出来</div></div><div class="post-actions"><button class="action-btn" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>8</span></button><button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>12</span></button></div><div class="post-comments"><div class="comment-inline"><div class="ci-avatar c3">杰</div><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">多少钱一个月？我家也需要</span></div></div><div class="see-all">查看全部 12 条评论</div></div><div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div></div>
-    <div class="post"><div class="post-header"><div class="post-avatar av3">雨</div><div><div class="post-author">小雨妈妈</div><div class="post-meta"><span class="building-tag">2号楼</span><span class="time">3小时前</span></div></div></div><div class="post-body"><div class="post-text">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式</div></div><div class="post-actions"><button class="action-btn liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>15</span></button><button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>3</span></button></div><div class="post-comments"><div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div></div></div><div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div></div>
-    <div class="post"><div class="post-header"><div class="post-avatar av4">杰</div><div><div class="post-author">阿杰</div><div class="post-meta"><span class="building-tag">7号楼</span><span class="time">5小时前</span></div></div></div><div class="post-body"><div class="post-text">周末组织一场篮球赛，有没有一起的？报名的楼下扣1</div></div><div class="post-actions"><button class="action-btn" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span>31</span></button><button class="action-btn" onclick="this.closest('.post').querySelector('.quick-comment input').focus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>18</span></button></div><div class="post-comments"><div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">1！算我一个</span></div></div><div class="comment-inline"><div class="ci-avatar c1">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">在哪打？小区篮球场吗</span></div></div><div class="see-all">查看全部 18 条评论</div></div><div class="quick-comment"><input type="text" placeholder="说点什么..."><button class="qc-send" disabled>发送</button></div></div>
+  <div class="notes">
+    <!-- 帖子1 — 便签风格 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">小橘子</div>
+      <div class="note-meta"><span class="bldg">3号楼</span> 10分钟前</div>
+      <div class="note-text">今天小区花园的月季开了，太美了！分享给大家看看</div>
+      <div class="note-img">月季花开</div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 23</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 5</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>老张：</strong>真好看！咱们小区的绿化越来越好了</div>
+        <div class="note-cmt"><strong>小雨妈妈：</strong>这是在哪个位置？明天带孩子去看看</div>
+      </div>
+    </div></div>
+    <!-- 帖子2 — 另一种便签 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">老张</div>
+      <div class="note-meta"><span class="bldg">5号楼</span> 1小时前</div>
+      <div class="note-text">有人需要停车位吗？我家闲置一个，可以共享出来</div>
+      <div class="note-actions">
+        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 8</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 12</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>阿杰：</strong>多少钱一个月？我家也需要</div>
+        <div class="note-cmt"><strong>小橘子：</strong>支持共享！邻里互助真棒</div>
+      </div>
+    </div></div>
+    <!-- 帖子3 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">小雨妈妈</div>
+      <div class="note-meta"><span class="bldg">2号楼</span> 3小时前</div>
+      <div class="note-text">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式</div>
+      <div class="note-actions">
+        <button class="note-act liked" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 15</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 3</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>老张：</strong>我正需要！私信你了</div>
+      </div>
+    </div></div>
+    <!-- 帖子4 -->
+    <div class="note"><div class="note-inner">
+      <div class="note-author">阿杰</div>
+      <div class="note-meta"><span class="bldg">7号楼</span> 5小时前</div>
+      <div class="note-text">周末组织一场篮球赛，有没有一起的？报名的楼下扣1</div>
+      <div class="note-actions">
+        <button class="note-act" onclick="toggleLike(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 31</button>
+        <button class="note-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 18</button>
+      </div>
+      <div class="note-comments">
+        <div class="note-cmt"><strong>老张：</strong>1！算我一个</div>
+        <div class="note-cmt"><strong>小橘子：</strong>在哪打？小区篮球场吗</div>
+      </div>
+    </div></div>
   </div>
-  <a class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></a>
-  <div class="tab-bar">
-    <a class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>广场</span></a>
-    <a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>AI</span></a>
-    <a class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></a>
-  </div>
-  <div class="home-indicator"><div class="bar"></div></div>
+  <div class="board-footer"><span>📌 东方兰园 · 邻里互助</span></div>
 </div>
-<script>function toggleLike(b){b.classList.toggle('liked');var s=b.querySelector('svg'),sp=b.querySelector('span'),c=parseInt(sp.textContent);b.classList.contains('liked')?(s.setAttribute('fill','currentColor'),sp.textContent=c+1):(s.setAttribute('fill','none'),sp.textContent=Math.max(0,c-1))}</script>
+<script>function toggleLike(b){b.classList.toggle('liked');var s=b.querySelector('svg'),sp=b.querySelector('span')||b.childNodes[b.childNodes.length-1],c=parseInt(sp.textContent);if(b.classList.contains('liked')){s.setAttribute('fill','currentColor');sp.textContent=c+1}else{s.setAttribute('fill','none');sp.textContent=Math.max(0,c-1)}}
+</script>
 </body>
 </html>
