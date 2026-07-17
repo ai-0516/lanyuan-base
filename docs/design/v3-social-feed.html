@@ -57,12 +57,6 @@
   .ci-author{font-size:12px;font-weight:600;color:var(--terracotta);display:inline}
   .ci-text{font-size:12px;color:#7a6a5a;display:inline}
   .see-all{font-size:11px;color:var(--terracotta);padding:4px 0 2px;cursor:pointer;font-weight:500}
-  .quick-comment{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(250,247,242,0.6);margin:0 -14px -14px;border-top:1px solid rgba(232,213,192,0.3)}
-  .quick-comment input{flex:1;padding:8px 14px;background:var(--warm-white);border:1px solid rgba(232,213,192,0.5);border-radius:16px;font-size:12px;outline:none;font-family:'DM Sans',sans-serif;transition:border-color 0.2s}
-  .quick-comment input:focus{border-color:var(--terracotta-light)}
-  .quick-comment .qc-send{font-size:12px;font-weight:600;color:var(--terracotta);cursor:pointer;border:none;background:none;padding:4px 8px;flex-shrink:0;transition:opacity 0.2s}
-  .quick-comment .qc-send:disabled{color:#d8c8b8;cursor:not-allowed}
-
   /* FAB */
   .fab{position:absolute;bottom:90px;right:20px;width:48px;height:48px;border-radius:16px;
     background:linear-gradient(135deg,var(--ember),var(--clay));color:#fff;font-size:24px;
@@ -109,10 +103,6 @@
         <div class="comment-inline"><div class="ci-avatar c2">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div>
         <div class="see-all">查看全部 5 条评论</div>
       </div>
-      <div class="quick-comment">
-        <input type="text" placeholder="说点什么…" oninput="this.nextElementSibling.disabled=!this.value.trim()" onkeydown="if(event.key==='Enter'&&this.value.trim())addComment(this)">
-        <button class="qc-send" disabled onclick="addComment(this.previousElementSibling)">发送</button>
-      </div>
     </div>
 
     <!-- Post 2 -->
@@ -131,10 +121,6 @@
         <div class="comment-inline"><div class="ci-avatar c1">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">支持共享！邻里互助真棒</span></div></div>
         <div class="see-all">查看全部 12 条评论</div>
       </div>
-      <div class="quick-comment">
-        <input type="text" placeholder="说点什么…" oninput="this.nextElementSibling.disabled=!this.value.trim()" onkeydown="if(event.key==='Enter'&&this.value.trim())addComment(this)">
-        <button class="qc-send" disabled onclick="addComment(this.previousElementSibling)">发送</button>
-      </div>
     </div>
 
     <!-- Post 3 -->
@@ -150,10 +136,6 @@
       </div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-avatar c1">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div></div>
-      </div>
-      <div class="quick-comment">
-        <input type="text" placeholder="说点什么…" oninput="this.nextElementSibling.disabled=!this.value.trim()" onkeydown="if(event.key==='Enter'&&this.value.trim())addComment(this)">
-        <button class="qc-send" disabled onclick="addComment(this.previousElementSibling)">发送</button>
       </div>
     </div>
 
@@ -173,10 +155,6 @@
         <div class="comment-inline"><div class="ci-avatar c2">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">在哪打？小区篮球场吗</span></div></div>
         <div class="comment-inline"><div class="ci-avatar c3">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div></div>
         <div class="see-all">查看全部 18 条评论</div>
-      </div>
-      <div class="quick-comment">
-        <input type="text" placeholder="说点什么…" oninput="this.nextElementSibling.disabled=!this.value.trim()" onkeydown="if(event.key==='Enter'&&this.value.trim())addComment(this)">
-        <button class="qc-send" disabled onclick="addComment(this.previousElementSibling)">发送</button>
       </div>
     </div>
   </div>
@@ -208,21 +186,6 @@ function toggleLike(el) {
   } else {
     el.innerHTML = '<span>♡</span> ' + Math.max(0, count - 1);
   }
-}
-function focusComment(el) {
-  el.closest('.feed-card').querySelector('.quick-comment input').focus();
-}
-function addComment(input) {
-  var text = input.value.trim();
-  if (!text) return;
-  var card = input.closest('.feed-card');
-  var comments = card.querySelector('.post-comments');
-  var seeAll = comments.querySelector('.see-all');
-  var nc = document.createElement('div');
-  nc.className = 'comment-inline';
-  nc.innerHTML = '<div class="ci-avatar" style="background:linear-gradient(135deg,var(--terracotta-light),var(--terracotta))">我</div><div class="ci-body"><span class="ci-author">我</span> <span class="ci-text">' + text + '</span></div>';
-  if (seeAll) comments.insertBefore(nc, seeAll); else comments.appendChild(nc);
-  input.value = ''; input.nextElementSibling.disabled = true;
 }
 </script>
 </body>
