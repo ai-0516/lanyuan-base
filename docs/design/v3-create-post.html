@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发布帖子 · 兰园</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --cream:#faf7f2;--warm-white:#fffaf5;--terracotta:#c4673c;--terracotta-deep:#9b3d1a;
+    --terracotta-light:#e8a87c;--ember:#d4744b;--clay:#b8532e;--sand:#f2e8dc;
+    --sand-dark:#e8d5c0;--bark:#3d2b1f;
+    --shadow-sm:0 1px 3px rgba(61,43,31,0.06),0 1px 2px rgba(61,43,31,0.04);
+    --shadow-md:0 4px 16px rgba(61,43,31,0.07),0 2px 6px rgba(61,43,31,0.04);
+    --shadow-lg:0 12px 32px rgba(61,43,31,0.1),0 4px 12px rgba(61,43,31,0.05);
+  }
+  body{display:flex;justify-content:center;align-items:center;min-height:100vh;
+    background:#ede4d8;font-family:'DM Sans',-apple-system,sans-serif;
+    background-image:radial-gradient(ellipse at 20% 50%,rgba(212,116,75,0.08) 0%,transparent 50%),
+      radial-gradient(ellipse at 80% 20%,rgba(200,150,62,0.06) 0%,transparent 50%);}
+  .phone{width:390px;height:760px;background:var(--cream);border-radius:36px;display:flex;flex-direction:column;
+    box-shadow:0 0 0 1px rgba(61,43,31,0.08),0 24px 64px rgba(61,43,31,0.15),0 8px 24px rgba(61,43,31,0.1);overflow:hidden;position:relative}
+  .status-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 24px 0;font-size:11px;font-weight:500;color:var(--bark)}
+  .nav-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
+  .nav-bar .cancel{font-size:14px;color:#b8a898;cursor:pointer;text-decoration:none}
+  .nav-bar .title{font-family:'Playfair Display',serif;font-size:16px;font-weight:600;color:var(--bark)}
+  .nav-bar .publish{font-size:13px;color:#fff;font-weight:600;cursor:pointer;
+    background:linear-gradient(135deg,var(--ember),var(--clay));border:none;
+    padding:6px 18px;border-radius:16px;transition:all 0.2s;font-family:'DM Sans',sans-serif}
+  .nav-bar .publish:hover{box-shadow:var(--shadow-md)}
+  .nav-bar .publish:disabled{background:#d8c8b8;cursor:not-allowed;box-shadow:none}
+  .page-content{flex:1;overflow-y:auto;background:var(--warm-white);padding:16px;margin:0 16px 8px;border-radius:16px;box-shadow:var(--shadow-sm);border:1px solid rgba(232,213,192,0.4)}
+  .textarea{width:100%;min-height:200px;border:none;outline:none;font-size:15px;line-height:1.6;
+    font-family:'DM Sans',sans-serif;resize:none;color:var(--bark)}
+  .textarea::placeholder{color:#d8c8b8}
+  .image-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .img-box{width:78px;height:78px;border-radius:10px;background:var(--cream);display:flex;
+    align-items:center;justify-content:center;font-size:24px;cursor:pointer;
+    transition:all 0.2s;position:relative;border:1px solid rgba(232,213,192,0.4)}
+  .img-box:hover{border-color:var(--terracotta-light)}
+  .img-box.add{border:1.5px dashed rgba(196,103,60,0.3)}
+  .img-box .remove{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;
+    background:var(--terracotta);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;cursor:pointer}
+  .img-box.filled .remove{display:flex}
+  .img-box.filled{background:linear-gradient(135deg,var(--terracotta-light),var(--terracotta))}
+  .img-box.filled.i2{background:linear-gradient(135deg,#d4a88c,#b87050)}
+  .char-count{text-align:right;font-size:11px;color:#d8c8b8;margin-top:8px}
+  .char-count.warn{color:var(--gold)}
+  .char-count.over{color:var(--terracotta)}
+  .toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(61,43,31,0.85);
+    color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;display:none;z-index:100;
+    backdrop-filter:blur(4px)}
+  .toast.show{display:block;animation:fadeInOut 2s ease}
+  @keyframes fadeInOut{0%{opacity:0;transform:translate(-50%,-50%) scale(0.85)}15%{opacity:1}85%{opacity:1}100%{opacity:0}}
+  .home-indicator{height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .home-indicator .bar{width:134px;height:5px;background:var(--bark);border-radius:3px;opacity:0.15}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;opacity:0.5">●●● WiFi</span></div>
+  <div class="nav-bar">
+    <a href="v3-social-feed.html" class="cancel">取消</a>
+    <span class="title">发布帖子</span>
+    <button class="publish" onclick="publishPost()">发布</button>
+  </div>
+
+  <div class="page-content">
+    <textarea class="textarea" placeholder="分享小区新鲜事…" id="postText" maxlength="500" oninput="updateCount()"></textarea>
+    <div class="char-count" id="charCount">0/500</div>
+    <div class="image-grid" id="imageGrid">
+      <div class="img-box add" onclick="addImage()">📷</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">✅ 发布成功</div>
+  <div class="home-indicator"><div class="bar"></div></div>
+</div>
+
+<script>
+var imgCount = 0;
+function updateCount() {
+  var t = document.getElementById('postText'), c = document.getElementById('charCount');
+  var len = t.value.length; c.textContent = len + '/500'; c.className = 'char-count';
+  if (len > 400) c.classList.add('warn');
+  if (len >= 500) c.classList.add('over');
+}
+function addImage() {
+  if (imgCount >= 3) return; imgCount++;
+  var grid = document.getElementById('imageGrid');
+  var box = document.createElement('div');
+  box.className = 'img-box filled' + (imgCount > 1 ? ' i2' : '');
+  box.innerHTML = '<span>🖼️</span><div class="remove" onclick="removeImage(this)">✕</div>';
+  grid.insertBefore(box, grid.lastElementChild);
+  if (imgCount >= 3) grid.lastElementChild.style.display = 'none';
+}
+function removeImage(el) { el.parentElement.remove(); imgCount--;
+  document.getElementById('imageGrid').lastElementChild.style.display = 'flex'; }
+function publishPost() {
+  var text = document.getElementById('postText').value.trim();
+  if (!text && imgCount === 0) return;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(function(){ toast.classList.remove('show'); window.location.href = 'v3-social-feed.html'; }, 1500);
+}
+</script>
+</body>
+</html>

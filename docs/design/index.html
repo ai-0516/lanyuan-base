@@ -3,95 +3,85 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>兰园 · 设计稿</title>
+<title>兰园 · 设计稿 v3</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#e8e0d8;color:#4A3B2F;min-height:100vh}
-.header{background:#FFFBF6;padding:28px 32px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
-.header h1{font-size:24px;color:#D4845A;margin-bottom:4px;letter-spacing:2px;font-weight:700}
-.header .sub{font-size:14px;color:#B8A898}
-.container{max-width:1100px;margin:0 auto;padding:32px 24px}
-.section-title{font-size:16px;color:#8B7355;font-weight:600;margin:36px 0 16px;padding-left:12px;border-left:3px solid #D4845A}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.card{background:#FFFBF6;border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,0.03),0 4px 12px rgba(0,0,0,0.03);border:1px solid #EDE4D8;transition:transform .25s,box-shadow .25s;text-decoration:none;color:inherit;display:block;cursor:pointer}
-.card:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.08)}
-.card h3{font-size:16px;color:#4A3B2F;margin-bottom:6px}
-.card p{font-size:13px;color:#B8A898;line-height:1.5}
-.card .badge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:4px;margin-top:10px;font-weight:600}
-.badge-main{background:#EDE4D8;color:#8B7355}
-.badge-accent{background:#D4845A;color:#fff}
-.flow-box{background:#FFFBF6;border-radius:16px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,0.03);line-height:2.2;font-size:14px;border:1px solid #EDE4D8;color:#6B5E53}
-.flow-box .arrow{color:#D4845A;font-weight:600}
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',-apple-system,sans-serif;background:#ede4d8;color:#3d2b1f;padding:40px 20px;
+    background-image:radial-gradient(ellipse at 20% 50%,rgba(212,116,75,0.08) 0%,transparent 50%),
+      radial-gradient(ellipse at 80% 20%,rgba(200,150,62,0.06) 0%,transparent 50%);}
+  h1{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;text-align:center;margin-bottom:4px}
+  h1 span{color:#c4673c}
+  .sub{text-align:center;color:#b8a898;font-size:14px;margin-bottom:32px}
+  .grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .card{background:#fffaf5;border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(61,43,31,0.06);border:1px solid rgba(232,213,192,0.4);transition:box-shadow 0.2s,transform 0.2s}
+  .card:hover{box-shadow:0 4px 16px rgba(61,43,31,0.07);transform:translateY(-2px)}
+  .card h2{font-size:15px;font-weight:600;margin-bottom:4px}
+  .card p{font-size:12px;color:#b8a898;margin-bottom:12px;line-height:1.5}
+  .card a{display:inline-block;padding:8px 18px;background:linear-gradient(135deg,#d4744b,#b8532e);color:#fff;border-radius:12px;text-decoration:none;font-size:13px;font-weight:500;transition:box-shadow 0.2s}
+  .card a:hover{box-shadow:0 4px 12px rgba(196,103,60,0.25)}
+  .tag{display:inline-block;padding:2px 8px;background:#f2e8dc;color:#7a6a5a;border-radius:6px;font-size:10px;margin-bottom:8px}
+  .divider{max-width:300px;margin:28px auto;text-align:center;color:#d8c8b8;font-size:12px;letter-spacing:2px}
 </style>
 </head>
 <body>
+<h1>兰园 · <span>v3</span></h1>
+<p class="sub">基于 design-system.html 设计语言重构 · 陶土暖色 + Playfair Display</p>
 
-<!-- ── design version pinned at commit ── -->
-<div style="position:fixed;bottom:12px;right:12px;z-index:99999;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#fff;font-size:11px;font-family:SFMono-Regular,Consolas,monospace;padding:5px 10px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.25);pointer-events:none;letter-spacing:0.3px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="7384d22 · design: 三skill独立版本对比 — huashu / ui-ux / frontend 各一版社交广场">🏷️ <a href="https://github.com/snxly/lanyuan-base/commit/7384d22" target="_blank" style="color:#8cf;text-decoration:none">7384d22</a> · design: 三skill独立版本对比 — huashu / ui-ux / frontend 各一版社交广场</div>
-
-<div class="header">
-  <h1>兰园 · 邻里社区</h1>
-  <p class="sub">东方兰园小区 — 微信小程序设计稿 · 暖邻风格</p>
+<div class="grid">
+  <div class="card">
+    <div class="tag">🔐 登录</div>
+    <h2>微信授权登录</h2>
+    <p>一键登录，三个功能入口展示</p>
+    <a href="v3-login.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">👤 我的</div>
+    <h2>个人中心</h2>
+    <p>用户信息、消息通知、菜单列表、底部 Tab</p>
+    <a href="v3-profile.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">✏️ 编辑</div>
+    <h2>编辑资料</h2>
+    <p>头像、昵称、社区信息、个性签名</p>
+    <a href="v3-edit-profile.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">⚙️ 设置</div>
+    <h2>设置中心</h2>
+    <p>隐私开关、关于我们、退出登录弹窗</p>
+    <a href="v3-settings.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">💬 社交</div>
+    <h2>兰园广场</h2>
+    <p>帖子列表、点赞、评论直显、快速评论</p>
+    <a href="v3-social-feed.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">📝 发布</div>
+    <h2>发布帖子</h2>
+    <p>图文混排、字数统计、多图上传</p>
+    <a href="v3-create-post.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">🤖 AI</div>
+    <h2>AI 助手</h2>
+    <p>历史列表 + 新对话入口 → 聊天界面</p>
+    <a href="v3-ai-chat.html">预览 →</a>
+  </div>
+  <div class="card">
+    <div class="tag">📋 历史</div>
+    <h2>对话管理</h2>
+    <p>批量删除、编辑模式</p>
+    <a href="v3-ai-history.html">预览 →</a>
+  </div>
 </div>
-<div class="container">
-  <span class="section-title">页面列表</span>
-  <div class="grid">
-    <a href="01-login.html" class="card">
-      <h3>01 · 微信授权登录</h3>
-      <p>一键微信登录，获取头像昵称，进入社区</p>
-      <span class="badge badge-accent">入口</span>
-    </a>
-    <a href="social-feed-warm.html" class="card">
-      <h3>02 · 邻里广场</h3>
-      <p>社区动态流，邻里分享互助，点赞评论</p>
-      <span class="badge badge-accent">首页</span>
-    </a>
-    <a href="07-post-detail.html" class="card">
-      <h3>03 · 帖子详情</h3>
-      <p>查看帖子全文、图片、评论列表</p>
-      <span class="badge badge-main">社交</span>
-    </a>
-    <a href="06-create-post.html" class="card">
-      <h3>04 · 发布内容</h3>
-      <p>写文字、上传图片、选择话题标签</p>
-      <span class="badge badge-main">社交</span>
-    </a>
-    <a href="08-ai-chat.html" class="card">
-      <h3>05 · 小兰助手</h3>
-      <p>AI 社区助手，物业问答、生活咨询</p>
-      <span class="badge badge-accent">AI</span>
-    </a>
-    <a href="09-ai-history.html" class="card">
-      <h3>06 · 对话历史</h3>
-      <p>查看过往的 AI 对话记录</p>
-      <span class="badge badge-main">AI</span>
-    </a>
-    <a href="02-profile.html" class="card">
-      <h3>07 · 个人主页</h3>
-      <p>我的信息、发布的帖子、收藏</p>
-      <span class="badge badge-accent">我的</span>
-    </a>
-    <a href="03-edit-profile.html" class="card">
-      <h3>08 · 编辑资料</h3>
-      <p>修改头像、昵称、楼栋号、简介</p>
-      <span class="badge badge-main">我的</span>
-    </a>
-    <a href="04-settings.html" class="card">
-      <h3>09 · 设置</h3>
-      <p>消息通知、隐私、通用设置</p>
-      <span class="badge badge-main">我的</span>
-    </a>
-  </div>
 
-  <span class="section-title">用户流程</span>
-  <div class="flow-box">
-    微信打开小程序 → <span class="arrow">01 登录授权</span> → 进入 <span class="arrow">02 邻里广场</span>（默认首页）<br>
-    └ 底部 Tab <span class="arrow">广场</span> / <span class="arrow">AI</span> / <span class="arrow">我的</span> 三栏切换<br>
-    └ 广场 → 点击帖子 → <span class="arrow">03 帖子详情</span><br>
-    └ 广场 → 右下角 + → <span class="arrow">04 发布内容</span><br>
-    └ AI → <span class="arrow">05 小兰助手</span> → <span class="arrow">06 对话历史</span><br>
-    └ 我的 → <span class="arrow">07 个人主页</span> → <span class="arrow">08 编辑资料</span> / <span class="arrow">09 设置</span>
-  </div>
+<div class="divider">— 设计系统参考 —</div>
+<div style="text-align:center">
+  <a href="design-system.html" style="color:#c4673c;font-size:14px;text-decoration:none;border-bottom:1px dashed rgba(196,103,60,0.3)">查看 design-system.html（源设计语言）</a>
 </div>
 </body>
 </html>
