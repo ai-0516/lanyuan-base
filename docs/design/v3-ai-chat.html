@@ -44,7 +44,7 @@
   .msg.ai .msg-bubble b{color:var(--terracotta)}
   .chat-input-wrap{display:flex;align-items:center;gap:8px;
     background:var(--warm-white);border-radius:18px;padding:6px 6px 6px 16px;
-    margin-top:12px;box-shadow:var(--shadow-md);border:1px solid rgba(232,213,192,0.4)}
+    margin:8px 16px 0;box-shadow:var(--shadow-md);border:1px solid rgba(232,213,192,0.4);flex-shrink:0}
   .chat-input-wrap input{border:none;background:transparent;flex:1;outline:none;
     font-family:'DM Sans',sans-serif;font-size:13px;color:var(--bark)}
   .chat-input-wrap input::placeholder{color:#c8b8a8}
@@ -95,10 +95,12 @@
         <div class="msg-bubble">兰园小区物业服务中心 ☎️ <b>010-8888-6666</b><br><br>办公时间：周一至周五 8:30-17:30<br>周末及节假日：9:00-16:00<br><br>紧急情况可拨打 24 小时值班电话：010-8888-6667</div>
       </div>
     </div>
-    <div class="chat-input-wrap">
-      <input placeholder="输入消息…" id="aiInput" onkeydown="if(event.key==='Enter')sendMsg()" oninput="updateSend()">
-      <button class="send-btn" id="sendBtn" disabled onclick="sendMsg()">→</button>
-    </div>
+  </div>
+
+  <!-- Fixed input bar -->
+  <div class="chat-input-wrap">
+    <input placeholder="输入消息…" id="aiInput" onkeydown="if(event.key==='Enter')sendMsg()" oninput="updateSend()">
+    <button class="send-btn" id="sendBtn" disabled onclick="sendMsg()">→</button>
   </div>
 
   <!-- Tab bar: 社交 → AI → 我的 -->
