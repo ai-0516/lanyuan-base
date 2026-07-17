@@ -31,6 +31,7 @@
   .app-header .title span{color:var(--terracotta)}
   .page-content{flex:1;overflow-y:auto;padding:0 16px 8px;scroll-behavior:smooth}
   .page-content::-webkit-scrollbar{width:0}
+  .tab-icon svg{width:20px;height:20px;display:block;margin:0 auto 3px;transition:transform 0.25s}
 
   /* Profile header */
   .profile-card{background:var(--warm-white);border-radius:16px;padding:28px 20px 20px;text-align:center;
@@ -86,16 +87,15 @@
   .menu-icon-wrap.gray svg{color:#888}
   .menu-label{font-size:14px;color:var(--bark)}
   .menu-value{font-size:12px;color:#b8a898}
-  .arrow{color:#d8c8b8;font-size:11px}
+  .arrow-svg{width:14px;height:14px;color:#d8c8b8;flex-shrink:0}
 
   /* Tab bar */
   .tab-bar{display:flex;background:var(--warm-white);border-top:1px solid rgba(232,213,192,0.4);
     padding:4px 8px 14px;position:relative}
   .tab{flex:1;text-align:center;padding:6px 0;cursor:pointer;font-size:10px;font-weight:500;
     color:#c8b8a8;transition:all 0.25s;position:relative;text-decoration:none}
-  .tab .tab-icon{font-size:20px;display:block;margin-bottom:3px;transition:transform 0.25s}
   .tab.active{color:var(--terracotta);font-weight:600}
-  .tab.active .tab-icon{transform:translateY(-2px)}
+  .tab.active .tab-icon svg{transform:translateY(-2px)}
 
   .home-indicator{height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .home-indicator .bar{width:134px;height:5px;background:var(--bark);border-radius:3px;opacity:0.15}
@@ -139,7 +139,7 @@
       </div>
       <div class="notify-right">
         <span class="badge" id="notifyBadge">3</span>
-        <span class="arrow">›</span>
+        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
     </div>
 
@@ -152,7 +152,7 @@
           </div>
           <span class="menu-label">我的帖子</span>
         </div>
-        <div class="menu-right"><span class="menu-value">12</span><span class="arrow">›</span></div>
+        <div class="menu-right"><span class="menu-value">12</span><svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>
       <div class="menu-item">
         <div class="menu-left">
@@ -161,7 +161,7 @@
           </div>
           <span class="menu-label">我的点赞</span>
         </div>
-        <span class="arrow">›</span>
+        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
       <div class="menu-item">
         <div class="menu-left">
@@ -170,7 +170,7 @@
           </div>
           <span class="menu-label">我的评论</span>
         </div>
-        <span class="arrow">›</span>
+        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
     </div>
 
@@ -182,7 +182,7 @@
           </div>
           <span class="menu-label">设置</span>
         </div>
-        <span class="arrow">›</span>
+        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
     </div>
 
@@ -192,13 +192,13 @@
   <!-- Tab bar: 社交 → AI → 我的 -->
   <div class="tab-bar">
     <a href="v3-social-feed.html" class="tab">
-      <span class="tab-icon">◆</span>社交
+      <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>社交
     </a>
     <a href="v3-ai-chat.html" class="tab">
-      <span class="tab-icon">◇</span>AI
+      <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>AI
     </a>
     <a href="v3-profile.html" class="tab active">
-      <span class="tab-icon">◈</span>我的
+      <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>我的
     </a>
   </div>
   <div class="home-indicator"><div class="bar"></div></div>
