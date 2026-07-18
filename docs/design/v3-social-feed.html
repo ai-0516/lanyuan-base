@@ -90,6 +90,10 @@
   .ci-reply{font-size:12px;color:#b8a898;display:inline}
   .ci-reply-name{color:var(--terracotta);font-size:12px;font-weight:600;display:inline}
   .ci-text{font-size:12px;color:#7a6a5a;display:inline}
+  .ci-reply-btn{font-size:11px;color:#c8b8a8;cursor:pointer;flex-shrink:0;transition:color 0.2s;display:none}
+  .comment-inline:hover .ci-reply-btn{display:inline}
+  .ci-reply-btn:hover{color:var(--terracotta)}
+  .cs-reply-to{font-size:12px;color:var(--terracotta);padding:0 0 8px;display:none;font-weight:500}
   /* FAB */
   .fab{position:absolute;bottom:90px;right:20px;width:48px;height:48px;border-radius:16px;
     background:linear-gradient(135deg,var(--ember),var(--clay));color:#fff;font-size:24px;
@@ -154,11 +158,11 @@
       </div>
       <div class="post-section"><div class="liked-by"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b8a898" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lb-name">老张</span>, <span class="lb-name">小雨妈妈</span>, <span class="lb-name">阿杰</span>, <span class="lb-name">王叔</span>, <span class="lb-name">李老师</span></div>
       <div class="post-comments">
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">真好看！咱们小区的绿化越来越好了 👍</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">3号楼旁边那个小花园，最近开得正好</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">谢谢大家！就在3号楼后面的绿地 🌸</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">明天带相机去拍几张 📷</span></div></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">真好看！咱们小区的绿化越来越好了 👍</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div><span class="ci-reply-btn" onclick="replyTo('小雨妈妈')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">3号楼旁边那个小花园，最近开得正好</span></div><span class="ci-reply-btn" onclick="replyTo('阿杰')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">谢谢大家！就在3号楼后面的绿地 🌸</span></div><span class="ci-reply-btn" onclick="replyTo('小橘子')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">明天带相机去拍几张 📷</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
       </div>
       </div>
       </div>
@@ -183,11 +187,11 @@
       </div>
       <div class="post-section"><div class="liked-by"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b8a898" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lb-name">小橘子</span>, <span class="lb-name">小雨妈妈</span>, <span class="lb-name">阿杰</span>, <span class="lb-name">陈姐</span></div>
       <div class="post-comments">
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">多少钱一个月？我家也需要</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">支持共享！邻里互助真棒</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">已经私信你了，加我微信聊</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">我也需要！小区停车太难了</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">好便宜！我也要一个位置</span></div></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">多少钱一个月？我家也需要</span></div><span class="ci-reply-btn" onclick="replyTo('阿杰')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">支持共享！邻里互助真棒</span></div><span class="ci-reply-btn" onclick="replyTo('小橘子')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">已经私信你了，加我微信聊</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">我也需要！小区停车太难了</span></div><span class="ci-reply-btn" onclick="replyTo('小雨妈妈')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">好便宜！我也要一个位置</span></div><span class="ci-reply-btn" onclick="replyTo('阿杰')">回复</span></div>
       </div>
       </div>
       </div>
@@ -212,7 +216,7 @@
       </div>
       <div class="post-section"><div class="liked-by"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b8a898" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lb-name">老张</span>, <span class="lb-name">小橘子</span>, <span class="lb-name">阿杰</span>, <span class="lb-name">陈姐</span>, <span class="lb-name">刘阿姨</span></div>
       <div class="post-comments">
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
       </div>
       </div>
       </div>
@@ -237,11 +241,11 @@
       </div>
       <div class="post-section"><div class="liked-by"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b8a898" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lb-name">老张</span>, <span class="lb-name">小橘子</span>, <span class="lb-name">小雨妈妈</span>, <span class="lb-name">大刘</span>, <span class="lb-name">李老师</span></div>
       <div class="post-comments">
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">1！算我一个</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">在哪打？小区篮球场吗</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">下午3点，小区篮球场！欢迎大家来 🏀</span></div></div>
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">收到！我喊上老李一起</span></div></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">1！算我一个</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">在哪打？小区篮球场吗</span></div><span class="ci-reply-btn" onclick="replyTo('小橘子')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div><span class="ci-reply-btn" onclick="replyTo('小雨妈妈')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">下午3点，小区篮球场！欢迎大家来 🏀</span></div><span class="ci-reply-btn" onclick="replyTo('阿杰')">回复</span></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">收到！我喊上老李一起</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
       </div>
       </div>
       </div>
@@ -273,7 +277,7 @@
       </div>
       <div class="post-section"><div class="liked-by"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b8a898" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="lb-name">老张</span>, <span class="lb-name">小橘子</span>, <span class="lb-name">阿杰</span></div>
       <div class="post-comments">
-        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">拍得太棒了！构图特别好</span></div></div>
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">拍得太棒了！构图特别好</span></div><span class="ci-reply-btn" onclick="replyTo('老张')">回复</span></div>
       </div>
       </div>
       </div>
@@ -309,9 +313,10 @@
   <div class="comment-sheet-overlay" id="commentOverlay" onclick="closeCommentSheet()"></div>
   <div class="comment-sheet" id="commentSheet">
     <div class="comment-sheet-header">
-      <span class="cs-title">写评论</span>
+      <span class="cs-title" id="csTitle">写评论</span>
       <span class="cs-close" onclick="closeCommentSheet()">✕</span>
     </div>
+    <div class="cs-reply-to" id="csReplyTo"></div>
     <div class="comment-input-wrap">
       <input type="text" id="commentInput" placeholder="说点什么…" onkeydown="if(event.key==='Enter')submitComment()" oninput="document.getElementById('csSend').disabled=!this.value.trim()">
       <button class="cs-send" id="csSend" disabled onclick="submitComment()">→</button>
@@ -337,9 +342,22 @@ function toggleActions(id) {
   var fa = document.getElementById(id);
   fa.classList.toggle('open');
 }
+var _replyTo = ''; // reply target author
 function scrollToComment(id) {
   var fa = document.getElementById(id);
   fa.classList.remove('open');
+  _replyTo = '';
+  document.getElementById('csReplyTo').style.display = 'none';
+  document.getElementById('csTitle').textContent = '写评论';
+  document.getElementById('commentSheet').classList.add('show');
+  document.getElementById('commentOverlay').classList.add('show');
+  setTimeout(function(){ document.getElementById('commentInput').focus(); }, 300);
+}
+function replyTo(name) {
+  _replyTo = name;
+  document.getElementById('csReplyTo').textContent = '回复 @' + name;
+  document.getElementById('csReplyTo').style.display = 'block';
+  document.getElementById('csTitle').textContent = '回复评论';
   document.getElementById('commentSheet').classList.add('show');
   document.getElementById('commentOverlay').classList.add('show');
   setTimeout(function(){ document.getElementById('commentInput').focus(); }, 300);
@@ -349,6 +367,9 @@ function closeCommentSheet() {
   document.getElementById('commentOverlay').classList.remove('show');
   document.getElementById('commentInput').value = '';
   document.getElementById('csSend').disabled = true;
+  _replyTo = '';
+  document.getElementById('csReplyTo').style.display = 'none';
+  document.getElementById('csTitle').textContent = '写评论';
 }
 function submitComment() {
   var input = document.getElementById('commentInput');
@@ -361,7 +382,11 @@ function submitComment() {
     var nc = document.createElement('div');
     nc.className = 'comment-inline';
     nc.style.animation = 'fadeIn 0.3s ease';
-    nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span> <span class="ci-text">' + text + '</span></div>';
+    if (_replyTo) {
+      nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">' + _replyTo + '</span><span class="ci-reply">：</span> <span class="ci-text">' + text + '</span></div><span class="ci-reply-btn" onclick="replyTo(\'我\')">回复</span>';
+    } else {
+      nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span> <span class="ci-text">' + text + '</span></div><span class="ci-reply-btn" onclick="replyTo(\'我\')">回复</span>';
+    }
     comments.insertBefore(nc, comments.firstChild);
   }
   closeCommentSheet();
