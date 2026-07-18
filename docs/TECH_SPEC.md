@@ -241,7 +241,7 @@ backend/
 │   │   ├── comment.py
 │   │   ├── like.py
 │   │   ├── notification.py
-│   │   └── ai_conversation.py  # AI 对话记录
+│   │   └── conversation.py   # AI 对话会话
 │   ├── schemas/                # Pydantic 请求/响应模型
 │   │   ├── __init__.py
 │   │   ├── user.py
@@ -378,7 +378,8 @@ User 1 ──── * Post            # 用户发帖
 User 1 ──── * Comment          # 用户评论
 User 1 ──── * Like             # 用户点赞
 User 1 ──── * Notification     # 用户接收通知
-User 1 ──── * AiConversation   # 用户 AI 对话
+User 1 ──── * Conversation      # 用户 AI 对话会话
+Conversation 1 ──── * Message    # 会话下多条消息
 Post 1 ──── * Comment          # 帖子下评论
 Post 1 ──── * Like             # 帖子被点赞
 Comment ──── Comment (self-ref: parent_comment_id)
@@ -461,17 +462,29 @@ Comment ──── Comment (self-ref: parent_comment_id)
 索引：`(user_id, is_read, created_at)`（未读通知查询）
 索引：`(user_id, post_id)`（标记同一帖子相关通知已读）
 
-#### ai_conversation
+#### conversation
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 会话ID |
+| user_id | BIGINT UNSIGNED | FK → user.id, NOT NULL | 所属用户 |
+| title | VARCHAR(100) | NULLABLE, DEFAULT '' | 会话标题（自动生成或留空） |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | DATETIME | ON UPDATE CURRENT_TIMESTAMP | 最后活动时间 |
+
+索引：`(user_id, updated_at DESC)`（按用户获取会话列表，最近更新的在前）
+
+#### message
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 消息ID |
-| user_id | BIGINT UNSIGNED | FK → user.id, NOT NULL | 用户 |
+| conversation_id | BIGINT UNSIGNED | FK → conversation.id, NOT NULL | 所属会话 |
 | role | ENUM('user','assistant') | NOT NULL | 角色 |
 | content | TEXT | NOT NULL | 消息内容 |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 发送时间 |
 
-索引：`(user_id, created_at)`（按用户获取对话历史）
+索引：`(conversation_id, created_at)`（按会话获取消息历史）
 
 ---
 
@@ -571,8 +584,25 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| POST | `/ai/chat` | 发送消息并获取 AI 回复 | `{ message: string }` | `{ reply: string }` |
-| GET | `/ai/history` | 获取当前会话历史 | `?limit=30` | `AiMessage[]` |
+| GET | `/ai/conversations` | 会话列表（按最后活动倒序） | — | `Conversation[]` |
+| POST | `/ai/conversations` | 新建会话 | — | `Conversation` |
+| GET | `/ai/conversations/{id}` | 获取会话消息历史 | `?limit=30` | `Message[]` |
+| DELETE | `/ai/conversations/{id}` | 删除会话（含所有消息） | — | `{ success }` |
+| POST | `/ai/chat/{conversationId}` | 发送消息，SSE 流式返回 | `{ message: string }` | SSE 流 |
+
+**SSE 事件协议：**
+```
+event: status     → 中间状态（工具调用），前端显示加载动画
+event: token      → AI 回复文字块，前端逐字追加
+event: done       → 流结束，前端恢复输入
+event: error      → 错误提示
+```
+
+**AI 对话行为说明：**
+- 用户进入 AI Tab → 自动创建新会话（`POST /ai/conversations`），前端只维护一个当前会话
+- 发消息 `POST /ai/chat/{conversationId}`，SSE 流式接收回复
+- 消息历史按 `(conversation_id, created_at)` 排序
+- 最近 20 条作为 DeepSeek API 上下文
 
 ### 4.7 图片上传
 
