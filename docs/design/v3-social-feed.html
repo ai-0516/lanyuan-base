@@ -27,10 +27,8 @@
   .app-header .title span{color:var(--terracotta)}
   .page-content{flex:1;overflow-y:auto;padding:0 16px 4px}
 
-  /* Feed card */
-  .feed-card{background:var(--warm-white);border-radius:16px;padding:14px;margin-bottom:12px;
-    box-shadow:var(--shadow-sm);border:1px solid rgba(232,213,192,0.4);transition:box-shadow 0.2s}
-  .feed-card:active{box-shadow:var(--shadow-md)}
+  /* Feed post */
+  .feed-post{padding:0 0 4px;margin-bottom:12px}
   .feed-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .feed-avatar{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;
     color:#fff;font-size:14px;font-weight:600;flex-shrink:0;box-shadow:var(--shadow-sm)}
@@ -105,7 +103,7 @@
 
   <div class="page-content">
     <!-- Post 1 -->
-    <div class="feed-card s1">
+    <div class="feed-post s1">
       <div class="feed-header">
         <div class="feed-avatar" style="background:linear-gradient(135deg,var(--terracotta-light),var(--terracotta))">橘</div>
         <div><div class="feed-user">小橘子</div><div class="feed-meta">3号楼 · 10分钟前</div></div>
@@ -130,7 +128,7 @@
     </div>
 
     <!-- Post 2 -->
-    <div class="feed-card s2">
+    <div class="feed-post s2">
       <div class="feed-header">
         <div class="feed-avatar" style="background:linear-gradient(135deg,#d4a88c,#b87050)">张</div>
         <div><div class="feed-user">老张</div><div class="feed-meta">5号楼 · 1小时前</div></div>
@@ -154,7 +152,7 @@
     </div>
 
     <!-- Post 3 -->
-    <div class="feed-card s3">
+    <div class="feed-post s3">
       <div class="feed-header">
         <div class="feed-avatar" style="background:linear-gradient(135deg,var(--gold-light),var(--gold))">雨</div>
         <div><div class="feed-user">小雨妈妈</div><div class="feed-meta">2号楼 · 3小时前</div></div>
@@ -174,7 +172,7 @@
     </div>
 
     <!-- Post 4 -->
-    <div class="feed-card s4">
+    <div class="feed-post s4">
       <div class="feed-header">
         <div class="feed-avatar" style="background:linear-gradient(135deg,var(--olive-light),var(--olive))">杰</div>
         <div><div class="feed-user">阿杰</div><div class="feed-meta">7号楼 · 5小时前</div></div>
@@ -264,7 +262,7 @@ function submitComment() {
   var text = input.value.trim();
   if (!text) return;
   // Add comment to first visible feed card
-  var card = document.querySelector('.feed-card');
+  var card = document.querySelector('.feed-post');
   if (card) {
     var comments = card.querySelector('.post-comments');
     var nc = document.createElement('div');
