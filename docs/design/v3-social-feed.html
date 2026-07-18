@@ -36,9 +36,36 @@
   .feed-user{font-size:14px;font-weight:600;color:var(--bark)}
   .feed-meta{font-size:11px;color:#b8a898;margin-top:1px}
   .feed-body{font-size:13px;line-height:1.6;color:#5c4a3a;margin-bottom:10px}
-  .feed-image{width:100%;height:140px;border-radius:10px;
-    background:linear-gradient(135deg,#f5ede3,#ede0d2);display:flex;align-items:center;justify-content:center;
-    color:var(--terracotta-light);font-size:12px;margin-bottom:10px}
+
+  /* Image grid */
+  .feed-images{display:grid;gap:4px;border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer}
+  .feed-images img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity 0.15s}
+  .feed-images img:active{opacity:0.85}
+  .feed-images.count-1{grid-template-columns:1fr}
+  .feed-images.count-1 img{aspect-ratio:16/9;border-radius:12px}
+  .feed-images.count-2{grid-template-columns:1fr 1fr}
+  .feed-images.count-2 img{aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-3{grid-template-columns:1fr 1fr;grid-template-rows:auto auto}
+  .feed-images.count-3 img:first-child{grid-column:1/-1;aspect-ratio:16/9;border-radius:8px}
+  .feed-images.count-3 img:nth-child(2),
+  .feed-images.count-3 img:nth-child(3){aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-4{grid-template-columns:1fr 1fr}
+  .feed-images.count-4 img{aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-5,.feed-images.count-6,.feed-images.count-7,.feed-images.count-8,.feed-images.count-9{grid-template-columns:1fr 1fr 1fr}
+  .feed-images.count-5 img,.feed-images.count-6 img,.feed-images.count-7 img,.feed-images.count-8 img,.feed-images.count-9 img{aspect-ratio:1/1;border-radius:8px}
+
+  /* Lightbox */
+  .lightbox{position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:rgba(0,0,0,0.92);display:none;align-items:center;justify-content:center;flex-direction:column}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:92%;max-height:80%;border-radius:8px;object-fit:contain}
+  .lightbox .lb-close{position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;opacity:0.7;transition:opacity 0.2s;line-height:1}
+  .lightbox .lb-close:hover{opacity:1}
+  .lightbox .lb-counter{position:absolute;bottom:30px;left:0;right:0;text-align:center;color:rgba(255,255,255,0.6);font-size:13px}
+  .lightbox .lb-prev,.lightbox .lb-next{position:absolute;top:50%;transform:translateY(-50%);font-size:32px;color:#fff;cursor:pointer;opacity:0.5;transition:opacity 0.2s;padding:20px 12px;line-height:1}
+  .lightbox .lb-prev:hover,.lightbox .lb-next:hover{opacity:1}
+  .lightbox .lb-prev{left:8px}
+  .lightbox .lb-next{right:8px}
+
   .feed-actions{display:flex;justify-content:space-between;align-items:center;gap:0;font-size:12px;color:#b8a898;padding-top:4px;position:relative;min-height:24px}
   .feed-actions .action-left{font-size:11px;color:#b8a898}
   .feed-actions .action-dots{cursor:pointer;padding:2px 0;font-size:18px;line-height:1;color:#b8a898;transition:color 0.2s;letter-spacing:2px;z-index:2;position:relative}
@@ -109,7 +136,7 @@
         <div><div class="feed-user">小橘子</div></div>
       </div>
       <div class="feed-body">今天小区花园的月季开了，太美了！分享给大家看看 🌸</div>
-      <div class="feed-image">🌸 月季花开</div>
+      <div class="feed-images count-1" onclick="openLightbox(this,0)"><img src="https://picsum.photos/seed/flower1/600/340" alt="月季花"></div>
       <div class="feed-actions" id="fa-1">
         <span class="action-left">10分钟前</span>
         <div class="action-slide">
@@ -137,6 +164,7 @@
         <div><div class="feed-user">老张</div></div>
       </div>
       <div class="feed-body">有人需要停车位吗？我家闲置一个，可以共享出来 🚗</div>
+      <div class="feed-images count-2" onclick="openLightbox(this,0)"><img src="https://picsum.photos/seed/park1/300/300" alt="车位1"><img src="https://picsum.photos/seed/park2/300/300" alt="车位2"></div>
       <div class="feed-actions" id="fa-2">
         <span class="action-left">1小时前</span>
         <div class="action-slide">
@@ -164,6 +192,7 @@
         <div><div class="feed-user">小雨妈妈</div></div>
       </div>
       <div class="feed-body">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式 😊</div>
+      <div class="feed-images count-3" onclick="openLightbox(this,0)"><img src="https://picsum.photos/seed/clean1/600/340" alt="家政1"><img src="https://picsum.photos/seed/clean2/300/300" alt="家政2"><img src="https://picsum.photos/seed/clean3/300/300" alt="家政3"></div>
       <div class="feed-actions" id="fa-3">
         <span class="action-left">3小时前</span>
         <div class="action-slide">
@@ -187,6 +216,7 @@
         <div><div class="feed-user">阿杰</div></div>
       </div>
       <div class="feed-body">周末组织一场篮球赛，有没有一起的？🏀 报名的楼下扣1</div>
+      <div class="feed-images count-4" onclick="openLightbox(this,0)"><img src="https://picsum.photos/seed/ball1/300/300" alt="篮球1"><img src="https://picsum.photos/seed/ball2/300/300" alt="篮球2"><img src="https://picsum.photos/seed/ball3/300/300" alt="篮球3"><img src="https://picsum.photos/seed/ball4/300/300" alt="篮球4"></div>
       <div class="feed-actions" id="fa-4">
         <span class="action-left">5小时前</span>
         <div class="action-slide">
@@ -222,6 +252,15 @@
     </a>
   </div>
   <div class="home-indicator"><div class="bar"></div></div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <span class="lb-close" onclick="closeLightbox()">✕</span>
+    <span class="lb-prev" onclick="prevImage()">‹</span>
+    <img id="lbImage" src="" alt="">
+    <span class="lb-next" onclick="nextImage()">›</span>
+    <div class="lb-counter" id="lbCounter"></div>
+  </div>
 
   <!-- Comment sheet -->
   <div class="comment-sheet-overlay" id="commentOverlay" onclick="closeCommentSheet()"></div>
@@ -284,6 +323,38 @@ function submitComment() {
   }
   closeCommentSheet();
 }
+// Lightbox
+var lbImages = [];
+function openLightbox(container, index) {
+  var imgs = container.querySelectorAll('img');
+  lbImages = [];
+  imgs.forEach(function(i) { lbImages.push(i.src); });
+  showImage(index);
+  document.getElementById('lightbox').classList.add('open');
+}
+function showImage(index) {
+  window._lbIdx = index;
+  document.getElementById('lbImage').src = lbImages[index];
+  document.getElementById('lbCounter').textContent = (index+1) + ' / ' + lbImages.length;
+}
+function nextImage() {
+  showImage((window._lbIdx + 1) % lbImages.length);
+}
+function prevImage() {
+  showImage((window._lbIdx - 1 + lbImages.length) % lbImages.length);
+}
+function closeLightbox(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('lightbox').classList.remove('open');
+}
+// Keyboard nav
+document.addEventListener('keydown', function(e) {
+  var lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowRight') nextImage();
+  if (e.key === 'ArrowLeft') prevImage();
+});
 // Close on click outside
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.feed-actions')) {
