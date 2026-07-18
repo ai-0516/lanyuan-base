@@ -317,15 +317,46 @@ miniprogram/
 5. 用户直接进入 App（信息不全不拦截，编辑资料入口在个人中心）
 ```
 
-**场景 B：AI 对话流程（SSE 流式）**
+**场景 B：AI 对话流程（SSE 流式 + 工具调用）**
+
+**B-1 简单对话（无需工具）：**
 ```
 1. 用户发送消息 → POST /api/v1/ai/chat { message }
 2. 后端查询 MySQL ai_conversations → 获取最近 20 条对话历史
 3. 拼接 System Prompt + 历史 → 调 DeepSeek API (stream=true)
-4. DeepSeek 返回 SSE 流 (chunk by chunk)
-5. FastAPI 用 StreamingResponse 转发 SSE 流给前端
-6. 前端逐字显示 AI 回复（打字机效果）
-7. 流结束后后端将完整回复存入 MySQL ai_conversations 表
+4. DeepSeek 直接返回 SSE 文本流
+5. FastAPI 用 StreamingResponse 转发 SSE 给前端
+   → event: token, data: "暖"
+   → event: token, data: "气"
+   → event: token, data: "费..."
+6. 前端逐字追加到气泡（打字机效果）
+7. 流结束后后端将完整回复存入 MySQL
+```
+
+**B-2 需要调用工具（如查询暖气费）：**
+```
+1. 用户："我家暖气费多少？" → POST /api/v1/ai/chat { message }
+2. 后端查历史 + System Prompt（含 tools 定义）
+3. 调 DeepSeek API (stream=true)
+4. DeepSeek 返回 tool_call（非文本）:
+   { role: "assistant", tool_calls: [{ name: "query_heating", args: {...} }] }
+5. 后端生成 SSE 状态事件给前端:
+   → event: status, data: "正在查询供暖数据..."
+6. 前端气泡显示「🔍 正在查询供暖数据...」（带加载动画）
+7. 后端执行 tool → 获取结果（如数据库查询）
+8. 后端将 tool 结果送回 DeepSeek（第二轮调用 stream=true）
+9. DeepSeek 基于结果生成自然语言回复，SSE 流式返回
+   → event: token, data: "您家本月暖气费是..."
+10. 前端清除状态提示，切换为打字机效果
+11. 流结束后后端将完整对话（含 tool_call + result + 回复）存入 MySQL
+```
+
+**前端 SSE 事件协议：**
+```
+event: status     → 中间状态提示（如"正在查询..."），前端显示加载动画
+event: token      → 实际 AI 回复文字，前端逐字追加
+event: done       → 流结束，前端恢复输入框，后端开始存库
+event: error      → 错误提示，前端显示「AI 回复被中断，请重试」
 ```
 
 **场景 C：通知推送流程 (同步)**
