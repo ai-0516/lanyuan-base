@@ -319,10 +319,19 @@ miniprogram/
 
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
+**B-0 初始化（进入 AI Tab 时）：**
+```
+1. 前端调用 POST /api/v1/ai/session
+2. 后端查最近一次 active session →
+   - 有 → 返回 { session_id, messages: [...] }
+   - 无 → 新建 session，返回 { session_id, messages: [] }
+3. 前端持有 session_id，渲染历史消息
+```
+
 **B-1 简单对话（无需工具）：**
 ```
-1. 用户发送消息 → POST /api/v1/ai/chat { message }
-2. 后端查询 MySQL ai_conversations → 获取最近 20 条对话历史
+1. 用户发送消息 → POST /api/v1/ai/chat { session_id, message }
+2. 后端按 session_id 查 MySQL → 获取最近 20 条对话历史
 3. 拼接 System Prompt + 历史 → 调 DeepSeek API (stream=true)
 4. DeepSeek 直接返回 SSE 文本流
 5. FastAPI 用 StreamingResponse 转发 SSE 给前端
@@ -335,8 +344,8 @@ miniprogram/
 
 **B-2 需要调用工具（如查询暖气费）：**
 ```
-1. 用户："我家暖气费多少？" → POST /api/v1/ai/chat { message }
-2. 后端查历史 + System Prompt（含 tools 定义）
+1. 用户："我家暖气费多少？" → POST /api/v1/ai/chat { session_id, message }
+2. 后端按 session_id 查历史 + System Prompt（含 tools 定义）
 3. 调 DeepSeek API (stream=true)
 4. DeepSeek 返回 tool_call（非文本）:
    { role: "assistant", tool_calls: [{ name: "query_heating", args: {...} }] }
@@ -583,7 +592,8 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| POST | `/ai/chat` | 发送消息，SSE 流式返回 | `{ message: string }` | SSE 流 |
+| **POST** | `/ai/session` | 获取会话（后端决定新建或复用） | — | `{ session_id, title, messages: Message[] }` |
+| **POST** | `/ai/chat` | 发送消息，SSE 流式返回 | `{ session_id, message }` | SSE 流 |
 
 **SSE 事件协议：**
 ```
@@ -593,11 +603,13 @@ event: done       → 流结束，前端恢复输入
 event: error      → 错误提示
 ```
 
-**AI 对话行为说明（后端管理，前端无感知）：**
-- 用户首次发消息 → 后端自动创建 conversation 并记录 `conversation_id`
-- 后续发消息 → 后端复用最近一次 active 的 conversation
+**AI 对话行为说明：**
+- 用户进入 AI Tab → 前端调用 `POST /ai/session` 获取当前会话
+  - 后端逻辑：查询最近一次 active 的 session → 有则返回历史消息，无则新建
+  - 返回 `{ session_id, messages: [...] }`，前端渲染历史消息
+- 用户发消息 → 前端调用 `POST /ai/chat { session_id, message }`，SSE 接收回复
 - 消息历史按 `(conversation_id, created_at)` 排序，最近 20 条作为 DeepSeek 上下文
-- 前端只维护消息列表，不关心会话 ID，不展示会话列表 UI
+- 前端不必理解 session 创建逻辑，只需持有一个 `session_id` 即可
 
 ### 4.7 图片上传
 
