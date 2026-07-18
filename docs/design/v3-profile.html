@@ -97,9 +97,33 @@
   .home-indicator{height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .home-indicator .bar{width:134px;height:5px;background:var(--bark);border-radius:3px;opacity:0.15}
 
+  /* Settings inline */
+  .setting-section{background:var(--warm-white);border-radius:16px;margin-bottom:12px;box-shadow:var(--shadow-sm);border:1px solid rgba(232,213,192,0.4);overflow:hidden}
+  .section-label{font-size:11px;color:#b8a898;padding:12px 4px 6px;letter-spacing:0.5px;font-weight:500}
+  .setting-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(232,213,192,0.3);transition:background 0.15s}
+  .setting-item:last-child{border-bottom:none}
+  .setting-item:active{background:rgba(196,103,60,0.04)}
+  .set-label{font-size:14px;color:var(--bark)}
+  .set-arrow{color:#d8c8b8;font-size:14px}
+  .set-value{font-size:12px;color:#b8a898}
+  .toggle{width:50px;height:30px;border-radius:15px;background:#d8c8b8;position:relative;transition:background 0.3s;cursor:pointer;flex-shrink:0}
+  .toggle.on{background:var(--terracotta)}
+  .toggle .knob{width:26px;height:26px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left 0.3s;box-shadow:0 1px 3px rgba(61,43,31,0.15)}
+  .toggle.on .knob{left:22px}
+  .logout-btn{width:100%;padding:12px;background:var(--warm-white);color:var(--terracotta);border:1.5px solid rgba(196,103,60,0.3);border-radius:24px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;margin-top:4px}
+  .logout-btn:active{transform:scale(0.98)}
+  .modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(61,43,31,0.4);display:none;align-items:flex-end;justify-content:center;z-index:50}
+  .modal-overlay.show{display:flex}
+  .modal-sheet{width:100%;background:var(--warm-white);border-radius:20px 20px 0 0;padding:16px 0 20px;animation:slideUp 0.35s ease}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-title{text-align:center;font-size:16px;font-weight:600;color:var(--bark);padding:8px 0 16px;border-bottom:1px solid rgba(232,213,192,0.4);margin-bottom:8px}
+  .modal-action{text-align:center;padding:14px;font-size:15px;cursor:pointer;transition:background 0.15s;color:var(--bark)}
+  .modal-action.danger{color:var(--terracotta);font-weight:500}
+  .modal-action.cancel{color:#b8a898;margin-top:4px}
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   .stagger-1{animation:fadeIn 0.4s ease both}
   .stagger-2{animation:fadeIn 0.4s 0.06s ease both}
+  .s1{animation:fadeIn 0.4s ease both}.s2{animation:fadeIn 0.4s 0.06s ease both}.s3{animation:fadeIn 0.4s 0.12s ease both}
 </style>
 </head>
 <body>
@@ -138,20 +162,39 @@
       </div>
     </div>
 
-    <!-- Settings -->
-    <div class="menu-list stagger-2">
-      <a href="v3-settings.html" class="menu-item">
-        <div class="menu-left">
-          <div class="menu-icon-wrap gray">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </div>
-          <span class="menu-label">设置</span>
-        </div>
-        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </a>
+    <!-- Settings inline -->
+    <div class="section-label s2">隐私</div>
+    <div class="setting-section s2">
+      <div class="setting-item">
+        <span class="set-label">显示我的楼号</span>
+        <div class="toggle on" id="toggleBuilding" onclick="toggleSwitch('toggleBuilding')"><div class="knob"></div></div>
+      </div>
+      <div class="setting-item">
+        <span class="set-label">显示我的房号</span>
+        <div class="toggle" id="toggleRoom" onclick="toggleSwitch('toggleRoom')"><div class="knob"></div></div>
+      </div>
     </div>
 
+    <div class="section-label s2">其他</div>
+    <div class="setting-section s2">
+      <div class="setting-item"><span class="set-label">关于我们</span><span class="set-arrow">›</span></div>
+      <div class="setting-item"><span class="set-label">用户协议</span><span class="set-arrow">›</span></div>
+      <div class="setting-item"><span class="set-label">隐私政策</span><span class="set-arrow">›</span></div>
+      <div class="setting-item"><span class="set-label">当前版本</span><span class="set-value">v1.0.0</span></div>
+    </div>
+
+    <button class="logout-btn s2" onclick="showLogoutModal()">退出登录</button>
+
     <div style="height:8px"></div>
+  </div>
+
+  <!-- Logout Modal -->
+  <div class="modal-overlay" id="logoutModal">
+    <div class="modal-sheet">
+      <div class="modal-title">确认退出登录？</div>
+      <div class="modal-action danger" onclick="doLogout()">退出登录</div>
+      <div class="modal-action cancel" onclick="hideLogoutModal()">取消</div>
+    </div>
   </div>
 
   <!-- Tab bar: AI → 发现 → 我 -->
@@ -169,5 +212,20 @@
   <div class="home-indicator"><div class="bar"></div></div>
 </div>
 
+<script>
+function toggleSwitch(id) {
+  document.getElementById(id).classList.toggle('on');
+}
+function showLogoutModal() {
+  document.getElementById('logoutModal').classList.add('show');
+}
+function hideLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('show');
+}
+function doLogout() {
+  hideLogoutModal();
+  setTimeout(function(){ window.location.href = 'v3-login.html'; }, 300);
+}
+</script>
 </body>
 </html>
