@@ -311,7 +311,7 @@ miniprogram/
 2. POST /api/v1/auth/login { code } → 后端调微信 API 换 session_key + openid
 3. 后端生成 JWT (含 user_id) → 返回给前端
 4. 前端存储 token 到 wx.Storage
-5. 检查用户信息: GET /api/v1/user/me → 无信息 → 跳编辑资料
+5. 用户直接进入 App（信息不全不拦截，编辑资料入口在个人中心）
 ```
 
 **场景 B：AI 对话流程**
