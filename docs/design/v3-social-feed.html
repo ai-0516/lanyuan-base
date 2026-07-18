@@ -373,9 +373,9 @@ function submitComment() {
     nc.className = 'comment-inline';
     nc.style.animation = 'fadeIn 0.3s ease';
     if (replyTo) {
-      nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">' + replyTo + '</span><span class="ci-reply">：</span> <span class="ci-text">' + text + '</span></div>';
+      nc.innerHTML = '<div class="ci-body"><span class="ci-author">兰园业主</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">' + replyTo + '</span><span class="ci-reply">：</span> <span class="ci-text">' + text + '</span></div>';
     } else {
-      nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span> <span class="ci-text">' + text + '</span></div>';
+      nc.innerHTML = '<div class="ci-body"><span class="ci-author">兰园业主</span> <span class="ci-text">' + text + '</span></div>';
     }
     comments.appendChild(nc);
   }
