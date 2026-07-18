@@ -90,6 +90,9 @@
   .ci-reply{font-size:12px;color:#b8a898;display:inline}
   .ci-reply-name{color:var(--terracotta);font-size:12px;font-weight:600;display:inline}
   .ci-text{font-size:12px;color:#7a6a5a;display:inline}
+  /* Post highlight from notification */
+  .feed-post:target{animation:highlight 2s ease}
+  @keyframes highlight{0%{background:rgba(196,103,60,0.08)}100%{background:transparent}}
   /* FAB */
   .fab{position:absolute;bottom:90px;right:20px;width:48px;height:48px;border-radius:16px;
     background:linear-gradient(135deg,var(--ember),var(--clay));color:#fff;font-size:24px;
@@ -136,7 +139,7 @@
 
   <div class="page-content">
     <!-- Post 1 -->
-    <div class="feed-post s1">
+    <div class="feed-post s1" id="post-1">
       <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=1" alt="avatar"></div></div>
       <div class="post-right">
       <div class="feed-header">
@@ -165,7 +168,7 @@
     </div>
 
     <!-- Post 2 -->
-    <div class="feed-post s2">
+    <div class="feed-post s2" id="post-2">
       <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=12" alt="avatar"></div></div>
       <div class="post-right">
       <div class="feed-header">
@@ -194,7 +197,7 @@
     </div>
 
     <!-- Post 3 -->
-    <div class="feed-post s3">
+    <div class="feed-post s3" id="post-3">
       <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=5" alt="avatar"></div></div>
       <div class="post-right">
       <div class="feed-header">
@@ -219,7 +222,7 @@
     </div>
 
     <!-- Post 4 -->
-    <div class="feed-post s4">
+    <div class="feed-post s4" id="post-4">
       <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=11" alt="avatar"></div></div>
       <div class="post-right">
       <div class="feed-header">
@@ -248,7 +251,7 @@
     </div>
 
     <!-- Post 5: 6 images 3-column grid -->
-    <div class="feed-post s5">
+    <div class="feed-post s5" id="post-5">
       <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=33" alt="avatar"></div></div>
       <div class="post-right">
       <div class="feed-header">
