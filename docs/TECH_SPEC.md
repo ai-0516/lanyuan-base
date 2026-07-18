@@ -99,21 +99,24 @@
 
 ### 1.5 AI 模型集成
 
-| 维度 | 直接调用 DeepSeek API | 自建推理服务 (vLLM) |
+**决策：直接调用 DeepSeek API（SSE 流式返回）**
+
+| 维度 | 直接调用 DeepSeek API (SSE) | 自建推理服务 (vLLM) |
 |------|----------------------|-------------------|
 | **部署成本** | 低（按量付费） | 高（GPU 服务器 ¥5k+/月） |
 | **响应速度** | 快（100-300ms TTFB） | 中（受 GPU 负载影响） |
-| **延迟敏感度** | 低（服务端调用，前端无感） | 低 |
+| **流式支持** | ✅ DeepSeek 原生 SSE `stream=true` | ✅ vLLM 也支持 SSE |
+| **前端体验** | ✅ 逐字显示，用户感知流畅 | ✅ |
 | **维护成本** | 零 | 高（模型更新、监控） |
 | **隐私** | 数据经过第三方 | 数据不出服务器 |
 
 **决策：直接调用 DeepSeek API**
 
 理由：
+- DeepSeek API 原生支持 `stream=true` 参数，后端可转发 SSE 流
+- FastAPI `StreamingResponse` + `EventSource` 微信小程序支持 chunked 传输
+- 流式相比等待完整响应，用户感知延迟从 `3-5s` 降为 `300ms TTFB + 逐字显示`
 - MVP 阶段流量低，按量付费最经济（估计月费 < ¥100）
-- 自建推理需要 GPU 服务器，月费和运维成本远高于 API 调用
-- AI 对话内容非敏感业务数据（小区物业咨询），隐私风险可接受
-- 后续可在后台无缝切换为自有服务
 
 ### 1.6 图片存储
 
@@ -314,13 +317,15 @@ miniprogram/
 5. 用户直接进入 App（信息不全不拦截，编辑资料入口在个人中心）
 ```
 
-**场景 B：AI 对话流程**
+**场景 B：AI 对话流程（SSE 流式）**
 ```
 1. 用户发送消息 → POST /api/v1/ai/chat { message }
 2. 后端查询 MySQL ai_conversations → 获取最近 20 条对话历史
-3. 拼接 System Prompt + 历史 → 调 DeepSeek API
-4. DeepSeek 返回 → 存储到 MySQL ai_conversations 表
-5. 返回 AI 回复消息 { role: "assistant", content }
+3. 拼接 System Prompt + 历史 → 调 DeepSeek API (stream=true)
+4. DeepSeek 返回 SSE 流 (chunk by chunk)
+5. FastAPI 用 StreamingResponse 转发 SSE 流给前端
+6. 前端逐字显示 AI 回复（打字机效果）
+7. 流结束后后端将完整回复存入 MySQL ai_conversations 表
 ```
 
 **场景 C：通知推送流程 (同步)**
@@ -613,7 +618,9 @@ App (app.js)
 | 指标 | 目标 | 实现方式 |
 |------|------|----------|
 | API 响应时间 (无 AI) | < 200ms P95 | 异步查询 + 数据库索引 + 进程缓存 |
-| AI 对话响应 | < 3s（首次TTFB） | DeepSeek API 直调 |
+| AI 对话 SSE TTFB | < 1s | DeepSeek API `stream=true` + FastAPI `StreamingResponse` 转发 |
+| AI 对话完整响应 | 视内容长度 (3-10s) | 逐字显示，用户无等待感 |
+| 前端 AI 状态 | 即时反馈 | 发送后气泡显示「AI 正在输入…」光标动画，收到首字后转为打字机效果 |
 | 图片加载 | < 1s | 云存储 CDN + WebP 格式 + 缩略图裁剪 |
 | 并发 | 支持 100 QPS | FastAPI + Uvicorn (1 worker, MVP) |
 | 数据库连接池 | 最大 20 | SQLAlchemy pool_size=10, max_overflow=10 |
