@@ -153,34 +153,34 @@
 │                    微信小程序客户端                       │
 │  (原生开发, 7个页面, 底部Tab: AI → 发现 → 我)           │
 └────────────────────────┬────────────────────────────────┘
-                         │ HTTPS (api.lanyuan.com)
+                         │ HTTPS (云托管自带域名)
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│                 阿里云 SLB / Caddy                        │
-│          HTTPS Terminator + 反向代理                      │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                 FastAPI 应用服务                          │
+│              微信云托管 (WeChat CloudBase)                │
+│   HTTPS 终结 + 自动 SSL + 自动扩缩容                     │
+│                                                         │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │  API Layer (RESTful, 版本前缀 /api/v1)           │    │
-│  │  ┌──────┐ ┌──────────┐ ┌─────────┐ ┌────────┐ │    │
-│  │  │ 登录 │ │ 帖子/评论 │ │ 通知    │ │ AI对话 │ │    │
-│  │  └──────┘ └──────────┘ └─────────┘ └────────┘ │    │
-│  ├─────────────────────────────────────────────────┤    │
-│  │  Service Layer (业务逻辑)                        │    │
-│  │   UserService / PostService / CommentService /   │    │
-│  │   NotificationService / AIService                │    │
-│  ├─────────────────────────────────────────────────┤    │
-│  │  Data Layer (SQLAlchemy async session)           │    │
+│  │           FastAPI 容器 (Docker)                   │    │
+│  │  ┌─────────────────────────────────────────┐    │    │
+│  │  │  API Layer (RESTful, 版本前缀 /api/v1)   │    │    │
+│  │  │  ┌──────┐ ┌──────────┐ ┌─────────┐ ┌──┐ │    │    │
+│  │  │  │ 登录 │ │ 帖子/评论 │ │ 通知    │ │AI│ │    │    │
+│  │  │  └──────┘ └──────────┘ └─────────┘ └──┘ │    │    │
+│  │  ├─────────────────────────────────────────┤    │    │
+│  │  │  Service Layer (业务逻辑)                │    │    │
+│  │  │   UserService / PostService /            │    │    │
+│  │  │   CommentService / NotificationService   │    │    │
+│  │  │   AIService / UploadService              │    │    │
+│  │  ├─────────────────────────────────────────┤    │    │
+│  │  │  Data Layer (SQLAlchemy async session)   │    │    │
+│  │  └─────────────────────────────────────────┘    │    │
 │  └─────────────────────────────────────────────────┘    │
-└────────────────────────┬────────────────────────────────┘
+└────────────────────────────────────────────────────────┘
          │                │               │
          ▼                ▼               ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
 │   MySQL 8.0  │  │   Redis 7.x   │  │  阿里云 OSS  │
-│   (阿里云RDS) │  │   (缓存/任务)  │  │   (图片存储)  │
+│   (云数据库)  │  │   (云缓存)     │  │   (图片存储)  │
 └──────────────┘  └──────┬───────┘  └──────────────┘
                          │
                          ▼
@@ -637,52 +637,81 @@ App (app.js)
 
 ## 7. 部署方案
 
-### 7.1 服务器配置 (MVP)
+### 7.1 微信云托管配置
 
-| 组件 | 规格 | 说明 |
+采用 **微信云托管 (WeChat CloudBase)** 作为应用运行环境，无需自建反向代理和 HTTPS。
+
+| 组件 | 服务 | 说明 |
 |------|------|------|
-| **应用服务器** | 阿里云 ECS 2C4G | 运行 FastAPI + Celery worker |
-| **数据库** | 阿里云 RDS MySQL 8.0 (1C2G) | 数据持久化 |
-| **缓存** | 阿里云 Redis (256MB) | session/缓存/任务队列 |
+| **应用运行** | 微信云托管 (Docker 容器) | FastAPI 容器，自动扩缩容 |
+| **数据库** | 云数据库 MySQL 8.0 | 数据持久化，或自建 MySQL |
+| **缓存** | 云缓存 Redis | 会话/上下文缓存 |
 | **图片存储** | 阿里云 OSS (按量计费) | 图片上传 + CDN 分发 |
-| **域名** | api.lanyuan.com (待申请) | 小程序 request 合法域名 |
-| **SSL** | Let's Encrypt 自动续期 | Caddy 自动处理 |
+| **域名** | 云托管自带 `https://xxx-xxx-xxx-xxx-xxx.ap-shanghai.app.tcloudbase.com` | 配置到小程序 request 白名单 |
 
 ### 7.2 部署架构
 
 ```
-ECS (阿里云, 2C4G, Ubuntu 22.04)
-├── Caddy                  # HTTPS 反向代理 + 自动 SSL
-├── Docker
-│   ├── fastapi-app        # FastAPI (Uvicorn, 4 workers)
-│   ├── celery-worker      # Celery (后台通知推送)
-│   └── (Redis 可选本地 or 托管)
-├── systemd
-│   └── caddy.service
-└── OSS CLI / SDK
-    └── 图片上传
+微信云托管 (Docker)
+├── fastapi-app              # Uvicorn 多 workers
+│   ├── app/                 # FastAPI 应用代码
+│   ├── Dockerfile           # 云托管构建入口
+│   └── requirements.txt     # Python 依赖
+└── 环境变量:
+    ├── MYSQL_URL            # 数据库连接
+    ├── REDIS_URL            # Redis 连接
+    ├── DEEPSEEK_API_KEY     # DeepSeek API Key
+    ├── OSS_ACCESS_KEY       # 阿里云 OSS 凭证
+    └── WECHAT_APPID         # 小程序 AppID
 ```
 
-### 7.3 环境管理
+### 7.3 微信云托管要点
 
-| 环境 | 域名 | 用途 |
-|------|------|------|
+- **Dockerfile 构建**: 云托管根据项目根目录的 Dockerfile 自动构建镜像
+- **HTTPS**: 云托管自动分配域名并配置 SSL，无需手动申请证书
+- **环境变量**: 通过云托管控制台配置，敏感信息不写入代码
+- **日志**: 云托管内置日志采集，可在控制台查看
+- **扩缩容**: 按请求量自动扩缩，MVP 阶段最低 1 实例即可
+- **费用**: 按容器规格 + 请求量计费，MVP 预估 ¥50-100/月
+
+### 7.4 环境管理
+
+| 环境 | 域名来源 | 用途 |
+|------|----------|------|
 | **本地开发** | `localhost:8000` | Dev 本地调试 |
-| **测试环境** | `test-api.lanyuan.com` | Dev 自测 + Reviewer + QA |
-| **生产环境** | `api.lanyuan.com` | 微信小程序正式环境 |
+| **测试环境** | 云托管测试版本域名 | Dev 自测 + Reviewer + QA |
+| **生产环境** | 云托管正式版本域名 | 微信小程序正式环境 |
 
-### 7.4 开发流程
+### 7.5 开发流程
 
 ```
-1. Dev clone 仓库 → 本地 docker-compose up (MySQL + Redis)
+1. Dev 本地开发 (Docker Compose 启动 MySQL + Redis)
 2. alembic upgrade head → 数据库迁移
-3. uvicorn app.main:app --reload → 开发
-4. Git commit + push → (Reviewer 门禁)
-5. 手动部署到测试 ECS → QA 测试
-6. 手动部署到生产 ECS → 上线
+3. uvicorn app.main:app --reload → 开发调试
+4. Git commit + push
+5. 微信云托管自动/手动构建 Docker 镜像并部署
+6. QA 在测试环境验证
+7. 发布正式版本 → 上线
 ```
 
-### 7.5 依赖清单
+### 7.6 Dockerfile (参考)
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+
+EXPOSE 80
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80
+```
+
+### 7.7 依赖清单
 
 **Python 包 (requirements.txt)**
 
