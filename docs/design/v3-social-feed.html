@@ -377,7 +377,7 @@ function submitComment() {
     } else {
       nc.innerHTML = '<div class="ci-body"><span class="ci-author">我</span> <span class="ci-text">' + text + '</span></div>';
     }
-    comments.insertBefore(nc, comments.firstChild);
+    comments.appendChild(nc);
   }
   closeCommentSheet();
 }
