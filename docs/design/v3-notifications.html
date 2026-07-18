@@ -202,5 +202,19 @@
   <div class="home-indicator" style="height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="width:134px;height:5px;background:var(--bark);border-radius:3px;opacity:0.15"></div></div>
 </div>
 
+<script>
+// Click to dismiss: viewed notifications slide out
+document.querySelectorAll('.notif-item').forEach(function(item) {
+  item.addEventListener('click', function(e) {
+    if (e.target.closest('a') !== this) return;
+    e.preventDefault();
+    this.style.transition = 'opacity 0.3s, transform 0.3s';
+    this.style.opacity = '0';
+    this.style.transform = 'translateX(20px)';
+    var self = this;
+    setTimeout(function() { self.style.display = 'none'; }, 350);
+  });
+});
+</script>
 </body>
 </html>
