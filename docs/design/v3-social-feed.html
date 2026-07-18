@@ -77,8 +77,9 @@
   .feed-actions .action-slide span.liked{color:var(--terracotta)}
 
   /* Comments inline */
-  .liked-by{font-size:11px;color:#b8a898;padding:4px 0 6px}
-  .post-comments{background:rgba(250,247,242,0.6);border-radius:12px;padding:8px 14px 8px 0}
+  .post-section{background:rgba(250,247,242,0.6);border-radius:12px;overflow:hidden}
+  .liked-by{font-size:11px;color:#b8a898;padding:6px 14px 2px 0}
+  .post-comments{padding:0 14px 8px 0}
   .comment-inline{display:flex;gap:8px;padding:2px 0}
 
   .ci-body{flex:1;min-width:0}
@@ -147,13 +148,14 @@
         </div>
         <span class="action-dots" onclick="toggleActions('fa-1')">⋯</span>
       </div>
-      <div class="liked-by">❤️ 老张、小雨妈妈、阿杰、王叔、李老师</div>
+      <div class="post-section"><div class="liked-by">❤️ 老张、小雨妈妈、阿杰、王叔、李老师</div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">真好看！咱们小区的绿化越来越好了 👍</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">3号楼旁边那个小花园，最近开得正好</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">谢谢大家！就在3号楼后面的绿地 🌸</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">明天带相机去拍几张 📷</span></div></div>
+      </div>
       </div>
       </div>
     </div>
@@ -175,13 +177,14 @@
         </div>
         <span class="action-dots" onclick="toggleActions('fa-2')">⋯</span>
       </div>
-      <div class="liked-by">❤️ 小橘子、小雨妈妈、阿杰、陈姐</div>
+      <div class="post-section"><div class="liked-by">❤️ 小橘子、小雨妈妈、阿杰、陈姐</div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">多少钱一个月？我家也需要</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">支持共享！邻里互助真棒</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">阿杰</span><span class="ci-reply">：</span> <span class="ci-text">已经私信你了，加我微信聊</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">我也需要！小区停车太难了</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">好便宜！我也要一个位置</span></div></div>
+      </div>
       </div>
       </div>
     </div>
@@ -203,9 +206,10 @@
         </div>
         <span class="action-dots" onclick="toggleActions('fa-3')">⋯</span>
       </div>
-      <div class="liked-by">❤️ 老张、小橘子、阿杰、陈姐、刘阿姨</div>
+      <div class="post-section"><div class="liked-by">❤️ 老张、小橘子、阿杰、陈姐、刘阿姨</div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div></div>
+      </div>
       </div>
       </div>
     </div>
@@ -227,13 +231,14 @@
         </div>
         <span class="action-dots" onclick="toggleActions('fa-4')">⋯</span>
       </div>
-      <div class="liked-by">❤️ 老张、小橘子、小雨妈妈、大刘、李老师</div>
+      <div class="post-section"><div class="liked-by">❤️ 老张、小橘子、小雨妈妈、大刘、李老师</div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">1！算我一个</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小橘子</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">老张</span><span class="ci-reply">：</span> <span class="ci-text">在哪打？小区篮球场吗</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span><span class="ci-reply">回复</span><span class="ci-author ci-reply-name">小雨妈妈</span><span class="ci-reply">：</span> <span class="ci-text">下午3点，小区篮球场！欢迎大家来 🏀</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">收到！我喊上老李一起</span></div></div>
+      </div>
       </div>
       </div>
     </div>
@@ -262,9 +267,10 @@
         </div>
         <span class="action-dots" onclick="toggleActions('fa-5')">⋯</span>
       </div>
-      <div class="liked-by">❤️ 老张、小橘子、阿杰</div>
+      <div class="post-section"><div class="liked-by">❤️ 老张、小橘子、阿杰</div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">拍得太棒了！构图特别好</span></div></div>
+      </div>
       </div>
       </div>
     </div>
