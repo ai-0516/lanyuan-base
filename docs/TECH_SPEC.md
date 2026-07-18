@@ -15,6 +15,14 @@
 5. [前端组件树](#5-前端组件树)
 6. [非功能需求](#6-非功能需求)
 7. [部署方案](#7-部署方案)
+   - 7.1 微信云托管配置
+   - 7.2 部署架构
+   - 7.3 部署方案对比
+   - 7.4 微信云托管要点
+   - 7.5 环境管理
+   - 7.6 开发流程
+   - 7.7 Dockerfile (参考)
+   - 7.8 依赖清单
 
 ---
 
@@ -123,24 +131,33 @@
 - 图片 CDN 分发加速小区用户访问
 - 配合微信小程序 `webp` 格式优化传输
 
-### 1.7 缓存
+### 1.7 缓存 (MVP 无 Redis)
 
-**决策：Redis 7.x** (阿里云 Redis)
+**决策：MVP 阶段不使用 Redis，采用进程内存 + MySQL 直接查询**
 
-用途：
-- 微信 session_key 缓存（临时存储）
-- DeepSeek 对话上下文缓存（减少重复调用）
-- 通知未读计数缓存（高频读取）
-- 图片缩略图签名 URL 缓存
+| 场景 | MVP 方案 | Redis 方案（后续） |
+|------|---------|-------------------|
+| 微信 session_key | 每次请求调用微信 API 获取 | Redis TTL 缓存 |
+| AI 对话上下文 | 从 MySQL `ai_conversation` 读最近 20 条 | Redis List 缓存 |
+| 通知未读计数 | `SELECT COUNT(*) WHERE is_read=0` | Redis 原子计数 |
+| 签名 URL | 每次实时生成 | Redis TTL 缓存 |
 
-### 1.8 Async Task
+**进程内缓存**: 使用 Python `cachetools.TTLCache` 做轻量级热数据缓存（如 token blacklist、配置项）。
 
-**决策：Celery + Redis Broker**
+**注意**: Uvicorn 使用 1 worker（单进程），避免多进程缓存不一致。后续需扩 worker 时再引入 Redis。
 
-用途：
-- 异步推送通知（点赞/评论/回复）
-- 图片压缩/水印处理
-- 长时间 AI 对话处理
+### 1.8 异步任务 (MVP 无 Celery)
+
+**决策：MVP 阶段通知同步写入，去掉 Celery + Redis Broker**
+
+- 点赞、评论等操作产生的通知直接同步 INSERT 到 notification 表
+- MVP 用户量低，同步写入对响应时间影响可忽略（< 5ms）
+- 后续需处理大量异步任务时，再引入 Celery + Redis
+
+**影响评估**:
+- 创建评论接口：原 ~10ms → 现 ~12ms（+1 条通知 INSERT）
+- 点赞接口：原 ~5ms → 现 ~7ms（+1 条通知 INSERT）
+- 吞吐量：单 worker 可承载 500+ QPS，MVP 足够
 
 ---
 
@@ -176,18 +193,18 @@
 │  │  └─────────────────────────────────────────┘    │    │
 │  └─────────────────────────────────────────────────┘    │
 └────────────────────────────────────────────────────────┘
-         │                │               │
-         ▼                ▼               ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   MySQL 8.0  │  │   Redis 7.x   │  │  阿里云 OSS  │
-│   (云数据库)  │  │   (云缓存)     │  │   (图片存储)  │
-└──────────────┘  └──────┬───────┘  └──────────────┘
-                         │
-                         ▼
-                  ┌──────────────┐
-                  │   DeepSeek    │
-                  │   API (HTTP)  │
-                  └──────────────┘
+         │                │
+         ▼                ▼
+┌──────────────┐  ┌──────────────┐
+│   MySQL 8.0  │  │  阿里云 OSS  │
+│   (云数据库)  │  │   (图片存储)  │
+└──────────────┘  └──────────────┘
+         │
+         ▼
+  ┌──────────────┐
+  │   DeepSeek    │
+  │   API (HTTP)  │
+  └──────────────┘
 ```
 
 ### 2.2 后端目录结构
@@ -296,20 +313,18 @@ miniprogram/
 **场景 B：AI 对话流程**
 ```
 1. 用户发送消息 → POST /api/v1/ai/chat { message }
-2. 后端查 Redis → 获取最近对话历史 (last 20 条)
+2. 后端查询 MySQL ai_conversations → 获取最近 20 条对话历史
 3. 拼接 System Prompt + 历史 → 调 DeepSeek API
-4. DeepSeek 返回 → 后端存储到 MySQL ai_conversations 表
-5. 更新 Redis 缓存
-6. 返回 AI 回复消息 { role: "assistant", content }
+4. DeepSeek 返回 → 存储到 MySQL ai_conversations 表
+5. 返回 AI 回复消息 { role: "assistant", content }
 ```
 
-**场景 C：通知推送流程 (异步)**
+**场景 C：通知推送流程 (同步)**
 ```
 1. 用户 B 点赞帖子 A → POST /api/v1/posts/:id/like
-2. 后端同步创建 like 记录
-3. Celery task: create_notification.delay(like_id)
-4. 通知 task 查询 post 作者 → 创建 notification 记录
-5. 下次用户 A 刷新通知 → GET /api/v1/notifications → 显示未读
+2. 创建 like 记录
+3. 同步 INSERT notification 记录到数据库
+4. 下次用户 A GET /api/v1/notifications → 读取未读通知
 ```
 
 ---
@@ -645,9 +660,8 @@ App (app.js)
 |------|------|------|
 | **应用运行** | 微信云托管 (Docker 容器) | FastAPI 容器，自动扩缩容 |
 | **数据库** | 云数据库 MySQL 8.0 | 数据持久化，或自建 MySQL |
-| **缓存** | 云缓存 Redis | 会话/上下文缓存 |
 | **图片存储** | 阿里云 OSS (按量计费) | 图片上传 + CDN 分发 |
-| **域名** | 云托管自带 `https://xxx-xxx-xxx-xxx-xxx.ap-shanghai.app.tcloudbase.com` | 配置到小程序 request 白名单 |
+| **域名** | 云托管自带 `https://xxx.ap-shanghai.app.tcloudbase.com` | 配置到小程序 request 白名单 |
 
 ### 7.2 部署架构
 
@@ -659,7 +673,6 @@ App (app.js)
 │   └── requirements.txt     # Python 依赖
 └── 环境变量:
     ├── MYSQL_URL            # 数据库连接
-    ├── REDIS_URL            # Redis 连接
     ├── DEEPSEEK_API_KEY     # DeepSeek API Key
     ├── OSS_ACCESS_KEY       # 阿里云 OSS 凭证
     └── WECHAT_APPID         # 小程序 AppID
@@ -679,14 +692,16 @@ MVP 阶段评估了以下部署方案：
 
 **结论**: 微信云托管作为首选方案，平衡了成本、运维便利度和微信集成体验。
 
+### 7.4 微信云托管要点
+
 - **Dockerfile 构建**: 云托管根据项目根目录的 Dockerfile 自动构建镜像
 - **HTTPS**: 云托管自动分配域名并配置 SSL，无需手动申请证书
 - **环境变量**: 通过云托管控制台配置，敏感信息不写入代码
 - **日志**: 云托管内置日志采集，可在控制台查看
 - **扩缩容**: 按请求量自动扩缩，MVP 阶段最低 1 实例即可
-- **费用**: 按容器规格 + 请求量计费，MVP 预估 ¥50-100/月
+- **费率**: MVP 约 ¥50-100/月（1C1G 容器 + 云数据库，无 Redis）
 
-### 7.4 环境管理
+### 7.5 环境管理
 
 | 环境 | 域名来源 | 用途 |
 |------|----------|------|
@@ -694,10 +709,10 @@ MVP 阶段评估了以下部署方案：
 | **测试环境** | 云托管测试版本域名 | Dev 自测 + Reviewer + QA |
 | **生产环境** | 云托管正式版本域名 | 微信小程序正式环境 |
 
-### 7.5 开发流程
+### 7.6 开发流程
 
 ```
-1. Dev 本地开发 (Docker Compose 启动 MySQL + Redis)
+1. Dev 本地开发 (本地 MySQL)
 2. alembic upgrade head → 数据库迁移
 3. uvicorn app.main:app --reload → 开发调试
 4. Git commit + push
@@ -706,7 +721,7 @@ MVP 阶段评估了以下部署方案：
 7. 发布正式版本 → 上线
 ```
 
-### 7.6 Dockerfile (参考)
+### 7.7 Dockerfile (参考)
 
 ```dockerfile
 FROM python:3.12-slim
@@ -723,7 +738,7 @@ EXPOSE 80
 CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80
 ```
 
-### 7.7 依赖清单
+### 7.8 依赖清单
 
 **Python 包 (requirements.txt)**
 
@@ -736,8 +751,7 @@ alembic>=1.13.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 httpx>=0.27.0               # DeepSeek API 客户端
-redis>=5.0.0
-celery>=5.4.0
+cachetools>=5.5.0           # 进程内缓存 (TTLCache)
 python-jose[cryptography]>=3.3.0  # JWT
 python-multipart>=0.0.0
 aliyun-oss2-sdk>=2.18.0
