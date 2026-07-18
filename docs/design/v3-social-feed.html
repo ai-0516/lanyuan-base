@@ -38,21 +38,21 @@
   .feed-body{font-size:13px;line-height:1.6;color:#5c4a3a;margin-bottom:10px}
 
   /* Image grid */
-  .feed-images{display:grid;gap:4px;border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer}
+  .feed-images{display:grid;gap:4px;overflow:hidden;margin-bottom:10px;cursor:pointer}
   .feed-images img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity 0.15s}
   .feed-images img:active{opacity:0.85}
   .feed-images.count-1{grid-template-columns:1fr}
-  .feed-images.count-1 img{aspect-ratio:16/9;border-radius:12px}
+  .feed-images.count-1 img{aspect-ratio:16/9}
   .feed-images.count-2{grid-template-columns:1fr 1fr}
-  .feed-images.count-2 img{aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-2 img{aspect-ratio:1/1}
   .feed-images.count-3{grid-template-columns:1fr 1fr;grid-template-rows:auto auto}
-  .feed-images.count-3 img:first-child{grid-column:1/-1;aspect-ratio:16/9;border-radius:8px}
+  .feed-images.count-3 img:first-child{grid-column:1/-1;aspect-ratio:16/9}
   .feed-images.count-3 img:nth-child(2),
-  .feed-images.count-3 img:nth-child(3){aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-3 img:nth-child(3){aspect-ratio:1/1}
   .feed-images.count-4{grid-template-columns:1fr 1fr}
-  .feed-images.count-4 img{aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-4 img{aspect-ratio:1/1}
   .feed-images.count-5,.feed-images.count-6,.feed-images.count-7,.feed-images.count-8,.feed-images.count-9{grid-template-columns:1fr 1fr 1fr}
-  .feed-images.count-5 img,.feed-images.count-6 img,.feed-images.count-7 img,.feed-images.count-8 img,.feed-images.count-9 img{aspect-ratio:1/1;border-radius:8px}
+  .feed-images.count-5 img,.feed-images.count-6 img,.feed-images.count-7 img,.feed-images.count-8 img,.feed-images.count-9 img{aspect-ratio:1/1}
 
   /* Lightbox */
   .lightbox{position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:rgba(0,0,0,0.92);display:none;align-items:center;justify-content:center;flex-direction:column}
@@ -118,7 +118,7 @@
   .cs-send:disabled{background:#d8c8b8;cursor:not-allowed}
 
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-  .s1{animation:fadeIn 0.4s ease both}.s2{animation:fadeIn 0.4s 0.06s ease both}.s3{animation:fadeIn 0.4s 0.12s ease both}.s4{animation:fadeIn 0.4s 0.18s ease both}
+  .s1{animation:fadeIn 0.4s ease both}.s2{animation:fadeIn 0.4s 0.06s ease both}.s3{animation:fadeIn 0.4s 0.12s ease both}.s4{animation:fadeIn 0.4s 0.18s ease both}.s5{animation:fadeIn 0.4s 0.24s ease both}
 </style>
 </head>
 <body>
@@ -232,6 +232,37 @@
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">下午3点，小区篮球场！欢迎大家来 🏀</span></div></div>
         <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">收到！我喊上老李一起</span></div></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- Post 5: 6 images 3-column grid -->
+    <div class="feed-post s5">
+      <div class="post-left"><div class="post-avatar"><img src="https://i.pravatar.cc/80?img=33" alt="avatar"></div></div>
+      <div class="post-right">
+      <div class="feed-header">
+        <div><div class="feed-user">王老师</div></div>
+      </div>
+      <div class="feed-body">小区摄影展作品分享，大家看看拍得怎么样 📸</div>
+      <div class="feed-images count-6" onclick="openLightbox(this,0)">
+        <img src="https://picsum.photos/seed/photo1/300/300" alt="摄影1">
+        <img src="https://picsum.photos/seed/photo2/300/300" alt="摄影2">
+        <img src="https://picsum.photos/seed/photo3/300/300" alt="摄影3">
+        <img src="https://picsum.photos/seed/photo4/300/300" alt="摄影4">
+        <img src="https://picsum.photos/seed/photo5/300/300" alt="摄影5">
+        <img src="https://picsum.photos/seed/photo6/300/300" alt="摄影6">
+      </div>
+      <div class="feed-actions" id="fa-5">
+        <span class="action-left">30分钟前</span>
+        <div class="action-slide">
+          <span onclick="toggleLike(this,'fa-5')">点赞</span>
+          <span onclick="scrollToComment('fa-5')">评论</span>
+        </div>
+        <span class="action-dots" onclick="toggleActions('fa-5')">⋯</span>
+      </div>
+      <div class="liked-by">❤️ 老张、小橘子、阿杰</div>
+      <div class="post-comments">
+        <div class="comment-inline"><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">拍得太棒了！构图特别好</span></div></div>
       </div>
       </div>
     </div>
