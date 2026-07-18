@@ -99,8 +99,8 @@
       <div class="feed-image">🌸 月季花开</div>
       <div class="feed-actions" id="fa-1">
         <div class="action-slide">
-          <span class="liked" onclick="toggleLike(this,'fa-1')"><span>♡</span> 23</span>
-          <span><span>💬</span> 5</span>
+          <span class="liked" onclick="toggleLike(this,'fa-1')">取消点赞</span>
+          <span onclick="scrollToComment('fa-1')">评论</span>
         </div>
         <span class="action-dots" onclick="toggleActions('fa-1')">⋯</span>
       </div>
@@ -123,8 +123,8 @@
       <div class="feed-body">有人需要停车位吗？我家闲置一个，可以共享出来 🚗</div>
       <div class="feed-actions" id="fa-2">
         <div class="action-slide">
-          <span onclick="toggleLike(this,'fa-2')"><span>♡</span> 8</span>
-          <span><span>💬</span> 12</span>
+          <span onclick="toggleLike(this,'fa-2')">点赞</span>
+          <span onclick="scrollToComment('fa-2')">评论</span>
         </div>
         <span class="action-dots" onclick="toggleActions('fa-2')">⋯</span>
       </div>
@@ -147,8 +147,8 @@
       <div class="feed-body">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式 😊</div>
       <div class="feed-actions" id="fa-3">
         <div class="action-slide">
-          <span onclick="toggleLike(this,'fa-3')"><span>♡</span> 15</span>
-          <span><span>💬</span> 3</span>
+          <span onclick="toggleLike(this,'fa-3')">点赞</span>
+          <span onclick="scrollToComment('fa-3')">评论</span>
         </div>
         <span class="action-dots" onclick="toggleActions('fa-3')">⋯</span>
       </div>
@@ -167,8 +167,8 @@
       <div class="feed-body">周末组织一场篮球赛，有没有一起的？🏀 报名的楼下扣1</div>
       <div class="feed-actions" id="fa-4">
         <div class="action-slide">
-          <span class="liked" onclick="toggleLike(this,'fa-4')"><span>♡</span> 31</span>
-          <span><span>💬</span> 18</span>
+          <span class="liked" onclick="toggleLike(this,'fa-4')">取消点赞</span>
+          <span onclick="scrollToComment('fa-4')">评论</span>
         </div>
         <span class="action-dots" onclick="toggleActions('fa-4')">⋯</span>
       </div>
@@ -203,12 +203,10 @@
 <script>
 function toggleLike(el, containerId) {
   el.classList.toggle('liked');
-  var parts = el.textContent.trim().split(' ');
-  var count = parseInt(parts[parts.length-1]) || 0;
   if (el.classList.contains('liked')) {
-    el.innerHTML = '<span>♡</span> ' + (count + 1);
+    el.textContent = '取消点赞';
   } else {
-    el.innerHTML = '<span>♡</span> ' + Math.max(0, count - 1);
+    el.textContent = '点赞';
   }
   // Auto-close after action
   var fa = document.getElementById(containerId);
@@ -219,6 +217,12 @@ function toggleActions(id) {
   all.forEach(function(el) { if (el.id !== id) el.classList.remove('open'); });
   var fa = document.getElementById(id);
   fa.classList.toggle('open');
+}
+function scrollToComment(id) {
+  var fa = document.getElementById(id);
+  fa.classList.remove('open');
+  var comments = fa.closest('.feed-card').querySelector('.post-comments');
+  if (comments) comments.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 // Close on click outside
 document.addEventListener('click', function(e) {
