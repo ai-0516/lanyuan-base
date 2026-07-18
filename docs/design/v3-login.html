@@ -35,14 +35,7 @@
   .app-name{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--bark);letter-spacing:2px;margin-bottom:4px}
   .app-name span{color:var(--terracotta)}
   .app-desc{font-size:14px;color:#b8a898;line-height:1.6;margin-bottom:40px}
-  .app-desc span{color:var(--terracotta);font-weight:500}
-  .features{display:flex;gap:32px;margin-bottom:52px}
-  .feature{display:flex;flex-direction:column;align-items:center;gap:8px}
-  .feature .icon{width:50px;height:50px;border-radius:14px;background:var(--warm-white);
-    display:flex;align-items:center;justify-content:center;font-size:22px;
-    box-shadow:var(--shadow-sm);border:1px solid rgba(232,213,192,0.4);transition:transform 0.2s,box-shadow 0.2s}
-  .feature .icon:active{transform:scale(0.95)}
-  .feature .label{font-size:12px;color:var(--bark);font-weight:500;letter-spacing:0.3px}
+  .app-desc{font-size:14px;color:#b8a898;line-height:1.6;margin-bottom:52px}
   .login-btn{width:100%;max-width:280px;padding:14px 0;
     background:linear-gradient(135deg,var(--ember),var(--clay));color:#fff;
     border:none;border-radius:24px;font-size:16px;font-weight:600;cursor:pointer;
@@ -69,13 +62,8 @@
   <div class="content">
     <div class="app-icon stagger-1">兰</div>
     <div class="app-name stagger-2">东方<span>兰园</span></div>
-    <div class="app-desc stagger-2"><span>邻里广场</span> · <span>AI 助手</span> · <span>我的</span></div>
-    <div class="features stagger-3">
-      <div class="feature"><div class="icon">🏡</div><div class="label">社交</div></div>
-      <div class="feature"><div class="icon">🤖</div><div class="label">AI</div></div>
-      <div class="feature"><div class="icon">👤</div><div class="label">我的</div></div>
-    </div>
-    <button class="login-btn stagger-4" onclick="this.textContent='登录中…';this.style.opacity='0.8'">
+    <div class="app-desc stagger-2">你的社区生活好帮手</div>
+    <button class="login-btn stagger-3" onclick="this.textContent='登录中…';this.style.opacity='0.8'">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.69 11.94c.53 0 .96.42.96.94s-.43.94-.96.94-.96-.42-.96-.94.43-.94.96-.94zm4.62 0c.53 0 .96.42.96.94s-.43.94-.96.94-.96-.42-.96-.94.43-.94.96-.94z"/><path d="M21.2 13.43c0-3.97-3.52-7.2-7.85-7.2-4.33 0-7.85 3.23-7.85 7.2 0 3.53 2.92 6.49 6.82 7.06l1.03.53-1.58 1.6-.41.41.7-.07 3.23-.34c4.33-.49 7.91-3.68 7.91-7.39zm-12.69-1.49c0-.53.43-.94.96-.94s.96.42.96.94-.43.94-.96.94-.96-.42-.96-.94zm4.62 0c0-.53.43-.94.96-.94s.96.42.96.94-.43.94-.96.94-.96-.42-.96-.94zm-2.24 5.21c-.48.23-1.03-.11-.92-.56.11-.45.64-.72 1.12-.49.48.23.67.74.28 1.05z"/></svg>
       微信一键登录
     </button>
