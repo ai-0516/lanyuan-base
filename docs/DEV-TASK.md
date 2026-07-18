@@ -24,6 +24,17 @@ git worktree add ~/.hermes/profiles/dev-lead/workspace/lanyuan-base main
 - **设计语言**: `docs/design/design-system.html` — CSS 变量、组件样式参考
 - **仓库**: `git@github.com:snxly/lanyuan-base.git` (main branch)
 
+## 已确定的技术决策
+| 层级 | 技术 |
+|:---|:---|
+| **前端** | 微信原生小程序 |
+| **后端** | FastAPI（Python） |
+| **数据库** | MySQL |
+| **AI 模型** | DeepSeek |
+
+## 产品定位
+这是一个**公共底座**小程序，为「兰园地暖」「兰园停车」等业务小程序提供可复用的登录+社交+AI 能力。业务方可在底座基础上添加新 Tab 扩展功能。
+
 ## 你需要做
 1. 技术选型（前端框架/后端/数据库/部署方案）
 2. 架构设计（系统架构图、组件树、API 设计）
