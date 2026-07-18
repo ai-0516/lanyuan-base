@@ -203,6 +203,7 @@
 | postId | UUID | 关联帖子 |
 | commentId | UUID? | 关联评论（可选） |
 | read | Boolean | 是否已读 |
+| readAt | Timestamp? | 已读时间（null = 未读） |
 | createdAt | Timestamp | 通知时间 |
 
 ---
