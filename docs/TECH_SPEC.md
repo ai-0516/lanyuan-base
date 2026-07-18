@@ -515,8 +515,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| GET | `/posts` | 帖子列表 (按时间倒序) | query: `?page=1&size=20` | `{ items: Post[], total, page, size }` |
-| GET | `/posts/{id}` | 帖子详情（含评论和点赞） | — | `PostDetail` |
+| GET | `/posts` | 帖子列表（含评论和点赞，按时间倒序） | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
 | POST | `/posts` | 发布帖子 | `{ content, images[] }` | `Post` |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
