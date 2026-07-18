@@ -46,7 +46,7 @@
     background:var(--warm-white);border-radius:18px;padding:6px 6px 6px 16px;
     margin:8px 16px 0;box-shadow:var(--shadow-md);border:1px solid rgba(232,213,192,0.4);flex-shrink:0}
   .chat-input-wrap input{border:none;background:transparent;flex:1;outline:none;
-    font-family:'DM Sans',sans-serif;font-size:13px;color:var(--bark)}
+    font-family:'DM Sans',sans-serif;font-size:13px;color:var(--bark);resize:none;line-height:1.4;padding:6px 0}
   .chat-input-wrap input::placeholder{color:#c8b8a8}
   .send-btn{width:32px;height:32px;border-radius:50%;
     background:linear-gradient(135deg,var(--terracotta),var(--clay));
@@ -99,7 +99,7 @@
 
   <!-- Fixed input bar -->
   <div class="chat-input-wrap">
-    <input placeholder="输入消息…" id="aiInput" onkeydown="if(event.key==='Enter')sendMsg()" oninput="updateSend()">
+    <textarea rows="1" placeholder="输入消息…" id="aiInput" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}" oninput="updateSend();autoResize(this)"></textarea>
     <button class="send-btn" id="sendBtn" disabled onclick="sendMsg()">→</button>
   </div>
 
@@ -122,18 +122,23 @@
 function updateSend() {
   document.getElementById('sendBtn').disabled = !document.getElementById('aiInput').value.trim();
 }
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
 function sendMsg() {
   var input = document.getElementById('aiInput');
   var text = input.value.trim();
   if (!text) return;
   input.value = '';
+  input.style.height = 'auto';
   updateSend();
   var chat = document.querySelector('.chat');
   // Add user message
   chat.insertAdjacentHTML('beforeend',
     '<div class="msg me" style="animation:fadeIn 0.3s ease both">' +
     '<div class="msg-avatar">我</div>' +
-    '<div class="msg-bubble">' + text + '</div></div>');
+    '<div class="msg-bubble">' + text.replace(/\n/g, '<br>') + '</div></div>');
   var content = document.getElementById('content');
   content.scrollTop = content.scrollHeight;
   // Auto reply after delay
