@@ -583,11 +583,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| GET | `/ai/conversations` | 会话列表（按最后活动倒序） | — | `Conversation[]` |
-| POST | `/ai/conversations` | 新建会话 | — | `Conversation` |
-| GET | `/ai/conversations/{id}` | 获取会话消息历史 | `?limit=30` | `Message[]` |
-| DELETE | `/ai/conversations/{id}` | 删除会话（含所有消息） | — | `{ success }` |
-| POST | `/ai/chat/{conversationId}` | 发送消息，SSE 流式返回 | `{ message: string }` | SSE 流 |
+| POST | `/ai/chat` | 发送消息，SSE 流式返回 | `{ message: string }` | SSE 流 |
 
 **SSE 事件协议：**
 ```
@@ -597,11 +593,11 @@ event: done       → 流结束，前端恢复输入
 event: error      → 错误提示
 ```
 
-**AI 对话行为说明：**
-- 用户进入 AI Tab → 自动创建新会话（`POST /ai/conversations`），前端只维护一个当前会话
-- 发消息 `POST /ai/chat/{conversationId}`，SSE 流式接收回复
-- 消息历史按 `(conversation_id, created_at)` 排序
-- 最近 20 条作为 DeepSeek API 上下文
+**AI 对话行为说明（后端管理，前端无感知）：**
+- 用户首次发消息 → 后端自动创建 conversation 并记录 `conversation_id`
+- 后续发消息 → 后端复用最近一次 active 的 conversation
+- 消息历史按 `(conversation_id, created_at)` 排序，最近 20 条作为 DeepSeek 上下文
+- 前端只维护消息列表，不关心会话 ID，不展示会话列表 UI
 
 ### 4.7 图片上传
 
