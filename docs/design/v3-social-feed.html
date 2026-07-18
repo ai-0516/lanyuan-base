@@ -40,10 +40,15 @@
   .feed-image{width:100%;height:140px;border-radius:10px;
     background:linear-gradient(135deg,#f5ede3,#ede0d2);display:flex;align-items:center;justify-content:center;
     color:var(--terracotta-light);font-size:12px;margin-bottom:10px}
-  .feed-actions{display:flex;gap:24px;font-size:12px;color:#b8a898;padding-top:8px;border-top:1px solid rgba(232,213,192,0.3)}
-  .feed-actions span{cursor:pointer;display:flex;align-items:center;gap:4px;transition:color 0.2s}
-  .feed-actions span:hover{color:var(--terracotta)}
-  .feed-actions span.liked{color:var(--terracotta)}
+  .feed-actions{display:flex;justify-content:flex-end;align-items:center;gap:0;font-size:12px;color:#b8a898;padding-top:8px;border-top:1px solid rgba(232,213,192,0.3);position:relative;overflow:hidden;min-height:24px}
+  .feed-actions .action-dots{cursor:pointer;padding:2px 0;font-size:18px;line-height:1;color:#b8a898;transition:color 0.2s;letter-spacing:2px;z-index:2;position:relative}
+  .feed-actions .action-dots:hover{color:var(--terracotta)}
+  .feed-actions .action-slide{display:flex;gap:20px;align-items:center;position:absolute;left:0;top:8px;transform:translateX(-120%);transition:transform 0.25s ease;z-index:1}
+  .feed-actions.open .action-slide{transform:translateX(0)}
+  .feed-actions.open .action-dots{opacity:0;pointer-events:none}
+  .feed-actions .action-slide span{cursor:pointer;display:flex;align-items:center;gap:4px;transition:color 0.2s;white-space:nowrap}
+  .feed-actions .action-slide span:hover{color:var(--terracotta)}
+  .feed-actions .action-slide span.liked{color:var(--terracotta)}
 
   /* Comments inline */
   .liked-by{font-size:11px;color:#b8a898;padding:4px 0 6px 14px;margin:0 -14px;border-top:1px solid rgba(232,213,192,0.3)}
@@ -92,9 +97,12 @@
       </div>
       <div class="feed-body">今天小区花园的月季开了，太美了！分享给大家看看 🌸</div>
       <div class="feed-image">🌸 月季花开</div>
-      <div class="feed-actions">
-        <span class="liked" onclick="toggleLike(this)"><span>♡</span> 23</span>
-        <span><span>💬</span> 5</span>
+      <div class="feed-actions" id="fa-1">
+        <div class="action-slide">
+          <span class="liked" onclick="toggleLike(this,'fa-1')"><span>♡</span> 23</span>
+          <span><span>💬</span> 5</span>
+        </div>
+        <span class="action-dots" onclick="toggleActions('fa-1')">⋯</span>
       </div>
       <div class="liked-by">❤️ 老张、小雨妈妈、阿杰、王叔、李老师</div>
       <div class="post-comments">
@@ -113,9 +121,12 @@
         <div><div class="feed-user">老张</div><div class="feed-meta">5号楼 · 1小时前</div></div>
       </div>
       <div class="feed-body">有人需要停车位吗？我家闲置一个，可以共享出来 🚗</div>
-      <div class="feed-actions">
-        <span onclick="toggleLike(this)"><span>♡</span> 8</span>
-        <span><span>💬</span> 12</span>
+      <div class="feed-actions" id="fa-2">
+        <div class="action-slide">
+          <span onclick="toggleLike(this,'fa-2')"><span>♡</span> 8</span>
+          <span><span>💬</span> 12</span>
+        </div>
+        <span class="action-dots" onclick="toggleActions('fa-2')">⋯</span>
       </div>
       <div class="liked-by">❤️ 小橘子、小雨妈妈、阿杰、陈姐</div>
       <div class="post-comments">
@@ -134,9 +145,12 @@
         <div><div class="feed-user">小雨妈妈</div><div class="feed-meta">2号楼 · 3小时前</div></div>
       </div>
       <div class="feed-body">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式 😊</div>
-      <div class="feed-actions">
-        <span onclick="toggleLike(this)"><span>♡</span> 15</span>
-        <span><span>💬</span> 3</span>
+      <div class="feed-actions" id="fa-3">
+        <div class="action-slide">
+          <span onclick="toggleLike(this,'fa-3')"><span>♡</span> 15</span>
+          <span><span>💬</span> 3</span>
+        </div>
+        <span class="action-dots" onclick="toggleActions('fa-3')">⋯</span>
       </div>
       <div class="liked-by">❤️ 老张、小橘子、阿杰、陈姐、刘阿姨</div>
       <div class="post-comments">
@@ -151,9 +165,12 @@
         <div><div class="feed-user">阿杰</div><div class="feed-meta">7号楼 · 5小时前</div></div>
       </div>
       <div class="feed-body">周末组织一场篮球赛，有没有一起的？🏀 报名的楼下扣1</div>
-      <div class="feed-actions">
-        <span class="liked" onclick="toggleLike(this)"><span>♡</span> 31</span>
-        <span><span>💬</span> 18</span>
+      <div class="feed-actions" id="fa-4">
+        <div class="action-slide">
+          <span class="liked" onclick="toggleLike(this,'fa-4')"><span>♡</span> 31</span>
+          <span><span>💬</span> 18</span>
+        </div>
+        <span class="action-dots" onclick="toggleActions('fa-4')">⋯</span>
       </div>
       <div class="liked-by">❤️ 老张、小橘子、小雨妈妈、大刘、李老师</div>
       <div class="post-comments">
@@ -184,7 +201,7 @@
 </div>
 
 <script>
-function toggleLike(el) {
+function toggleLike(el, containerId) {
   el.classList.toggle('liked');
   var parts = el.textContent.trim().split(' ');
   var count = parseInt(parts[parts.length-1]) || 0;
@@ -193,7 +210,22 @@ function toggleLike(el) {
   } else {
     el.innerHTML = '<span>♡</span> ' + Math.max(0, count - 1);
   }
+  // Auto-close after action
+  var fa = document.getElementById(containerId);
+  if (fa) fa.classList.remove('open');
 }
+function toggleActions(id) {
+  var all = document.querySelectorAll('.feed-actions.open');
+  all.forEach(function(el) { if (el.id !== id) el.classList.remove('open'); });
+  var fa = document.getElementById(id);
+  fa.classList.toggle('open');
+}
+// Close on click outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.feed-actions')) {
+    document.querySelectorAll('.feed-actions.open').forEach(function(el) { el.classList.remove('open'); });
+  }
+});
 </script>
 </body>
 </html>
