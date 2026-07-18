@@ -111,77 +111,17 @@
         <span class="notif-dot"></span>
       </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=68" alt="阿杰">
-          <span class="action-badge like">❤</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">阿杰</span> <span class="notif-action">点赞</span></div>
-          <div class="notif-post">月季花开得真美！在哪儿拍的？</div>
-        </div>
-        <span class="notif-time">1小时前</span>
-      </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=47" alt="王叔">
-          <span class="action-badge like">❤</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">王叔</span> <span class="notif-action">点赞</span></div>
-          <div class="notif-post">月季花开得真美！在哪儿拍的？</div>
-        </div>
-        <span class="notif-time">1小时前</span>
-      </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=53" alt="李老师">
-          <span class="action-badge like">❤</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">李老师</span> <span class="notif-action">点赞</span></div>
-          <div class="notif-post">月季花开得真美！在哪儿拍的？</div>
-        </div>
-        <span class="notif-time">1小时前</span>
-      </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=35" alt="小雨妈妈">
-          <span class="action-badge comment">💬</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">小雨妈妈</span> <span class="notif-action">评论</span></div>
-          <div class="notif-post">月季花开得真美！在哪儿拍的？</div>
-        </div>
-        <span class="notif-time">2小时前</span>
-      </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=68" alt="大刘">
-          <span class="action-badge comment">💬</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">大刘</span> <span class="notif-action">评论</span></div>
-          <div class="notif-post">周末篮球赛</div>
-        </div>
-        <span class="notif-time">昨天 16:20</span>
-      </a>
 
-      <a href="v3-social-feed.html" class="notif-item">
-        <div class="notif-avatar">
-          <img src="https://i.pravatar.cc/80?img=35" alt="小雨妈妈">
-          <span class="action-badge comment">💬</span>
-        </div>
-        <div class="notif-body">
-          <div><span class="notif-name">小雨妈妈</span> <span class="notif-action">回复</span></div>
-          <div class="notif-post">家政推荐</div>
-        </div>
-        <span class="notif-time">昨天 14:23</span>
-      </a>
+
+
+
+
+
+
 
     </div>
     <div style="height:8px"></div>
@@ -203,16 +143,33 @@
 </div>
 
 <script>
-// Click to dismiss: viewed notifications slide out
+// Click a notification → remove ALL notifications for the same post, then navigate
 document.querySelectorAll('.notif-item').forEach(function(item) {
   item.addEventListener('click', function(e) {
-    if (e.target.closest('a') !== this) return;
+    var post = this.querySelector('.notif-post');
+    if (!post) return;
+    var postText = post.textContent;
+
     e.preventDefault();
-    this.style.transition = 'opacity 0.3s, transform 0.3s';
-    this.style.opacity = '0';
-    this.style.transform = 'translateX(20px)';
+    // Fade out all items with the same post title
+    document.querySelectorAll('.notif-item').forEach(function(other) {
+      var op = other.querySelector('.notif-post');
+      if (op && op.textContent === postText) {
+        other.style.transition = 'opacity 0.3s, transform 0.3s';
+        other.style.opacity = '0';
+        other.style.transform = 'translateX(20px)';
+        setTimeout(function() { other.style.display = 'none'; }, 350);
+      }
+    });
+
+    // Navigate to the post after animation
     var self = this;
-    setTimeout(function() { self.style.display = 'none'; }, 350);
+    setTimeout(function() {
+      // Update badge count in profile (simulated)
+      var remaining = document.querySelectorAll('.notif-item').length -
+        document.querySelectorAll('.notif-item[style*="display: none"]').length;
+      window.location.href = 'v3-social-feed.html';
+    }, 400);
   });
 });
 </script>
