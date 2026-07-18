@@ -143,33 +143,11 @@
 </div>
 
 <script>
-// Click a notification → remove ALL notifications for the same post, then navigate
+// Click a notification → jump to the post directly
 document.querySelectorAll('.notif-item').forEach(function(item) {
   item.addEventListener('click', function(e) {
-    var post = this.querySelector('.notif-post');
-    if (!post) return;
-    var postText = post.textContent;
-
     e.preventDefault();
-    // Fade out all items with the same post title
-    document.querySelectorAll('.notif-item').forEach(function(other) {
-      var op = other.querySelector('.notif-post');
-      if (op && op.textContent === postText) {
-        other.style.transition = 'opacity 0.3s, transform 0.3s';
-        other.style.opacity = '0';
-        other.style.transform = 'translateX(20px)';
-        setTimeout(function() { other.style.display = 'none'; }, 350);
-      }
-    });
-
-    // Navigate to the post after animation
-    var self = this;
-    setTimeout(function() {
-      // Update badge count in profile (simulated)
-      var remaining = document.querySelectorAll('.notif-item').length -
-        document.querySelectorAll('.notif-item[style*="display: none"]').length;
-      window.location.href = 'v3-social-feed.html';
-    }, 400);
+    window.location.href = this.getAttribute('href');
   });
 });
 </script>
