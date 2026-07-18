@@ -94,6 +94,7 @@
     color:#c8b8a8;transition:all 0.25s;position:relative;text-decoration:none}
   .tab.active{color:var(--terracotta);font-weight:600}
   .tab.active .tab-icon svg{transform:translateY(-2px)}
+  .tab .tab-badge{position:absolute;top:2px;right:calc(50% - 18px);width:8px;height:8px;background:var(--terracotta);border-radius:50%;border:2px solid var(--cream)}
 
   .home-indicator{height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .home-indicator .bar{width:134px;height:5px;background:var(--bark);border-radius:3px;opacity:0.15}
@@ -101,8 +102,6 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   .stagger-1{animation:fadeIn 0.4s ease both}
   .stagger-2{animation:fadeIn 0.4s 0.06s ease both}
-  .stagger-3{animation:fadeIn 0.4s 0.12s ease both}
-  .stagger-4{animation:fadeIn 0.4s 0.18s ease both}
 </style>
 </head>
 <body>
@@ -128,7 +127,7 @@
     </div>
 
     <!-- Notifications -->
-    <div class="notify-card stagger-2" id="notifyCard" onclick="toggleBadge()">
+    <div class="notify-card stagger-2" id="notifyCard">
       <div class="notify-left">
         <div class="notify-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -141,38 +140,8 @@
       </div>
     </div>
 
-    <!-- Menu -->
-    <div class="menu-list stagger-3">
-      <div class="menu-item">
-        <div class="menu-left">
-          <div class="menu-icon-wrap orange">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </div>
-          <span class="menu-label">我的帖子</span>
-        </div>
-        <div class="menu-right"><span class="menu-value">12</span><svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="menu-item">
-        <div class="menu-left">
-          <div class="menu-icon-wrap blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          </div>
-          <span class="menu-label">我的点赞</span>
-        </div>
-        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-      <div class="menu-item">
-        <div class="menu-left">
-          <div class="menu-icon-wrap green">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </div>
-          <span class="menu-label">我的评论</span>
-        </div>
-        <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-    </div>
-
-    <div class="menu-list stagger-4">
+    <!-- Settings -->
+    <div class="menu-list stagger-2">
       <a href="v3-settings.html" class="menu-item">
         <div class="menu-left">
           <div class="menu-icon-wrap gray">
@@ -191,6 +160,7 @@
   <div class="tab-bar">
     <a href="v3-social-feed.html" class="tab">
       <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>社交
+      <span class="tab-badge"></span>
     </a>
     <a href="v3-ai-chat.html" class="tab">
       <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>AI
@@ -202,11 +172,5 @@
   <div class="home-indicator"><div class="bar"></div></div>
 </div>
 
-<script>
-function toggleBadge() {
-  var b = document.getElementById('notifyBadge');
-  b.style.display = b.style.display === 'none' ? 'flex' : 'none';
-}
-</script>
 </body>
 </html>
