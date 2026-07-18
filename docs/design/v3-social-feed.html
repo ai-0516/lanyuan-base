@@ -55,7 +55,6 @@
   .ci-body{flex:1;min-width:0}
   .ci-author{font-size:12px;font-weight:600;color:var(--terracotta);display:inline}
   .ci-text{font-size:12px;color:#7a6a5a;display:inline}
-  .see-all{font-size:11px;color:var(--terracotta);padding:4px 0 2px;cursor:pointer;font-weight:500}
   /* FAB */
   .fab{position:absolute;bottom:90px;right:20px;width:48px;height:48px;border-radius:16px;
     background:linear-gradient(135deg,var(--ember),var(--clay));color:#fff;font-size:24px;
@@ -94,12 +93,14 @@
       <div class="feed-image">🌸 月季花开</div>
       <div class="feed-actions">
         <span class="liked" onclick="toggleLike(this)"><span>♡</span> 23</span>
-        <span onclick="focusComment(this)"><span>💬</span> 5</span>
+        <span><span>💬</span> 5</span>
       </div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-avatar c1">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">真好看！咱们小区的绿化越来越好了 👍</span></div></div>
         <div class="comment-inline"><div class="ci-avatar c2">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">这是在哪个位置？明天带孩子去看看</span></div></div>
-        <div class="see-all">查看全部 5 条评论</div>
+        <div class="comment-inline"><div class="ci-avatar c3">杰</div><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">3号楼旁边那个小花园，最近开得正好</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c1">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">谢谢大家！就在3号楼后面的绿地 🌸</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">明天带相机去拍几张 📷</span></div></div>
       </div>
     </div>
 
@@ -112,12 +113,14 @@
       <div class="feed-body">有人需要停车位吗？我家闲置一个，可以共享出来 🚗</div>
       <div class="feed-actions">
         <span onclick="toggleLike(this)"><span>♡</span> 8</span>
-        <span onclick="focusComment(this)"><span>💬</span> 12</span>
+        <span><span>💬</span> 12</span>
       </div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-avatar c3">杰</div><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">多少钱一个月？我家也需要</span></div></div>
         <div class="comment-inline"><div class="ci-avatar c1">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">支持共享！邻里互助真棒</span></div></div>
-        <div class="see-all">查看全部 12 条评论</div>
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">已经私信你了，加我微信聊</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c3">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">我也需要！小区停车太难了</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c1">杰</div><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">好便宜！我也要一个位置</span></div></div>
       </div>
     </div>
 
@@ -130,7 +133,7 @@
       <div class="feed-body">推荐一个靠谱的家政阿姨，干活特别细致，需要的邻居可以私信我要联系方式 😊</div>
       <div class="feed-actions">
         <span onclick="toggleLike(this)"><span>♡</span> 15</span>
-        <span onclick="focusComment(this)"><span>💬</span> 3</span>
+        <span><span>💬</span> 3</span>
       </div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-avatar c1">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">我正需要！私信你了</span></div></div>
@@ -146,13 +149,14 @@
       <div class="feed-body">周末组织一场篮球赛，有没有一起的？🏀 报名的楼下扣1</div>
       <div class="feed-actions">
         <span class="liked" onclick="toggleLike(this)"><span>♡</span> 31</span>
-        <span onclick="focusComment(this)"><span>💬</span> 18</span>
+        <span><span>💬</span> 18</span>
       </div>
       <div class="post-comments">
         <div class="comment-inline"><div class="ci-avatar c1">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">1！算我一个</span></div></div>
         <div class="comment-inline"><div class="ci-avatar c2">橘</div><div class="ci-body"><span class="ci-author">小橘子</span> <span class="ci-text">在哪打？小区篮球场吗</span></div></div>
         <div class="comment-inline"><div class="ci-avatar c3">雨</div><div class="ci-body"><span class="ci-author">小雨妈妈</span> <span class="ci-text">几点？我带娃去看</span></div></div>
-        <div class="see-all">查看全部 18 条评论</div>
+        <div class="comment-inline"><div class="ci-avatar c1">杰</div><div class="ci-body"><span class="ci-author">阿杰</span> <span class="ci-text">下午3点，小区篮球场！欢迎大家来 🏀</span></div></div>
+        <div class="comment-inline"><div class="ci-avatar c2">张</div><div class="ci-body"><span class="ci-author">老张</span> <span class="ci-text">收到！我喊上老李一起</span></div></div>
       </div>
     </div>
   </div>
