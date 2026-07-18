@@ -455,6 +455,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 | post_id | BIGINT UNSIGNED | FK → post.id, NOT NULL | 关联帖子 |
 | comment_id | BIGINT UNSIGNED | FK → comment.id, NULLABLE | 关联评论 (reply 类型时) |
 | is_read | TINYINT(1) | DEFAULT 0 | 是否已读 |
+| read_at | DATETIME | NULLABLE, DEFAULT NULL | 已读时间（null=未读） |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 通知时间 |
 
 索引：`(user_id, is_read, created_at)`（未读通知查询）
