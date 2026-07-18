@@ -25,7 +25,8 @@
   .app-header{padding:6px 20px 10px;display:flex;align-items:center;justify-content:center;position:relative}
   .app-header .title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--bark);letter-spacing:0.5px}
   .app-header .title span{color:var(--terracotta)}
-  .page-content{flex:1;padding:0 16px 8px;scroll-behavior:smooth}
+  .page-content{flex:1;padding:0 16px 8px;scroll-behavior:smooth;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+  .page-content::-webkit-scrollbar{display:none}
 
   /* ── Chat ── */
   .chat{display:flex;flex-direction:column;gap:12px}
@@ -133,7 +134,8 @@ function sendMsg() {
     '<div class="msg me" style="animation:fadeIn 0.3s ease both">' +
     '<div class="msg-avatar">我</div>' +
     '<div class="msg-bubble">' + text + '</div></div>');
-  chat.scrollIntoView({behavior:'smooth', block:'end'});
+  var content = document.getElementById('content');
+  content.scrollTop = content.scrollHeight;
   // Auto reply after delay
   setTimeout(function() {
     var replies = [
@@ -145,7 +147,7 @@ function sendMsg() {
       '<div class="msg ai" style="animation:fadeIn 0.3s ease both">' +
       '<div class="msg-avatar">AI</div>' +
       '<div class="msg-bubble">' + reply + '</div></div>');
-    chat.scrollIntoView({behavior:'smooth', block:'end'});
+    content.scrollTop = content.scrollHeight;
   }, 1200 + Math.random() * 800);
 }
 </script>
