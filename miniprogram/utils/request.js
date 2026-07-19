@@ -3,7 +3,7 @@
  * 封装 wx.request，统一处理 baseURL、错误码和登录态
  */
 
-const BASE_URL = 'https://api.example.com'; // 根据实际部署修改
+const { BASE_URL } = require('./constants')
 
 /**
  * 发起 HTTP 请求
