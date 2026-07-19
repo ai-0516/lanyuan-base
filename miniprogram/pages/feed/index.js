@@ -127,14 +127,14 @@ Page({
     if (index === -1) return;
 
     const post = posts[index];
-    const isLiked = !post.isLiked;
+    const liked = !post.liked;
 
     try {
       // 乐观更新
       posts[index] = {
         ...post,
-        isLiked,
-        likeCount: isLiked ? (post.likeCount || 0) + 1 : Math.max(0, (post.likeCount || 0) - 1),
+        liked,
+        like_count: liked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1),
       };
       this.setData({ posts });
 
@@ -161,6 +161,9 @@ Page({
     const commentSheet = this.selectComponent('#commentSheet');
     if (commentSheet) {
       commentSheet.open({ postId });
+    } else {
+      // 暂无可复用的评论组件，轻提示
+      wx.showToast({ title: '查看全部 ' + (e.currentTarget.dataset.commentCount || '') + ' 条评论', icon: 'none' });
     }
   },
 

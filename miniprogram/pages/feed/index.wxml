@@ -42,7 +42,7 @@
               <image class="slide-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
               <text>{{item.liked ? '取消点赞' : '点赞'}}</text>
             </view>
-            <view class="slide-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}">
+            <view class="slide-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}" data-comment-count="{{item.comment_count}}">
               <image class="slide-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
               <text>评论</text>
             </view>
