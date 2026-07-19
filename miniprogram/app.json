@@ -1,12 +1,12 @@
 {
   "pages": [
-    "pages/ai-chat/index",
+    "pages/login/index",
     "pages/feed/index",
     "pages/profile/index",
+    "pages/ai-chat/index",
     "pages/create-post/index",
     "pages/notifications/index",
-    "pages/edit-profile/index",
-    "pages/login/index"
+    "pages/edit-profile/index"
   ],
   "window": {
     "navigationBarBackgroundColor": "#faf7f2",
