@@ -31,7 +31,7 @@
 
         <!-- 图片网格 -->
         <view class="feed-images count-{{item.images.length}}" wx:if="{{item.images && item.images.length > 0}}">
-          <image wx:for="{{item.images}}" wx:key="*this" src="{{item}}" mode="aspectFill" bindtap="openLightbox" data-images="{{item.images}}" data-index="{{index}}"></image>
+          <image wx:for="{{item.images}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" bindtap="openLightbox" data-images="{{item.images}}" data-index="{{index}}"></image>
         </view>
 
         <!-- 操作栏 -->
