@@ -80,7 +80,7 @@
 .feed-post {
   display: flex;
   gap: 20rpx;
-  padding: 24rpx 0 20rpx;
+  padding: 24rpx 0 8rpx;
   border-bottom: 1rpx solid rgba(232, 213, 192, 0.4);
 }
 .post-left {
@@ -181,7 +181,7 @@
   aspect-ratio: 1/1;
 }
 
-/* 底部操作栏 */
+/* ── 操作栏 ── */
 .feed-actions {
   display: flex;
   justify-content: space-between;
@@ -189,11 +189,10 @@
   font-size: 24rpx;
   color: #b8a898;
   padding-top: 4rpx;
+  position: relative;
+  min-height: 48rpx;
 }
-.action-left {
-  display: flex;
-  align-items: center;
-  gap: 4rpx;
+.action-time {
   font-size: 22rpx;
   color: #b8a898;
 }
@@ -206,25 +205,26 @@
   display: flex;
   align-items: center;
   gap: 6rpx;
-  padding: 8rpx 0;
-}
-.action-icon {
-  width: 36rpx;
-  height: 36rpx;
-}
-.action-text {
   font-size: 24rpx;
   color: #b8a898;
+  transition: color 0.2s;
+}
+.action-btn:active {
+  color: var(--terracotta);
 }
 .action-text.liked {
   color: var(--terracotta);
 }
+.action-icon {
+  width: 32rpx;
+  height: 32rpx;
+}
 
-/* 点赞名单 */
+/* ── 点赞名单 ── */
 .likers-row {
   display: flex;
   align-items: center;
-  margin-top: 12rpx;
+  margin-top: 8rpx;
   padding: 8rpx 0;
 }
 .like-icon-small {
@@ -242,7 +242,7 @@
   white-space: nowrap;
 }
 
-/* 评论预览区 — 对齐设计稿沙色背景 */
+/* ── 评论预览区 ── */
 .post-section {
   background: #f8f2e9;
   border-radius: 24rpx;
