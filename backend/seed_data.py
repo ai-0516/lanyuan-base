@@ -19,11 +19,11 @@ from app.models.notification import Notification
 
 # 测试用户数据
 TEST_USERS = [
-    {"nickname": "兰园业主", "community": "兰园小区", "building": "3", "unit": "2", "room": "101", "bio": "爱种花的退休大叔"},
-    {"nickname": "小区花匠", "community": "兰园小区", "building": "5", "unit": "1", "room": "202", "bio": "绿化维护志愿者"},
-    {"nickname": "美食达人", "community": "兰园小区", "building": "1", "unit": "3", "room": "501", "bio": "喜欢分享家常菜"},
-    {"nickname": "运动健将", "community": "兰园小区", "building": "7", "unit": "1", "room": "303", "bio": "每天早上跑步 5 公里"},
-    {"nickname": "猫咪爱好者", "community": "兰园小区", "building": "2", "unit": "2", "room": "102", "bio": "家里养了三只猫", "show_room": True},
+    {"nickname": "兰园业主", "openid": "test_openid_0", "community": "兰园小区", "building": "3栋", "unit": "2", "room": "1201", "bio": "爱生活爱分享"},
+    {"nickname": "小区花匠", "openid": "mock_openid_dev", "community": "兰园小区", "building": "5栋", "unit": "1", "room": "803", "bio": "养花达人"},
+    {"nickname": "美食达人", "openid": "test_openid_2", "community": "兰园小区", "building": "2栋", "unit": "1", "room": "605", "bio": "爱做饭"},
+    {"nickname": "运动健将", "openid": "test_openid_3", "community": "兰园小区", "building": "7栋", "unit": "1", "room": "1502", "bio": "跑步游泳羽毛球"},
+    {"nickname": "猫咪爱好者", "openid": "test_openid_4", "community": "兰园小区", "building": "1栋", "unit": "1", "room": "301", "bio": "家有两只猫", "show_room": True},
 ]
 
 # 测试帖子数据 (user_index 指向 TEST_USERS 索引)
@@ -90,7 +90,7 @@ async def seed():
         users = []
         for i, u in enumerate(TEST_USERS):
             user = User(
-                openid=f"test_openid_{i}",
+                openid=u.get("openid", f"test_openid_{i}"),
                 nickname=u["nickname"],
                 avatar=f"https://i.pravatar.cc/80?img={i + 1}",
                 community=u["community"],
