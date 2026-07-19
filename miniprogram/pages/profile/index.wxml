@@ -1,7 +1,7 @@
 <view class="profile-page">
   <!-- 用户信息卡 -->
   <view class="profile-card">
-    <image class="avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+    <image class="avatar" src="{{userInfo.avatar || 'https://i.pravatar.cc/160'}}" mode="aspectFill"></image>
     <text class="nickname">{{userInfo.nickname || '兰园业主'}}</text>
     <view class="community-info" wx:if="{{userInfo.community}}">
       <span>{{userInfo.community}}</span>

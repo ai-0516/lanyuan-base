@@ -92,7 +92,7 @@ async def seed():
             user = User(
                 openid=f"test_openid_{i}",
                 nickname=u["nickname"],
-                avatar=f"https://api.dicebear.com/9.x/initials/svg?seed={u['nickname']}",
+                avatar=f"https://i.pravatar.cc/80?img={i + 1}",
                 community=u["community"],
                 building=u.get("building"),
                 unit=u.get("unit"),

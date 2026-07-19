@@ -18,7 +18,7 @@
     <view class="feed-post" wx:for="{{posts}}" wx:key="id">
       <!-- 帖子头部 -->
       <view class="post-left">
-        <image class="post-avatar" src="{{item.user.avatar || '/images/default-avatar.png'}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.user.id}}"></image>
+        <image class="post-avatar" src="{{item.displayAvatar}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.user.id}}"></image>
       </view>
       <view class="post-right">
         <view class="feed-header">

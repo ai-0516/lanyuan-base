@@ -16,7 +16,7 @@
     <view class="notif-list" wx:if="{{notifications.length > 0}}">
       <view class="notif-item {{item.read ? '' : 'unread'}}" wx:for="{{notifications}}" wx:key="id" bindtap="onTapNotification" data-id="{{item.id}}" data-post-id="{{item.postId || item.post_id}}">
         <view class="notif-avatar">
-          <image src="{{item.senderAvatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+          <image src="{{item.senderAvatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
           <text class="action-badge {{item.type === 'like' ? 'like' : 'comment'}}">{{item.type === 'like' ? '❤' : '💬'}}</text>
         </view>
         <view class="notif-body">

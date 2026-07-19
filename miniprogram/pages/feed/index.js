@@ -70,6 +70,7 @@ Page({
         displayComments: (post.comments || []).slice(0, 3),
         likersText: (post.likers || []).map(l => l.nickname).join('，'),
         displayTime: this.formatTime(post.created_at),
+        displayAvatar: post.user?.avatar || `https://i.pravatar.cc/80?img=${(post.user?.id || 1) % 70}`,
       }));
 
       this.setData({

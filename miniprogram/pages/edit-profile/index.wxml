@@ -11,7 +11,7 @@
       <view class="field" bindtap="onChooseAvatar">
         <text class="field-label">头像</text>
         <view class="field-value">
-          <image class="avatar-sm" src="{{form.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+          <image class="avatar-sm" src="{{form.avatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
           <text class="arrow">›</text>
         </view>
       </view>
