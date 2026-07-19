@@ -1,0 +1,73 @@
+<import src="../../styles/variables.wxss" />
+
+<view class="profile-page">
+  <!-- 顶部用户信息区 -->
+  <view class="user-info">
+    <image class="user-avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+    <text class="user-nickname">{{userInfo.nickname || '未设置昵称'}}</text>
+    <text class="user-community">{{userInfo.community || ''}}{{userInfo.community ? ' · ' + (userInfo.building || '') + '栋' + (userInfo.unit || '') + '单元' + (userInfo.room || '') : ''}}</text>
+  </view>
+
+  <!-- 消息通知入口 -->
+  <view class="menu-card" bindtap="goToNotifications">
+    <view class="menu-left">
+      <text class="menu-icon">🔔</text>
+      <text class="menu-label">消息通知</text>
+    </view>
+    <view class="menu-right">
+      <view class="badge" wx:if="{{unreadCount > 0}}">
+        <text class="badge-text">{{unreadCount > 99 ? '99+' : unreadCount}}</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 设置列表 -->
+  <view class="settings-section">
+    <view class="section-title">设置</view>
+
+    <!-- 编辑资料 -->
+    <view class="menu-card" bindtap="goToEditProfile">
+      <view class="menu-left">
+        <text class="menu-icon">✏️</text>
+        <text class="menu-label">编辑资料</text>
+      </view>
+      <view class="menu-right">
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 隐私设置 -->
+    <view class="menu-card privacy-card">
+      <view class="menu-left">
+        <text class="menu-icon">🔒</text>
+        <text class="menu-label">隐私设置</text>
+      </view>
+      <view class="privacy-items">
+        <view class="privacy-item">
+          <text class="privacy-label">显示楼号</text>
+          <switch
+            class="privacy-switch"
+            checked="{{showBuilding}}"
+            bindchange="onToggleBuilding"
+            color="#c4a882"
+          ></switch>
+        </view>
+        <view class="privacy-item">
+          <text class="privacy-label">显示房号</text>
+          <switch
+            class="privacy-switch"
+            checked="{{showRoom}}"
+            bindchange="onToggleRoom"
+            color="#c4a882"
+          ></switch>
+        </view>
+      </view>
+    </view>
+
+    <!-- 退出登录 -->
+    <view class="menu-card logout-card" bindtap="onLogout">
+      <text class="logout-text">退出登录</text>
+    </view>
+  </view>
+</view>

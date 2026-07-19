@@ -1,0 +1,61 @@
+/* 图片全屏预览 Lightbox */
+.lightbox-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 顶部页码 */
+.lightbox-counter {
+  position: absolute;
+  top: 48rpx;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.7);
+  z-index: 10;
+}
+
+/* Swiper 容器 */
+.lightbox-swiper {
+  width: 100%;
+  height: 80%;
+}
+
+.lightbox-image {
+  width: 100%;
+  height: 100%;
+}
+
+.lightbox-image image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 关闭按钮 */
+.lightbox-close {
+  position: absolute;
+  bottom: 80rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}

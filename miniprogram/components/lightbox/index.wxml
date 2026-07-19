@@ -1,0 +1,20 @@
+<!-- lightbox 图片全屏预览组件 -->
+<view wx:if="{{visible}}" class="lightbox-mask" bind:tap="onMaskTap">
+  <!-- 图片滑动切换 -->
+  <swiper
+    class="lightbox-swiper"
+    current="{{current}}"
+    bindchange="onSwiperChange"
+    catch:tap="noop"
+  >
+    <swiper-item wx:for="{{images}}" wx:key="*this">
+      <image src="{{item}}" mode="widthFix" class="lightbox-image" />
+    </swiper-item>
+  </swiper>
+
+  <!-- 顶部页码：N/M -->
+  <view class="page-indicator" catch:tap="noop">{{current + 1}}/{{images.length}}</view>
+
+  <!-- 底部关闭按钮 -->
+  <view class="close-btn" bind:tap="onCloseTap">✕</view>
+</view>

@@ -1,0 +1,5 @@
+<!-- like-button 点赞按钮组件 -->
+<view class="like-button" bind:tap="onToggle">
+  <text class="like-icon {{liked ? 'liked' : ''}}">{{liked ? '❤️' : '🤍'}}</text>
+  <text class="like-count {{liked ? 'liked' : ''}}">{{count}}</text>
+</view>

@@ -1,0 +1,38 @@
+<!-- comment-sheet 底部评论弹出层组件 -->
+<view wx:if="{{visible}}" class="comment-sheet-mask" bind:tap="onMaskTap">
+  <view class="comment-sheet" catch:tap="noop">
+    <!-- 顶部标题栏 -->
+    <view class="sheet-header">
+      <text class="sheet-title">评论</text>
+      <view class="close-btn" bind:tap="onCloseTap">✕</view>
+    </view>
+
+    <!-- 评论列表（可滚动） -->
+    <scroll-view class="comment-list" scroll-y>
+      <view wx:for="{{comments}}" wx:key="id" class="comment-item" bind:tap="onReplyTap" data-user="{{item.user}}">
+        <image class="comment-avatar" src="{{item.user.avatar}}" mode="aspectFill"></image>
+        <view class="comment-body">
+          <view class="comment-header">
+            <text class="comment-author">{{item.user.nickname}}</text>
+            <text class="comment-time">{{item.createdAt}}</text>
+          </view>
+          <view class="comment-content">
+            <text wx:if="{{item.replyTo}}" class="reply-tag">回复 @{{item.replyTo.nickname}}：</text>
+            <text>{{item.content}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{comments.length === 0}}" class="empty-tip">暂无评论，来写第一条吧</view>
+    </scroll-view>
+
+    <!-- 底部固定输入区 -->
+    <view class="sheet-input-area">
+      <input
+        class="comment-input"
+        placeholder="{{replyTo ? '回复 @' + replyTo.nickname : '写评论...'}}"
+        model:value="{{inputValue}}"
+      />
+      <view class="send-btn" bind:tap="onSendTap">发送</view>
+    </view>
+  </view>
+</view>

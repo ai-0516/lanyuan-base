@@ -1,0 +1,51 @@
+{
+  "pages": [
+    "pages/ai-chat/index",
+    "pages/feed/index",
+    "pages/profile/index",
+    "pages/create-post/index",
+    "pages/notifications/index",
+    "pages/edit-profile/index",
+    "pages/login/index"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#faf7f2",
+    "navigationBarTitleText": "兰园",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#faf7f2",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "tabBar": {
+    "color": "#8a8a8a",
+    "selectedColor": "#c4673c",
+    "backgroundColor": "#fffaf5",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/ai-chat/index",
+        "iconPath": "assets/icons/ai.png",
+        "selectedIconPath": "assets/icons/ai-active.png",
+        "text": "AI"
+      },
+      {
+        "pagePath": "pages/feed/index",
+        "iconPath": "assets/icons/feed.png",
+        "selectedIconPath": "assets/icons/feed-active.png",
+        "text": "发现"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "iconPath": "assets/icons/profile.png",
+        "selectedIconPath": "assets/icons/profile-active.png",
+        "text": "我"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents",
+  "useExtendedLib": {
+    "weui": true
+  }
+}

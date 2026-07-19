@@ -1,0 +1,21 @@
+<view class="login-page">
+  <!-- 背景装饰 -->
+  <view class="bg-decor top-decor"></view>
+  <view class="bg-decor bottom-decor"></view>
+
+  <!-- 品牌区域 -->
+  <view class="brand-section">
+    <image class="app-logo" src="/images/logo.png" mode="aspectFit"></image>
+    <text class="app-name">兰园</text>
+    <text class="app-desc">连接邻里，共享美好社区生活</text>
+  </view>
+
+  <!-- 登录按钮 -->
+  <view class="login-btn-wrapper">
+    <button class="wx-login-btn" bindtap="handleWxLogin">
+      <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
+      <text>微信一键登录</text>
+    </button>
+    <text class="agreement-text">登录即表示同意《用户协议》和《隐私政策》</text>
+  </view>
+</view>

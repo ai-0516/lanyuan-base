@@ -1,0 +1,50 @@
+<!-- post-card 帖子卡片组件 -->
+<view class="post-card">
+  <!-- 顶部：用户头像 + 昵称 + 发布时间 -->
+  <view class="post-header">
+    <image class="avatar" src="{{post.user.avatar}}" mode="aspectFill"></image>
+    <view class="user-info">
+      <text class="nickname">{{post.user.nickname}}</text>
+      <text class="create-time">{{post.createdAt}}</text>
+    </view>
+  </view>
+
+  <!-- 正文内容 -->
+  <view class="post-content">{{post.content}}</view>
+
+  <!-- 图片网格（条件渲染） -->
+  <image-grid
+    wx:if="{{post.images && post.images.length}}"
+    images="{{post.images}}"
+    bind:preview="onPreviewImage"
+  />
+
+  <!-- 底部操作栏 -->
+  <view class="post-actions">
+    <like-button
+      postId="{{post.id}}"
+      liked="{{post.liked}}"
+      count="{{post.likeCount}}"
+      bind:change="onLikeChange"
+    />
+    <view class="comment-entry" bind:tap="onCommentTap">
+      <text>{{post.commentCount}} 条评论</text>
+    </view>
+  </view>
+
+  <!-- 点赞用户名单展开区 -->
+  <view wx:if="{{likedUsers.length > 0}}" class="liked-users">
+    <text class="liked-label">❤️ {{likedUsers.join('、')}}</text>
+  </view>
+
+  <!-- 评论列表区 -->
+  <view wx:if="{{post.comments && post.comments.length > 0}}" class="comment-list">
+    <view wx:for="{{post.comments}}" wx:key="id" class="comment-item">
+      <!-- 格式：作者：内容 或 作者 回复 被回复者：内容 -->
+      <text class="comment-author">{{item.user.nickname}}</text>
+      <text wx:if="{{item.replyTo}}" class="comment-reply-to"> 回复 {{item.replyTo.nickname}}</text>
+      <text class="comment-colon">：</text>
+      <text class="comment-content">{{item.content}}</text>
+    </view>
+  </view>
+</view>

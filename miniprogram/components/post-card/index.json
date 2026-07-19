@@ -1,0 +1,7 @@
+{
+  "component": true,
+  "usingComponents": {
+    "like-button": "../like-button/index",
+    "image-grid": "../image-grid/index"
+  }
+}

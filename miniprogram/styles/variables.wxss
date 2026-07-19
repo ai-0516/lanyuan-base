@@ -1,0 +1,57 @@
+/*
+ * 兰园设计系统 — CSS 变量
+ * 陶土暖色系风格
+ */
+
+page {
+  /* ===== 基本色 ===== */
+  --cream: #faf7f2;             /* 奶油白 — 页面背景 */
+  --warm-white: #fffaf5;        /* 暖白 — 卡片/容器背景 */
+
+  /* ===== 主色 — 陶土色系 ===== */
+  --terracotta: #c4673c;        /* 陶土橙 — 主色/按钮/强调 */
+  --terracotta-deep: #9b3d1a;   /* 深陶土 — 按压态/边框 */
+  --terracotta-light: #e8a87c;  /* 浅陶土 — 次要元素/悬停态 */
+
+  /* ===== 辅助色 ===== */
+  --ember: #d4744b;             /* 余烬 — 次级强调/图标 */
+  --clay: #b8532e;              /* 粘土 — 辅助文字/分割线 */
+
+  /* ===== 中性色 ===== */
+  --sand: #f2e8dc;              /* 沙色 — 分隔线/边框 */
+  --sand-dark: #e8d5c0;         /* 深沙 — 置灰态/辅助背景 */
+  --bark: #3d2b1f;              /* 树皮 — 主文字/标题 */
+
+  /* ===== 语义色 ===== */
+  --olive: #6b8e5a;             /* 橄榄绿 — 成功/在线 */
+  --olive-light: #8aab7a;       /* 浅橄榄 — 成功态背景 */
+
+  /* ===== 点缀色 ===== */
+  --gold: #c8963e;              /* 金色 — VIP/勋章/等级 */
+  --gold-light: #e8c97a;        /* 浅金 — 金色背景 */
+
+  /* ===== 阴影 ===== */
+  --shadow-sm: 0 1px 3px rgba(61,43,31,0.06), 0 1px 2px rgba(61,43,31,0.04);
+  --shadow-md: 0 4px 16px rgba(61,43,31,0.07), 0 2px 6px rgba(61,43,31,0.04);
+
+  /* ===== 排版 ===== */
+  --font-size-xs: 22rpx;
+  --font-size-sm: 26rpx;
+  --font-size-base: 28rpx;
+  --font-size-lg: 32rpx;
+  --font-size-xl: 36rpx;
+  --font-size-xxl: 44rpx;
+
+  /* ===== 间距 ===== */
+  --spacing-xs: 8rpx;
+  --spacing-sm: 16rpx;
+  --spacing-base: 24rpx;
+  --spacing-lg: 32rpx;
+  --spacing-xl: 48rpx;
+
+  /* ===== 圆角 ===== */
+  --radius-sm: 8rpx;
+  --radius-base: 16rpx;
+  --radius-lg: 24rpx;
+  --radius-full: 9999rpx;
+}

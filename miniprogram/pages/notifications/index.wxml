@@ -1,0 +1,39 @@
+<import src="../../styles/variables.wxss" />
+
+<view class="notif-page">
+  <!-- 顶部标题栏 -->
+  <view class="header">
+    <text class="header-title">消息通知</text>
+  </view>
+
+  <!-- 通知列表 -->
+  <scroll-view class="notif-list" scroll-y="{{true}}" wx:if="{{notifications.length > 0}}">
+    <view
+      class="notif-item {{item.read ? '' : 'notif-unread'}}"
+      wx:for="{{notifications}}"
+      wx:key="index"
+      data-id="{{item.id}}"
+      data-post-id="{{item.postId}}"
+      bindtap="onTapNotification"
+    >
+      <image class="notif-avatar" src="{{item.senderAvatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+      <view class="notif-content">
+        <text class="notif-text">
+          <text class="notif-username">{{item.senderName}}</text>
+          <text wx:if="{{item.type === 'like'}}"> 点赞了你的帖子「</text>
+          <text wx:if="{{item.type === 'comment'}}"> 评论了你的帖子「</text>
+          <text wx:if="{{item.type === 'reply'}}"> 回复了你的帖子「</text>
+          <text class="notif-post-excerpt">{{item.postExcerpt || ''}}</text>
+          <text>」</text>
+        </text>
+        <text class="notif-time">{{item.time}}</text>
+      </view>
+      <view class="notif-unread-dot" wx:if="{{!item.read}}"></view>
+    </view>
+  </scroll-view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:else>
+    <text class="empty-text">暂无通知</text>
+  </view>
+</view>

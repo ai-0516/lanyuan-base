@@ -1,0 +1,12 @@
+<!-- image-grid 图片网格自适应布局组件 -->
+<view class="image-grid grid-{{gridClass}}">
+  <view
+    wx:for="{{images}}"
+    wx:key="*this"
+    class="grid-item"
+    bind:tap="onImageTap"
+    data-index="{{index}}"
+  >
+    <image src="{{item}}" mode="aspectFill" class="grid-image" />
+  </view>
+</view>

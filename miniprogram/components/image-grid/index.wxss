@@ -1,0 +1,130 @@
+/* 图片网格 — 自适应布局 */
+.image-grid {
+  margin-bottom: 16rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+/* 1 张图片：16:9 宽图 */
+.grid-1 {
+  display: flex;
+}
+
+.grid-1 .grid-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 16rpx;
+}
+
+/* 2 张图片：1:1 并排 */
+.grid-2 {
+  display: flex;
+  gap: 6rpx;
+}
+
+.grid-2 .grid-image {
+  width: calc(50% - 3rpx);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.grid-2 .grid-image:first-child {
+  border-radius: 16rpx 0 0 16rpx;
+}
+
+.grid-2 .grid-image:last-child {
+  border-radius: 0 16rpx 16rpx 0;
+}
+
+/* 3 张图片：上大下二 */
+.grid-3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rpx;
+}
+
+.grid-3 .grid-image:first-child {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 16rpx 16rpx 0 0;
+}
+
+.grid-3 .grid-image:nth-child(n+2) {
+  width: calc(50% - 2rpx);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.grid-3 .grid-image:nth-child(2) {
+  border-radius: 0 0 0 16rpx;
+}
+
+/* 4 张图片：2×2 网格 */
+.grid-4 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rpx;
+}
+
+.grid-4 .grid-image {
+  width: calc(50% - 2rpx);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.grid-4 .grid-image:nth-child(1) { border-radius: 16rpx 0 0 0; }
+.grid-4 .grid-image:nth-child(2) { border-radius: 0 16rpx 0 0; }
+.grid-4 .grid-image:nth-child(3) { border-radius: 0 0 0 16rpx; }
+.grid-4 .grid-image:nth-child(4) { border-radius: 0 0 16rpx 0; }
+
+/* 5-6 张图片：3 列 */
+.grid-5,
+.grid-6 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rpx;
+}
+
+.grid-5 .grid-image,
+.grid-6 .grid-image {
+  width: calc(33.333% - 3rpx);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.grid-5 .grid-image:nth-child(1),
+.grid-6 .grid-image:nth-child(1) { border-radius: 16rpx 0 0 0; }
+.grid-5 .grid-image:nth-child(3),
+.grid-6 .grid-image:nth-child(3) { border-radius: 0 16rpx 0 0; }
+
+/* 7-9 张图片：3×3 网格 */
+.grid-7,
+.grid-8,
+.grid-9 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rpx;
+}
+
+.grid-7 .grid-image,
+.grid-8 .grid-image,
+.grid-9 .grid-image {
+  width: calc(33.333% - 3rpx);
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.grid-7 .grid-image:nth-child(1),
+.grid-8 .grid-image:nth-child(1),
+.grid-9 .grid-image:nth-child(1) { border-radius: 16rpx 0 0 0; }
+.grid-7 .grid-image:nth-child(3),
+.grid-8 .grid-image:nth-child(3),
+.grid-9 .grid-image:nth-child(3) { border-radius: 0 16rpx 0 0; }
+.grid-7 .grid-image:nth-child(7),
+.grid-8 .grid-image:nth-child(7),
+.grid-9 .grid-image:nth-child(7) { border-radius: 0 0 0 16rpx; }
+.grid-7 .grid-image:nth-child(9),
+.grid-8 .grid-image:nth-child(9),
+.grid-9 .grid-image:nth-child(9) { border-radius: 0 0 16rpx 0; }

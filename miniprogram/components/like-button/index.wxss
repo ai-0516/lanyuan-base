@@ -1,0 +1,27 @@
+/* 点赞按钮 */
+.like-button {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 0;
+}
+
+.like-icon {
+  font-size: 36rpx;
+  transition: transform 0.2s ease;
+}
+
+.like-icon.active {
+  color: var(--terracotta, #c4673c);
+  transform: scale(1.15);
+}
+
+.like-icon.inactive {
+  color: var(--terracotta-light, #e8a87c);
+}
+
+.like-count {
+  font-size: 26rpx;
+  color: var(--bark, #3d2b1f);
+  min-width: 32rpx;
+}

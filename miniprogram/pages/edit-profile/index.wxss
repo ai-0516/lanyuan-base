@@ -1,0 +1,93 @@
+@import '../../styles/variables.wxss';
+
+/* 页面容器 */
+.edit-page {
+  min-height: 100vh;
+  background-color: var(--bg-page, #f5f0eb);
+}
+
+/* 顶部标题栏 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  padding-top: var(--status-bar-height, 44rpx);
+  background-color: var(--clay, #c4a882);
+}
+.header-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* 表单容器 */
+.form-container {
+  padding: 24rpx 24rpx;
+}
+
+/* 表单项 */
+.form-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 28rpx;
+  margin-bottom: 2rpx;
+  background-color: #ffffff;
+  border-radius: 12rpx;
+}
+.form-label {
+  flex-shrink: 0;
+  width: 140rpx;
+  font-size: 28rpx;
+  color: #3a2c1e;
+  font-weight: 500;
+}
+.form-input {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+  padding: 8rpx 0;
+}
+
+/* 头像项 */
+.avatar-item {
+  padding: 20rpx 28rpx;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+}
+.avatar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.form-avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+}
+.change-avatar-hint {
+  font-size: 24rpx;
+  color: var(--clay, #c4a882);
+}
+
+/* 保存按钮区域 */
+.save-area {
+  padding: 60rpx 32rpx;
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+}
+.save-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #ffffff;
+  background-color: var(--clay, #c4a882);
+  border-radius: 44rpx;
+  border: none;
+  font-weight: 500;
+}
+.save-btn[disabled] {
+  background-color: #d9cfc5;
+  color: #fff;
+}

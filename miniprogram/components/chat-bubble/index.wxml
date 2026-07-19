@@ -1,0 +1,7 @@
+<!-- chat-bubble 聊天气泡组件 -->
+<view class="chat-bubble-wrapper {{role === 'user' ? 'user' : 'assistant'}}">
+  <view class="bubble {{role}}">
+    <text class="bubble-text">{{content}}</text>
+  </view>
+  <text class="bubble-time">{{time}}</text>
+</view>

@@ -1,0 +1,107 @@
+@import '../../styles/variables.wxss';
+
+/* 页面容器 */
+.notif-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-page, #f5f0eb);
+}
+
+/* 顶部标题栏 */
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  padding-top: var(--status-bar-height, 44rpx);
+  background-color: var(--clay, #c4a882);
+}
+.header-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* 通知列表 */
+.notif-list {
+  flex: 1;
+  overflow-y: scroll;
+}
+
+/* 单条通知 */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 28rpx 24rpx;
+  margin: 0 24rpx;
+  margin-top: 12rpx;
+  background-color: #ffffff;
+  border-radius: 16rpx;
+  position: relative;
+}
+.notif-unread {
+  background-color: #fef5f2;
+}
+
+/* 发送者头像 */
+.notif-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 16rpx;
+}
+
+/* 通知内容区域 */
+.notif-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 通知文字 */
+.notif-text {
+  font-size: 26rpx;
+  color: #3a2c1e;
+  line-height: 1.5;
+}
+.notif-username {
+  font-weight: 600;
+  color: #2c1e0e;
+}
+.notif-post-excerpt {
+  color: #888;
+}
+
+/* 通知时间 */
+.notif-time {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 20rpx;
+  color: #bbb;
+}
+
+/* 未读红点 */
+.notif-unread-dot {
+  position: absolute;
+  top: 28rpx;
+  right: 24rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background-color: #ee3f3f;
+  flex-shrink: 0;
+}
+
+/* 空状态 */
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.empty-text {
+  font-size: 30rpx;
+  color: #bbb;
+}

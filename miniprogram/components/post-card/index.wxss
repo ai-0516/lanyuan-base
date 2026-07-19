@@ -1,0 +1,115 @@
+/* 帖子卡片 — 陶土暖色系 */
+.post-card {
+  background: var(--warm-white, #fffaf5);
+  border-radius: 24rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(61, 43, 31, 0.06);
+}
+
+/* 头部：头像 + 昵称 + 时间 */
+.post-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.post-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.post-user-info {
+  flex: 1;
+}
+
+.post-nickname {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--bark, #3d2b1f);
+  line-height: 1.3;
+}
+
+.post-time {
+  font-size: 24rpx;
+  color: var(--terracotta-light, #e8a87c);
+  margin-top: 4rpx;
+}
+
+/* 正文 */
+.post-content {
+  font-size: 30rpx;
+  color: var(--bark, #3d2b1f);
+  line-height: 1.6;
+  margin-bottom: 16rpx;
+  word-break: break-all;
+}
+
+/* 底部操作栏 */
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: 32rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--sand, #f2e8dc);
+  margin-top: 16rpx;
+}
+
+.comment-entry {
+  font-size: 26rpx;
+  color: var(--terracotta-light, #e8a87c);
+  padding: 8rpx 0;
+}
+
+/* 点赞名单 */
+.likers-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12rpx 0 0;
+}
+
+.likers-icon {
+  font-size: 28rpx;
+  margin-right: 8rpx;
+}
+
+.likers-text {
+  font-size: 26rpx;
+  color: var(--terracotta-light, #e8a87c);
+  line-height: 1.5;
+}
+
+/* 评论列表 */
+.comments-section {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--sand, #f2e8dc);
+}
+
+.comment-item {
+  padding: 12rpx 0;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--bark, #3d2b1f);
+}
+
+.comment-content {
+  color: var(--bark, #3d2b1f);
+}
+
+.comment-reply-to {
+  color: var(--terracotta, #c4673c);
+  font-weight: 600;
+}
+
+.comment-text {
+  color: var(--bark, #3d2b1f);
+}

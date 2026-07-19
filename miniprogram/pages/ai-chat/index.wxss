@@ -1,0 +1,133 @@
+@import '../../styles/variables.wxss';
+
+/* 页面容器 */
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--bg-page, #f5f0eb);
+}
+
+/* 顶部标题栏 */
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  padding-top: var(--status-bar-height, 44rpx);
+  background-color: var(--clay, #c4a882);
+}
+.header-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* 消息列表区 */
+.message-list {
+  flex: 1;
+  overflow-y: scroll;
+  padding: 20rpx 24rpx;
+  box-sizing: border-box;
+}
+
+/* 单条消息行 */
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 28rpx;
+}
+.msg-ai {
+  justify-content: flex-start;
+}
+.msg-user {
+  justify-content: flex-end;
+}
+
+/* 头像 */
+.avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.avatar-ai {
+  margin-right: 16rpx;
+}
+.avatar-user {
+  margin-left: 16rpx;
+}
+
+/* 气泡 */
+.bubble {
+  max-width: 520rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.bubble-ai {
+  background-color: #faf6f2;
+  border-radius: 4rpx 16rpx 16rpx 16rpx;
+  color: #3a2c1e;
+}
+.bubble-user {
+  background: linear-gradient(135deg, var(--clay, #c4a882), var(--ember, #b87333));
+  border-radius: 16rpx 16rpx 4rpx 16rpx;
+  color: #ffffff;
+}
+.bubble-text-user {
+  color: #ffffff;
+}
+.bubble-text {
+  white-space: pre-wrap;
+}
+
+/* 时间 */
+.msg-time {
+  font-size: 20rpx;
+  color: #999;
+  margin: 0 12rpx;
+  align-self: flex-end;
+  white-space: nowrap;
+}
+
+/* 底部输入区 */
+.input-area {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 16rpx 24rpx;
+  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
+  background-color: #ffffff;
+  border-top: 1rpx solid #e8e0d8;
+}
+.input-textarea {
+  flex: 1;
+  min-height: 72rpx;
+  max-height: 200rpx;
+  padding: 16rpx 20rpx;
+  font-size: 28rpx;
+  background-color: #f5f0eb;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+}
+.send-btn {
+  flex-shrink: 0;
+  width: 120rpx;
+  height: 80rpx;
+  margin-left: 16rpx;
+  line-height: 80rpx;
+  text-align: center;
+  font-size: 28rpx;
+  color: #ffffff;
+  background-color: var(--clay, #c4a882);
+  border-radius: 40rpx;
+  padding: 0;
+  border: none;
+}
+.send-btn[disabled] {
+  background-color: #d9cfc5;
+  color: #fff;
+}

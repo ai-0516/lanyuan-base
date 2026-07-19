@@ -1,0 +1,52 @@
+<import src="../../styles/variables.wxss" />
+
+<view class="chat-page">
+  <!-- 顶部标题栏 -->
+  <view class="header">
+    <text class="header-title">AI 助手</text>
+  </view>
+
+  <!-- 消息列表区 -->
+  <scroll-view class="message-list" scroll-y="{{true}}" scroll-into-view="{{lastMsgId}}" scroll-with-animation="{{true}}">
+    <block wx:for="{{messages}}" wx:key="index">
+      <!-- AI 消息 -->
+      <view class="msg-row msg-ai" wx:if="{{item.role === 'assistant'}}">
+        <image class="avatar avatar-ai" src="/images/ai-avatar.png" mode="aspectFill"></image>
+        <view class="bubble bubble-ai">
+          <text class="bubble-text">{{item.content}}</text>
+        </view>
+        <text class="msg-time">{{item.time}}</text>
+      </view>
+
+      <!-- 用户消息 -->
+      <view class="msg-row msg-user" wx:if="{{item.role === 'user'}}">
+        <text class="msg-time">{{item.time}}</text>
+        <view class="bubble bubble-user">
+          <text class="bubble-text bubble-text-user">{{item.content}}</text>
+        </view>
+        <image class="avatar avatar-user" src="{{userAvatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+      </view>
+    </block>
+
+    <!-- 空白占位用于滚动定位 -->
+    <view id="msg-end" style="height:1rpx;"></view>
+  </scroll-view>
+
+  <!-- 底部输入区 -->
+  <view class="input-area">
+    <textarea
+      class="input-textarea"
+      placeholder="输入消息..."
+      value="{{inputValue}}"
+      bindinput="onInputChange"
+      disabled="{{isLoading}}"
+      auto-height
+      maxlength="-1"
+    ></textarea>
+    <button
+      class="send-btn"
+      bindtap="onSend"
+      disabled="{{!inputValue.trim() || isLoading}}"
+    >发送</button>
+  </view>
+</view>

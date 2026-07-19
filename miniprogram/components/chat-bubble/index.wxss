@@ -1,0 +1,60 @@
+/* 聊天气泡 */
+.chat-bubble-wrap {
+  display: flex;
+  margin-bottom: 32rpx;
+  padding: 0 24rpx;
+}
+
+/* 用户消息：右对齐 */
+.chat-bubble-wrap.user {
+  justify-content: flex-end;
+}
+
+/* AI 消息：左对齐 */
+.chat-bubble-wrap.assistant {
+  justify-content: flex-start;
+}
+
+/* 用户气泡 */
+.bubble-user {
+  max-width: 75%;
+  padding: 20rpx 28rpx;
+  background: linear-gradient(135deg, var(--clay, #b8532e), var(--ember, #d4744b));
+  color: #fff;
+  font-size: 30rpx;
+  line-height: 1.6;
+  border-radius: 16rpx 16rpx 4rpx 16rpx;
+  word-break: break-all;
+  position: relative;
+}
+
+/* AI 气泡 */
+.bubble-ai {
+  max-width: 75%;
+  padding: 20rpx 28rpx;
+  background: var(--warm-white, #fffaf5);
+  color: var(--bark, #3d2b1f);
+  font-size: 30rpx;
+  line-height: 1.6;
+  border-radius: 16rpx 16rpx 16rpx 4rpx;
+  word-break: break-all;
+  box-shadow: 0 2rpx 8rpx rgba(61, 43, 31, 0.06);
+  position: relative;
+}
+
+/* 时间 */
+.bubble-time {
+  font-size: 22rpx;
+  color: var(--terracotta-light, #e8a87c);
+  margin-top: 8rpx;
+  text-align: center;
+}
+
+/* 头像 */
+.bubble-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  margin: 0 12rpx;
+  flex-shrink: 0;
+}

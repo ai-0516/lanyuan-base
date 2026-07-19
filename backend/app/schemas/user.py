@@ -50,7 +50,7 @@ class UserPublic(BaseModel):
     nickname: str
     avatar: str
     community: Optional[str] = None
-    building: Optional[str] = None if False else None  # 受 show_building 控制
+    building: Optional[str] = None  # show_building 控制逻辑在 API 层 profile.py
     bio: Optional[str] = None
 
     model_config = {"from_attributes": True}

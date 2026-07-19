@@ -1,0 +1,106 @@
+<view class="feed-page">
+  <!-- 顶部导航 -->
+  <view class="nav-bar">
+    <text class="nav-title">发现</text>
+    <view class="nav-actions">
+      <image class="nav-icon" src="/images/notification-icon.png" mode="aspectFit" bindtap="goToNotifications"></image>
+    </view>
+  </view>
+
+  <!-- 帖子列表 -->
+  <scroll-view
+    class="post-list"
+    scroll-y
+    refresher-enabled
+    refresher-triggered="{{refresherTriggered}}"
+    bindrefresherrefresh="onPullDownRefresh"
+    bindscrolltolower="onLoadMore"
+    lower-threshold="100"
+  >
+    <!-- 加载中占位 -->
+    <block wx:if="{{loading && posts.length === 0}}">
+      <view class="loading-placeholder">
+        <text class="loading-text">加载中...</text>
+      </view>
+    </block>
+
+    <!-- 空状态 -->
+    <block wx:elif="{{!loading && posts.length === 0}}">
+      <view class="empty-state">
+        <image class="empty-icon" src="/images/empty-icon.png" mode="aspectFit"></image>
+        <text class="empty-text">暂无内容，快来发布第一条帖子吧</text>
+      </view>
+    </block>
+
+    <!-- 帖子卡片列表 -->
+    <view wx:for="{{posts}}" wx:key="id" class="post-card">
+      <!-- 顶部：头像 + 昵称 + 时间 -->
+      <view class="post-header">
+        <image class="avatar" src="{{item.author.avatar || '/images/default-avatar.png'}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.author.id}}"></image>
+        <view class="post-meta">
+          <text class="nickname">{{item.author.nickname}}</text>
+          <text class="post-time">{{formatTime(item.createdAt)}}</text>
+        </view>
+      </view>
+
+      <!-- 正文 -->
+      <view class="post-content" bindtap="viewPost" data-post-id="{{item.id}}">
+        <text>{{item.content}}</text>
+      </view>
+
+      <!-- 图片网格组件 -->
+      <image-grid images="{{item.images}}" wx:if="{{item.images && item.images.length > 0}}"></image-grid>
+
+      <!-- 底部操作栏：点赞 + 评论 -->
+      <view class="post-actions">
+        <view class="action-item" bindtap="toggleLike" data-post-id="{{item.id}}">
+          <like-button liked="{{item.isLiked}}" count="{{item.likeCount}}"></like-button>
+        </view>
+        <view class="action-item" bindtap="openCommentSheet" data-post-id="{{item.id}}">
+          <image class="action-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
+          <text class="action-text">{{item.commentCount || 0}} 评论</text>
+        </view>
+      </view>
+
+      <!-- 点赞用户名单 -->
+      <view class="likers-list" wx:if="{{item.likers && item.likers.length > 0}}">
+        <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
+        <text class="likers-text">{{getLikersText(item.likers)}}</text>
+      </view>
+
+      <!-- 评论列表（全部展示） -->
+      <view class="comments-section" wx:if="{{item.comments && item.comments.length > 0}}">
+        <view wx:for="{{item.comments}}" wx:for-item="comment" wx:key="id" class="comment-item">
+          <block wx:if="{{!comment.replyTo}}">
+            <!-- 普通评论：作者 内容 -->
+            <text class="comment-author">{{comment.author.nickname}}</text>
+            <text class="comment-content">：{{comment.content}}</text>
+          </block>
+          <block wx:else>
+            <!-- 回复评论：作者 回复 被回复者：内容 -->
+            <text class="comment-author">{{comment.author.nickname}}</text>
+            <text class="comment-prefix"> 回复 </text>
+            <text class="comment-author">{{comment.replyTo.nickname}}</text>
+            <text class="comment-content">：{{comment.content}}</text>
+          </block>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{hasMore}}">
+      <text class="load-more-text">{{loadingMore ? '加载中...' : '上拉加载更多'}}</text>
+    </view>
+    <view class="no-more" wx:if="{{!hasMore && posts.length > 0}}">
+      <text class="no-more-text">— 没有更多了 —</text>
+    </view>
+  </scroll-view>
+
+  <!-- 浮动发布按钮 (FAB) -->
+  <view class="fab" bindtap="goToCreatePost">
+    <text class="fab-icon">+</text>
+  </view>
+
+  <!-- 评论弹窗组件 -->
+  <comment-sheet id="commentSheet"></comment-sheet>
+</view>
