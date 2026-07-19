@@ -21,7 +21,7 @@ Page({
       }
 
       // 调用后端登录接口
-      const result = await request('POST', '/auth/login', { code });
+      const result = await request({ method: 'POST', url: '/auth/login', data: { code } });
 
       // 存储 token 和用户信息
       wx.setStorageSync('token', result.token);

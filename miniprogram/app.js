@@ -77,7 +77,7 @@ App({
    */
   async _verifyToken() {
     try {
-      const res = await http.get('/auth/verify')
+      const res = await http.get('/auth/check')
       if (res.code === 0 && res.data) {
         // Token 有效，刷新用户信息缓存
         auth.setUserInfo(res.data.user || res.data)
