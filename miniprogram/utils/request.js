@@ -30,6 +30,9 @@ function request(options, url, data) {
 }
 
 function _doRequest({ url, method = 'GET', data, header }) {
+  // 自动注入 Authorization token（非登录接口）
+  const token = wx.getStorageSync('token') || '';
+  const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   return new Promise((resolve, reject) => {
     wx.request({
@@ -38,11 +41,14 @@ function _doRequest({ url, method = 'GET', data, header }) {
       data,
       header: {
         'Content-Type': 'application/json',
+        ...authHeader,
         ...header
       },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data);
+          const body = res.data;
+          // 自动解包统一响应格式 { code: 0, data: ..., message: "ok" }
+          resolve(body && body.code === 0 ? body.data : body);
         } else {
           reject(res);
         }

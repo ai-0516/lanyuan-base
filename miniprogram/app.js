@@ -77,11 +77,11 @@ App({
    */
   async _verifyToken() {
     try {
-      const res = await http.get('/auth/check')
-      if (res.code === 0 && res.data) {
+      const data = await http.get('/auth/check')
+      if (data && data.valid) {
         // Token 有效，刷新用户信息缓存
-        auth.setUserInfo(res.data.user || res.data)
-        this.globalData.userInfo = res.data.user || res.data
+        auth.setUserInfo(data.user || data)
+        this.globalData.userInfo = data.user || data
       } else {
         // Token 无效
         this._handleTokenInvalid()

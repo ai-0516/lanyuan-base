@@ -1,4 +1,4 @@
-const { request } = require('../../utils/request');
+const { request, BASE_URL } = require('../../utils/request');
 
 Page({
   data: {
@@ -87,7 +87,7 @@ Page({
     const token = wx.getStorageSync('token') || '';
 
     const task = wx.request({
-      url: `${app.globalData.baseUrl || ''}/ai/chat`,
+      url: `${BASE_URL}/ai/chat`,
       method: 'POST',
       header: {
         'Content-Type': 'application/json',
