@@ -116,7 +116,7 @@ Page({
       };
       this.setData({ posts });
 
-      await request('POST', '/posts/' + postId + (isLiked ? '/like' : '/unlike'));
+      await request('POST', '/posts/' + postId + '/like');
     } catch (err) {
       // 回滚
       posts[index] = post;

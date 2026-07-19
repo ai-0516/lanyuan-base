@@ -23,11 +23,11 @@
     <view class="feed-post" wx:for="{{posts}}" wx:key="id">
       <!-- 帖子头部 -->
       <view class="post-left">
-        <image class="post-avatar" src="{{item.author.avatar || '/images/default-avatar.png'}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.author.id}}"></image>
+        <image class="post-avatar" src="{{item.user.avatar || '/images/default-avatar.png'}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.user.id}}"></image>
       </view>
       <view class="post-right">
         <view class="feed-header">
-          <text class="feed-user">{{item.author.nickname}}</text>
+          <text class="feed-user">{{item.user.nickname}}</text>
           <text class="feed-meta">{{formatTime(item.created_at)}}</text>
         </view>
 
@@ -39,38 +39,28 @@
           <image wx:for="{{item.images}}" wx:key="*this" src="{{item}}" mode="aspectFill" bindtap="openLightbox" data-images="{{item.images}}" data-index="{{index}}"></image>
         </view>
 
-        <!-- 底部操作栏 -->
+        <!-- 操作栏 -->
         <view class="feed-actions" id="fa-{{item.id}}">
-          <view class="action-left">
-            <image class="like-icon-small" src="{{item.isLiked ? '/images/liked-icon.png' : '/images/comment-icon.png'}}" mode="aspectFit"></image>
-            <text class="likers-text" wx:if="{{item.likers && item.likers.length > 0}}">{{getLikersText(item.likers)}}</text>
-          </view>
           <view class="action-right">
             <view class="action-btn" bindtap="toggleLike" data-post-id="{{item.id}}">
-              <image class="action-icon" src="{{item.isLiked ? '/images/liked-icon.png' : '/images/comment-icon.png'}}" mode="aspectFit"></image>
-              <text class="action-text {{item.isLiked ? 'liked' : ''}}">{{item.isLiked ? item.likeCount || '' : '点赞'}}</text>
+              <image class="action-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/comment-icon.png'}}" mode="aspectFit"></image>
+              <text class="action-text {{item.liked ? 'liked' : ''}}">{{item.liked ? '取消点赞' : '点赞'}}</text>
             </view>
             <view class="action-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}">
               <image class="action-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
-              <text class="action-text">{{item.comment_count || ''}}评论</text>
+              <text class="action-text">评论{{item.comment_count ? ' ' + item.comment_count : ''}}</text>
             </view>
           </view>
-        </view>
-
-        <!-- 点赞用户名单 -->
-        <view class="likers-row" wx:if="{{item.likers && item.likers.length > 0}}">
-          <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
-          <text class="likers-text">{{getLikersText(item.likers)}}</text>
         </view>
 
         <!-- 评论预览 -->
         <view class="post-section" wx:if="{{item.comments && item.comments.length > 0}}">
           <view class="comment-inline" wx:for="{{item.comments.slice(0, 3)}}" wx:key="id">
             <view class="ci-body">
-              <text class="ci-author">{{item.author.nickname}}</text>
+              <text class="ci-author">{{item.user.nickname}}</text>
               <text wx:if="{{item.reply_to}}" class="ci-reply">回复</text>
-              <text wx:if="{{item.reply_to}}" class="ci-reply-name">{{item.reply_to}}</text>
-              <text class="ci-reply" wx:if="{{item.reply_to}}">：</text>
+              <text wx:if="{{item.reply_to}}" class="ci-reply-name">{{item.reply_to.nickname}}</text>
+              <text wx:if="{{item.reply_to}}" class="ci-reply">：</text>
               <text class="ci-text">{{item.content}}</text>
             </view>
           </view>
