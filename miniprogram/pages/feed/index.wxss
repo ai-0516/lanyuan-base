@@ -1,6 +1,6 @@
 /* 发现页 — 对齐 v3-social-feed.html 设计稿 */
 .feed-page {
-  min-height: 100vh;
+  height: 100vh;
   background: var(--cream);
 }
 /* 隐藏滚动条 */
@@ -8,6 +8,12 @@
   display: none;
   width: 0;
   height: 0;
+}
+page {
+  overflow: hidden;
+}
+page::-webkit-scrollbar {
+  display: none;
 }
 
 /* 顶部导航 */
