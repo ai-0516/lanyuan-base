@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>兰园</title>
+<style>
+/* ── Design System ── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root {
+  --cream: #faf7f2; --warm-white: #fffaf5;
+  --terracotta: #c4673c; --terracotta-deep: #9b3d1a; --terracotta-light: #e8a87c;
+  --ember: #d4744b; --clay: #b8532e; --sand: #f2e8dc; --sand-dark: #e8d5c0;
+  --bark: #3d2b1f; --olive: #6b8e5a; --olive-light: #8aab7a;
+  --gold: #c8963e; --gold-light: #e8c97a;
+  --shadow-sm: 0 1px 3px rgba(61,43,31,0.06), 0 1px 2px rgba(61,43,31,0.04);
+  --shadow-md: 0 4px 16px rgba(61,43,31,0.07), 0 2px 6px rgba(61,43,31,0.04);
+  --shadow-lg: 0 12px 32px rgba(61,43,31,0.1), 0 4px 12px rgba(61,43,31,0.05);
+}
+body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--cream); color: var(--bark); min-height: 100vh; }
+
+/* ── Layout ── */
+.page { display: none; flex-direction: column; min-height: 100vh; max-width: 430px; margin: 0 auto; }
+.page.active { display: flex; }
+.page-header { display: flex; align-items: center; justify-content: center; padding: 12px 20px; position: relative; }
+.page-header .title { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700; color: var(--bark); }
+.page-header .title span { color: var(--terracotta); }
+.page-header .back-btn { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font-size: 20px; cursor: pointer; color: var(--bark); border: none; background: none; padding: 4px; }
+.content { flex: 1; overflow-y: auto; padding: 0 16px 12px; scroll-behavior: smooth; }
+.content::-webkit-scrollbar { width: 0; }
+
+/* ── Tab Bar ── */
+.tab-bar { display: flex; background: var(--warm-white); border-top: 1px solid rgba(232,213,192,0.4); padding: 4px 8px 12px; }
+.tab-item { flex: 1; text-align: center; padding: 6px 0; cursor: pointer; font-size: 10px; font-weight: 500; color: #c8b8a8; transition: all 0.25s; position: relative; }
+.tab-item .tab-icon { font-size: 20px; display: block; margin-bottom: 3px; transition: transform 0.25s; }
+.tab-item.active { color: var(--terracotta); font-weight: 600; }
+.tab-item.active .tab-icon { transform: translateY(-2px); }
+.tab-badge { position: absolute; top: 0; right: 50%; margin-right: -16px; background: #e74c3c; color: #fff; font-size: 9px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: 600; }
+
+/* ── Cards ── */
+.card { background: var(--warm-white); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm); border: 1px solid rgba(232,213,192,0.5); }
+.feed-card { background: var(--warm-white); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm); border: 1px solid rgba(232,213,192,0.4); }
+.feed-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.feed-avatar { width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 600; flex-shrink: 0; background: linear-gradient(135deg, var(--terracotta-light), var(--terracotta)); }
+.feed-avatar img { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
+.feed-user { font-size: 13px; font-weight: 600; color: var(--bark); }
+.feed-meta { font-size: 10px; color: #b8a898; margin-top: 1px; }
+.feed-body { font-size: 13px; line-height: 1.6; color: #5c4a3a; margin-bottom: 10px; white-space: pre-wrap; }
+.feed-image { width: 100%; border-radius: 10px; margin-bottom: 10px; display: block; }
+.feed-actions { display: flex; gap: 20px; font-size: 12px; color: #b8a898; padding-top: 8px; border-top: 1px solid rgba(232,213,192,0.3); }
+.feed-actions span { cursor: pointer; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
+.feed-actions span:hover, .feed-actions span.active { color: var(--terracotta); }
+
+/* ── Image Grid ── */
+.image-grid { display: grid; gap: 4px; margin-bottom: 10px; }
+.image-grid img { width: 100%; border-radius: 8px; object-fit: cover; cursor: pointer; }
+.image-grid-1 img { aspect-ratio: 16/9; }
+.image-grid-2 { grid-template-columns: 1fr 1fr; }
+.image-grid-2 img { aspect-ratio: 1; }
+.image-grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+.image-grid-3 img:nth-child(1) { grid-column: 1 / -1; aspect-ratio: 16/9; }
+.image-grid-3 img:nth-child(2), .image-grid-3 img:nth-child(3) { aspect-ratio: 1; }
+.image-grid-4, .image-grid-5, .image-grid-6 { grid-template-columns: 1fr 1fr 1fr; }
+.image-grid-4 img, .image-grid-5 img, .image-grid-6 img { aspect-ratio: 1; }
+.image-grid-7, .image-grid-8, .image-grid-9 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.image-grid-7 img, .image-grid-8 img, .image-grid-9 img { aspect-ratio: 1; }
+
+/* ── Comments ── */
+.comment-item { display: flex; gap: 8px; padding: 6px 0; align-items: flex-start; }
+.comment-avatar { width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0; background: linear-gradient(135deg, var(--terracotta-light), var(--terracotta)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 600; }
+.comment-avatar img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
+.comment-body { flex: 1; min-width: 0; }
+.comment-name { font-size: 11px; font-weight: 600; color: var(--bark); }
+.comment-text { font-size: 12px; color: #5c4a3a; line-height: 1.5; }
+.comment-text .reply-tag { color: var(--terracotta); font-weight: 600; }
+.comment-time { font-size: 10px; color: #b8a898; margin-top: 2px; }
+.comment-sheet-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+.comment-sheet-overlay.show { display: block; }
+.comment-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: var(--warm-white); border-radius: 20px 20px 0 0; padding: 16px; z-index: 101; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); transform: translateY(100%); transition: transform 0.3s ease; }
+.comment-sheet.show { transform: translateY(0); }
+.comment-sheet .sheet-title { font-size: 12px; color: #b8a898; margin-bottom: 10px; }
+.comment-sheet textarea { width: 100%; border: 1px solid var(--sand-dark); border-radius: 12px; padding: 10px; font-size: 13px; font-family: 'DM Sans', sans-serif; resize: none; outline: none; min-height: 40px; }
+.comment-sheet .submit-btn { margin-top: 10px; width: 100%; padding: 10px; background: linear-gradient(135deg, var(--terracotta), var(--clay)); color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+/* ── Login ── */
+.login-page { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: var(--cream); padding: 40px; }
+.login-logo { width: 80px; height: 80px; border-radius: 22px; background: linear-gradient(135deg, var(--terracotta), var(--clay)); display: flex; align-items: center; justify-content: center; font-size: 36px; color: #fff; margin-bottom: 20px; box-shadow: var(--shadow-lg); }
+.login-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: var(--bark); margin-bottom: 4px; }
+.login-subtitle { font-size: 13px; color: #b8a898; margin-bottom: 40px; }
+.login-btn { width: 260px; padding: 14px; border-radius: 14px; background: linear-gradient(135deg, var(--terracotta), var(--clay)); color: #fff; border: none; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-md); transition: transform 0.2s; }
+.login-btn:active { transform: scale(0.97); }
+
+/* ── AI Chat ── */
+.chat-area { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+.chat-area::-webkit-scrollbar { width: 0; }
+.msg { display: flex; gap: 8px; align-items: flex-start; animation: fadeIn 0.3s ease; }
+.msg.me { flex-direction: row-reverse; }
+.msg-avatar { width: 28px; height: 28px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.msg.ai .msg-avatar { background: linear-gradient(135deg, var(--terracotta-light), var(--terracotta)); }
+.msg.me .msg-avatar { background: linear-gradient(135deg, var(--clay), var(--terracotta-deep)); }
+.msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; max-width: 78%; }
+.msg.ai .msg-bubble { background: var(--warm-white); color: var(--bark); box-shadow: var(--shadow-sm); border-bottom-left-radius: 4px; }
+.msg.me .msg-bubble { background: linear-gradient(135deg, var(--ember), var(--clay)); color: #fff; border-bottom-right-radius: 4px; }
+.chat-input-wrap { display: flex; align-items: center; gap: 8px; background: var(--warm-white); border-radius: 18px; padding: 6px 6px 6px 16px; margin: 8px 16px; box-shadow: var(--shadow-md); border: 1px solid rgba(232,213,192,0.4); }
+.chat-input-wrap textarea { border: none; background: transparent; flex: 1; outline: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--bark); resize: none; max-height: 80px; }
+.chat-input-wrap textarea::placeholder { color: #c8b8a8; }
+.send-btn { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--terracotta), var(--clay)); border: none; color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; flex-shrink: 0; }
+.send-btn:active { transform: scale(0.92); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Profile ── */
+.profile-header { text-align: center; padding: 28px 0 20px; }
+.profile-avatar-lg { width: 68px; height: 68px; border-radius: 20px; background: linear-gradient(135deg, var(--terracotta-light), var(--terracotta-deep)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; font-weight: 600; margin: 0 auto 12px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.profile-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+.profile-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--bark); }
+.profile-handle { font-size: 12px; color: #b8a898; margin-top: 2px; }
+.menu-list { background: var(--warm-white); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-sm); border: 1px solid rgba(232,213,192,0.4); }
+.menu-item { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(232,213,192,0.3); font-size: 13px; color: var(--bark); cursor: pointer; transition: background 0.15s; }
+.menu-item:last-child { border-bottom: none; }
+.menu-item:active { background: rgba(212,116,75,0.04); }
+.menu-item .menu-left { display: flex; align-items: center; gap: 10px; }
+.menu-item .menu-icon { font-size: 16px; }
+.menu-item .arrow { color: #c8b8a8; font-size: 12px; }
+.menu-item.logout { color: var(--terracotta); }
+.menu-badge { background: #e74c3c; color: #fff; font-size: 10px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px; margin-left: 6px; }
+
+/* ── Notifications ── */
+.notif-item { display: flex; gap: 10px; padding: 12px; border-bottom: 1px solid rgba(232,213,192,0.3); align-items: center; cursor: pointer; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item.unread { background: rgba(196,103,60,0.04); }
+.notif-avatar { width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0; }
+.notif-content { flex: 1; min-width: 0; }
+.notif-text { font-size: 12px; color: #5c4a3a; line-height: 1.5; }
+.notif-text b { color: var(--bark); }
+.notif-time { font-size: 10px; color: #b8a898; margin-top: 2px; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--terracotta); flex-shrink: 0; }
+
+/* ── Create Post ── */
+.create-textarea { width: 100%; border: none; background: transparent; font-size: 14px; line-height: 1.6; font-family: 'DM Sans', sans-serif; color: var(--bark); resize: none; outline: none; min-height: 160px; }
+.create-textarea::placeholder { color: #c8b8a8; }
+.char-count { text-align: right; font-size: 11px; color: #b8a898; padding: 4px 0; }
+.create-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.create-image-item { width: 80px; height: 80px; border-radius: 10px; overflow: hidden; position: relative; }
+.create-image-item img { width: 100%; height: 100%; object-fit: cover; }
+.create-image-item .del-btn { position: absolute; top: -4px; right: -4px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: none; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.create-image-add { width: 80px; height: 80px; border-radius: 10px; border: 2px dashed var(--sand-dark); display: flex; align-items: center; justify-content: center; font-size: 24px; color: #c8b8a8; cursor: pointer; }
+.publish-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, var(--terracotta), var(--clay)); color: #fff; border: none; border-radius: 14px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 16px; box-shadow: var(--shadow-sm); }
+.publish-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── FAB ── */
+.fab { position: fixed; bottom: 80px; right: 20px; width: 46px; height: 46px; border-radius: 16px; background: linear-gradient(135deg, var(--ember), var(--clay)); color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-lg); cursor: pointer; z-index: 10; transition: transform 0.25s; max-width: 430px; margin: 0 auto; left: 0; right: 0; margin-left: auto; }
+.fab:active { transform: scale(0.92) rotate(90deg); }
+
+/* ── Edit Profile ── */
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 12px; font-weight: 500; color: #b8a898; margin-bottom: 6px; display: block; }
+.form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--sand-dark); border-radius: 12px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--bark); outline: none; background: var(--warm-white); }
+.form-input:focus { border-color: var(--terracotta-light); }
+.form-row { display: flex; gap: 10px; }
+.form-row .form-group { flex: 1; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+.toggle-label { font-size: 13px; color: var(--bark); }
+.toggle { position: relative; width: 44px; height: 24px; background: #ddd; border-radius: 12px; cursor: pointer; transition: background 0.3s; }
+.toggle.on { background: var(--terracotta); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 0.3s; }
+.toggle.on::after { transform: translateX(20px); }
+
+/* ── Animations ── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dotPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.typing-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--terracotta); margin: 0 2px; animation: dotPulse 1.4s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.avatar-placeholder { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, #ccc, #aaa); flex-shrink: 0; }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--bark); color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 12px; z-index: 200; animation: fadeIn 0.3s ease; max-width: 80%; text-align: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── API Client ──
+const API = (() => {
+  const BASE = '/api/v1';
+  let token = wx.getStorageSync('token') || '';
+
+  function getToken() { return token; }
+  function setToken(t) { token = t; wx.setStorageSync('token', t); }
+  function clearToken() { token = ''; wx.removeStorageSync('token'); }
+
+  async function request(path, options = {}) {
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BASE}${path}`, { ...options, headers });
+    if (res.status === 401) { clearToken(); Router.go('login'); throw new Error('未登录'); }
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('text/event-stream')) return res;
+    return res.json();
+  }
+
+  return {
+    getToken, setToken, clearToken,
+    login: (code) => request('/auth/login', { method: 'POST', body: JSON.stringify({ code }) }),
+    checkAuth: () => request('/auth/check'),
+    getPosts: (page=1, size=20) => request(`/posts?page=${page}&size=${size}`),
+    createPost: (data) => request('/posts', { method: 'POST', body: JSON.stringify(data) }),
+    deletePost: (id) => request(`/posts/${id}`, { method: 'DELETE' }),
+    toggleLike: (postId) => request(`/posts/${postId}/like`, { method: 'POST' }),
+    addComment: (postId, data) => request(`/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
+    getProfile: () => request('/user/me'),
+    updateProfile: (data) => request('/user/me', { method: 'PUT', body: JSON.stringify(data) }),
+    getNotifications: () => request('/notifications'),
+    getNotifCount: () => request('/notifications/count'),
+    markNotifRead: (postId) => request('/notifications/read', { method: 'POST', body: JSON.stringify({ postId }) }),
+    getAiSession: () => request('/ai/session', { method: 'POST' }),
+    chatAi: (sessionId, message) => request('/ai/chat', { method: 'POST', body: JSON.stringify({ session_id: sessionId, message }) }),
+    logout: () => request('/user/logout', { method: 'POST' }),
+  };
+})();
+
+// ── Router ──
+const Router = {
+  current: 'login',
+  go(page, data) {
+    if (page === 'login') { document.getElementById('app').innerHTML = ''; }
+    this.current = page; this.data = data;
+    renderPage(page, data);
+  }
+};
+
+// ── Page Renderers ──
+function renderPage(page, data) {
+  const app = document.getElementById('app');
+  const pages = {
+    login: renderLogin,
+    feed: renderFeed,
+    createPost: renderCreatePost,
+    aiChat: renderAiChat,
+    profile: renderProfile,
+    editProfile: renderEditProfile,
+    notifications: renderNotifications,
+  };
+  if (pages[page]) pages[page](data);
+}
+
+// ── Login ──
+function renderLogin() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="login-page">
+      <div class="login-logo">🏘</div>
+      <div class="login-title">兰园</div>
+      <div class="login-subtitle">小区邻里之家</div>
+      <button class="login-btn" onclick="handleLogin()">微信一键登录</button>
+    </div>`;
+}
+
+async function handleLogin() {
+  try {
+    const res = await API.login('mock_code');
+    API.setToken(res.token);
+    Router.go('feed');
+  } catch (e) {
+    showToast('登录失败：' + e.message);
+  }
+}
+
+// ── Feed ──
+async function renderFeed() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header"><div class="title">兰园<span>·</span>社区</div></div>
+      <div class="content" id="feedContent"></div>
+      <div class="tab-bar">${renderTabBar('feed')}</div>
+      <div class="fab" onclick="Router.go('createPost')">+</div>
+      <div class="comment-sheet-overlay" id="commentOverlay" onclick="closeCommentSheet()"></div>
+      <div class="comment-sheet" id="commentSheet">
+        <div class="sheet-title" id="sheetTitle">评论</div>
+        <textarea id="commentInput" rows="2" placeholder="输入评论..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment()}"></textarea>
+        <button class="submit-btn" onclick="submitComment()">发送</button>
+      </div>
+    </div>`;
+  await loadFeed();
+}
+
+let feedState = { page: 1, commentPostId: 0, commentParentId: null };
+
+async function loadFeed() {
+  const feedEl = document.getElementById('feedContent');
+  feedEl.innerHTML = '<div style="text-align:center;padding:40px;color:#b8a898;">加载中...</div>';
+  try {
+    const data = await API.getPosts(feedState.page);
+    if (data.items.length === 0) {
+      feedEl.innerHTML = '<div style="text-align:center;padding:40px;color:#b8a898;">暂无帖子，点击 + 发布第一条</div>';
+      return;
+    }
+    feedEl.innerHTML = data.items.map(post => renderPostCard(post)).join('');
+  } catch(e) {
+    feedEl.innerHTML = '<div style="text-align:center;padding:40px;color:#b8a898;">加载失败</div>';
+  }
+}
+
+function renderPostCard(post) {
+  const user = post.user || { id: 0, nickname: '未知', avatar: '' };
+  const avatarHtml = user.avatar ? `<img src="${user.avatar}">` : user.nickname[0];
+  const imagesHtml = post.images && post.images.length > 0
+    ? `<div class="image-grid image-grid-${Math.min(post.images.length, 9)}">
+        ${post.images.map(img => `<img src="${img}" onclick="showToast('图片预览')">`).join('')}
+       </div>` : '';
+
+  const commentsHtml = post.comments && post.comments.length > 0
+    ? post.comments.map(c => {
+        const cu = c.user || {};
+        const replyHtml = c.reply_to ? `<span class="reply-tag">回复 ${c.reply_to.nickname}：</span>` : '';
+        return `<div class="comment-item">
+          <div class="comment-avatar">${cu.avatar ? `<img src="${cu.avatar}">` : (cu.nickname || '?')[0]}</div>
+          <div class="comment-body">
+            <div class="comment-name">${cu.nickname || '未知'}</div>
+            <div class="comment-text">${replyHtml}${c.content}</div>
+          </div>
+        </div>`;
+      }).join('')
+    : '';
+
+  return `
+    <div class="feed-card">
+      <div class="feed-header">
+        <div class="feed-avatar">${avatarHtml}</div>
+        <div><div class="feed-user">${user.nickname}</div><div class="feed-meta">${formatTime(post.created_at)}</div></div>
+      </div>
+      <div class="feed-body">${escapeHtml(post.content)}</div>
+      ${imagesHtml}
+      <div class="feed-actions">
+        <span class="${post.liked ? 'active' : ''}" onclick="handleLike(${post.id}, this)">${post.liked ? '❤️' : '♡'} <span>${post.like_count || 0}</span></span>
+        <span onclick="openCommentSheet(${post.id})">💬 <span>${post.comment_count || 0}</span></span>
+      </div>
+      ${commentsHtml ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(232,213,192,0.3);">${commentsHtml}</div>` : ''}
+    </div>`;
+}
+
+async function handleLike(postId, el) {
+  try {
+    const data = await API.toggleLike(postId);
+    el.classList.toggle('active', data.liked);
+    el.innerHTML = `${data.liked ? '❤️' : '♡'} <span>${data.likeCount}</span>`;
+  } catch(e) { showToast('操作失败'); }
+}
+
+function openCommentSheet(postId, parentId = null) {
+  feedState.commentPostId = postId;
+  feedState.commentParentId = parentId;
+  document.getElementById('sheetTitle').textContent = parentId ? '回复评论' : '评论';
+  document.getElementById('commentInput').placeholder = parentId ? '输入回复...' : '输入评论...';
+  document.getElementById('commentOverlay').classList.add('show');
+  document.getElementById('commentSheet').classList.add('show');
+  document.getElementById('commentInput').focus();
+}
+
+function closeCommentSheet() {
+  document.getElementById('commentOverlay').classList.remove('show');
+  document.getElementById('commentSheet').classList.remove('show');
+  feedState.commentPostId = 0;
+  feedState.commentParentId = null;
+}
+
+async function submitComment() {
+  const input = document.getElementById('commentInput');
+  const content = input.value.trim();
+  if (!content || !feedState.commentPostId) return;
+  try {
+    await API.addComment(feedState.commentPostId, {
+      content,
+      parent_comment_id: feedState.commentParentId || undefined,
+    });
+    input.value = '';
+    closeCommentSheet();
+    showToast('评论成功');
+    await loadFeed();
+  } catch(e) { showToast('评论失败'); }
+}
+
+// ── Create Post ──
+let createState = { images: [] };
+
+function renderCreatePost() {
+  const app = document.getElementById('app');
+  createState = { images: [] };
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header">
+        <button class="back-btn" onclick="Router.go('feed')">←</button>
+        <div class="title">发布帖子</div>
+      </div>
+      <div class="content">
+        <textarea class="create-textarea" id="postContent" placeholder="分享小区生活..." oninput="updateCharCount()"></textarea>
+        <div class="char-count"><span id="charCountNum">0</span>/2000</div>
+        <div class="create-images" id="createImages"></div>
+        <button class="publish-btn" id="publishBtn" onclick="handlePublish()">发布</button>
+      </div>
+    </div>`;
+}
+
+function updateCharCount() {
+  const len = document.getElementById('postContent').value.length;
+  document.getElementById('charCountNum').textContent = len;
+}
+
+async function handlePublish() {
+  const content = document.getElementById('postContent').value.trim();
+  if (!content) { showToast('请输入内容'); return; }
+  const btn = document.getElementById('publishBtn');
+  btn.disabled = true; btn.textContent = '发布中...';
+  try {
+    await API.createPost({ content, images: createState.images });
+    showToast('发布成功');
+    Router.go('feed');
+  } catch(e) { showToast('发布失败'); btn.disabled = false; btn.textContent = '发布'; }
+}
+
+// ── AI Chat ──
+let aiState = { sessionId: null, loading: false };
+
+async function renderAiChat() {
+  const app = document.getElementById('app');
+  aiState = { sessionId: null, loading: false };
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header"><div class="title">兰园<span>·</span>AI 助手</div></div>
+      <div class="chat-area" id="chatArea"><div style="text-align:center;padding:20px;color:#b8a898;">连接中...</div></div>
+      <div class="chat-input-wrap">
+        <textarea id="chatInput" rows="1" placeholder="输入问题..." onkeydown="handleChatKeydown(event)" style="max-height:80px;"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="handleChatSend()">↵</button>
+      </div>
+      <div class="tab-bar">${renderTabBar('ai')}</div>
+    </div>`;
+  await initAiSession();
+}
+
+function renderTabBar(active) {
+  return `
+    <div class="tab-item ${active === 'ai' ? 'active' : ''}" onclick="Router.go('aiChat')">
+      <span class="tab-icon">○</span>AI
+    </div>
+    <div class="tab-item ${active === 'feed' ? 'active' : ''}" onclick="Router.go('feed')">
+      <span class="tab-icon">💬</span>发现
+    </div>
+    <div class="tab-item ${active === 'profile' ? 'active' : ''}" onclick="initProfile()">
+      <span class="tab-icon" id="profileTabIcon">◎</span>我
+      <span class="tab-badge" id="profileBadge" style="display:none;">0</span>
+    </div>`;
+}
+
+async function initAiSession() {
+  try {
+    const data = await API.getAiSession();
+    aiState.sessionId = data.session_id;
+    const chatArea = document.getElementById('chatArea');
+    if (data.messages && data.messages.length > 0) {
+      chatArea.innerHTML = data.messages.map(m => renderChatBubble(m.role, m.content)).join('');
+    } else {
+      chatArea.innerHTML = renderChatBubble('ai', '你好！我是兰园助手，可以帮你解答社区相关问题。');
+    }
+    chatArea.scrollTop = chatArea.scrollHeight;
+  } catch(e) {
+    document.getElementById('chatArea').innerHTML = '<div style="text-align:center;padding:20px;color:#b8a898;">连接失败，请刷新重试</div>';
+  }
+}
+
+function renderChatBubble(role, content) {
+  const name = role === 'ai' ? 'A' : '我';
+  return `<div class="msg ${role === 'user' ? 'me' : 'ai'}">
+    <div class="msg-avatar">${name}</div>
+    <div class="msg-bubble">${content}</div>
+  </div>`;
+}
+
+function handleChatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); }
+}
+
+async function handleChatSend() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg || aiState.loading || !aiState.sessionId) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  const chatArea = document.getElementById('chatArea');
+  chatArea.innerHTML += renderChatBubble('user', escapeHtml(msg));
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'msg ai';
+  typingDiv.innerHTML = `<div class="msg-avatar">A</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  chatArea.appendChild(typingDiv);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  aiState.loading = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  try {
+    const response = await API.chatAi(aiState.sessionId, msg);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    typingDiv.querySelector('.msg-bubble').innerHTML = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: token')) continue;
+        if (line.startsWith('data: ')) {
+          try {
+            const text = JSON.parse(line.slice(6));
+            fullText += text;
+            typingDiv.querySelector('.msg-bubble').textContent = fullText;
+            chatArea.scrollTop = chatArea.scrollHeight;
+          } catch(e) {}
+        }
+        if (line.startsWith('event: done')) break;
+      }
+    }
+    if (!fullText) typingDiv.querySelector('.msg-bubble').textContent = '(无回复)';
+    chatArea.scrollTop = chatArea.scrollHeight;
+  } catch(e) {
+    typingDiv.querySelector('.msg-bubble').textContent = '抱歉，回复中断，请重试。';
+  }
+  aiState.loading = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+// ── Profile ──
+async function initProfile() {
+  try {
+    const user = await API.getProfile();
+    const notifCount = await API.getNotifCount();
+    Router.go('profile', { user, notifCount: notifCount.count });
+  } catch(e) {
+    Router.go('profile', null);
+  }
+}
+
+function renderProfile(data) {
+  if (!data) { renderLogin(); return; }
+  const { user, notifCount } = data;
+  const app = document.getElementById('app');
+  const avatarHtml = user.avatar ? `<img src="${user.avatar}">` : (user.nickname || '?')[0];
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header"><div class="title">个人中心</div></div>
+      <div class="content">
+        <div class="profile-header">
+          <div class="profile-avatar-lg">${avatarHtml}</div>
+          <div class="profile-name">${user.nickname}</div>
+          <div class="profile-handle">${user.community || '未设置小区'}</div>
+        </div>
+        <div class="menu-list">
+          <div class="menu-item" onclick="Router.go('notifications')">
+            <span class="menu-left"><span class="menu-icon">🔔</span>消息通知${notifCount > 0 ? `<span class="menu-badge">${notifCount}</span>` : ''}</span>
+            <span class="arrow">→</span>
+          </div>
+          <div class="menu-item" onclick="Router.go('editProfile')">
+            <span class="menu-left"><span class="menu-icon">✏️</span>编辑资料</span>
+            <span class="arrow">→</span>
+          </div>
+          <div class="menu-item logout" onclick="handleLogout()">
+            <span class="menu-left"><span class="menu-icon">🚪</span>退出登录</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-bar">${renderTabBar('profile')}</div>
+    </div>`;
+  document.getElementById('profileBadge').style.display = notifCount > 0 ? '' : 'none';
+  document.getElementById('profileBadge').textContent = notifCount;
+}
+
+async function handleLogout() {
+  if (!confirm('确定退出登录吗？')) return;
+  try { await API.logout(); } catch(e) {}
+  API.clearToken();
+  Router.go('login');
+}
+
+// ── Edit Profile ──
+async function renderEditProfile() {
+  const app = document.getElementById('app');
+  const user = await API.getProfile();
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header">
+        <button class="back-btn" onclick="Router.go('profile')">←</button>
+        <div class="title">编辑资料</div>
+      </div>
+      <div class="content">
+        <div style="text-align:center;padding:20px 0;">
+          <div class="profile-avatar-lg" style="width:72px;height:72px;border-radius:20px;">
+            ${user.avatar ? `<img src="${user.avatar}">` : (user.nickname || '?')[0]}
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">昵称</label><input class="form-input" id="fNickname" value="${escapeHtml(user.nickname)}"></div>
+        <div class="form-group"><label class="form-label">小区名称</label><input class="form-input" id="fCommunity" value="${escapeHtml(user.community || '')}"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">楼号</label><input class="form-input" id="fBuilding" value="${escapeHtml(user.building || '')}"></div>
+          <div class="form-group"><label class="form-label">单元</label><input class="form-input" id="fUnit" value="${escapeHtml(user.unit || '')}"></div>
+          <div class="form-group"><label class="form-label">房号</label><input class="form-input" id="fRoom" value="${escapeHtml(user.room || '')}"></div>
+        </div>
+        <div class="form-group"><label class="form-label">个性签名</label><input class="form-input" id="fBio" value="${escapeHtml(user.bio || '')}"></div>
+        <div class="toggle-row"><span class="toggle-label">公开楼号</span><div class="toggle ${user.show_building ? 'on' : ''}" onclick="this.classList.toggle('on')" id="tShowBuilding"></div></div>
+        <div class="toggle-row"><span class="toggle-label">公开房号</span><div class="toggle ${user.show_room ? 'on' : ''}" onclick="this.classList.toggle('on')" id="tShowRoom"></div></div>
+        <button class="publish-btn" onclick="handleSaveProfile()">保存</button>
+      </div>
+    </div>`;
+}
+
+async function handleSaveProfile() {
+  const data = {
+    nickname: document.getElementById('fNickname').value.trim(),
+    community: document.getElementById('fCommunity').value.trim(),
+    building: document.getElementById('fBuilding').value.trim(),
+    unit: document.getElementById('fUnit').value.trim(),
+    room: document.getElementById('fRoom').value.trim(),
+    bio: document.getElementById('fBio').value.trim(),
+    show_building: document.getElementById('tShowBuilding').classList.contains('on'),
+    show_room: document.getElementById('tShowRoom').classList.contains('on'),
+  };
+  try {
+    await API.updateProfile(data);
+    showToast('保存成功');
+    Router.go('profile');
+  } catch(e) {
+    showToast('保存失败');
+  }
+}
+
+// ── Notifications ──
+async function renderNotifications() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="page active">
+      <div class="page-header">
+        <button class="back-btn" onclick="Router.go('profile')">←</button>
+        <div class="title">消息通知</div>
+      </div>
+      <div class="content" id="notifContent"><div style="text-align:center;padding:40px;color:#b8a898;">加载中...</div></div>
+    </div>`;
+  try {
+    const notifications = await API.getNotifications();
+    const el = document.getElementById('notifContent');
+    if (notifications.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:#b8a898;">暂无通知</div>';
+      return;
+    }
+    el.innerHTML = notifications.map(n => {
+      const fu = n.from_user || {};
+      return `<div class="notif-item unread" onclick="handleNotifClick(${n.post_id})">
+        <div class="notif-avatar feed-avatar">${fu.avatar ? `<img src="${fu.avatar}">` : (fu.nickname || '?')[0]}</div>
+        <div class="notif-content">
+          <div class="notif-text"><b>${escapeHtml(fu.nickname || '')}</b> ${n.type === 'like' ? '赞了你的帖子' : n.type === 'comment' ? '评论了你的帖子' : '回复了你的评论'} 「${escapeHtml(n.post_title)}」</div>
+          <div class="notif-time">${formatTime(n.created_at)}</div>
+        </div>
+        <div class="notif-dot"></div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('notifContent').innerHTML = '<div style="text-align:center;padding:40px;color:#b8a898;">加载失败</div>';
+  }
+}
+
+async function handleNotifClick(postId) {
+  try { await API.markNotifRead(postId); } catch(e) {}
+  Router.go('feed');
+}
+
+// ── Utils ──
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return `${Math.floor(diff/60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff/3600000)}小时前`;
+  return `${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// ── Mock wx API ──
+const wx = {
+  getStorageSync: (key) => { try { return localStorage.getItem(`wx_${key}`) || ''; } catch(e) { return ''; } },
+  setStorageSync: (key, val) => { try { localStorage.setItem(`wx_${key}`, val); } catch(e) {} },
+  removeStorageSync: (key) => { try { localStorage.removeItem(`wx_${key}`); } catch(e) {} },
+};
+
+// ── Init ──
+(async function init() {
+  const token = API.getToken();
+  if (token) {
+    try {
+      const result = await API.checkAuth();
+      if (result.valid) { Router.go('feed'); return; }
+    } catch(e) {}
+  }
+  Router.go('login');
+})();
+</script>
+</body>
+</html>
