@@ -53,6 +53,12 @@
           </view>
         </view>
 
+        <!-- 点赞用户名单 -->
+        <view class="likers-row" wx:if="{{item.likers && item.likers.length > 0}}">
+          <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
+          <text class="likers-text">{{getLikersText(item.likers)}}</text>
+        </view>
+
         <!-- 评论预览 -->
         <view class="post-section" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
           <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id">
