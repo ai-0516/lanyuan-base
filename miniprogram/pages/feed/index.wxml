@@ -43,12 +43,12 @@
         <view class="feed-actions" id="fa-{{item.id}}">
           <view class="action-right">
             <view class="action-btn" bindtap="toggleLike" data-post-id="{{item.id}}">
-              <image class="action-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/comment-icon.png'}}" mode="aspectFit"></image>
-              <text class="action-text {{item.liked ? 'liked' : ''}}">{{item.liked ? '取消点赞' : '点赞'}}</text>
+              <image class="action-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
+              <text class="action-text {{item.liked ? 'liked' : ''}}">{{item.like_count || ''}} 赞</text>
             </view>
             <view class="action-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}">
               <image class="action-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
-              <text class="action-text">评论{{item.comment_count ? ' ' + item.comment_count : ''}}</text>
+              <text class="action-text">{{item.comment_count || 0}} 评论</text>
             </view>
           </view>
         </view>
