@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
@@ -48,10 +47,3 @@ async def health():
 uploads_dir = Path(settings.UPLOAD_DIR)
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
-
-# 前端（本地开发）
-frontend_dir = (Path(__file__).parent.parent.parent / "frontend").resolve()
-if frontend_dir.exists():
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(str(frontend_dir / "index.html"))
