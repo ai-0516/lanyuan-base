@@ -29,10 +29,16 @@ App({
   onLaunch() {
     const self = this
 
-    // 获取设备信息
+    // 获取设备信息（wx.getSystemInfoSync 已弃用，改用新 API）
     try {
-      const sysInfo = wx.getSystemInfoSync()
-      self.globalData.systemInfo = sysInfo
+      const deviceInfo = wx.getDeviceInfo()
+      const windowInfo = wx.getWindowInfo()
+      const appBaseInfo = wx.getAppBaseInfo()
+      self.globalData.systemInfo = {
+        ...deviceInfo,
+        ...windowInfo,
+        ...appBaseInfo,
+      }
     } catch (e) {
       console.warn('[App] 获取设备信息失败:', e)
     }
