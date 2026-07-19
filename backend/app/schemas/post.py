@@ -32,6 +32,7 @@ class PostResponse(BaseModel):
     liked: bool = False
     comment_count: int = 0
     comments: List[CommentItem] = []
+    likers: List[UserBrief] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}

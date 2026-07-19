@@ -63,7 +63,10 @@ Page({
     try {
       const result = await request('GET', '/posts?page=' + page + '&size=' + size);
 
-      const newPosts = result.items || result.records || result || [];
+      const newPosts = (result.items || result.records || result || []).map(post => ({
+        ...post,
+        displayComments: (post.comments || []).slice(0, 3),
+      }));
 
       this.setData({
         posts: reset ? newPosts : [...this.data.posts, ...newPosts],

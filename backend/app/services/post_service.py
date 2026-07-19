@@ -135,6 +135,19 @@ async def get_posts(
                 )
             )
 
+        # 点赞者名单（最多 5 人）
+        likers_stmt = (
+            select(User)
+            .join(Like, Like.user_id == User.id)
+            .where(Like.post_id == post.id)
+            .limit(5)
+        )
+        likers_result = await db.execute(likers_stmt)
+        likers = [
+            UserBrief(id=lu.id, nickname=lu.nickname, avatar=lu.avatar)
+            for lu in likers_result.scalars().all()
+        ]
+
         items.append(
             PostResponse(
                 id=post.id,
@@ -145,6 +158,7 @@ async def get_posts(
                 liked=liked,
                 comment_count=comment_count,
                 comments=comments,
+                likers=likers,
                 created_at=post.created_at,
             )
         )
