@@ -23,40 +23,6 @@ page::-webkit-scrollbar {
   display: none;
 }
 
-/* 顶部导航 */
-.nav-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 100rpx 32rpx 20rpx;
-  background: var(--cream);
-  flex-shrink: 0;
-}
-.nav-title {
-  font-family: -apple-system, 'PingFang SC', serif;
-  font-size: 34rpx;
-  font-weight: 700;
-  color: var(--bark);
-  letter-spacing: 1rpx;
-}
-.nav-title-dot {
-  margin: 0 8rpx;
-  color: var(--terracotta);
-}
-.nav-title-sub {
-  color: #b8a898;
-  font-size: 24rpx;
-  font-weight: 400;
-}
-.nav-actions {
-  display: flex;
-  align-items: center;
-}
-.nav-icon {
-  width: 44rpx;
-  height: 44rpx;
-}
-
 /* 帖子列表容器 */
 .post-list {
   padding: 0 24rpx 120rpx;
