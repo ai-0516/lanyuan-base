@@ -81,11 +81,10 @@
     <view class="no-more" wx:if="{{!hasMore && posts.length > 0}}">
       <text class="no-more-text">— 没有更多了 —</text>
     </view>
-  </view>
+  </scroll-view>
 
-  <!-- 浮动发布按钮 -->
+  <!-- 浮动发布按钮（固定在右下角） -->
   <view class="fab" bindtap="goToCreatePost">
     <text class="fab-icon">+</text>
   </view>
-</scroll-view>
 </view>
