@@ -1,4 +1,7 @@
+import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy import create_engine
@@ -16,7 +19,6 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.database import Base
@@ -30,11 +32,24 @@ from app.models.conversation import Conversation, Message
 
 target_metadata = Base.metadata
 
+# ── 优先从 .env 读取 DATABASE_URL ──
+env_path = Path(__file__).parent.parent / ".env"
+db_url = None
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("DATABASE_URL="):
+                db_url = line.split("=", 1)[1].strip().strip("\"'")
+                break
+
+if db_url is None:
+    db_url = config.get_main_option("sqlalchemy.url")
+
 # Convert async URL to sync for Alembic (aiosqlite → sqlite)
-db_url = config.get_main_option("sqlalchemy.url")
 if "aiosqlite" in db_url:
     db_url = db_url.replace("sqlite+aiosqlite", "sqlite")
-    config.set_main_option("sqlalchemy.url", db_url)
+config.set_main_option("sqlalchemy.url", db_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
