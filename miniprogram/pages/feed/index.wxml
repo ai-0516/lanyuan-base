@@ -41,7 +41,7 @@
 
         <!-- 操作栏 -->
         <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}">
-          <text class="action-left">{{formatTime(item.created_at)}}</text>
+          <text class="action-left">{{item.displayTime}}</text>
           <view class="action-slide">
             <view class="slide-btn {{item.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{item.id}}" data-fa-id="fa-{{item.id}}">
               <image class="slide-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
@@ -58,7 +58,7 @@
         <!-- 点赞用户名单 -->
         <view class="likers-row" wx:if="{{item.likers && item.likers.length > 0}}">
           <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
-          <text class="likers-text">{{getLikersText(item.likers)}}</text>
+          <text class="likers-text">{{item.likersText}}</text>
         </view>
 
         <!-- 评论预览 -->

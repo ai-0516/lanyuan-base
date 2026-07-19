@@ -68,6 +68,8 @@ Page({
       const newPosts = (result.items || result.records || result || []).map(post => ({
         ...post,
         displayComments: (post.comments || []).slice(0, 3),
+        likersText: (post.likers || []).map(l => l.nickname).join('，'),
+        displayTime: this.formatTime(post.created_at),
       }));
 
       this.setData({
