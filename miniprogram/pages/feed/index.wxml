@@ -40,18 +40,19 @@
         </view>
 
         <!-- 操作栏 -->
-        <view class="feed-actions">
-          <text class="action-time">{{formatTime(item.created_at)}}</text>
-          <view class="action-right">
-            <view class="action-btn" bindtap="toggleLike" data-post-id="{{item.id}}">
-              <image class="action-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
-              <text class="action-text {{item.liked ? 'liked' : ''}}">{{item.liked ? '取消赞' : '赞'}}</text>
+        <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}">
+          <text class="action-left">{{formatTime(item.created_at)}}</text>
+          <view class="action-slide">
+            <view class="slide-btn {{item.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{item.id}}" data-fa-id="fa-{{item.id}}">
+              <image class="slide-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
+              <text>{{item.liked ? '取消点赞' : '点赞'}}</text>
             </view>
-            <view class="action-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}">
-              <image class="action-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
-              <text class="action-text">评论</text>
+            <view class="slide-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}">
+              <image class="slide-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
+              <text>评论</text>
             </view>
           </view>
+          <text class="action-dots" bindtap="toggleActions" data-fa-id="fa-{{item.id}}">⋯</text>
         </view>
 
         <!-- 点赞用户名单 -->

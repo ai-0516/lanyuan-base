@@ -17,6 +17,8 @@ Page({
     loadingMore: false,
     /** 下拉刷新触发器状态 */
     refresherTriggered: false,
+    /** 当前打开的滑出面板（空=关闭，fa-{id}=打开） */
+    actionOpenId: '',
   },
 
   onLoad() {
@@ -100,9 +102,23 @@ Page({
     this.loadPosts(false);
   },
 
+  /** 切换三点菜单（点击 dots 时滑出/收起操作面板） */
+  toggleActions(e) {
+    const faId = e.currentTarget.dataset.faId;
+    // 如果已打开同一点击收起，否则打开并关闭其他
+    this.setData({
+      actionOpenId: this.data.actionOpenId === faId ? '' : faId,
+    });
+  },
+
   /** 点赞/取消点赞 */
   async toggleLike(e) {
     const postId = e.currentTarget.dataset.postId;
+    // 关闭当前滑出面板
+    const faId = e.currentTarget.dataset.faId;
+    if (faId && this.data.actionOpenId === faId) {
+      this.setData({ actionOpenId: '' });
+    }
     const posts = [...this.data.posts];
     const index = posts.findIndex(p => p.id === postId);
     if (index === -1) return;
