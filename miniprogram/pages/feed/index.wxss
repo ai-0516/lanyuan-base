@@ -3,6 +3,12 @@
   min-height: 100vh;
   background: var(--cream);
 }
+/* 隐藏滚动条 */
+.feed-page::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 
 /* 顶部导航 */
 .nav-bar {
