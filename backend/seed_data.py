@@ -28,12 +28,26 @@ TEST_USERS = [
 
 # 测试帖子数据 (user_index 指向 TEST_USERS 索引)
 TEST_POSTS = [
-    {"user_index": 0, "content": "今天小区樱花开了，太美了！🌸\n大家有空可以去中心花园看看，正值盛花期。", "images": []},
+    {"user_index": 0, "content": "今天小区樱花开了，太美了！🌸\n大家有空可以去中心花园看看，正值盛花期。", "images": [
+        "https://picsum.photos/seed/sakura/600/340",
+    ]},
     {"user_index": 1, "content": "温馨提示：明天上午 9 点小区喷泉广场有免费体检活动，请各位邻居踊跃参加！记得空腹来哦。", "images": []},
-    {"user_index": 2, "content": "今天做了红烧肉，分享一下做法：\n1. 五花肉焯水\n2. 炒糖色\n3. 加生抽老抽料酒\n4. 小火炖 40 分钟\n超级下饭！", "images": []},
-    {"user_index": 3, "content": "有没有邻居想一起晨跑的？每天早上 6:30 在小区南门集合，路线是绕小区 3 圈（约 5 公里）。", "images": []},
+    {"user_index": 2, "content": "今天做了红烧肉，分享一下做法：\n1. 五花肉焯水\n2. 炒糖色\n3. 加生抽老抽料酒\n4. 小火炖 40 分钟\n超级下饭！", "images": [
+        "https://picsum.photos/seed/rou1/300/300",
+        "https://picsum.photos/seed/rou2/300/300",
+    ]},
+    {"user_index": 3, "content": "有没有邻居想一起晨跑的？每天早上 6:30 在小区南门集合，路线是绕小区 3 圈（约 5 公里）。", "images": [
+        "https://picsum.photos/seed/run1/600/340",
+        "https://picsum.photos/seed/run2/300/300",
+        "https://picsum.photos/seed/run3/300/300",
+    ]},
     {"user_index": 0, "content": "供暖季马上结束了，大家觉得今年暖气怎么样？我家温度一直在 22 度左右，很稳定。", "images": []},
-    {"user_index": 4, "content": "捡到一只小橘猫🐱，在 2 号楼楼下发现的小家伙。有谁认识这是谁家的吗？看着像走丢了。", "images": []},
+    {"user_index": 4, "content": "捡到一只小橘猫🐱，在 2 号楼楼下发现的小家伙。有谁认识这是谁家的吗？看着像走丢了。", "images": [
+        "https://picsum.photos/seed/cat1/300/300",
+        "https://picsum.photos/seed/cat2/300/300",
+        "https://picsum.photos/seed/cat3/300/300",
+        "https://picsum.photos/seed/cat4/300/300",
+    ]},
     {"user_index": 1, "content": "周末义务清扫活动圆满结束！感谢今天来的 8 位邻居，南门花坛已经焕然一新。下次活动欢迎大家参与！", "images": []},
     {"user_index": 2, "content": "推荐南门新开的那家包子铺，鲜肉包 2 块钱一个，皮薄馅大，早上去要排队。", "images": []},
 ]
