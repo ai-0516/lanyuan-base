@@ -1,11 +1,14 @@
-<scroll-view class="feed-page" scroll-y enhanced show-scrollbar="{{false}}" refresher-enabled refresher-triggered="{{refresherTriggered}}" bindrefresherrefresh="onPullDownRefresh" bindscrolltolower="onLoadMore">
-  <!-- 顶部导航 -->
+<view class="feed-page">
+  <!-- 顶部导航（固定在顶部，独立于滚动区域） -->
   <view class="nav-bar">
     <view class="nav-title">兰园<span class="nav-title-dot">·</span><text class="nav-title-sub">发现</text></view>
     <view class="nav-actions">
       <image class="nav-icon" src="/images/notification-icon.png" mode="aspectFit" bindtap="goToNotifications"></image>
     </view>
   </view>
+
+  <!-- 滚动内容区 -->
+  <scroll-view class="post-list-scroll" scroll-y enhanced show-scrollbar="{{false}}" refresher-enabled refresher-triggered="{{refresherTriggered}}" bindrefresherrefresh="onPullDownRefresh" bindscrolltolower="onLoadMore">
 
   <!-- 加载中 -->
   <view class="loading-placeholder" wx:if="{{loading && posts.length === 0}}">
@@ -93,3 +96,4 @@
     <text class="fab-icon">+</text>
   </view>
 </scroll-view>
+</view>
