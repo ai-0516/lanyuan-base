@@ -14,13 +14,8 @@ Page({
     this.setData({ logging: true });
 
     try {
-      // 获取微信登录 code
-      const { code } = await wx.login();
-      if (!code) {
-        throw new Error('获取微信登录凭证失败');
-      }
-
-      // 调用后端登录接口
+      // 开发环境直接使用模拟 code
+      const code = 'mock_code';
       const result = await request({ method: 'POST', url: '/auth/login', data: { code } });
 
       // 存储 token 和用户信息
