@@ -128,13 +128,28 @@ Page({
 
     const post = posts[index];
     const liked = !post.liked;
+    const userInfo = wx.getStorageSync('userInfo') || {};
+    const currentNickname = userInfo.nickname || '';
 
     try {
-      // 乐观更新
+      // 乐观更新：切换 liked 状态，同时更新 likers 名单
+      let newLikers = [...(post.likers || [])];
+      if (liked) {
+        // 点赞 → 添加当前用户到列表
+        if (currentNickname && !newLikers.find(l => l.nickname === currentNickname)) {
+          newLikers.push({ id: userInfo.id || 0, nickname: currentNickname, avatar: userInfo.avatar || '' });
+        }
+      } else {
+        // 取消赞 → 从列表移除
+        newLikers = newLikers.filter(l => l.nickname !== currentNickname);
+      }
+
       posts[index] = {
         ...post,
         liked,
         like_count: liked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1),
+        likers: newLikers,
+        likersText: newLikers.map(l => l.nickname).join('，'),
       };
       this.setData({ posts });
 
