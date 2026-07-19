@@ -1,4 +1,4 @@
-<import src="../../styles/variables.wxss" />
+
 
 <view class="profile-page">
   <!-- 顶部用户信息区 -->

@@ -1,4 +1,4 @@
-<import src="../../styles/variables.wxss" />
+
 
 <view class="edit-page">
   <!-- 顶部标题栏 -->
