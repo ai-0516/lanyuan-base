@@ -3,15 +3,19 @@ const { request } = require('../../utils/request');
 Page({
   data: {
     form: {
-      avatar: '',       // 头像 URL
-      nickname: '',     // 昵称
-      community: '',    // 小区
-      building: '',     // 楼号
-      unit: '',         // 单元
-      room: '',         // 房号
-      bio: '',          // 个性签名
+      avatar: '',
+      nickname: '',
+      community: '',
+      building: '',
+      unit: '',
+      room: '',
+      bio: '',
     },
-    isSaving: false,    // 是否正在保存
+    isSaving: false,
+  },
+
+  goBack() {
+    wx.navigateBack();
   },
 
   onLoad() {

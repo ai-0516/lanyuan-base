@@ -1,73 +1,82 @@
-
-
 <view class="profile-page">
-  <!-- 顶部用户信息区 -->
-  <view class="user-info">
-    <image class="user-avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
-    <text class="user-nickname">{{userInfo.nickname || '未设置昵称'}}</text>
-    <text class="user-community">{{userInfo.community || ''}}{{userInfo.community ? ' · ' + (userInfo.building || '') + '栋' + (userInfo.unit || '') + '单元' + (userInfo.room || '') : ''}}</text>
+  <!-- 用户信息卡 -->
+  <view class="profile-card">
+    <image class="avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+    <text class="nickname">{{userInfo.nickname || '兰园业主'}}</text>
+    <view class="community-info" wx:if="{{userInfo.community}}">
+      <span>{{userInfo.community}}</span>
+      <span wx:if="{{showBuilding && userInfo.building}}">{{userInfo.building}}</span>
+      <span wx:if="{{userInfo.unit}}">{{userInfo.unit}}单元</span>
+      <span wx:if="{{showRoom && userInfo.room}}">{{userInfo.room}}室</span>
+    </view>
+    <view class="edit-btn" bindtap="goToEditProfile">
+      <text>✏️ 编辑资料</text>
+    </view>
   </view>
 
   <!-- 消息通知入口 -->
-  <view class="menu-card" bindtap="goToNotifications">
-    <view class="menu-left">
-      <text class="menu-icon">🔔</text>
-      <text class="menu-label">消息通知</text>
-    </view>
-    <view class="menu-right">
-      <view class="badge" wx:if="{{unreadCount > 0}}">
-        <text class="badge-text">{{unreadCount > 99 ? '99+' : unreadCount}}</text>
+  <view class="notify-card" bindtap="goToNotifications">
+    <view class="notify-left">
+      <view class="notify-icon-wrap">
+        <text>🔔</text>
       </view>
-      <text class="menu-arrow">›</text>
+      <text class="notify-label">消息通知</text>
+    </view>
+    <view class="notify-right">
+      <view class="badge" wx:if="{{unreadCount > 0}}">
+        <text>{{unreadCount > 99 ? '99+' : unreadCount}}</text>
+      </view>
+      <text class="arrow">›</text>
     </view>
   </view>
 
-  <!-- 设置列表 -->
-  <view class="settings-section">
-    <view class="section-title">设置</view>
-
-    <!-- 编辑资料 -->
-    <view class="menu-card" bindtap="goToEditProfile">
-      <view class="menu-left">
-        <text class="menu-icon">✏️</text>
-        <text class="menu-label">编辑资料</text>
-      </view>
-      <view class="menu-right">
-        <text class="menu-arrow">›</text>
+  <!-- 设置分区：隐私 -->
+  <view class="section-label">隐私</view>
+  <view class="setting-section">
+    <view class="setting-item">
+      <text class="set-label">显示我的楼号</text>
+      <view class="toggle {{showBuilding ? 'on' : ''}}" bindtap="onToggleBuilding" data-value="{{!showBuilding}}">
+        <view class="knob"></view>
       </view>
     </view>
-
-    <!-- 隐私设置 -->
-    <view class="menu-card privacy-card">
-      <view class="menu-left">
-        <text class="menu-icon">🔒</text>
-        <text class="menu-label">隐私设置</text>
-      </view>
-      <view class="privacy-items">
-        <view class="privacy-item">
-          <text class="privacy-label">显示楼号</text>
-          <switch
-            class="privacy-switch"
-            checked="{{showBuilding}}"
-            bindchange="onToggleBuilding"
-            color="#c4a882"
-          ></switch>
-        </view>
-        <view class="privacy-item">
-          <text class="privacy-label">显示房号</text>
-          <switch
-            class="privacy-switch"
-            checked="{{showRoom}}"
-            bindchange="onToggleRoom"
-            color="#c4a882"
-          ></switch>
-        </view>
+    <view class="setting-item">
+      <text class="set-label">显示我的房号</text>
+      <view class="toggle {{showRoom ? 'on' : ''}}" bindtap="onToggleRoom" data-value="{{!showRoom}}">
+        <view class="knob"></view>
       </view>
     </view>
+  </view>
 
-    <!-- 退出登录 -->
-    <view class="menu-card logout-card" bindtap="onLogout">
-      <text class="logout-text">退出登录</text>
+  <!-- 设置分区：其他 -->
+  <view class="section-label">其他</view>
+  <view class="setting-section">
+    <view class="setting-item">
+      <text class="set-label">关于我们</text>
+      <text class="set-arrow">›</text>
+    </view>
+    <view class="setting-item">
+      <text class="set-label">用户协议</text>
+      <text class="set-arrow">›</text>
+    </view>
+    <view class="setting-item">
+      <text class="set-label">隐私政策</text>
+      <text class="set-arrow">›</text>
+    </view>
+    <view class="setting-item">
+      <text class="set-label">当前版本</text>
+      <text class="set-value">v3.0.0</text>
+    </view>
+  </view>
+
+  <!-- 退出登录 -->
+  <button class="logout-btn" bindtap="onLogout">退出登录</button>
+
+  <!-- 退出确认弹窗 -->
+  <view class="modal-overlay {{showLogoutModal ? 'show' : ''}}" catchtap="hideLogoutModal">
+    <view class="modal-sheet" catchtap="">
+      <view class="modal-title">确认退出登录？</view>
+      <view class="modal-action danger" bindtap="confirmLogout">退出登录</view>
+      <view class="modal-action cancel" bindtap="hideLogoutModal">取消</view>
     </view>
   </view>
 </view>

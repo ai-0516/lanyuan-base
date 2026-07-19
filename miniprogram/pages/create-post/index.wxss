@@ -1,195 +1,118 @@
-/* 发布帖子页样式 */
-@import '../../styles/variables.wxss';
-
-.create-post-page {
+/* 发布帖子 — 对齐 v3-create-post.html 设计稿 */
+.create-page {
   min-height: 100vh;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
+  background: var(--cream);
 }
 
-/* 顶部导航栏 */
+/* 导航栏 */
 .nav-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 100rpx 32rpx 20rpx;
-  background: #fff;
-  border-bottom: 1rpx solid #f0e8e0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
-
-.nav-left {
-  min-width: 120rpx;
+.cancel {
+  font-size: 28rpx;
+  color: #b8a898;
 }
-
-.cancel-text {
-  font-size: 30rpx;
-  color: #8a7a6c;
-}
-
-.nav-center {
-  flex: 1;
-  text-align: center;
-}
-
 .nav-title {
-  font-size: 34rpx;
+  font-size: 32rpx;
   font-weight: 600;
-  color: #3d2b1f;
+  color: var(--bark);
 }
-
-.nav-right {
-  min-width: 120rpx;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.publish-btn {
-  height: 60rpx;
-  line-height: 60rpx;
-  padding: 0 28rpx;
-  background: #c4673c;
-  border-radius: 30rpx;
-  font-size: 28rpx;
+.publish {
+  font-size: 26rpx;
   color: #fff;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--ember), var(--clay));
   border: none;
-  font-weight: 500;
+  padding: 12rpx 36rpx;
+  border-radius: 32rpx;
+  transition: all 0.2s;
 }
-
-.publish-btn::after {
+.publish::after {
   border: none;
 }
-
-.publish-btn:active:not(.disabled) {
-  opacity: 0.85;
+.publish[disabled] {
+  background: #d8c8b8;
 }
 
-.publish-btn.disabled {
-  background: #d4bfb2;
-  color: #f5ede8;
+/* 内容区 */
+.page-content {
+  background: var(--warm-white);
+  padding: 32rpx;
+  margin: 8rpx 24rpx 24rpx;
+  border-radius: 32rpx;
+  box-shadow: var(--shadow-sm);
+  border: 1rpx solid rgba(232, 213, 192, 0.4);
+  min-height: 400rpx;
 }
 
-/* 正文输入区域 */
-.content-section {
-  padding: 32rpx 32rpx 16rpx;
-  position: relative;
-}
-
-.content-input {
+.textarea {
   width: 100%;
-  min-height: 280rpx;
+  min-height: 200rpx;
+  border: none;
+  background: transparent;
   font-size: 30rpx;
-  color: #3d2b1f;
   line-height: 1.6;
-  padding: 0;
-  box-sizing: border-box;
+  color: var(--bark);
+}
+.textarea::placeholder {
+  color: #d8c8b8;
 }
 
-.content-input::placeholder {
-  color: #c4b8ad;
-}
-
-/* 字数统计 */
-.word-count {
+.char-count {
   text-align: right;
-  padding: 12rpx 0 0;
+  font-size: 22rpx;
+  color: #d8c8b8;
+  margin-top: 16rpx;
+}
+.char-count.warn {
+  color: var(--gold);
+}
+.char-count.over {
+  color: var(--terracotta);
 }
 
-.count-text {
-  font-size: 26rpx;
-  color: #8a7a6c;
-}
-
-.count-text.over {
-  color: #e74c3c;
-}
-
-.count-sep {
-  font-size: 26rpx;
-  color: #c4b8ad;
-}
-
-.count-max {
-  font-size: 26rpx;
-  color: #c4b8ad;
-}
-
-/* 图片选择区域 */
-.images-section {
-  padding: 16rpx 32rpx 40rpx;
-}
-
-.section-title {
-  font-size: 28rpx;
-  color: #8a7a6c;
-  margin-bottom: 24rpx;
-}
-
+/* 图片网格 */
 .image-grid {
   display: flex;
-  flex-wrap: wrap;
   gap: 16rpx;
+  flex-wrap: wrap;
+  margin-top: 24rpx;
 }
-
-.image-item {
+.img-box {
+  width: 156rpx;
+  height: 156rpx;
+  border-radius: 20rpx;
   position: relative;
-  width: 210rpx;
-  height: 210rpx;
-  border-radius: 12rpx;
   overflow: hidden;
 }
-
-.preview-image {
+.img-box.add {
+  border: 3rpx dashed rgba(196, 103, 60, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  background: var(--cream);
+}
+.img-box image {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  display: block;
 }
-
-.image-remove {
+.remove {
   position: absolute;
-  top: 6rpx;
-  right: 6rpx;
-  width: 36rpx;
-  height: 36rpx;
-  background: rgba(0, 0, 0, 0.5);
+  top: -6rpx;
+  right: -6rpx;
+  width: 40rpx;
+  height: 40rpx;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.remove-icon {
-  font-size: 32rpx;
+  background: var(--terracotta);
   color: #fff;
-  line-height: 1;
-}
-
-.image-add-btn {
-  width: 210rpx;
-  height: 210rpx;
-  border: 2rpx dashed #d4bfb2;
-  border-radius: 12rpx;
+  font-size: 22rpx;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f8f4ef;
-}
-
-.image-add-btn:active {
-  background: #f0e8e0;
-}
-
-.add-icon {
-  font-size: 56rpx;
-  color: #c4b8ad;
-  line-height: 1;
-  margin-bottom: 8rpx;
-}
-
-.add-text {
-  font-size: 24rpx;
-  color: #c4b8ad;
 }

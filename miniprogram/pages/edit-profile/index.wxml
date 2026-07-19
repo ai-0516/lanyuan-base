@@ -1,105 +1,71 @@
-
-
 <view class="edit-page">
-  <!-- 顶部标题栏 -->
-  <view class="header">
-    <text class="header-title">编辑资料</text>
+  <view class="nav-bar">
+    <text class="back" bindtap="goBack">‹ 返回</text>
+    <text class="title">编辑资料</text>
+    <view class="nav-spacer"></view>
   </view>
 
-  <!-- 表单区 -->
-  <view class="form-container">
-    <!-- 头像 -->
-    <view class="form-item avatar-item" bindtap="onChooseAvatar">
-      <text class="form-label">头像</text>
-      <view class="avatar-wrapper">
-        <image class="form-avatar" src="{{form.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
-        <text class="change-avatar-hint">点击更换</text>
+  <view class="page-content">
+    <!-- 头像 + 昵称 -->
+    <view class="section">
+      <view class="field" bindtap="onChooseAvatar">
+        <text class="field-label">头像</text>
+        <view class="field-value">
+          <image class="avatar-sm" src="{{form.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+      <view class="field">
+        <text class="field-label">昵称</text>
+        <view class="field-value">
+          <input type="text" value="{{form.nickname}}" placeholder="请输入昵称" bindinput="onFieldChange" data-field="nickname" maxlength="20"></input>
+        </view>
       </view>
     </view>
 
-    <!-- 昵称 -->
-    <view class="form-item">
-      <text class="form-label">昵称</text>
-      <input
-        class="form-input"
-        placeholder="请输入昵称"
-        value="{{form.nickname}}"
-        bindinput="onFieldChange"
-        data-field="nickname"
-        maxlength="20"
-      />
+    <!-- 社区信息 -->
+    <view class="section-title">社区信息</view>
+    <view class="section">
+      <view class="field">
+        <text class="field-label">小区</text>
+        <view class="field-value">
+          <input type="text" value="{{form.community}}" placeholder="请输入小区名称" bindinput="onFieldChange" data-field="community"></input>
+        </view>
+      </view>
+      <view class="field">
+        <text class="field-label">楼号</text>
+        <view class="field-value">
+          <input type="text" value="{{form.building}}" placeholder="请选择" bindinput="onFieldChange" data-field="building"></input>
+        </view>
+      </view>
+      <view class="field">
+        <text class="field-label">单元</text>
+        <view class="field-value">
+          <input type="text" value="{{form.unit}}" placeholder="请选择" bindinput="onFieldChange" data-field="unit"></input>
+        </view>
+      </view>
+      <view class="field">
+        <text class="field-label">房号</text>
+        <view class="field-value">
+          <input type="text" value="{{form.room}}" placeholder="请输入房号" bindinput="onFieldChange" data-field="room"></input>
+        </view>
+      </view>
     </view>
 
-    <!-- 小区 -->
-    <view class="form-item">
-      <text class="form-label">小区</text>
-      <input
-        class="form-input"
-        placeholder="请输入小区名称"
-        value="{{form.community}}"
-        bindinput="onFieldChange"
-        data-field="community"
-        maxlength="50"
-      />
+    <!-- 其他信息 -->
+    <view class="section-title">其他信息</view>
+    <view class="section">
+      <view class="field">
+        <text class="field-label">个性签名</text>
+        <view class="field-value">
+          <textarea placeholder="介绍一下自己吧" value="{{form.bio}}" bindinput="onFieldChange" data-field="bio" auto-height></textarea>
+        </view>
+      </view>
     </view>
 
-    <!-- 楼号 -->
-    <view class="form-item">
-      <text class="form-label">楼号</text>
-      <input
-        class="form-input"
-        placeholder="如：3"
-        value="{{form.building}}"
-        bindinput="onFieldChange"
-        data-field="building"
-        maxlength="10"
-      />
+    <!-- 保存按钮 -->
+    <view class="save-bar">
+      <button class="save-btn" bindtap="onSave" loading="{{isSaving}}" disabled="{{isSaving}}">保存</button>
     </view>
-
-    <!-- 单元 -->
-    <view class="form-item">
-      <text class="form-label">单元</text>
-      <input
-        class="form-input"
-        placeholder="如：1"
-        value="{{form.unit}}"
-        bindinput="onFieldChange"
-        data-field="unit"
-        maxlength="10"
-      />
-    </view>
-
-    <!-- 房号 -->
-    <view class="form-item">
-      <text class="form-label">房号</text>
-      <input
-        class="form-input"
-        placeholder="如：501"
-        value="{{form.room}}"
-        bindinput="onFieldChange"
-        data-field="room"
-        maxlength="10"
-      />
-    </view>
-
-    <!-- 个性签名 -->
-    <view class="form-item">
-      <text class="form-label">个性签名</text>
-      <input
-        class="form-input"
-        placeholder="介绍一下自己..."
-        value="{{form.bio}}"
-        bindinput="onFieldChange"
-        data-field="bio"
-        maxlength="100"
-      />
-    </view>
-  </view>
-
-  <!-- 保存按钮 -->
-  <view class="save-area">
-    <button class="save-btn" bindtap="onSave" disabled="{{isSaving}}">
-      {{isSaving ? '保存中...' : '保存'}}
-    </button>
   </view>
 </view>

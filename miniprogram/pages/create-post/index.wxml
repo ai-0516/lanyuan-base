@@ -1,53 +1,24 @@
-<view class="create-post-page">
-  <!-- 顶部导航栏 -->
+<view class="create-page">
+  <!-- 导航栏 -->
   <view class="nav-bar">
-    <view class="nav-left" bindtap="onCancel">
-      <text class="cancel-text">取消</text>
-    </view>
-    <view class="nav-center">
-      <text class="nav-title">发布</text>
-    </view>
-    <view class="nav-right">
-      <button class="publish-btn {{canPublish ? '' : 'disabled'}}" disabled="{{!canPublish}}" bindtap="onPublish" loading="{{publishing}}">
-        发布
-      </button>
-    </view>
+    <view class="cancel" bindtap="onCancel">取消</view>
+    <text class="nav-title">发布帖子</text>
+    <button class="publish" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
   </view>
 
-  <!-- 正文输入框 -->
-  <view class="content-section">
-    <textarea
-      class="content-input"
-      placeholder="分享你的想法..."
-      value="{{content}}"
-      bindinput="onContentInput"
-      maxlength="2000"
-      auto-height
-      show-count="{{false}}"
-    ></textarea>
-    <!-- 字数统计 -->
-    <view class="word-count">
-      <text class="count-text {{content.length > 2000 ? 'over' : ''}}">{{content.length}}</text>
-      <text class="count-sep">/</text>
-      <text class="count-max">2000</text>
-    </view>
-  </view>
+  <!-- 内容区 -->
+  <view class="page-content">
+    <textarea class="textarea" placeholder="分享小区新鲜事…" value="{{content}}" bindinput="onContentInput" maxlength="500" auto-height></textarea>
+    <text class="char-count {{content.length > 400 ? (content.length >= 500 ? 'over' : 'warn') : ''}}">{{content.length}}/500</text>
 
-  <!-- 图片选择 -->
-  <view class="images-section">
-    <view class="section-title">图片（{{images.length}}/9）</view>
+    <!-- 图片网格 -->
     <view class="image-grid">
-      <!-- 已有图片预览 -->
-      <view wx:for="{{images}}" wx:key="index" class="image-item">
-        <image class="preview-image" src="{{item}}" mode="aspectFill"></image>
-        <view class="image-remove" bindtap="removeImage" data-index="{{index}}">
-          <text class="remove-icon">×</text>
-        </view>
+      <view class="img-box add" wx:if="{{tempImages.length < 9}}" bindtap="chooseImage">
+        <text>📷</text>
       </view>
-      <!-- 添加图片按钮 -->
-      <view class="image-add-btn" wx:if="{{images.length < 9}}" bindtap="chooseImage">
-        <text class="add-icon">+</text>
-        <text class="add-text">添加</text>
+      <view class="img-box filled" wx:for="{{tempImages}}" wx:key="*this">
+        <image src="{{item}}" mode="aspectFill"></image>
+        <view class="remove" data-index="{{index}}" bindtap="removeImage">✕</view>
       </view>
     </view>
   </view>

@@ -1,18 +1,23 @@
 <view class="login-page">
-  <!-- 背景装饰 -->
+  <!-- 背景装饰圆 -->
   <view class="bg-decor top-decor"></view>
   <view class="bg-decor bottom-decor"></view>
 
   <!-- 品牌区域 -->
   <view class="brand-section">
-    <image class="app-logo" src="/images/logo.png" mode="aspectFit"></image>
-    <text class="app-name">兰园</text>
-    <text class="app-desc">连接邻里，共享美好社区生活</text>
+    <view class="app-icon">
+      <text class="app-icon-text">兰</text>
+    </view>
+    <view class="app-name-row">
+      <text class="app-name-serif">东方</text>
+      <text class="app-name-accent">兰园</text>
+    </view>
+    <text class="app-desc">你的社区生活好帮手</text>
   </view>
 
   <!-- 登录按钮 -->
   <view class="login-btn-wrapper">
-    <button class="wx-login-btn" bindtap="handleWxLogin">
+    <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging}}">
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
       <text>微信一键登录</text>
     </button>

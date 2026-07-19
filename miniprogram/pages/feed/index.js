@@ -125,6 +125,14 @@ Page({
     }
   },
 
+  /** 打开图片预览 */
+  openLightbox(e) {
+    const { images, index } = e.currentTarget.dataset;
+    if (images && images.length > 0) {
+      wx.previewImage({ urls: images, current: images[index || 0] });
+    }
+  },
+
   /** 打开评论弹窗 */
   openCommentSheet(e) {
     const postId = e.currentTarget.dataset.postId;
