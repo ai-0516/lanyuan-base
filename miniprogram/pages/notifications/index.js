@@ -16,15 +16,9 @@ Page({
   async loadNotifications() {
     try {
       const res = await request('GET', '/notifications');
-      const list = (res.list || res.notifications || res || []).map(item => ({
-        id: item.id,
-        postId: item.post_id || item.postId,
-        type: item.type,
-        senderName: item.sender_name || item.senderName || '',
-        senderAvatar: item.sender_avatar || item.senderAvatar || '',
-        postExcerpt: item.post_excerpt || item.postExcerpt || '',
-        read: !!item.read,
-        time: this.formatTime(item.created_at || item.time || item.createdAt),
+      const list = (Array.isArray(res) ? res : []).map(item => ({
+        ...item,
+        displayTime: this.formatTime(item.created_at),
       }));
       this.setData({ notifications: list });
     } catch (err) {
@@ -39,7 +33,7 @@ Page({
     try {
       await request('POST', '/notifications/read', { postId: targetPostId });
       const list = this.data.notifications.map(item => {
-        if (item.id === id) return { ...item, read: true };
+        if (item.id === id) return { ...item, is_read: true };
         return item;
       });
       this.setData({ notifications: list });

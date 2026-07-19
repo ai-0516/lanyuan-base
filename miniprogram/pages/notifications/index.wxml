@@ -14,20 +14,20 @@
 
     <!-- 通知列表 -->
     <view class="notif-list" wx:if="{{notifications.length > 0}}">
-      <view class="notif-item {{item.read ? '' : 'unread'}}" wx:for="{{notifications}}" wx:key="id" bindtap="onTapNotification" data-id="{{item.id}}" data-post-id="{{item.postId || item.post_id}}">
+      <view class="notif-item {{item.is_read ? '' : 'unread'}}" wx:for="{{notifications}}" wx:key="id" bindtap="onTapNotification" data-id="{{item.id}}" data-post-id="{{item.post_id}}">
         <view class="notif-avatar">
-          <image src="{{item.senderAvatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
+          <image src="{{item.from_user.avatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
           <text class="action-badge {{item.type === 'like' ? 'like' : 'comment'}}">{{item.type === 'like' ? '❤' : '💬'}}</text>
         </view>
         <view class="notif-body">
           <view>
-            <text class="notif-name">{{item.senderName}}</text>
+            <text class="notif-name">{{item.from_user.nickname}}</text>
             <text class="notif-action">{{item.type === 'like' ? '点赞' : item.type === 'comment' ? '评论' : '回复'}}</text>
           </view>
-          <view class="notif-post">{{item.postExcerpt}}</view>
+          <view class="notif-post">{{item.post_title}}</view>
         </view>
-        <text class="notif-time">{{item.time}}</text>
-        <view class="notif-dot" wx:if="{{!item.read}}"></view>
+        <text class="notif-time">{{item.displayTime}}</text>
+        <view class="notif-dot" wx:if="{{!item.is_read}}"></view>
       </view>
     </view>
   </view>
