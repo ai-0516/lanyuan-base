@@ -46,9 +46,14 @@ if env_path.exists():
 if db_url is None:
     db_url = config.get_main_option("sqlalchemy.url")
 
-# Convert async URL to sync for Alembic (aiosqlite → sqlite)
+# ── 异步驱动 → 同步驱动（Alembic 需要同步驱动）──
+# SQLite:  sqlite+aiosqlite → sqlite
+# MySQL:   mysql+asyncmy    → mysql+pymysql
+# 其他数据库按需添加
 if "aiosqlite" in db_url:
     db_url = db_url.replace("sqlite+aiosqlite", "sqlite")
+elif "asyncmy" in db_url:
+    db_url = db_url.replace("mysql+asyncmy", "mysql+pymysql")
 config.set_main_option("sqlalchemy.url", db_url)
 
 # other values from the config, defined by the needs of env.py,

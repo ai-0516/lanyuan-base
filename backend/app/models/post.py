@@ -1,7 +1,6 @@
 """帖子模型"""
 
-from sqlalchemy import Column, DateTime, Integer, Text, func
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import Column, DateTime, Integer, Text, JSON, func
 
 from app.core.database import Base
 
