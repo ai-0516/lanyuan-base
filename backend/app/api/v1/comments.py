@@ -1,11 +1,11 @@
 """评论相关 API"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.schemas.comment import CommentCreate, CommentResponse
-from app.schemas.common import SuccessResponse
+from app.api.response import api_error, api_success
+from app.schemas.comment import CommentCreate
 from app.services import comment_service
 
 router = APIRouter(tags=["评论"])
@@ -18,10 +18,11 @@ async def list_comments(
     user_id: int = Depends(get_current_user),
 ):
     """获取帖子评论（已包含在帖子列表中，此接口用于单独获取）"""
-    return await comment_service.get_post_comments(db, post_id)
+    result = await comment_service.get_post_comments(db, post_id)
+    return api_success(result)
 
 
-@router.post("/posts/{post_id}/comments", response_model=CommentResponse)
+@router.post("/posts/{post_id}/comments")
 async def create_comment(
     post_id: int,
     data: CommentCreate,
@@ -29,10 +30,11 @@ async def create_comment(
     user_id: int = Depends(get_current_user),
 ):
     """添加评论"""
-    return await comment_service.create_comment(db, user_id, post_id, data)
+    result = await comment_service.create_comment(db, user_id, post_id, data)
+    return api_success(result)
 
 
-@router.delete("/comments/{comment_id}", response_model=SuccessResponse)
+@router.delete("/comments/{comment_id}")
 async def delete_comment(
     comment_id: int,
     db: AsyncSession = Depends(get_db),
@@ -41,5 +43,5 @@ async def delete_comment(
     """删除评论（仅作者或帖主）"""
     success = await comment_service.delete_comment(db, comment_id, user_id)
     if not success:
-        raise HTTPException(status_code=403, detail="无权删除此评论")
-    return SuccessResponse()
+        api_error(40302, "无权删除此评论")
+    return api_success({})

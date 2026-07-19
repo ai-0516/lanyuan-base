@@ -20,12 +20,12 @@ async def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效的 Token",
+            detail={"code": 40101, "message": "无效的 Token"},
         )
     user_id = int(payload.get("sub", 0))
     if user_id <= 0:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token 无效",
+            detail={"code": 40102, "message": "Token 无效"},
         )
     return user_id

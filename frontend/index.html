@@ -197,7 +197,13 @@ const API = (() => {
     if (res.status === 401) { clearToken(); Router.go('login'); throw new Error('未登录'); }
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('text/event-stream')) return res;
-    return res.json();
+    const json = await res.json();
+    // 统一响应格式: { code: 0, data: ..., message: "ok" }，自动解包
+    if (json && typeof json === 'object' && 'code' in json) {
+      if (json.code !== 0) throw new Error(json.message || '请求失败');
+      return json.data;
+    }
+    return json;
   }
 
   return {
@@ -473,7 +479,7 @@ function renderChatBubble(role, content) {
   const name = role === 'ai' ? 'A' : '我';
   return `<div class="msg ${role === 'user' ? 'me' : 'ai'}">
     <div class="msg-avatar">${name}</div>
-    <div class="msg-bubble">${content}</div>
+    <div class="msg-bubble">${escapeHtml(content)}</div>
   </div>`;
 }
 

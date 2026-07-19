@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.api.response import api_success
 from app.schemas.ai import ChatRequest
 from app.services import ai_service
 
@@ -20,7 +21,7 @@ async def get_session(
 ):
     """获取会话（后端决定新建或复用）"""
     session = await ai_service.get_or_create_session(db, user_id)
-    return {
+    return api_success({
         "session_id": session.session_id,
         "title": session.title,
         "messages": [
@@ -32,7 +33,7 @@ async def get_session(
             }
             for m in session.messages
         ],
-    }
+    })
 
 
 @router.post("/chat")

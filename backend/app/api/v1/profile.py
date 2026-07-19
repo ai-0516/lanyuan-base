@@ -5,13 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.api.response import api_error, api_success
 from app.models.user import User
-from app.schemas.user import UserPublic, UserResponse, UserUpdate
+from app.schemas.user import UserPublic, UserUpdate
 
 router = APIRouter(tags=["用户"])
 
 
-@router.get("/user/me", response_model=UserResponse)
+@router.get("/user/me")
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -19,10 +20,10 @@ async def get_my_profile(
     """获取当前用户信息"""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    return user
+    return api_success(user)
 
 
-@router.put("/user/me", response_model=UserResponse)
+@router.put("/user/me")
 async def update_my_profile(
     data: UserUpdate,
     db: AsyncSession = Depends(get_db),
@@ -32,7 +33,7 @@ async def update_my_profile(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        return {"code": 40401, "message": "用户不存在"}
+        api_error(40401, "用户不存在")
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -40,10 +41,10 @@ async def update_my_profile(
 
     db.add(user)
     await db.flush()
-    return user
+    return api_success(user)
 
 
-@router.get("/users/{user_id}", response_model=UserPublic)
+@router.get("/users/{user_id}")
 async def get_user_public(
     user_id: int,
     db: AsyncSession = Depends(get_db),
@@ -53,15 +54,17 @@ async def get_user_public(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        return {"code": 40401, "message": "用户不存在"}
+        api_error(40401, "用户不存在")
 
-    return UserPublic(
-        id=user.id,
-        nickname=user.nickname,
-        avatar=user.avatar,
-        community=user.community,
-        building=user.building if user.show_building else None,
-        bio=user.bio,
+    return api_success(
+        UserPublic(
+            id=user.id,
+            nickname=user.nickname,
+            avatar=user.avatar,
+            community=user.community,
+            building=user.building if user.show_building else None,
+            bio=user.bio,
+        )
     )
 
 
@@ -71,4 +74,4 @@ async def logout(
 ):
     """退出登录"""
     # JWT 无状态，前端清除 token 即可
-    return {"success": True}
+    return api_success({})

@@ -51,12 +51,14 @@ async def create_comment(
             )
             notif_type = "reply"
 
-    # 发送通知给帖子作者
+    # 发送通知
     post_result = await db.execute(select(Post).where(Post.id == post_id))
-    post = post_result.scalar_one()
-    if post.user_id != user_id:
+    post = post_result.scalar_one_or_none()
+    # 回复评论时通知被回复者，否则通知帖主
+    target_user_id = parent_user.id if notif_type == "reply" and parent_row else post.user_id
+    if target_user_id != user_id:
         notif = Notification(
-            user_id=post.user_id,
+            user_id=target_user_id,
             type=notif_type,
             from_user_id=user_id,
             post_id=post_id,
@@ -76,13 +78,21 @@ async def create_comment(
 
 
 async def delete_comment(db: AsyncSession, comment_id: int, user_id: int) -> bool:
-    """删除评论（仅评论作者可以）"""
+    """删除评论（仅评论作者或帖主可以）"""
     result = await db.execute(
-        select(Comment).where(Comment.id == comment_id, Comment.user_id == user_id)
+        select(Comment).where(Comment.id == comment_id)
     )
     comment = result.scalar_one_or_none()
     if not comment:
         return False
+
+    # 校验权限：评论作者本人 或 帖主
+    if comment.user_id != user_id:
+        post_result = await db.execute(select(Post).where(Post.id == comment.post_id))
+        post = post_result.scalar_one_or_none()
+        if not post or post.user_id != user_id:
+            return False
+
     await db.delete(comment)
     return True
 

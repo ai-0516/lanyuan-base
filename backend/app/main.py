@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.core.database import init_db, close_db
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload
+from app.api.response import api_exception_handler, api_success
 
 
 @asynccontextmanager
@@ -25,6 +26,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── 统一异常处理器 ──
+app.add_exception_handler(Exception, api_exception_handler)
+
 # ── API 路由 ──
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(posts.router, prefix="/api/v1")
@@ -37,7 +41,7 @@ app.include_router(upload.router, prefix="/api/v1")
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    return api_success({"status": "ok", "app": settings.APP_NAME})
 
 
 # ── 静态文件 ──

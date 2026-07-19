@@ -93,12 +93,11 @@ async def get_posts(
         comment_count_result = await db.execute(comment_count_stmt)
         comment_count = comment_count_result.scalar() or 0
 
-        # 前 3 条评论（含回复结构）
+        # 全部评论（不折叠）
         comment_stmt = (
             select(Comment)
             .where(Comment.post_id == post.id)
             .order_by(Comment.created_at.asc())
-            .limit(3)
         )
         comment_result = await db.execute(comment_stmt)
         comments_raw = comment_result.scalars().all()

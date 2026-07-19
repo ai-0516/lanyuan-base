@@ -63,7 +63,7 @@ async def mark_as_read(db: AsyncSession, user_id: int, post_id: int) -> int:
             Notification.post_id == post_id,
             Notification.is_read == False,
         )
-        .values(is_read=True)
+        .values(is_read=True, read_at=func.now())
     )
     result = await db.execute(stmt)
     return result.rowcount

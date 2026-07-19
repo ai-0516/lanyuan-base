@@ -1,17 +1,17 @@
 """帖子相关 API"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.schemas.post import PostCreate, PostListResponse, PostResponse
-from app.schemas.common import SuccessResponse
+from app.api.response import api_error, api_success
+from app.schemas.post import PostCreate
 from app.services import post_service
 
 router = APIRouter(prefix="/posts", tags=["帖子"])
 
 
-@router.get("", response_model=PostListResponse)
+@router.get("")
 async def list_posts(
     page: int = 1,
     size: int = 20,
@@ -19,20 +19,22 @@ async def list_posts(
     user_id: int = Depends(get_current_user),
 ):
     """帖子列表（时间倒序，含评论和点赞）"""
-    return await post_service.get_posts(db, user_id, page, size)
+    result = await post_service.get_posts(db, user_id, page, size)
+    return api_success(result)
 
 
-@router.post("", response_model=PostResponse)
+@router.post("")
 async def create_post(
     data: PostCreate,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
     """发布帖子"""
-    return await post_service.create_post(db, user_id, data)
+    result = await post_service.create_post(db, user_id, data)
+    return api_success(result)
 
 
-@router.delete("/{post_id}", response_model=SuccessResponse)
+@router.delete("/{post_id}")
 async def delete_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -41,8 +43,8 @@ async def delete_post(
     """删除帖子（仅作者）"""
     success = await post_service.delete_post(db, post_id, user_id)
     if not success:
-        raise HTTPException(status_code=403, detail="无权删除此帖子")
-    return SuccessResponse()
+        api_error(40301, "无权删除此帖子")
+    return api_success({})
 
 
 @router.post("/{post_id}/like")
@@ -53,4 +55,4 @@ async def toggle_like(
 ):
     """点赞/取消点赞"""
     liked, like_count = await post_service.toggle_like(db, post_id, user_id)
-    return {"liked": liked, "likeCount": like_count}
+    return api_success({"liked": liked, "likeCount": like_count})

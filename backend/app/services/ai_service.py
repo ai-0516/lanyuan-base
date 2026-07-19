@@ -62,6 +62,18 @@ async def stream_chat(
     发送消息给 DeepSeek API，SSE 流式返回。
     生成器产出 (event, data) 元组。
     """
+    # 校验 session 归属
+    conv_result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == session_id,
+            Conversation.user_id == user_id,
+        )
+    )
+    conversation = conv_result.scalar_one_or_none()
+    if not conversation:
+        yield ("error", "会话不存在或无权限访问")
+        return
+
     # 保存用户消息
     user_msg = Message(
         conversation_id=session_id,
