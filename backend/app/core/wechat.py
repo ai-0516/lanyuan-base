@@ -15,7 +15,7 @@ class WeChatClient:
         # 开发环境：根据 code 生成模拟 openid
         if code == "mock_code":
             return {
-                "openid": "mock_openid_dev",
+                "openid": "test_openid_0",
                 "session_key": "mock_session_key",
                 "unionid": None,
             }
