@@ -1,4 +1,11 @@
 /* AI 对话页 — 对齐 v3-ai-chat.html 设计稿 */
+page {
+  overflow: hidden;
+}
+page::-webkit-scrollbar {
+  display: none;
+}
+
 .chat-page {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 <view class="chat-page">
   <!-- 消息列表 -->
-  <scroll-view class="message-list" scroll-y scroll-into-view="{{lastMsgId}}" scroll-with-animation scroll-anchoring>
+  <scroll-view class="message-list" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{lastMsgId}}" scroll-with-animation scroll-anchoring>
     <view class="chat">
       <view class="msg {{item.role === 'assistant' ? 'ai' : 'me'}}" wx:for="{{messages}}" wx:key="index">
         <view class="msg-avatar {{item.role === 'assistant' ? 'ai' : 'me'}}">{{item.role === 'assistant' ? 'AI' : '我'}}</view>
