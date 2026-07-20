@@ -224,6 +224,54 @@ Page({
     this.setData({ commentText: val, canSend: val.trim().length > 0 });
   },
 
+  /** 点击评论（自己的评论显示删除选项） */
+  onTapComment(e) {
+    const { cid, cuid } = e.currentTarget.dataset;
+    const userInfo = wx.getStorageSync('userInfo') || {};
+    const currentUserId = userInfo.id;
+
+    if (cuid !== currentUserId) return;
+
+    wx.showActionSheet({
+      itemList: ['删除'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.deleteComment(cid);
+        }
+      },
+      fail: () => {},
+    });
+  },
+
+  /** 删除评论 */
+  async deleteComment(commentId) {
+    try {
+      await request('DELETE', '/comments/' + commentId);
+      
+      // 从所有帖子中移除该评论
+      const posts = [...this.data.posts];
+      for (let i = 0; i < posts.length; i++) {
+        const post = posts[i];
+        const comments = (post.comments || []).filter(c => c.id !== commentId);
+        if (comments.length !== (post.comments || []).length) {
+          posts[i] = {
+            ...post,
+            comments,
+            comment_count: Math.max(0, (post.comment_count || 0) - 1),
+            displayComments: comments,
+          };
+          break;
+        }
+      }
+      
+      this.setData({ posts });
+      wx.showToast({ title: '已删除', icon: 'success' });
+    } catch (err) {
+      console.error('删除评论失败', err);
+      wx.showToast({ title: '删除失败', icon: 'error' });
+    }
+  },
+
   /** 发送评论 */
   async sendComment() {
     const text = this.data.commentText.trim();

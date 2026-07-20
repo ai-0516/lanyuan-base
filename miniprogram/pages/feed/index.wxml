@@ -58,7 +58,7 @@
 
         <!-- 评论预览 -->
         <view class="comment-preview" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
-          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id">
+          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id" bindtap="onTapComment" data-cid="{{item.id}}" data-cuid="{{item.user.id}}">
             <view class="ci-body">
               <text class="ci-author">{{item.user.nickname}}</text>
               <text wx:if="{{item.reply_to}}" class="ci-reply">回复</text>
