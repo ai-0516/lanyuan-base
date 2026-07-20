@@ -56,7 +56,7 @@ TEST_POSTS = [
 TEST_COMMENTS = [
     # 帖子 0: 樱花
     {"post_index": 0, "user_index": 2, "parent": None, "content": "确实好看！我今天也拍了照片"},
-    {"post_index": 0, "user_index": 1, "parent": 0, "content": "回复 美食达人：回头分享一下照片啊"},
+    {"post_index": 0, "user_index": 1, "parent": 0, "content": "回头分享一下照片啊"},
     {"post_index": 0, "user_index": 3, "parent": None, "content": "明天早上跑步经过的时候去看看"},
     # 帖子 1: 体检
     {"post_index": 1, "user_index": 0, "parent": None, "content": "谢谢提醒！需要的"},
@@ -64,7 +64,7 @@ TEST_COMMENTS = [
     # 帖子 2: 红烧肉
     {"post_index": 2, "user_index": 0, "parent": None, "content": "看起来很不错，周末试试"},
     {"post_index": 2, "user_index": 3, "parent": None, "content": "控制饮食中...看着馋啊"},
-    {"post_index": 2, "user_index": 0, "parent": 5, "content": "回复 兰园业主：汤汁拌饭特别香！"},
+    {"post_index": 2, "user_index": 0, "parent": 5, "content": "汤汁拌饭特别香！"},
     # 帖子 3: 晨跑
     {"post_index": 3, "user_index": 2, "parent": None, "content": "6:30 太早了...有没有晚上跑的组织？"},
     # 帖子 5: 橘猫
@@ -120,14 +120,15 @@ async def seed():
         await db.flush()
         print(f"✅ 创建了 {len(posts)} 个测试帖子")
 
-        # 创建评论
+        # 创建评论（需 flush 获取 id，因为存在层级依赖）
         comments = []
         for c in TEST_COMMENTS:
             post = posts[c["post_index"]]
             author = users[c["user_index"]]
             parent_id = None
-            if c["parent"] is not None:
-                parent_id = comments[c["parent"]].id
+            raw_parent = c.get("parent")
+            if raw_parent is not None:
+                parent_id = comments[raw_parent].id
 
             comment = Comment(
                 post_id=post.id,
@@ -136,6 +137,7 @@ async def seed():
                 content=c["content"],
             )
             db.add(comment)
+            await db.flush()
             comments.append(comment)
         await db.flush()
         print(f"✅ 创建了 {len(comments)} 个测试评论")
