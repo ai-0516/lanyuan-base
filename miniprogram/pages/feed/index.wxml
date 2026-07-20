@@ -94,8 +94,8 @@
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
     <!-- 输入区 -->
     <view class="cs-input-area">
-      <input class="cs-input" type="text" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput" bindconfirm="sendComment"></input>
-      <button class="cs-send {{canSend ? 'active' : ''}}" disabled="{{!canSend}}" bindtap="sendComment">发送</button>
+      <textarea class="cs-input" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput" auto-height maxlength="-1"></textarea>
+      <button class="cs-send {{canSend ? 'active' : ''}}" disabled="{{!canSend}}" bindtap="sendComment">→</button>
     </view>
   </view>
 </view>

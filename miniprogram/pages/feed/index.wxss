@@ -396,26 +396,28 @@ page::-webkit-scrollbar {
 }
 .cs-input {
   flex: 1;
-  height: 64rpx;
+  min-height: 64rpx;
+  max-height: 200rpx;
   background: #f8f2e9;
   border-radius: 32rpx;
-  padding: 0 24rpx;
+  padding: 16rpx 24rpx;
   font-size: 26rpx;
   color: #3d2b1f;
+  line-height: 1.5;
 }
 .cs-send {
   flex-shrink: 0;
+  width: 64rpx;
   height: 64rpx;
-  min-width: 96rpx;
-  padding: 0 20rpx;
-  border-radius: 32rpx;
+  border-radius: 50%;
   background: #e8d5c0;
   color: #8c7a68;
-  font-size: 24rpx;
+  font-size: 32rpx;
   font-weight: 500;
   border: none;
   line-height: 64rpx;
   text-align: center;
+  padding: 0;
   transition: all 0.2s;
 }
 .cs-send.active {
