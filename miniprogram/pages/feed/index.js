@@ -25,6 +25,8 @@ Page({
     commentSheetPost: null,
     /** 评论输入框文字 */
     commentText: '',
+    /** 是否可以发送 */
+    canSend: false,
     /** 当前用户头像 */
     userAvatar: '',
   },
@@ -207,17 +209,19 @@ Page({
         allComments,
       },
       commentText: '',
+      canSend: false,
     });
   },
 
   /** 关闭评论弹窗 */
   closeCommentSheet() {
-    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '' });
+    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '', canSend: false });
   },
 
   /** 评论输入 */
   onCommentInput(e) {
-    this.setData({ commentText: e.detail.value });
+    const val = e.detail.value;
+    this.setData({ commentText: val, canSend: val.trim().length > 0 });
   },
 
   /** 发送评论 */
@@ -265,7 +269,11 @@ Page({
         commentSheetPost: updatedPost,
         posts,
         commentText: '',
+        canSend: false,
       });
+
+      // 发送成功后关闭弹窗
+      this.closeCommentSheet();
 
       wx.showToast({ title: '发送成功', icon: 'success' });
     } catch (err) {

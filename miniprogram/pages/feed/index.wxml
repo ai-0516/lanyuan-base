@@ -92,35 +92,10 @@
   <!-- 评论弹窗 -->
   <view class="comment-overlay {{commentSheetOpen ? 'show' : ''}}" bindtap="closeCommentSheet"></view>
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
-    <view class="cs-header">
-      <text class="cs-title">{{commentSheetPost ? '评论 · ' + commentSheetPost.nickname + ' 的帖子' : '写评论'}}</text>
-      <text class="cs-close" bindtap="closeCommentSheet">✕</text>
-    </view>
-
-    <!-- 评论列表 -->
-    <scroll-view class="cs-list" scroll-y wx:if="{{commentSheetPost && commentSheetPost.allComments && commentSheetPost.allComments.length > 0}}">
-      <view class="cs-comment" wx:for="{{commentSheetPost.allComments}}" wx:key="id" data-comment-id="{{item.id}}" data-user-id="{{item.user.id}}">
-        <image class="cs-comment-avatar" src="{{item.user.avatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
-        <view class="cs-comment-body">
-          <view class="cs-comment-header">
-            <text class="cs-comment-name">{{item.user.nickname}}</text>
-            <text class="cs-comment-time">{{item.displayTime}}</text>
-          </view>
-          <view class="cs-comment-content">
-            <text wx:if="{{item.reply_to}}" class="cs-reply-tag">回复</text>
-            <text wx:if="{{item.reply_to}}" class="cs-reply-name">{{item.reply_to.nickname}}</text>
-            <text wx:if="{{item.reply_to}}">：</text>
-            <text>{{item.content}}</text>
-          </view>
-        </view>
-      </view>
-    </scroll-view>
-
     <!-- 输入区 -->
     <view class="cs-input-area">
-      <image class="cs-input-avatar" src="{{userAvatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
       <input class="cs-input" type="text" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput" bindconfirm="sendComment"></input>
-      <button class="cs-send {{commentText.trim() ? 'active' : ''}}" disabled="{{!commentText.trim()}}" bindtap="sendComment">发送</button>
+      <button class="cs-send {{canSend ? 'active' : ''}}" disabled="{{!canSend}}" bindtap="sendComment">发送</button>
     </view>
   </view>
 </view>
