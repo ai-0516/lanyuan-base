@@ -51,7 +51,7 @@
     </view>
     <view class="setting-item">
       <text class="set-label">当前版本</text>
-      <text class="set-value">v3.0.0</text>
+      <text class="set-value">0.0.1</text>
     </view>
   </view>
 

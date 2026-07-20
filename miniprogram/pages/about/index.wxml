@@ -2,7 +2,7 @@
   <view class="hero">
     <image class="hero-icon" src="/images/logo.png" mode="aspectFit"></image>
     <text class="hero-title">兰园</text>
-    <text class="hero-version">v3.0.0</text>
+    <text class="hero-version">0.0.1</text>
   </view>
 
   <view class="section">
