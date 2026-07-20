@@ -315,7 +315,7 @@ page::-webkit-scrollbar {
 .fab {
   position: fixed;
   right: 32rpx;
-  bottom: 160rpx;
+  bottom: 60rpx;
   width: 96rpx;
   height: 96rpx;
   background: linear-gradient(135deg, var(--ember), var(--clay));
