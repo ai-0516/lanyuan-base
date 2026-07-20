@@ -4,6 +4,7 @@ Page({
   data: {
     messages: [],           // 消息列表 [{role, content, time}]
     inputValue: '',         // 输入框内容
+    canSend: false,         // 输入框是否有内容（WXML 不能调 trim()）
     isLoading: false,       // 是否正在加载 AI 回复
     sessionId: '',          // 当前会话 ID
     userAvatar: '',         // 用户头像
@@ -44,7 +45,11 @@ Page({
 
   /** 输入框内容变化 */
   onInputChange(e) {
-    this.setData({ inputValue: e.detail.value });
+    const value = e.detail.value;
+    this.setData({
+      inputValue: value,
+      canSend: value.trim().length > 0,
+    });
   },
 
   /** 发送消息 */

@@ -23,6 +23,6 @@
   <!-- 底部输入区 -->
   <view class="chat-input-wrap">
     <textarea class="input-textarea" placeholder="输入消息…" value="{{inputValue}}" bindinput="onInputChange" disabled="{{isLoading}}" auto-height maxlength="-1"></textarea>
-    <button class="send-btn" bindtap="onSend" disabled="{{!inputValue.trim() || isLoading}}">→</button>
+    <button class="send-btn" bindtap="onSend" disabled="{{!canSend || isLoading}}">→</button>
   </view>
 </view>
