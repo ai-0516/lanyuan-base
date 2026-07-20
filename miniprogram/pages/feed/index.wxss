@@ -399,6 +399,7 @@ page::-webkit-scrollbar {
   color: var(--bark);
   line-height: 1.5;
   border: none;
+  max-height: 200rpx;
 }
 .cs-send {
   flex-shrink: 0;
