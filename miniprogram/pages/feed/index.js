@@ -244,17 +244,9 @@ Page({
         fail: () => {},
       });
     } else {
-      // 别人的评论 → 回复
-      wx.showActionSheet({
-        itemList: ['回复'],
-        success: (res) => {
-          if (res.tapIndex === 0) {
-            this.openCommentSheet({ currentTarget: { dataset: { postId: postid } } });
-            this.setData({ replyToId: cid, replyToName: cname });
-          }
-        },
-        fail: () => {},
-      });
+      // 别人的评论 → 直接打开评论输入框，标记为回复
+      this.openCommentSheet({ currentTarget: { dataset: { postId: postid } } });
+      this.setData({ replyToId: cid, replyToName: cname });
     }
   },
 
