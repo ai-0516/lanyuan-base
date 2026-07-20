@@ -91,7 +91,7 @@
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
     <!-- 输入区 -->
     <view class="cs-input-area">
-      <textarea class="cs-input" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput"></textarea>
+      <textarea class="cs-input" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
       <view class="cs-send {{canSend ? 'active' : ''}}" bindtap="sendComment">→</view>
     </view>
   </view>

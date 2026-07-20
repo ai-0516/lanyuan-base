@@ -388,17 +388,16 @@ page::-webkit-scrollbar {
   background: var(--cream);
   border-radius: 32rpx;
   padding: 12rpx;
+  min-height: 96rpx;
 }
 .cs-input {
   flex: 1;
-  height: 72rpx;
-  max-height: 240rpx;
   background: transparent;
   border-radius: 0;
   padding: 8rpx 16rpx;
   font-size: 28rpx;
   color: var(--bark);
-  line-height: 72rpx;
+  line-height: 1.5;
   border: none;
 }
 .cs-send {
