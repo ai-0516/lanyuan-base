@@ -90,11 +90,6 @@ page::-webkit-scrollbar {
   font-weight: 600;
   color: var(--bark);
 }
-.feed-meta {
-  font-size: 22rpx;
-  color: #b8a898;
-  margin-top: 2rpx;
-}
 
 /* 帖子正文 */
 .feed-body {

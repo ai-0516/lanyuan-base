@@ -23,7 +23,6 @@
       <view class="post-right">
         <view class="feed-header">
           <text class="feed-user">{{item.user.nickname}}</text>
-          <text class="feed-meta">{{item.displayTime}}</text>
         </view>
 
         <!-- 帖子正文 -->
