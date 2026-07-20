@@ -58,14 +58,14 @@
 
         <!-- 评论预览 -->
         <view class="comment-preview" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
-          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id" bindtap="onTapComment" data-cid="{{item.id}}" data-cuid="{{item.user.id}}">
+          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:for-item="comment" wx:key="id" bindtap="onTapComment" data-postid="{{item.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}">
             <view class="ci-body">
-              <text class="ci-author">{{item.user.nickname}}</text>
-              <text wx:if="{{!item.reply_to}}">：</text>
-              <text wx:if="{{item.reply_to}}" class="ci-reply">回复</text>
-              <text wx:if="{{item.reply_to}}" class="ci-author">{{item.reply_to.nickname}}</text>
-              <text wx:if="{{item.reply_to}}" class="ci-reply">：</text>
-              <text class="ci-text">{{item.content}}</text>
+              <text class="ci-author">{{comment.user.nickname}}</text>
+              <text wx:if="{{!comment.reply_to}}">：</text>
+              <text wx:if="{{comment.reply_to}}" class="ci-reply">回复</text>
+              <text wx:if="{{comment.reply_to}}" class="ci-author">{{comment.reply_to.nickname}}</text>
+              <text wx:if="{{comment.reply_to}}" class="ci-reply">：</text>
+              <text class="ci-text">{{comment.content}}</text>
             </view>
           </view>
         </view>
@@ -90,6 +90,11 @@
   <!-- 评论弹窗 -->
   <view class="comment-overlay {{commentSheetOpen ? 'show' : ''}}" bindtap="closeCommentSheet"></view>
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
+    <!-- 回复提示 -->
+    <view class="cs-reply-hint" wx:if="{{replyToName}}">
+      <text class="cs-reply-text">回复 <text class="cs-reply-author">{{replyToName}}</text></text>
+      <text class="cs-reply-cancel" bindtap="cancelReply">✕</text>
+    </view>
     <!-- 输入区 -->
     <view class="cs-input-area">
       <textarea class="cs-input" placeholder="说点什么…" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>

@@ -27,6 +27,10 @@ Page({
     commentText: '',
     /** 是否可以发送 */
     canSend: false,
+    /** 回复的目标评论 ID（为空即直接评论） */
+    replyToId: null,
+    /** 回复的目标用户昵称 */
+    replyToName: '',
     /** 当前用户头像 */
     userAvatar: '',
   },
@@ -215,7 +219,7 @@ Page({
 
   /** 关闭评论弹窗 */
   closeCommentSheet() {
-    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '', canSend: false });
+    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '', canSend: false, replyToId: null, replyToName: '' });
   },
 
   /** 评论输入 */
@@ -224,23 +228,34 @@ Page({
     this.setData({ commentText: val, canSend: val.trim().length > 0 });
   },
 
-  /** 点击评论（自己的评论显示删除选项） */
+  /** 点击评论 */
   onTapComment(e) {
-    const { cid, cuid } = e.currentTarget.dataset;
+    const { cid, cuid, cname, postid } = e.currentTarget.dataset;
     const userInfo = wx.getStorageSync('userInfo') || {};
     const currentUserId = userInfo.id;
 
-    if (cuid !== currentUserId) return;
-
-    wx.showActionSheet({
-      itemList: ['删除'],
-      success: (res) => {
-        if (res.tapIndex === 0) {
-          this.deleteComment(cid);
-        }
-      },
-      fail: () => {},
-    });
+    if (cuid === currentUserId) {
+      // 自己的评论 → 删除
+      wx.showActionSheet({
+        itemList: ['删除'],
+        success: (res) => {
+          if (res.tapIndex === 0) this.deleteComment(cid);
+        },
+        fail: () => {},
+      });
+    } else {
+      // 别人的评论 → 回复
+      wx.showActionSheet({
+        itemList: ['回复'],
+        success: (res) => {
+          if (res.tapIndex === 0) {
+            this.openCommentSheet({ currentTarget: { dataset: { postId: postid } } });
+            this.setData({ replyToId: cid, replyToName: cname });
+          }
+        },
+        fail: () => {},
+      });
+    }
   },
 
   /** 删除评论 */
@@ -272,16 +287,25 @@ Page({
     }
   },
 
+  /** 取消回复 */
+  cancelReply() {
+    this.setData({ replyToId: null, replyToName: '' });
+  },
+
   /** 发送评论 */
   async sendComment() {
     const text = this.data.commentText.trim();
     if (!text || !this.data.commentSheetPost || !this.data.canSend) return;
 
     const postId = this.data.commentSheetPost.id;
+    const parentCommentId = this.data.replyToId;
     this.setData({ commentText: '' });
 
     try {
-      const newComment = await request('POST', '/posts/' + postId + '/comments', { content: text });
+      const payload = { content: text };
+      if (parentCommentId) payload.parent_comment_id = parentCommentId;
+
+      const newComment = await request('POST', '/posts/' + postId + '/comments', payload);
 
       // 构建新评论对象
       const userInfo = wx.getStorageSync('userInfo') || {};
@@ -289,7 +313,7 @@ Page({
         id: newComment.id || Date.now(),
         user: { id: userInfo.id, nickname: userInfo.nickname || '我', avatar: userInfo.avatar || '' },
         content: text,
-        reply_to: null,
+        reply_to: parentCommentId ? { nickname: this.data.replyToName } : null,
         created_at: new Date().toISOString(),
         displayTime: '刚刚',
       };
