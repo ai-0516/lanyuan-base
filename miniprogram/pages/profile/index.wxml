@@ -35,23 +35,6 @@
     </view>
   </view>
 
-  <!-- 设置分区：隐私 -->
-  <view class="section-label anim-2">隐私</view>
-  <view class="setting-section anim-2">
-    <view class="setting-item">
-      <text class="set-label">显示我的楼号</text>
-      <view class="toggle {{showBuilding ? 'on' : ''}}" bindtap="onToggleBuilding">
-        <view class="knob"></view>
-      </view>
-    </view>
-    <view class="setting-item">
-      <text class="set-label">显示我的房号</text>
-      <view class="toggle {{showRoom ? 'on' : ''}}" bindtap="onToggleRoom">
-        <view class="knob"></view>
-      </view>
-    </view>
-  </view>
-
   <!-- 设置分区：其他 -->
   <view class="section-label anim-2">其他</view>
   <view class="setting-section anim-2">
