@@ -70,6 +70,18 @@ Page({
     this.setData({ showLogoutModal: true });
   },
 
+  onTapAbout() {
+    wx.showToast({ title: '开发中', icon: 'none' });
+  },
+
+  onTapAgreement() {
+    wx.showToast({ title: '开发中', icon: 'none' });
+  },
+
+  onTapPrivacy() {
+    wx.showToast({ title: '开发中', icon: 'none' });
+  },
+
   hideLogoutModal() {
     this.setData({ showLogoutModal: false });
   },

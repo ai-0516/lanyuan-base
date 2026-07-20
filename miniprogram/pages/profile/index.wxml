@@ -37,15 +37,15 @@
 
   <!-- 设置分区 -->
   <view class="setting-section anim-2">
-    <view class="setting-item">
+    <view class="setting-item" bindtap="onTapAbout">
       <text class="set-label">关于我们</text>
       <text class="set-arrow">›</text>
     </view>
-    <view class="setting-item">
+    <view class="setting-item" bindtap="onTapAgreement">
       <text class="set-label">用户协议</text>
       <text class="set-arrow">›</text>
     </view>
-    <view class="setting-item">
+    <view class="setting-item" bindtap="onTapPrivacy">
       <text class="set-label">隐私政策</text>
       <text class="set-arrow">›</text>
     </view>
