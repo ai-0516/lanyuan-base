@@ -1,7 +1,12 @@
 <view class="profile-page">
   <!-- 用户信息卡 -->
-  <view class="profile-card">
-    <image class="avatar" src="{{userInfo.avatar || 'https://i.pravatar.cc/160'}}" mode="aspectFill"></image>
+  <view class="profile-card anim-1">
+    <view class="avatar-wrap">
+      <image class="avatar" src="{{userInfo.avatar}}" mode="aspectFill" wx:if="{{userInfo.avatar}}"></image>
+      <view class="avatar-placeholder" wx:else>
+        <image class="avatar-default-icon" src="/images/default-avatar.png" mode="aspectFit"></image>
+      </view>
+    </view>
     <text class="nickname">{{userInfo.nickname || '兰园业主'}}</text>
     <view class="community-info" wx:if="{{userInfo.community}}">
       <span>{{userInfo.community}}</span>
@@ -10,15 +15,15 @@
       <span wx:if="{{showRoom && userInfo.room}}">{{userInfo.room}}室</span>
     </view>
     <view class="edit-btn" bindtap="goToEditProfile">
-      <text>✏️ 编辑资料</text>
+      <text>编辑资料</text>
     </view>
   </view>
 
   <!-- 消息通知入口 -->
-  <view class="notify-card" bindtap="goToNotifications">
+  <view class="notify-card anim-2" bindtap="goToNotifications">
     <view class="notify-left">
       <view class="notify-icon-wrap">
-        <text>🔔</text>
+        <image class="notify-icon" src="/images/notification-icon.png" mode="aspectFit"></image>
       </view>
       <text class="notify-label">消息通知</text>
     </view>
@@ -26,30 +31,30 @@
       <view class="badge" wx:if="{{unreadCount > 0}}">
         <text>{{unreadCount > 99 ? '99+' : unreadCount}}</text>
       </view>
-      <text class="arrow">›</text>
+      <text class="set-arrow">›</text>
     </view>
   </view>
 
   <!-- 设置分区：隐私 -->
-  <view class="section-label">隐私</view>
-  <view class="setting-section">
+  <view class="section-label anim-2">隐私</view>
+  <view class="setting-section anim-2">
     <view class="setting-item">
       <text class="set-label">显示我的楼号</text>
-      <view class="toggle {{showBuilding ? 'on' : ''}}" bindtap="onToggleBuilding" data-value="{{!showBuilding}}">
+      <view class="toggle {{showBuilding ? 'on' : ''}}" bindtap="onToggleBuilding">
         <view class="knob"></view>
       </view>
     </view>
     <view class="setting-item">
       <text class="set-label">显示我的房号</text>
-      <view class="toggle {{showRoom ? 'on' : ''}}" bindtap="onToggleRoom" data-value="{{!showRoom}}">
+      <view class="toggle {{showRoom ? 'on' : ''}}" bindtap="onToggleRoom">
         <view class="knob"></view>
       </view>
     </view>
   </view>
 
   <!-- 设置分区：其他 -->
-  <view class="section-label">其他</view>
-  <view class="setting-section">
+  <view class="section-label anim-2">其他</view>
+  <view class="setting-section anim-2">
     <view class="setting-item">
       <text class="set-label">关于我们</text>
       <text class="set-arrow">›</text>
@@ -69,7 +74,7 @@
   </view>
 
   <!-- 退出登录 -->
-  <button class="logout-btn" bindtap="onLogout">退出登录</button>
+  <view class="logout-btn anim-2" bindtap="onLogout">退出登录</view>
 
   <!-- 退出确认弹窗 -->
   <view class="modal-overlay {{showLogoutModal ? 'show' : ''}}" catchtap="hideLogoutModal">

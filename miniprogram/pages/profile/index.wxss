@@ -5,7 +5,7 @@
   padding: 100rpx 24rpx 40rpx;
 }
 
-/* 用户信息卡 */
+/* ── 用户信息卡 ── */
 .profile-card {
   background: var(--warm-white);
   border-radius: 32rpx;
@@ -15,13 +15,35 @@
   box-shadow: var(--shadow-sm);
   border: 1rpx solid rgba(232, 213, 192, 0.4);
 }
-.avatar {
+.avatar-wrap {
   width: 144rpx;
   height: 144rpx;
-  border-radius: 40rpx;
   margin: 0 auto 24rpx;
-  display: block;
+  border-radius: 40rpx;
+  overflow: hidden;
   box-shadow: var(--shadow-lg);
+}
+.avatar {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--terracotta-light), var(--terracotta-deep));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-svg {
+  width: 64rpx;
+  height: 64rpx;
+  color: #fff;
+}
+.avatar-default-icon {
+  width: 72rpx;
+  height: 72rpx;
 }
 .nickname {
   font-size: 40rpx;
@@ -47,7 +69,7 @@
 .edit-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8rpx;
+  gap: 10rpx;
   margin-top: 28rpx;
   font-size: 24rpx;
   color: var(--terracotta);
@@ -61,8 +83,12 @@
   background: rgba(196, 103, 60, 0.04);
   border-color: var(--terracotta);
 }
+.edit-icon {
+  width: 26rpx;
+  height: 26rpx;
+}
 
-/* 消息通知卡片 */
+/* ── 消息通知卡片 ── */
 .notify-card {
   display: flex;
   align-items: center;
@@ -86,11 +112,19 @@
   width: 76rpx;
   height: 76rpx;
   border-radius: 24rpx;
-  background: linear-gradient(135deg, #e8c97a, #c8963e);
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+}
+.notify-icon-wrap svg {
+  width: 36rpx;
+  height: 36rpx;
+  color: #fff;
+}
+.notify-icon {
+  width: 36rpx;
+  height: 36rpx;
 }
 .notify-label {
   font-size: 28rpx;
@@ -116,12 +150,14 @@
   justify-content: center;
   padding: 0 12rpx;
 }
-.arrow {
-  font-size: 28rpx;
+.arrow-svg {
+  width: 28rpx;
+  height: 28rpx;
   color: #d8c8b8;
+  flex-shrink: 0;
 }
 
-/* 分区标签 */
+/* ── 分区标签 ── */
 .section-label {
   font-size: 22rpx;
   color: #b8a898;
@@ -130,7 +166,7 @@
   font-weight: 500;
 }
 
-/* 设置卡片 */
+/* ── 设置卡片 ── */
 .setting-section {
   background: var(--warm-white);
   border-radius: 32rpx;
@@ -158,15 +194,17 @@
   color: var(--bark);
 }
 .set-arrow {
+  width: 28rpx;
+  height: 28rpx;
   color: #d8c8b8;
-  font-size: 32rpx;
+  flex-shrink: 0;
 }
 .set-value {
   font-size: 24rpx;
   color: #b8a898;
 }
 
-/* 自定义 Toggle 开关 */
+/* ── Toggle 开关 ── */
 .toggle {
   width: 100rpx;
   height: 60rpx;
@@ -194,7 +232,7 @@
   left: 44rpx;
 }
 
-/* 退出登录按钮 */
+/* ── 退出登录按钮 ── */
 .logout-btn {
   width: 100%;
   padding: 24rpx;
@@ -205,16 +243,15 @@
   font-size: 28rpx;
   font-weight: 500;
   transition: all 0.2s;
+  text-align: center;
   margin-top: 8rpx;
-}
-.logout-btn::after {
-  border: none;
+  box-sizing: border-box;
 }
 .logout-btn:active {
   transform: scale(0.98);
 }
 
-/* 退出确认弹窗 */
+/* ── 退出确认弹窗 ── */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -235,6 +272,11 @@
   background: var(--warm-white);
   border-radius: 40rpx 40rpx 0 0;
   padding: 32rpx 0 40rpx;
+  animation: slideUp 0.35s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 .modal-title {
   text-align: center;
@@ -259,4 +301,16 @@
 .modal-action.cancel {
   color: #b8a898;
   margin-top: 8rpx;
+}
+
+/* ── 渐入动画（stagger） ── */
+.anim-1 {
+  animation: fadeIn 0.4s ease both;
+}
+.anim-2 {
+  animation: fadeIn 0.4s 0.06s ease both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10rpx); }
+  to { opacity: 1; transform: translateY(0); }
 }
