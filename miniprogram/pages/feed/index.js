@@ -133,6 +133,16 @@ Page({
     });
   },
 
+  /** 关闭所有滑出面板（点击帖子空白区域触发） */
+  closeActions() {
+    if (this.data.actionOpenId) {
+      this.setData({ actionOpenId: '' });
+    }
+  },
+
+  /** 空函数：阻止事件冒泡 */
+  noop() {},
+
   /** 点赞/取消点赞 */
   async toggleLike(e) {
     const postId = e.currentTarget.dataset.postId;

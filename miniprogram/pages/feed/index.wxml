@@ -15,7 +15,7 @@
 
   <!-- 帖子列表 -->
   <view class="post-list" wx:if="{{posts.length > 0}}">
-    <view class="feed-post" wx:for="{{posts}}" wx:key="id">
+    <view class="feed-post" wx:for="{{posts}}" wx:key="id" data-post-id="{{item.id}}" bindtap="closeActions">
       <!-- 帖子头部 -->
       <view class="post-left">
         <image class="post-avatar" src="{{item.displayAvatar}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.user.id}}"></image>
@@ -35,7 +35,7 @@
         </view>
 
         <!-- 操作栏 -->
-        <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}">
+        <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}" catchtap="noop">
           <text class="action-left">{{item.displayTime}}</text>
           <view class="action-slide">
             <view class="slide-btn {{item.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{item.id}}" data-fa-id="fa-{{item.id}}">
