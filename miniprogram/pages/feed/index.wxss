@@ -262,7 +262,7 @@ page::-webkit-scrollbar {
 }
 
 /* ── 评论预览区 ── */
-.post-section {
+.comment-preview {
   background: #f8f2e9;
   border-radius: 24rpx;
   padding: 16rpx;
@@ -300,11 +300,6 @@ page::-webkit-scrollbar {
   font-size: 24rpx;
   color: #7a6a5a;
   display: inline;
-}
-.comment-more {
-  font-size: 24rpx;
-  color: var(--terracotta);
-  padding: 8rpx 0 0;
 }
 
 /* 加载更多 */

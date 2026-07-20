@@ -57,7 +57,7 @@
         </view>
 
         <!-- 评论预览 -->
-        <view class="post-section" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
+        <view class="comment-preview" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
           <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id">
             <view class="ci-body">
               <text class="ci-author">{{item.user.nickname}}</text>
@@ -66,9 +66,6 @@
               <text wx:if="{{item.reply_to}}" class="ci-reply">：</text>
               <text class="ci-text">{{item.content}}</text>
             </view>
-          </view>
-          <view class="comment-more" wx:if="{{item.comments.length > 3}}" bindtap="openCommentSheet" data-post-id="{{item.id}}">
-            <text>查看全部 {{item.comments.length}} 条评论</text>
           </view>
         </view>
       </view>
