@@ -227,7 +227,7 @@ Page({
   /** 发送评论 */
   async sendComment() {
     const text = this.data.commentText.trim();
-    if (!text || !this.data.commentSheetPost) return;
+    if (!text || !this.data.commentSheetPost || !this.data.canSend) return;
 
     const postId = this.data.commentSheetPost.id;
     this.setData({ commentText: '' });
