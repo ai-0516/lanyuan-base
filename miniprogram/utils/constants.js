@@ -50,6 +50,9 @@ const PAGES = {
   LOGIN: '/pages/login/index',
 }
 
+/** 应用版本号 — 集中管理，所有页面统一读取 */
+const APP_VERSION = '0.0.1'
+
 /** HTTP 状态码 */
 const HTTP_STATUS = {
   SUCCESS: 200,
@@ -76,6 +79,7 @@ module.exports = {
   COLORS,
   TAB_PAGES,
   PAGES,
+  APP_VERSION,
   HTTP_STATUS,
   RESP_CODE,
 }

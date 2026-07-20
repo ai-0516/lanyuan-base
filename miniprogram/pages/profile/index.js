@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { APP_VERSION } = require('../../utils/constants');
 
 Page({
   data: {
@@ -7,6 +8,7 @@ Page({
     showBuilding: true,
     showRoom: false,
     showLogoutModal: false,
+    appVersion: APP_VERSION,
   },
 
   onShow() {
