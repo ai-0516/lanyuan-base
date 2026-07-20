@@ -6,10 +6,10 @@
   background: var(--cream);
 }
 
-/* 消息列表 */
+/* 消息列表 — 对齐设计: padding 0 16px 8px */
 .message-list {
   flex: 1;
-  padding: 20rpx 24rpx 20rpx;
+  padding: 0 32rpx 16rpx;
   overflow-y: scroll;
 }
 
@@ -20,11 +20,12 @@
   gap: 24rpx;
 }
 
-/* 消息行 */
+/* 消息行 — 对齐设计: fadeIn 动画 */
 .msg {
   display: flex;
   gap: 16rpx;
   align-items: flex-start;
+  animation: fadeIn 0.3s ease;
 }
 .msg.me {
   flex-direction: row-reverse;
@@ -78,7 +79,7 @@
   flex-shrink: 0;
 }
 
-/* 底部输入区 */
+/* 底部输入区 — 对齐设计: margin 8px 16px 0 / border-radius 18px */
 .chat-input-wrap {
   display: flex;
   align-items: center;
@@ -86,7 +87,7 @@
   background: var(--warm-white);
   border-radius: 36rpx;
   padding: 12rpx 12rpx 12rpx 32rpx;
-  margin: 16rpx 24rpx 40rpx;
+  margin: 16rpx 32rpx 40rpx;
   box-shadow: var(--shadow-md);
   border: 1rpx solid rgba(232, 213, 192, 0.4);
   flex-shrink: 0;
@@ -124,4 +125,10 @@
 }
 .send-btn[disabled] {
   background: #d8c8b8;
+}
+
+/* ── 动画: 对齐设计 fadeIn 0.3s ease ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8rpx); }
+  to { opacity: 1; transform: translateY(0); }
 }

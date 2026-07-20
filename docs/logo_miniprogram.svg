@@ -1,0 +1,13 @@
+<svg width="144" height="144" viewBox="0 0 144 144" xmlns="http://www.w3.org/2000/svg">
+  <!-- 浅灰背景圆 -->
+  <circle cx="72" cy="72" r="71" fill="#f2f5f7" stroke="#dce3e8" stroke-width="1.5"/>
+
+  <!-- 蓝色三角形（大） -->
+  <polygon points="72,28 38,84 106,84" fill="#42a5f5"/>
+
+  <!-- 橙色三角形（小，倒置叠加） -->
+  <polygon points="72,92 46,46 98,46" fill="#ffa726"/>
+
+  <!-- 红色小三角形（点缀） -->
+  <polygon points="56,108 46,132 66,132" fill="#ef5350"/>
+</svg>

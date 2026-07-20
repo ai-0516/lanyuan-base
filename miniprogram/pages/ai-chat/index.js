@@ -130,8 +130,9 @@ Page({
           const dataStr = line.slice(6);
           try {
             const parsed = JSON.parse(dataStr);
-            const content = parsed.content || parsed.data || dataStr;
-            this.appendToAiBubble(content);
+            // parsed 可能是 {"content":"..."} 或 裸字符串 "内容"（token 事件）
+            const content = parsed.content || parsed.data || parsed;
+            if (content) this.appendToAiBubble(content);
           } catch {
             // 非 JSON 数据，直接追加
             this.appendToAiBubble(dataStr);
