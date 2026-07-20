@@ -90,11 +90,6 @@
   <!-- 评论弹窗 -->
   <view class="comment-overlay {{commentSheetOpen ? 'show' : ''}}" bindtap="closeCommentSheet"></view>
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
-    <!-- 回复提示 -->
-    <view class="cs-reply-hint" wx:if="{{replyToName}}">
-      <text class="cs-reply-text">回复 <text class="cs-reply-author">{{replyToName}}</text></text>
-      <text class="cs-reply-cancel" bindtap="cancelReply">✕</text>
-    </view>
     <!-- 输入区 -->
     <view class="cs-input-area">
       <textarea class="cs-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>

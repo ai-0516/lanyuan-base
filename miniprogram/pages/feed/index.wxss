@@ -375,30 +375,6 @@ page::-webkit-scrollbar {
 .comment-sheet.show {
   transform: translateY(0);
 }
-.cs-reply-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0 12rpx;
-  font-size: 24rpx;
-  color: #b8a898;
-}
-.cs-reply-text {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cs-reply-author {
-  color: var(--terracotta);
-  font-weight: 600;
-}
-.cs-reply-cancel {
-  font-size: 28rpx;
-  color: #b8a898;
-  padding: 8rpx 0 8rpx 16rpx;
-  flex-shrink: 0;
-}
 .cs-input-area {
   display: flex;
   gap: 16rpx;

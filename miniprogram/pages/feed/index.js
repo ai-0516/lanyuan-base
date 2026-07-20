@@ -279,11 +279,6 @@ Page({
     }
   },
 
-  /** 取消回复 */
-  cancelReply() {
-    this.setData({ replyToId: null, replyToName: '' });
-  },
-
   /** 发送评论 */
   async sendComment() {
     const text = this.data.commentText.trim();
