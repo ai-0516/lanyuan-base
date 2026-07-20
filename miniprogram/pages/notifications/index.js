@@ -48,7 +48,10 @@ Page({
 
   formatTime(timestamp) {
     if (!timestamp) return '';
-    const date = new Date(timestamp);
+    // 补 Z 标记为 UTC（后端 func.now() 返回不带时区）
+    const utcStr = typeof timestamp === 'string' && !timestamp.endsWith('Z') && !timestamp.includes('+')
+      ? timestamp + 'Z' : timestamp;
+    const date = new Date(utcStr);
     const now = new Date();
     const diff = now - date;
     if (diff < 60000) return '刚刚';

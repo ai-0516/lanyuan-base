@@ -47,7 +47,10 @@ Page({
   /** 格式化时间（传入 ISO 字符串，返回相对时间或日期） */
   formatTime(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    // 补 Z 标记为 UTC（后端 func.now() 返回不带时区）
+    const utcStr = typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.includes('+')
+      ? dateStr + 'Z' : dateStr;
+    const date = new Date(utcStr);
     const now = Date.now();
     const diff = now - date.getTime();
 
