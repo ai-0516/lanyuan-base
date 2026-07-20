@@ -2,7 +2,7 @@
 .profile-page {
   min-height: 100vh;
   background: var(--cream);
-  padding: 40rpx 24rpx 40rpx;
+  padding: 20rpx 24rpx 40rpx;
 }
 
 /* ── 用户信息卡 ── */
