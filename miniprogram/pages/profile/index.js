@@ -71,15 +71,15 @@ Page({
   },
 
   onTapAbout() {
-    wx.showToast({ title: '开发中', icon: 'none' });
+    wx.navigateTo({ url: '/pages/about/index' });
   },
 
   onTapAgreement() {
-    wx.showToast({ title: '开发中', icon: 'none' });
+    wx.navigateTo({ url: '/pages/agreement/index' });
   },
 
   onTapPrivacy() {
-    wx.showToast({ title: '开发中', icon: 'none' });
+    wx.navigateTo({ url: '/pages/privacy/index' });
   },
 
   hideLogoutModal() {

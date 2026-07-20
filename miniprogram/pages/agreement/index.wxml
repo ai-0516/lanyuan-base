@@ -1,0 +1,26 @@
+<view class="page-content">
+  <view class="section">
+    <text class="title-text">用户协议</text>
+    <text class="update-text">更新日期：2026 年 7 月</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">1. 服务条款的接受</text>
+    <text class="para-text">欢迎使用兰园公共底座（以下简称"本应用"）。本应用由兰园技术组（以下简称"我们"）提供。使用本应用即表示您同意本协议的所有条款。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">2. 用户账户</text>
+    <text class="para-text">您使用微信账号登录本应用时，即授权我们获取您的微信公开信息（昵称、头像等）。您应妥善保管您的微信账号，因账号泄露导致的损失由您自行承担。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">3. 用户行为规范</text>
+    <text class="para-text">您在使用本应用时须遵守法律法规，不得发布违法信息、垃圾广告，不得侵犯他人合法权益。我们有权对违规内容进行删除或屏蔽。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">4. 免责声明</text>
+    <text class="para-text">本应用提供的 AI 对话内容仅供参考，不构成专业建议。我们不对用户之间的互动纠纷承担责任。</text>
+  </view>
+</view>

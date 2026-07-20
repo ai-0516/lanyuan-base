@@ -6,7 +6,10 @@
     "pages/ai-chat/index",
     "pages/create-post/index",
     "pages/notifications/index",
-    "pages/edit-profile/index"
+    "pages/edit-profile/index",
+    "pages/about/index",
+    "pages/agreement/index",
+    "pages/privacy/index"
   ],
   "window": {
     "navigationBarBackgroundColor": "#faf7f2",

@@ -1,0 +1,26 @@
+<view class="page-content">
+  <view class="section">
+    <text class="title-text">隐私政策</text>
+    <text class="update-text">更新日期：2026 年 7 月</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">1. 信息收集</text>
+    <text class="para-text">我们仅收集您使用微信登录时授权的公开信息（昵称、头像），以及您主动填写的小区、楼号、单元、房号等信息。我们不会收集您的微信密码或敏感信息。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">2. 信息使用</text>
+    <text class="para-text">您的信息仅用于提供小区社交、AI 对话等本应用核心功能。我们不会将您的信息出售或共享给第三方。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">3. 信息存储</text>
+    <text class="para-text">您的信息存储在我们的服务器上。您可以在个人中心查看和修改您的资料，也可以联系管理员删除您的账户信息。</text>
+  </view>
+
+  <view class="section">
+    <text class="para-title">4. 隐私控制</text>
+    <text class="para-text">您可以在个人中心控制是否公开您的楼号和房号信息。默认情况下，房号不公开。</text>
+  </view>
+</view>

@@ -1,0 +1,30 @@
+<view class="page-content">
+  <view class="hero">
+    <image class="hero-icon" src="/images/logo.png" mode="aspectFit"></image>
+    <text class="hero-title">兰园</text>
+    <text class="hero-version">v3.0.0</text>
+  </view>
+
+  <view class="section">
+    <view class="info-row">
+      <text class="info-label">应用名称</text>
+      <text class="info-value">兰园公共底座</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">开发团队</text>
+      <text class="info-value">兰园技术组</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">服务热线</text>
+      <text class="info-value">010-8888-6666</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">服务时间</text>
+      <text class="info-value">8:30 - 17:30（工作日）</text>
+    </view>
+  </view>
+
+  <view class="section">
+    <text class="desc-text">兰园公共底座为「兰园地暖」「兰园停车」等业务小程序提供开箱即用的登录、社区社交和 AI 能力，让小区生活更便捷。</text>
+  </view>
+</view>
