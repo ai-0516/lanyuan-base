@@ -61,8 +61,9 @@
           <view class="comment-inline" wx:for="{{item.displayComments}}" wx:key="id" bindtap="onTapComment" data-cid="{{item.id}}" data-cuid="{{item.user.id}}">
             <view class="ci-body">
               <text class="ci-author">{{item.user.nickname}}</text>
+              <text wx:if="{{!item.reply_to}}">：</text>
               <text wx:if="{{item.reply_to}}" class="ci-reply">回复</text>
-              <text wx:if="{{item.reply_to}}" class="ci-reply-name">{{item.reply_to.nickname}}</text>
+              <text wx:if="{{item.reply_to}}" class="ci-author">{{item.reply_to.nickname}}</text>
               <text wx:if="{{item.reply_to}}" class="ci-reply">：</text>
               <text class="ci-text">{{item.content}}</text>
             </view>

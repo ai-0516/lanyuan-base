@@ -290,12 +290,6 @@ page::-webkit-scrollbar {
   color: #b8a898;
   display: inline;
 }
-.ci-reply-name {
-  color: var(--terracotta);
-  font-size: 24rpx;
-  font-weight: 600;
-  display: inline;
-}
 .ci-text {
   font-size: 24rpx;
   color: #7a6a5a;
