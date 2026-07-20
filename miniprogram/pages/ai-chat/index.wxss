@@ -106,7 +106,7 @@
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--terracotta), var(--clay));
+  background: #d8c8b8;
   border: none;
   color: #fff;
   font-size: 28rpx;
@@ -116,15 +116,14 @@
   flex-shrink: 0;
   font-weight: 600;
   padding: 0;
-}
-.send-btn::after {
-  border: none;
+  line-height: 1;
+  transition: transform 0.2s, background 0.2s;
 }
 .send-btn:active {
   transform: scale(0.92);
 }
-.send-btn[disabled] {
-  background: #d8c8b8;
+.send-btn.active {
+  background: linear-gradient(135deg, var(--terracotta), var(--clay));
 }
 
 /* ── 动画: 对齐设计 fadeIn 0.3s ease ── */

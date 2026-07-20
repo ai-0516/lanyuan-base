@@ -175,14 +175,19 @@ Page({
     this.scrollToBottom();
   },
 
-  /** ArrayBuffer 转字符串 */
+  /** ArrayBuffer 转字符串（UTF-8 安全） */
   arrayBufferToString(buf) {
-    const bytes = new Uint8Array(buf);
-    let result = '';
-    for (let i = 0; i < bytes.length; i++) {
-      result += String.fromCharCode(bytes[i]);
+    try {
+      return new TextDecoder('utf-8').decode(buf);
+    } catch {
+      // 降级: percent-encode 后 decodeURIComponent
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += '%' + bytes[i].toString(16).padStart(2, '0');
+      }
+      return decodeURIComponent(binary);
     }
-    return result;
   },
 
   /** 滚动到底部 */
