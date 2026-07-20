@@ -19,10 +19,23 @@ Page({
     refresherTriggered: false,
     /** 当前打开的滑出面板（空=关闭，fa-{id}=打开） */
     actionOpenId: '',
+    /** 评论弹窗是否打开 */
+    commentSheetOpen: false,
+    /** 当前评论的帖子数据 */
+    commentSheetPost: null,
+    /** 评论输入框文字 */
+    commentText: '',
+    /** 当前用户头像 */
+    userAvatar: '',
   },
 
   onLoad() {
     this.loadPosts(true);
+    // 读取当前用户头像
+    const userInfo = wx.getStorageSync('userInfo') || {};
+    if (userInfo.avatar) {
+      this.setData({ userAvatar: userInfo.avatar });
+    }
   },
 
   /** 格式化时间（传入 ISO 字符串，返回相对时间或日期） */
@@ -171,14 +184,94 @@ Page({
   },
 
   /** 打开评论弹窗 */
-  openCommentSheet(e) {
+  async openCommentSheet(e) {
     const postId = e.currentTarget.dataset.postId;
-    const commentSheet = this.selectComponent('#commentSheet');
-    if (commentSheet) {
-      commentSheet.open({ postId });
-    } else {
-      // 暂无可复用的评论组件，轻提示
-      wx.showToast({ title: '查看全部 ' + (e.currentTarget.dataset.commentCount || '') + ' 条评论', icon: 'none' });
+    // 从帖子列表中找到对应帖子
+    const post = this.data.posts.find(p => p.id === postId);
+    if (!post) return;
+
+    // 关闭三点菜单
+    this.setData({ actionOpenId: '' });
+
+    // 准备弹窗数据：所有评论加上 displayTime
+    const allComments = (post.comments || []).map(c => ({
+      ...c,
+      displayTime: this.formatTime(c.created_at),
+    }));
+
+    this.setData({
+      commentSheetOpen: true,
+      commentSheetPost: {
+        id: post.id,
+        nickname: post.user?.nickname || '',
+        allComments,
+      },
+      commentText: '',
+    });
+  },
+
+  /** 关闭评论弹窗 */
+  closeCommentSheet() {
+    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '' });
+  },
+
+  /** 评论输入 */
+  onCommentInput(e) {
+    this.setData({ commentText: e.detail.value });
+  },
+
+  /** 发送评论 */
+  async sendComment() {
+    const text = this.data.commentText.trim();
+    if (!text || !this.data.commentSheetPost) return;
+
+    const postId = this.data.commentSheetPost.id;
+    this.setData({ commentText: '' });
+
+    try {
+      const newComment = await request('POST', '/posts/' + postId + '/comments', { content: text });
+
+      // 构建新评论对象
+      const userInfo = wx.getStorageSync('userInfo') || {};
+      const commentObj = {
+        id: newComment.id || Date.now(),
+        user: { id: userInfo.id, nickname: userInfo.nickname || '我', avatar: userInfo.avatar || '' },
+        content: text,
+        reply_to: null,
+        created_at: new Date().toISOString(),
+        displayTime: '刚刚',
+      };
+
+      // 更新弹窗内评论列表
+      const post = this.data.commentSheetPost;
+      const updatedAllComments = [...(post.allComments || []), commentObj];
+      const updatedPost = { ...post, allComments: updatedAllComments };
+
+      // 更新帖子列表中的评论数据
+      const posts = [...this.data.posts];
+      const pIndex = posts.findIndex(p => p.id === postId);
+      if (pIndex !== -1) {
+        const oldPost = posts[pIndex];
+        const updatedComments = [...(oldPost.comments || []), commentObj];
+        posts[pIndex] = {
+          ...oldPost,
+          comments: updatedComments,
+          comment_count: (oldPost.comment_count || 0) + 1,
+          displayComments: updatedComments.slice(0, 3),
+        };
+      }
+
+      this.setData({
+        commentSheetPost: updatedPost,
+        posts,
+        commentText: '',
+      });
+
+      wx.showToast({ title: '发送成功', icon: 'success' });
+    } catch (err) {
+      console.error('发送评论失败', err);
+      wx.showToast({ title: '发送失败', icon: 'error' });
+      this.setData({ commentText: text }); // 恢复输入文字
     }
   },
 
