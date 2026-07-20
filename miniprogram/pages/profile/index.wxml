@@ -35,8 +35,7 @@
     </view>
   </view>
 
-  <!-- 设置分区：其他 -->
-  <view class="section-label anim-2">其他</view>
+  <!-- 设置分区 -->
   <view class="setting-section anim-2">
     <view class="setting-item">
       <text class="set-label">关于我们</text>
