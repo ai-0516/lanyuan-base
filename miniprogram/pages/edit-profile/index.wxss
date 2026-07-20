@@ -4,33 +4,10 @@
   background: var(--cream);
 }
 
-.nav-bar {
-  display: flex;
-  align-items: center;
-  padding: 100rpx 32rpx 20rpx;
-  position: relative;
-}
-.back {
-  position: absolute;
-  left: 32rpx;
-  font-size: 28rpx;
-  color: var(--terracotta);
-  font-weight: 500;
-}
-.title {
-  flex: 1;
-  text-align: center;
-  font-size: 32rpx;
-  font-weight: 600;
-  color: var(--bark);
-}
-.nav-spacer {
-  width: 80rpx;
-}
-
 .page-content {
   padding: 0 24rpx 8rpx;
 }
+
 
 /* 分区卡片 */
 .section {
