@@ -371,47 +371,47 @@ page::-webkit-scrollbar {
   right: 0;
   bottom: 0;
   background: var(--warm-white);
-  border-radius: 20px 20px 0 0;
+  border-radius: 32rpx 32rpx 0 0;
   z-index: 201;
-  padding: 16px 16px 24px;
+  padding: 32rpx 32rpx 48rpx;
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  box-shadow: 0 -4px 24px rgba(61, 43, 31, 0.1);
+  box-shadow: 0 -8rpx 48rpx rgba(61, 43, 31, 0.1);
 }
 .comment-sheet.show {
   transform: translateY(0);
 }
 .cs-input-area {
   display: flex;
-  gap: 10px;
+  gap: 16rpx;
   align-items: center;
   background: var(--cream);
-  border-radius: 16px;
-  padding: 6px;
+  border-radius: 32rpx;
+  padding: 12rpx;
 }
 .cs-input {
   flex: 1;
-  min-height: 36px;
-  max-height: 120px;
+  height: 72rpx;
+  max-height: 240rpx;
   background: transparent;
   border-radius: 0;
-  padding: 8px 8px;
-  font-size: 14px;
+  padding: 8rpx 16rpx;
+  font-size: 28rpx;
   color: var(--bark);
-  line-height: 1.4;
+  line-height: 72rpx;
   border: none;
 }
 .cs-send {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 72rpx;
+  height: 72rpx;
   border-radius: 50%;
   background: #d8c8b8;
   color: #fff;
   border: none;
-  font-size: 14px;
+  font-size: 28rpx;
   font-weight: 600;
-  line-height: 36px;
+  line-height: 72rpx;
   text-align: center;
   padding: 0;
   transition: transform 0.2s, background 0.2s;
