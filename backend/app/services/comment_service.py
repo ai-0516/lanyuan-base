@@ -28,6 +28,7 @@ async def create_comment(
     )
     db.add(comment)
     await db.flush()
+    await db.refresh(comment)
 
     # 获取评论者信息
     user_result = await db.execute(select(User).where(User.id == user_id))
