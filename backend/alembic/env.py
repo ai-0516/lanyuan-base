@@ -3,8 +3,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 
@@ -56,8 +55,9 @@ elif "asyncmy" in db_url:
     db_url = db_url.replace("mysql+asyncmy", "mysql+pymysql")
 elif "aiomysql" in db_url:
     db_url = db_url.replace("mysql+aiomysql", "mysql+pymysql")
-# 直接写 raw dict，绕过 ConfigParser 的 % 插值（会破坏 %40 等 URL 编码）
-config.get_section(config.config_ini_section)["sqlalchemy.url"] = db_url
+# 注意：不要用 config.set_main_option()，它会触发 ConfigParser 的 % 插值
+# 也不要尝试修改 get_section() 返回的 dict（那是深拷贝，改它无效）
+# 下面的 run_migrations_online 直接使用 db_url 创建引擎
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -91,11 +91,8 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # 直接用 db_url 创建引擎，绕过 ConfigParser 的 % 插值问题
+    connectable = create_engine(db_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
