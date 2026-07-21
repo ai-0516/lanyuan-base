@@ -54,6 +54,8 @@ if "aiosqlite" in db_url:
     db_url = db_url.replace("sqlite+aiosqlite", "sqlite")
 elif "asyncmy" in db_url:
     db_url = db_url.replace("mysql+asyncmy", "mysql+pymysql")
+elif "aiomysql" in db_url:
+    db_url = db_url.replace("mysql+aiomysql", "mysql+pymysql")
 config.set_main_option("sqlalchemy.url", db_url)
 
 # other values from the config, defined by the needs of env.py,
