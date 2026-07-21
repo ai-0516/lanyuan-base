@@ -89,6 +89,25 @@ lanyuan-base/
 
 ### 1. 后端
 
+#### 数据库选择
+
+默认使用 SQLite（零配置，适合快速开发）。如需 MySQL：
+
+```bash
+# 1. 创建 MySQL 数据库
+mysql -u root -p -e "CREATE DATABASE \`lanyuan\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 2. 创建 .env 配置文件
+cat > backend/.env << 'EOF'
+DATABASE_URL=mysql+aiomysql://root:???@localhost:3306/lanyuan?charset=utf8mb4
+DEBUG=True
+EOF
+```
+
+> 密码中的特殊字符（如 `@`）需 URL 编码：`%40` 代替 `@`。
+
+#### 启动
+
 ```bash
 cd backend
 
@@ -97,9 +116,6 @@ python3 -m venv .venv && source .venv/bin/activate
 
 # 安装依赖
 uv pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env  # 编辑 .env 填入 DEEPSEEK_API_KEY 等
 
 # 数据库迁移
 alembic upgrade head
