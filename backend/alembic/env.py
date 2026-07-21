@@ -56,7 +56,8 @@ elif "asyncmy" in db_url:
     db_url = db_url.replace("mysql+asyncmy", "mysql+pymysql")
 elif "aiomysql" in db_url:
     db_url = db_url.replace("mysql+aiomysql", "mysql+pymysql")
-config.set_main_option("sqlalchemy.url", db_url)
+# 直接写 raw dict，绕过 ConfigParser 的 % 插值（会破坏 %40 等 URL 编码）
+config.get_section(config.config_ini_section)["sqlalchemy.url"] = db_url
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
