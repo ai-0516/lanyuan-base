@@ -3,13 +3,27 @@ const { request } = require('../../utils/request');
 
 Page({
   data: {
-    /** 是否正在登录 */
     logging: false,
+    avatar: '',
+    nickname: '',
+  },
+
+  /** 微信头像选择回调 */
+  onChooseAvatar(e) {
+    const { avatarUrl } = e.detail;
+    if (avatarUrl) {
+      this.setData({ avatar: avatarUrl });
+    }
   },
 
   /** 处理微信一键登录 */
   async handleWxLogin() {
     if (this.data.logging) return;
+    const nickname = (this.data.nickname || '').trim();
+    if (!nickname) {
+      wx.showToast({ title: '请填写昵称', icon: 'none' });
+      return;
+    }
 
     this.setData({ logging: true });
 
@@ -19,8 +33,12 @@ Page({
         wx.login({ success: resolve, fail: reject });
       });
       const code = loginRes.code;
-      // 登录只做认证，昵称/头像在编辑资料页通过 chooseAvatar + nickname 输入获取
-      const result = await request({ method: 'POST', url: '/auth/login', data: { code } });
+      // 连同头像、昵称一起提交后端
+      const result = await request({
+        method: 'POST',
+        url: '/auth/login',
+        data: { code, nickname, avatar: this.data.avatar },
+      });
 
       // 存储 token 和用户信息
       wx.setStorageSync('token', result.token);

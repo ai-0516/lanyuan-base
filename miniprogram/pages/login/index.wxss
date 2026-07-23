@@ -120,6 +120,72 @@
   margin-right: 16rpx;
 }
 
+/* 微信信息卡片 */
+.info-section {
+  width: 100%;
+  margin-bottom: 60rpx;
+}
+.info-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 32rpx;
+  padding: 20rpx 32rpx;
+}
+.avatar-row,
+.nickname-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 0;
+}
+.nickname-row {
+  border-top: 1rpx solid rgba(232, 213, 192, 0.3);
+}
+.info-label {
+  font-size: 28rpx;
+  color: var(--bark);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.avatar-btn {
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  line-height: 0;
+  position: relative;
+}
+.avatar-btn::after {
+  border: none;
+}
+.avatar-preview {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 28rpx;
+  display: block;
+  background: #f0e8e0;
+}
+.avatar-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20rpx;
+  color: #b8a898;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.nickname-input {
+  font-size: 28rpx;
+  color: var(--bark);
+  text-align: right;
+  width: 360rpx;
+  border: none;
+  background: transparent;
+}
+
 .agreement-text {
   font-size: 22rpx;
   color: #5c4033;

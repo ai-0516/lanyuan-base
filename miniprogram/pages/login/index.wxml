@@ -15,9 +15,26 @@
     <text class="app-desc">你的社区生活好帮手</text>
   </view>
 
+  <!-- 微信信息区域（登录前获取） -->
+  <view class="info-section">
+    <view class="info-card">
+      <view class="avatar-row">
+        <text class="info-label">头像</text>
+        <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image class="avatar-preview" src="{{avatar || ''}}" mode="aspectFill"></image>
+          <text class="avatar-hint" wx:if="{{!avatar}}">点此选择</text>
+        </button>
+      </view>
+      <view class="nickname-row">
+        <text class="info-label">昵称</text>
+        <input type="nickname" class="nickname-input" placeholder="请输入微信昵称" model:value="{{nickname}}" maxlength="20" />
+      </view>
+    </view>
+  </view>
+
   <!-- 登录按钮 -->
   <view class="login-btn-wrapper">
-    <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging}}">
+    <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname}}">
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
       <text>微信一键登录</text>
     </button>
