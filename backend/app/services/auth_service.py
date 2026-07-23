@@ -28,6 +28,8 @@ async def login(db: AsyncSession, code: str) -> LoginResponse:
         )
         db.add(user)
         await db.flush()
+        # 回读 server_default 字段（created_at）
+        await db.refresh(user)
 
     # 生成 JWT
     token = create_access_token(user.id)

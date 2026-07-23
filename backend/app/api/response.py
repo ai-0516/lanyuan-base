@@ -28,16 +28,22 @@ def unauthorized(message: str = "未登录或 Token 已过期"):
     )
 
 
-async def api_exception_handler(request, exc: HTTPException):
-    """FastAPI 异常处理器，将 HTTPException 转为统一格式"""
-    detail = exc.detail
-    if isinstance(detail, dict) and "code" in detail:
+async def api_exception_handler(request, exc):
+    """FastAPI 异常处理器，将异常转为统一格式"""
+    if hasattr(exc, "detail"):
+        detail = exc.detail
+        if isinstance(detail, dict) and "code" in detail:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=detail,
+            )
+        # 兼容旧的 detail 字符串格式
         return JSONResponse(
             status_code=exc.status_code,
-            content=detail,
+            content={"code": exc.status_code * 100, "message": str(detail)},
         )
-    # 兼容旧的 detail 字符串格式
+    # 非 HTTPException（如 Pydantic ValidationError）
     return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": exc.status_code * 100, "message": str(detail)},
+        status_code=500,
+        content={"code": 50000, "message": "服务器内部错误"},
     )
