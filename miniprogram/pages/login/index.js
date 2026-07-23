@@ -15,11 +15,25 @@ Page({
 
     try {
       // 调微信 API 获取临时 code
-      const loginRes = await new Promise((resolve, reject) => {
-        wx.login({ success: resolve, fail: reject });
-      });
+      const [loginRes, profileRes] = await Promise.all([
+        new Promise((resolve, reject) => {
+          wx.login({ success: resolve, fail: reject });
+        }),
+        new Promise((resolve, reject) => {
+          wx.getUserProfile({
+            desc: '用于完善个人资料',
+            success: resolve,
+            fail: () => resolve({ userInfo: {} }), // 拒绝授权也能登录
+          });
+        }),
+      ]);
       const code = loginRes.code;
-      const result = await request({ method: 'POST', url: '/auth/login', data: { code } });
+      const { nickName, avatarUrl } = profileRes.userInfo || {};
+      const result = await request({
+        method: 'POST',
+        url: '/auth/login',
+        data: { code, nickname: nickName, avatar: avatarUrl },
+      });
 
       // 存储 token 和用户信息
       wx.setStorageSync('token', result.token);

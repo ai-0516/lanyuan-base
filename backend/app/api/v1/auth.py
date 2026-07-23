@@ -12,9 +12,11 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 
 @router.post("/login")
 async def login(data: dict, db: AsyncSession = Depends(get_db)):
-    """微信登录（开发环境模拟）"""
+    """微信登录，获取微信昵称和头像"""
     code = data.get("code", "mock_code")
-    result = await auth_service.login(db, code)
+    nickname = data.get("nickname")
+    avatar = data.get("avatar")
+    result = await auth_service.login(db, code, nickname, avatar)
     return api_success(result)
 
 
