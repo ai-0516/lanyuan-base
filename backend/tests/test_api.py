@@ -337,11 +337,3 @@ async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     assert "nickname" in user
 
 
-@pytest.mark.asyncio
-async def test_logout(client: AsyncClient, auth_headers: dict):
-    """测试退出登录"""
-    response = await client.post("/api/v1/user/logout", headers=auth_headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["code"] == 0
-    assert data["data"] is not None

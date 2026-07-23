@@ -14,8 +14,11 @@ Page({
     this.setData({ logging: true });
 
     try {
-      // 开发环境直接使用模拟 code
-      const code = 'mock_code';
+      // 调微信 API 获取临时 code
+      const loginRes = await new Promise((resolve, reject) => {
+        wx.login({ success: resolve, fail: reject });
+      });
+      const code = loginRes.code;
       const result = await request({ method: 'POST', url: '/auth/login', data: { code } });
 
       // 存储 token 和用户信息

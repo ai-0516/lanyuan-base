@@ -619,19 +619,4 @@ class TestUnifiedResponse:
         assert "message" in body
 
 
-# ── 10. Logout ───────────────────────────────────────────────────────
-
-
-class TestLogout:
-
-    async def test_logout_returns_success(self, client, headers_a):
-        """退出登录返回成功"""
-        resp = await client.post("/api/v1/user/logout", headers=headers_a)
-        assert resp.json()["code"] == 0
-
-    async def test_token_still_valid_after_logout(self, client, headers_a):
-        """JWT 无状态，退出后 Token 仍有效（前端清除）"""
-        await client.post("/api/v1/user/logout", headers=headers_a)
-        check = await client.get("/api/v1/auth/check", headers=headers_a)
-        assert check.json()["code"] == 0
-        assert check.json()["data"]["valid"] is True
+# ── 10. (logout 已删除 — JWT 无状态，前端清除 token 即可) ──

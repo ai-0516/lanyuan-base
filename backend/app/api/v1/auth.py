@@ -20,5 +20,10 @@ async def login(data: dict, db: AsyncSession = Depends(get_db)):
 
 @router.get("/check")
 async def check_token(user_id: int = Depends(get_current_user)):
-    """检查 Token 是否有效"""
+    """校验 Token 有效性
+
+    Token 校验由 get_current_user Depends 完成：
+    - 有效 → 返回 { valid: true, user_id }
+    - 无效/过期 → 触发全局 401 异常
+    """
     return api_success({"valid": True, "user_id": user_id})

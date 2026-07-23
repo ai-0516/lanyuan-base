@@ -68,10 +68,6 @@ async def get_user_public(
     )
 
 
-@router.post("/user/logout")
-async def logout(
-    user_id: int = Depends(get_current_user),
-):
-    """退出登录"""
-    # JWT 无状态，前端清除 token 即可
-    return api_success({})
+# ── 注销 ──
+# JWT 无状态，退出登录由前端清除本地 token 即可
+# 无需后端接口
