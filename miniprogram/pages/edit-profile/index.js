@@ -53,49 +53,14 @@ Page({
     });
   },
 
-  /** 点击选择头像 */
-  onChooseAvatar() {
-    wx.chooseMedia({
-      count: 1,
-      mediaType: ['image'],
-      sourceType: ['album', 'camera'],
-      success: (res) => {
-        const tempFile = res.tempFiles[0];
-        // 上传头像到服务器
-        this.uploadAvatar(tempFile.tempFilePath);
-      },
-    });
-  },
-
-  /** 上传头像 */
-  async uploadAvatar(filePath) {
-    const app = getApp();
-    const token = wx.getStorageSync('token') || '';
-
-    wx.uploadFile({
-      url: `${app.globalData.baseUrl || ''}/upload/avatar`,
-      filePath: filePath,
-      name: 'avatar',
-      header: {
-        'Authorization': `Bearer ${token}`,
-      },
-      success: (res) => {
-        try {
-          const data = JSON.parse(res.data);
-          if (data.code === 0 && data.data) {
-            this.setData({
-              'form.avatar': data.data.url || data.data,
-            });
-          }
-        } catch (err) {
-          console.error('解析上传结果失败', err);
-        }
-      },
-      fail: (err) => {
-        console.error('上传头像失败', err);
-        wx.showToast({ title: '头像上传失败', icon: 'none' });
-      },
-    });
+  /** 点击选择头像（微信 chooseAvatar 组件） */
+  onChooseAvatar(e) {
+    const { avatarUrl } = e.detail;
+    if (avatarUrl) {
+      this.setData({
+        'form.avatar': avatarUrl,
+      });
+    }
   },
 
   /** 保存 */

@@ -2,17 +2,19 @@
   <view class="page-content">
     <!-- 头像 + 昵称 -->
     <view class="section">
-      <view class="field" bindtap="onChooseAvatar">
+      <view class="field">
         <text class="field-label">头像</text>
         <view class="field-value">
-          <image class="avatar-sm" src="{{form.avatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>
+          <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+            <image class="avatar-sm" src="{{form.avatar || ''}}" mode="aspectFill"></image>
+          </button>
           <text class="arrow">›</text>
         </view>
       </view>
       <view class="field">
         <text class="field-label">昵称</text>
         <view class="field-value">
-          <input type="text" value="{{form.nickname}}" placeholder="请输入昵称" bindinput="onFieldChange" data-field="nickname" maxlength="20"></input>
+          <input type="nickname" value="{{form.nickname}}" placeholder="请输入昵称" bindinput="onFieldChange" data-field="nickname" maxlength="20"></input>
         </view>
       </view>
     </view>
