@@ -206,7 +206,7 @@ async def test_comment(client: AsyncClient, auth_headers: dict):
 
     # 验证评论出现在帖子列表中
     list_resp = await client.get(f"/api/v1/posts", headers=auth_headers)
-    assert list_resp.json()["data"]["items"][0]["comment_count"] == 1
+    assert len(list_resp.json()["data"]["items"][0]["comments"]) == 1
 
 
 @pytest.mark.asyncio

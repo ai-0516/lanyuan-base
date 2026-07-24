@@ -34,9 +34,7 @@ async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostR
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
-        like_count=0,
         liked=False,
-        comment_count=0,
         comments=[],
         created_at=datetime.utcnow(),
     )
@@ -74,24 +72,12 @@ async def get_posts(
         if not user:
             continue
 
-        # 点赞数
-        like_count_stmt = select(func.count(Like.id)).where(Like.post_id == post.id)
-        like_count_result = await db.execute(like_count_stmt)
-        like_count = like_count_result.scalar() or 0
-
         # 当前用户是否点赞
         liked_stmt = select(Like).where(
             Like.post_id == post.id, Like.user_id == current_user_id
         )
         liked_result = await db.execute(liked_stmt)
         liked = liked_result.scalar_one_or_none() is not None
-
-        # 评论数
-        comment_count_stmt = select(func.count(Comment.id)).where(
-            Comment.post_id == post.id
-        )
-        comment_count_result = await db.execute(comment_count_stmt)
-        comment_count = comment_count_result.scalar() or 0
 
         # 全部评论（不折叠）
         comment_stmt = (
@@ -153,9 +139,7 @@ async def get_posts(
                 user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
                 content=post.content,
                 images=post.images if isinstance(post.images, list) else [],
-                like_count=like_count,
                 liked=liked,
-                comment_count=comment_count,
                 comments=comments,
                 likers=likers,
                 created_at=post.created_at,

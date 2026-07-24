@@ -101,6 +101,8 @@ Page({
 
       const newPosts = (result.items || result.records || result || []).map(post => ({
         ...post,
+        like_count: (post.likers || []).length,
+        comment_count: (post.comments || []).length,
         displayComments: post.comments || [],
         likersText: (post.likers || []).map(l => l.nickname).join('，'),
         displayTime: this.formatTime(post.created_at),

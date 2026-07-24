@@ -154,9 +154,8 @@ class TestPosts:
         assert body["message"] == "ok"
         post = body["data"]
         assert post["content"] == "测试"
-        assert post["like_count"] == 0
         assert post["liked"] is False
-        assert post["comment_count"] == 0
+        assert post["comments"] == []
         assert post["comments"] == []
 
     async def test_empty_post_list(self, client, headers_a):
@@ -352,7 +351,7 @@ class TestLikes:
         await client.post(f"/api/v1/posts/{post_id}/like", headers=headers_a)
         await client.post(f"/api/v1/posts/{post_id}/like", headers=headers_b)
         resp = await client.get("/api/v1/posts", headers=headers_a)
-        assert resp.json()["data"]["items"][0]["like_count"] == 2
+        assert len(resp.json()["data"]["items"][0]["likers"]) == 2
 
     async def test_like_non_existent_post(self, client, headers_a):
         """点赞不存在的帖子 — 无 FK 约束，实际会成功"""

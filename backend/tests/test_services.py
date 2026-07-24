@@ -68,9 +68,8 @@ class TestPostServiceCreate:
             await db.commit()
 
         assert result.content == "你好兰园"
-        assert result.like_count == 0
         assert result.liked is False
-        assert result.comment_count == 0
+        assert result.comments == []
         assert result.comments == []
 
     async def test_create_post_with_images(self):
@@ -142,7 +141,7 @@ class TestPostServiceGet:
             result = await post_service.get_posts(db, uid)
 
         assert len(result.items[0].comments) == 2
-        assert result.items[0].comment_count == 2
+        assert len(result.items[0].comments) == 2
         assert result.items[0].comments[0].content == "评论1"
         assert result.items[0].comments[1].content == "评论2"
 
@@ -184,13 +183,13 @@ class TestPostServiceGet:
         async with async_session_factory() as db:
             result = await post_service.get_posts(db, uid2)
         assert result.items[0].liked is True
-        assert result.items[0].like_count == 1
+        assert len(result.items[0].likers) == 1
 
         # 用 uid1 查询 — liked 应为 False
         async with async_session_factory() as db:
             result = await post_service.get_posts(db, uid1)
         assert result.items[0].liked is False
-        assert result.items[0].like_count == 1
+        assert len(result.items[0].likers) == 1
 
 
 class TestPostServiceDelete:

@@ -28,9 +28,7 @@ class PostResponse(BaseModel):
     user: UserBrief
     content: str
     images: List[str] = []
-    like_count: int = 0
     liked: bool = False
-    comment_count: int = 0
     comments: List[CommentItem] = []
     likers: List[UserBrief] = []
     created_at: datetime
