@@ -39,10 +39,12 @@ Page({
       const loginRes = await new Promise((resolve, reject) => {
         wx.login({ success: resolve, fail: reject });
       });
+      const payload = { code: loginRes.code, nickname };
+      if (this.data.avatar) payload.avatar = this.data.avatar;
       const result = await request({
         method: 'POST',
         url: '/auth/login',
-        data: { code: loginRes.code, nickname, avatar: this.data.avatar },
+        data: payload,
       });
 
       // 存储 token 和用户信息

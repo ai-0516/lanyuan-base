@@ -81,7 +81,7 @@ const RESP_CODE = {
  * @returns {string} 完整 URL，非相对路径原样返回
  */
 function fullUrl(path) {
-  if (!path || path.startsWith('http') || path.startsWith('wxfile')) return path || ''
+  if (!path || path.startsWith('http') || path.startsWith('data:') || path.startsWith('wxfile')) return path || ''
   return SERVER_HOST + path
 }
 
