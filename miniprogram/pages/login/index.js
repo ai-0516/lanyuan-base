@@ -114,8 +114,8 @@ Page({
   async handleWxLogin() {
     if (this.data.logging) return;
     const nickname = (this.data.nickname || '').trim();
-    if (!nickname) {
-      wx.showToast({ title: '请填写昵称', icon: 'none' });
+    if (!nickname || !this.data.avatar) {
+      wx.showToast({ title: '请先设置头像和昵称', icon: 'none' });
       return;
     }
 

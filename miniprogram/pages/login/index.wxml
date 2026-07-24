@@ -41,7 +41,7 @@
 
   <!-- 登录按钮 -->
   <view class="login-btn-wrapper">
-    <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname}}">
+    <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname || !avatar}}">
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
       <text>登录</text>
     </button>
