@@ -27,12 +27,13 @@
   <!-- 头像 + 昵称 -->
   <view class="profile-setup">
     <view class="avatar-wrap">
-      <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+      <view class="avatar-circle">
         <image class="avatar-img" src="{{avatar || ''}}" mode="aspectFill" wx:if="{{avatar}}"></image>
         <view class="avatar-placeholder" wx:else>
           <text class="avatar-icon">+</text>
         </view>
-      </button>
+        <button class="avatar-btn-overlay" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar"></button>
+      </view>
       <text class="avatar-label">点击设置头像</text>
     </view>
     <view class="nickname-wrap">
