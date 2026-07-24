@@ -7,7 +7,11 @@ Component({
   properties: {
     post: {
       type: Object,
-      value: {} // { id, user: { nickname, avatar }, content, images[], likeCount, liked, commentCount, comments[], createdAt }
+      value: {} // { id, user: { id, nickname, avatar }, content, images[], likeCount, liked, commentCount, comments[], createdAt }
+    },
+    currentUserId: {
+      type: Number,
+      value: 0
     }
   },
 
@@ -39,6 +43,11 @@ Component({
   },
 
   methods: {
+    /** 删除帖子 */
+    onDeletePost() {
+      this.triggerEvent('delete', { postId: this.data.post.id });
+    },
+
     /** 点赞状态变化回调 */
     onLikeChange(e) {
       const { liked, count } = e.detail;

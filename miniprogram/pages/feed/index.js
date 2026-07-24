@@ -37,10 +37,13 @@ Page({
 
   onLoad() {
     this.loadPosts(true);
-    // 读取当前用户头像
+    // 读取当前用户头像和 ID
     const userInfo = wx.getStorageSync('userInfo') || {};
     if (userInfo.avatar) {
       this.setData({ userAvatar: userInfo.avatar });
+    }
+    if (userInfo.id) {
+      this.setData({ currentUserId: userInfo.id });
     }
   },
 
@@ -361,6 +364,33 @@ Page({
       console.error('发送评论失败', err);
       wx.showToast({ title: '发送失败', icon: 'error' });
       this.setData({ commentText: text }); // 恢复输入文字
+    }
+  },
+
+  /** 删除帖子 */
+  async onDeletePost(e) {
+    const postId = e.currentTarget.dataset.postId;
+    try {
+      await new Promise((resolve, reject) => {
+        wx.showModal({
+          title: '确认删除',
+          content: '删除后无法恢复',
+          success: (res) => res.confirm ? resolve() : reject('cancel'),
+          fail: reject,
+        });
+      });
+    } catch {
+      return; // 取消
+    }
+    try {
+      await request('DELETE', '/posts/' + postId);
+      this.setData({
+        posts: this.data.posts.filter(p => p.id !== postId),
+      });
+      wx.showToast({ title: '已删除', icon: 'success' });
+    } catch (err) {
+      console.error('删除失败', err);
+      wx.showToast({ title: '删除失败', icon: 'error' });
     }
   },
 

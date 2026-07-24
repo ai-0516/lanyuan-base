@@ -173,6 +173,17 @@ page::-webkit-scrollbar {
 .action-left {
   font-size: 22rpx;
   color: #b8a898;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.delete-icon {
+  color: #d4744b;
+  padding: 4rpx 8rpx;
+  border-radius: 6rpx;
+}
+.delete-icon:active {
+  background: rgba(212, 116, 75, 0.1);
 }
 
 /* 滑出操作面板（默认隐藏，点击 dots 后滑入） */

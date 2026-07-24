@@ -35,7 +35,10 @@
 
         <!-- 操作栏 -->
         <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}" catchtap="noop">
-          <text class="action-left">{{item.displayTime}}</text>
+          <view class="action-left">
+            <text>{{item.displayTime}}</text>
+            <text class="delete-icon" wx:if="{{item.user.id === currentUserId}}" bindtap="onDeletePost" data-post-id="{{item.id}}" catchtap>删除</text>
+          </view>
           <view class="action-slide">
             <view class="slide-btn {{item.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{item.id}}" data-fa-id="fa-{{item.id}}">
               <image class="slide-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>

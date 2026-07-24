@@ -1,11 +1,14 @@
 <!-- post-card 帖子卡片组件 -->
 <view class="post-card">
-  <!-- 顶部：用户头像 + 昵称 + 发布时间 -->
+  <!-- 顶部：用户头像 + 昵称 + 发布时间 + 删除 -->
   <view class="post-header">
     <image class="avatar" src="{{post.user.avatar}}" mode="aspectFill"></image>
     <view class="user-info">
       <text class="nickname">{{post.user.nickname}}</text>
       <text class="create-time">{{post.createdAt}}</text>
+    </view>
+    <view class="header-actions">
+      <text class="delete-icon" wx:if="{{post.user.id === currentUserId}}" bind:tap="onDeletePost">×</text>
     </view>
   </view>
 
