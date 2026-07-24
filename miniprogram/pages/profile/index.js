@@ -1,5 +1,5 @@
 const { request } = require('../../utils/request');
-const { APP_VERSION } = require('../../utils/constants');
+const { APP_VERSION, fullUrl } = require('../../utils/constants');
 
 Page({
   data: {
@@ -19,6 +19,7 @@ Page({
   async loadUserInfo() {
     try {
       const res = await request('GET', '/user/me');
+      if (res.avatar) res.avatar = fullUrl(res.avatar);
       this.setData({
         userInfo: res,
         showBuilding: res.show_building !== false,

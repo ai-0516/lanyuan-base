@@ -1,6 +1,7 @@
 // post-card 组件 —— 帖子卡片
 // 展示帖子内容、操作栏、点赞用户和评论列表
 const request = require('../../utils/request');
+const { fullUrl } = require('../../utils/constants');
 
 Component({
   properties: {
@@ -12,6 +13,29 @@ Component({
 
   data: {
     likedUsers: [] // 点赞用户名单（从 API 获取）
+  },
+
+  observers: {
+    /** 处理图片为完整 URL */
+    post(val) {
+      if (!val) return;
+      const patch = {};
+      if (val.user?.avatar) {
+        patch['post.user.avatar'] = fullUrl(val.user.avatar);
+      }
+      if (val.images?.length) {
+        patch['post.images'] = val.images.map(fullUrl);
+      }
+      if (val.comments?.length) {
+        patch['post.comments'] = val.comments.map(c => {
+          if (c.user?.avatar) c.user.avatar = fullUrl(c.user.avatar);
+          return c;
+        });
+      }
+      if (Object.keys(patch).length) {
+        this.setData(patch);
+      }
+    }
   },
 
   methods: {

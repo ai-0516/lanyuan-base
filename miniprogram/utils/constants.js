@@ -8,6 +8,9 @@
 /** API 基础地址（开发时可切换为局域网 IP） */
 const BASE_URL = 'http://localhost:8000/api/v1'
 
+/** 服务器根地址（用于拼接静态资源完整 URL） */
+const SERVER_HOST = 'http://localhost:8000'
+
 /** 请求超时时间（毫秒） */
 const REQUEST_TIMEOUT = 15000
 
@@ -72,8 +75,20 @@ const RESP_CODE = {
   SERVER_ERROR: 5000, // 服务器错误
 }
 
+/**
+ * 将相对路径转为完整 URL（用于 image src）
+ * @param {string} path - 图片路径，如 /uploads/xxx.jpeg
+ * @returns {string} 完整 URL，非相对路径原样返回
+ */
+function fullUrl(path) {
+  if (!path || path.startsWith('http') || path.startsWith('wxfile')) return path || ''
+  return SERVER_HOST + path
+}
+
 module.exports = {
   BASE_URL,
+  SERVER_HOST,
+  fullUrl,
   REQUEST_TIMEOUT,
   STORAGE_KEYS,
   COLORS,

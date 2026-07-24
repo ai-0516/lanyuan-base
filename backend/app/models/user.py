@@ -1,6 +1,6 @@
 """用户模型"""
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func
 
 from app.core.database import Base
 
@@ -12,7 +12,7 @@ class User(Base):
     openid = Column(String(64), unique=True, nullable=False, index=True)
     unionid = Column(String(64), nullable=True)
     nickname = Column(String(32), nullable=False, default="兰园业主")
-    avatar = Column(String(256), nullable=False, default="")
+    avatar = Column(Text, nullable=False, default="")
     community = Column(String(64), nullable=True)
     building = Column(String(16), nullable=True)
     unit = Column(String(16), nullable=True)

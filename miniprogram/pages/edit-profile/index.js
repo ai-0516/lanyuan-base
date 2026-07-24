@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request');
+const { fullUrl } = require('../../utils/constants');
 
 Page({
   data: {
@@ -27,6 +28,7 @@ Page({
   async loadUserInfo() {
     try {
       const res = await request('GET', '/user/me');
+      if (res.avatar) res.avatar = fullUrl(res.avatar);
       this.setData({
         form: {
           avatar: res.avatar || '',
