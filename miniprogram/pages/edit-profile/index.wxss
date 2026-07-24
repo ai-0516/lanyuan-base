@@ -59,6 +59,7 @@
   display: flex;
   align-items: center;
   gap: 12rpx;
+  height: 80rpx;
 }
 
 .avatar-sm {
