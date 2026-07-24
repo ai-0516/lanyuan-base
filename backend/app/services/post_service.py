@@ -38,7 +38,7 @@ async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostR
         liked=False,
         comment_count=0,
         comments=[],
-        created_at=post.created_at or datetime.utcnow(),
+        created_at=datetime.utcnow(),
     )
 
 
