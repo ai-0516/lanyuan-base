@@ -2,7 +2,6 @@
   <!-- 导航栏 -->
   <view class="nav-bar">
     <view class="nav-placeholder"></view>
-    <button class="publish" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
   </view>
 
   <!-- 内容区 -->
@@ -20,5 +19,8 @@
         <view class="remove" data-index="{{index}}" bindtap="removeImage">✕</view>
       </view>
     </view>
+
+    <!-- 发布按钮 -->
+    <button class="publish" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
   </view>
 </view>
