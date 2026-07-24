@@ -1,6 +1,6 @@
 <view class="profile-page">
-  <!-- 用户信息卡 -->
-  <view class="profile-card anim-1">
+  <!-- 用户信息卡（点击跳转编辑资料） -->
+  <view class="profile-card anim-1" bindtap="goToEditProfile">
     <view class="avatar-wrap">
       <image class="avatar" src="{{userInfo.avatar}}" mode="aspectFill" wx:if="{{userInfo.avatar}}"></image>
       <view class="avatar-placeholder" wx:else>
@@ -13,9 +13,6 @@
       <span wx:if="{{showBuilding && userInfo.building}}">{{userInfo.building}}</span>
       <span wx:if="{{userInfo.unit}}">{{userInfo.unit}}单元</span>
       <span wx:if="{{showRoom && userInfo.room}}">{{userInfo.room}}室</span>
-    </view>
-    <view class="edit-btn" bindtap="goToEditProfile">
-      <text>编辑资料</text>
     </view>
   </view>
 
