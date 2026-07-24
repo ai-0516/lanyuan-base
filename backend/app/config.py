@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET_KEY: str = "lanyuan-dev-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRES_HOURS: int = 168  # 7 days
+    JWT_EXPIRES_HOURS: int = 8760  # 365 days
 
     # DeepSeek API
     DEEPSEEK_API_KEY: str = ""
