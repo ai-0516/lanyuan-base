@@ -3,7 +3,6 @@ const { request } = require('../../utils/request');
 const { isLoggedIn } = require('../../utils/auth');
 
 const STORAGE_KEY = 'lastProfile';
-const DEFAULT_NICKNAME = '业主';
 
 Page({
   data: {
@@ -32,9 +31,7 @@ Page({
       this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
       return;
     }
-    // 首次使用，填入默认昵称，让用户可直接点登录
-    this.setData({ nickname: DEFAULT_NICKNAME });
-    // 尝试从微信自动获取（可能因无用户手势失败）
+    // 首次使用，尝试从微信自动获取（可能因无用户手势失败）
     try {
       const res = await new Promise((resolve, reject) => {
         wx.getUserProfile({
