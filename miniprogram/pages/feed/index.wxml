@@ -60,7 +60,7 @@
 
         <!-- 评论预览 -->
         <view class="comment-preview" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
-          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:for-item="comment" wx:key="id" bindtap="onTapComment" data-postid="{{item.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}">
+          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:for-item="comment" wx:key="id" bindtap="onTapComment" data-postid="{{item.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}" data-postauthid="{{item.user.id}}">
             <view class="ci-body">
               <text class="ci-author">{{comment.user.nickname}}</text>
               <text wx:if="{{!comment.reply_to}}">：</text>

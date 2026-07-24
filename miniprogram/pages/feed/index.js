@@ -257,12 +257,12 @@ Page({
 
   /** 点击评论 */
   onTapComment(e) {
-    const { cid, cuid, cname, postid } = e.currentTarget.dataset;
+    const { cid, cuid, cname, postid, postauthid } = e.currentTarget.dataset;
     const userInfo = wx.getStorageSync('userInfo') || {};
     const currentUserId = userInfo.id;
 
-    if (cuid === currentUserId) {
-      // 自己的评论 → 删除
+    if (cuid === currentUserId || postauthid === currentUserId) {
+      // 自己的评论 或 是帖主 → 删除
       wx.showActionSheet({
         itemList: ['删除'],
         success: (res) => {
