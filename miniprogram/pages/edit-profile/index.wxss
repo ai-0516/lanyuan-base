@@ -59,9 +59,9 @@
 }
 
 .avatar-sm {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 28rpx;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
   display: block;
 }
 
@@ -71,6 +71,8 @@
   background: none;
   border: none;
   line-height: 0;
+  width: 80rpx;
+  height: 80rpx;
 }
 .avatar-btn::after {
   border: none;
@@ -89,6 +91,8 @@
   text-align: right;
   background: transparent;
   width: 360rpx;
+  height: 80rpx;
+  line-height: 80rpx;
 }
 .field-value textarea {
   font-size: 26rpx;
