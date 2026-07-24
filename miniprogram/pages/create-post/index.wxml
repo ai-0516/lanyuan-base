@@ -2,7 +2,6 @@
   <!-- 导航栏 -->
   <view class="nav-bar">
     <view class="nav-placeholder"></view>
-    <text class="nav-title">发布帖子</text>
     <button class="publish" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
   </view>
 
