@@ -29,11 +29,6 @@
     <view class="avatar-wrap">
       <view class="avatar-circle">
         <image class="avatar-img" src="{{avatar || ''}}" mode="aspectFill" wx:if="{{avatar}}"></image>
-        <view class="avatar-placeholder" wx:else>
-          <view class="avatar-default-icon">
-            <text class="avatar-default-text">兰</text>
-          </view>
-        </view>
         <button class="avatar-btn-overlay" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar"></button>
       </view>
       <text class="avatar-label">点击设置头像</text>
