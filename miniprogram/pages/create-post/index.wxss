@@ -11,9 +11,11 @@
   justify-content: space-between;
   padding: 100rpx 32rpx 20rpx;
 }
-.cancel {
+.cancel, .nav-placeholder {
   font-size: 28rpx;
   color: #b8a898;
+  flex-shrink: 0;
+  width: 80rpx;
 }
 .nav-title {
   font-size: 32rpx;
