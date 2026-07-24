@@ -97,7 +97,6 @@
   width: 360rpx;
   height: 80rpx;
 }
-.field-value textarea {
 
 /* 保存按钮 */
 .save-bar {
