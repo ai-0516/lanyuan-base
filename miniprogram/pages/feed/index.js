@@ -44,6 +44,15 @@ Page({
     }
   },
 
+  /** 每次页面显示时刷新（从发布页切回时包含最新帖子） */
+  onShow() {
+    const posts = this.data.posts;
+    if (posts.length > 0) {
+      // 已有数据时静默刷新第一页
+      this.loadPosts(true);
+    }
+  },
+
   /** 格式化时间（传入 ISO 字符串，返回相对时间或日期） */
   formatTime(dateStr) {
     if (!dateStr) return '';
