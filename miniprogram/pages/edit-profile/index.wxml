@@ -54,7 +54,7 @@
       <view class="field">
         <text class="field-label">个性签名</text>
         <view class="field-value">
-          <textarea placeholder="介绍一下自己吧" value="{{form.bio}}" bindinput="onFieldChange" data-field="bio" auto-height></textarea>
+          <input type="text" placeholder="介绍一下自己吧" value="{{form.bio}}" bindinput="onFieldChange" data-field="bio" maxlength="200"></input>
         </view>
       </view>
     </view>

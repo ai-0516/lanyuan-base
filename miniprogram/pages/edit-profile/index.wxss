@@ -98,14 +98,6 @@
   height: 80rpx;
 }
 .field-value textarea {
-  font-size: 26rpx;
-  color: var(--bark);
-  border: none;
-  background: transparent;
-  width: 360rpx;
-  line-height: 1.5;
-  min-height: 48rpx;
-}
 
 /* 保存按钮 */
 .save-bar {
