@@ -46,7 +46,7 @@
   <view class="login-btn-wrapper">
     <button class="wx-login-btn" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname}}">
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
-      <text>微信一键登录</text>
+      <text>登录</text>
     </button>
     <text class="agreement-text">登录即表示同意《用户协议》和《隐私政策》</text>
   </view>
