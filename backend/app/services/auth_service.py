@@ -37,6 +37,14 @@ async def login(
         await db.flush()
         # 回读 server_default 字段（created_at）
         await db.refresh(user)
+    else:
+        # 已有用户，更新登录时选择的昵称/头像
+        if nickname is not None:
+            user.nickname = nickname
+        if avatar is not None:
+            user.avatar = avatar
+        db.add(user)
+        await db.flush()
 
     # 生成 JWT
     token = create_access_token(user.id)
