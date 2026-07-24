@@ -140,7 +140,6 @@ async def get_posts(
             select(User)
             .join(Like, Like.user_id == User.id)
             .where(Like.post_id == post.id)
-            .limit(5)
         )
         likers_result = await db.execute(likers_stmt)
         likers = [
