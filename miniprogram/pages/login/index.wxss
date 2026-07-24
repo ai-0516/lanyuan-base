@@ -120,6 +120,28 @@
   margin-right: 16rpx;
 }
 
+.agreement-text {
+  font-size: 22rpx;
+  color: #5c4033;
+  opacity: 0.6;
+  margin-top: 36rpx;
+  text-align: center;
+}
+
+/* 自动登录 loading */
+.loading-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40rpx;
+}
+.loading-text {
+  font-size: 28rpx;
+  color: #5c4033;
+  opacity: 0.6;
+}
+
 /* 微信信息卡片 */
 .info-section {
   width: 100%;

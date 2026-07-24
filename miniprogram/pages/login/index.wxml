@@ -1,5 +1,14 @@
 <view class="login-page">
-  <!-- 背景装饰圆 -->
+  <!-- 自动登录中 -->
+  <view class="loading-splash" wx:if="{{!checked}}">
+    <view class="app-icon">
+      <text class="app-icon-text">兰</text>
+    </view>
+    <text class="loading-text">正在登录...</text>
+  </view>
+
+  <!-- 登录界面 -->
+  <block wx:else>
   <view class="bg-decor top-decor"></view>
   <view class="bg-decor bottom-decor"></view>
 
@@ -40,4 +49,5 @@
     </button>
     <text class="agreement-text">登录即表示同意《用户协议》和《隐私政策》</text>
   </view>
+  </block>
 </view>

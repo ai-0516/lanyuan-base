@@ -1,11 +1,35 @@
 // 登录页
 const { request } = require('../../utils/request');
+const { isLoggedIn } = require('../../utils/auth');
 
 Page({
   data: {
     logging: false,
-    avatar: '',     // base64 data URI
+    checked: false, // 是否已完成自动登录检查
+    avatar: '',
     nickname: '',
+  },
+
+  onLoad() {
+    // 已登录且 Token 有效 → 直接跳首页
+    if (isLoggedIn()) {
+      this._autoLogin();
+    } else {
+      this.setData({ checked: true });
+    }
+  },
+
+  /** 自动跳过登录 */
+  async _autoLogin() {
+    try {
+      await request('GET', '/auth/check');
+      wx.reLaunch({ url: '/pages/feed/index' });
+    } catch {
+      // Token 过期，留在登录页
+      wx.removeStorageSync('token');
+      wx.removeStorageSync('userInfo');
+      this.setData({ checked: true });
+    }
   },
 
   /** 微信头像选择回调 */
