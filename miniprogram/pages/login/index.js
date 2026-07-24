@@ -12,12 +12,9 @@ Page({
     nickname: '',
   },
 
-  onLoad() {
-    // 恢复上次保存的头像和昵称
-    const saved = this._loadProfile();
-    if (saved) {
-      this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
-    }
+  async onLoad() {
+    // 尝试自动获取微信头像和昵称（部分微信版本支持）
+    this._tryAutoProfile();
     // 已登录且 Token 有效 → 直接跳首页
     if (isLoggedIn()) {
       this._autoLogin();
@@ -26,7 +23,45 @@ Page({
     }
   },
 
-  /** 从本地存储加载上次的头像和昵称 */
+  /** 尝试自动获取微信昵称和头像 */
+  async _tryAutoProfile() {
+    // 优先从本地缓存恢复
+    const saved = this._loadProfile();
+    if (saved) {
+      this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
+      return;
+    }
+    // 首次使用，尝试从微信自动获取（可能弹出授权框）
+    try {
+      const res = await new Promise((resolve, reject) => {
+        wx.getUserProfile({
+          desc: '用于完善个人资料',
+          lang: 'zh_CN',
+          success: resolve,
+          fail: reject,
+        });
+      });
+      const info = res.userInfo || {};
+      const nickName = info.nickName || '';
+      const avatarUrl = info.avatarUrl || '';
+      // 头像转 base64
+      let avatar = '';
+      if (avatarUrl) {
+        try {
+          const fm = wx.getFileSystemManager();
+          const base64 = fm.readFileSync(avatarUrl, 'base64');
+          avatar = `data:image/jpeg;base64,${base64}`;
+        } catch {
+          avatar = avatarUrl;
+        }
+      }
+      this.setData({ nickname: nickName, avatar });
+      this._saveProfile(avatar, nickName);
+    } catch {
+      // 自动获取失败（用户拒绝或微信版本不支持），用户手动选择
+    }
+  },
+
   _loadProfile() {
     try {
       return wx.getStorageSync(STORAGE_KEY) || null;
@@ -35,7 +70,6 @@ Page({
     }
   },
 
-  /** 保存头像和昵称到本地 */
   _saveProfile(avatar, nickname) {
     try {
       wx.setStorageSync(STORAGE_KEY, { avatar, nickname });
@@ -44,7 +78,6 @@ Page({
     }
   },
 
-  /** 自动跳过登录 */
   async _autoLogin() {
     try {
       await request('GET', '/auth/check');
@@ -72,14 +105,12 @@ Page({
     }
   },
 
-  /** 昵称输入变化 */
   onNicknameInput(e) {
     const nickname = e.detail.value;
     this.setData({ nickname });
     this._saveProfile(this.data.avatar, nickname);
   },
 
-  /** 处理微信登录 */
   async handleWxLogin() {
     if (this.data.logging) return;
     const nickname = (this.data.nickname || '').trim();
@@ -102,7 +133,6 @@ Page({
         data: payload,
       });
 
-      // 登录成功，保存 profile 供下次自动填入
       this._saveProfile(this.data.avatar, nickname);
 
       wx.setStorageSync('token', result.token);
