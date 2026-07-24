@@ -121,7 +121,7 @@ async def get_posts(
                 )
             )
 
-        # 点赞者名单（最多 5 人）
+        # 点赞者名单
         likers_stmt = (
             select(User)
             .join(Like, Like.user_id == User.id)
