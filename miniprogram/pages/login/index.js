@@ -3,6 +3,7 @@ const { request } = require('../../utils/request');
 const { isLoggedIn } = require('../../utils/auth');
 
 const STORAGE_KEY = 'lastProfile';
+const DEFAULT_NICKNAME = '业主';
 
 Page({
   data: {
@@ -13,7 +14,7 @@ Page({
   },
 
   async onLoad() {
-    // 尝试自动获取微信头像和昵称（部分微信版本支持）
+    // 尝试自动获取微信头像和昵称
     this._tryAutoProfile();
     // 已登录且 Token 有效 → 直接跳首页
     if (isLoggedIn()) {
@@ -31,7 +32,9 @@ Page({
       this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
       return;
     }
-    // 首次使用，尝试从微信自动获取（可能弹出授权框）
+    // 首次使用，填入默认昵称，让用户可直接点登录
+    this.setData({ nickname: DEFAULT_NICKNAME });
+    // 尝试从微信自动获取（可能因无用户手势失败）
     try {
       const res = await new Promise((resolve, reject) => {
         wx.getUserProfile({
