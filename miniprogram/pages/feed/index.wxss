@@ -284,6 +284,7 @@ page::-webkit-scrollbar {
   font-size: 24rpx;
   color: #b8a898;
   display: inline;
+  padding: 0 6rpx;
 }
 .ci-text {
   font-size: 24rpx;
