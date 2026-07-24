@@ -88,11 +88,10 @@
   font-size: 28rpx;
   color: var(--bark);
   border: none;
-  text-align: right;
+  text-align: left;
   background: transparent;
   width: 360rpx;
   height: 80rpx;
-  line-height: 80rpx;
 }
 .field-value textarea {
   font-size: 26rpx;
