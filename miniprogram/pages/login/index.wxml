@@ -39,7 +39,7 @@
       <text class="avatar-label">点击设置头像</text>
     </view>
     <view class="nickname-wrap">
-      <input type="nickname" class="nickname-input" placeholder="你的昵称" model:value="{{nickname}}" maxlength="20" />
+      <input type="nickname" class="nickname-input" placeholder="你的昵称" value="{{nickname}}" bindinput="onNicknameInput" maxlength="20" />
       <view class="input-underline"></view>
     </view>
   </view>

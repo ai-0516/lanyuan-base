@@ -2,20 +2,45 @@
 const { request } = require('../../utils/request');
 const { isLoggedIn } = require('../../utils/auth');
 
+const STORAGE_KEY = 'lastProfile';
+
 Page({
   data: {
     logging: false,
-    checked: false, // 是否已完成自动登录检查
+    checked: false,
     avatar: '',
     nickname: '',
   },
 
   onLoad() {
+    // 恢复上次保存的头像和昵称
+    const saved = this._loadProfile();
+    if (saved) {
+      this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
+    }
     // 已登录且 Token 有效 → 直接跳首页
     if (isLoggedIn()) {
       this._autoLogin();
     } else {
       this.setData({ checked: true });
+    }
+  },
+
+  /** 从本地存储加载上次的头像和昵称 */
+  _loadProfile() {
+    try {
+      return wx.getStorageSync(STORAGE_KEY) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** 保存头像和昵称到本地 */
+  _saveProfile(avatar, nickname) {
+    try {
+      wx.setStorageSync(STORAGE_KEY, { avatar, nickname });
+    } catch {
+      // 存储满等异常忽略
     }
   },
 
@@ -25,7 +50,6 @@ Page({
       await request('GET', '/auth/check');
       wx.reLaunch({ url: '/pages/feed/index' });
     } catch {
-      // Token 过期，留在登录页
       wx.removeStorageSync('token');
       wx.removeStorageSync('userInfo');
       this.setData({ checked: true });
@@ -36,18 +60,26 @@ Page({
   onChooseAvatar(e) {
     const { avatarUrl } = e.detail;
     if (!avatarUrl) return;
-    // 读取为 base64 data URI，直接传给后端存储
     try {
       const fm = wx.getFileSystemManager();
       const ext = avatarUrl.match(/\.(\w+)$/)?.[1] || 'jpeg';
       const base64 = fm.readFileSync(avatarUrl, 'base64');
-      this.setData({ avatar: `data:image/${ext};base64,${base64}` });
+      const dataUri = `data:image/${ext};base64,${base64}`;
+      this.setData({ avatar: dataUri });
+      this._saveProfile(dataUri, this.data.nickname);
     } catch (err) {
       console.error('读取头像失败', err);
     }
   },
 
-  /** 处理微信一键登录 */
+  /** 昵称输入变化 */
+  onNicknameInput(e) {
+    const nickname = e.detail.value;
+    this.setData({ nickname });
+    this._saveProfile(this.data.avatar, nickname);
+  },
+
+  /** 处理微信登录 */
   async handleWxLogin() {
     if (this.data.logging) return;
     const nickname = (this.data.nickname || '').trim();
@@ -59,7 +91,6 @@ Page({
     this.setData({ logging: true });
 
     try {
-      // 微信登录
       const loginRes = await new Promise((resolve, reject) => {
         wx.login({ success: resolve, fail: reject });
       });
@@ -71,11 +102,12 @@ Page({
         data: payload,
       });
 
-      // 存储 token 和用户信息
+      // 登录成功，保存 profile 供下次自动填入
+      this._saveProfile(this.data.avatar, nickname);
+
       wx.setStorageSync('token', result.token);
       wx.setStorageSync('userInfo', result.user);
 
-      // 跳转到发现页
       wx.reLaunch({ url: '/pages/feed/index' });
     } catch (err) {
       console.error('登录失败:', err);
