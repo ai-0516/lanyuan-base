@@ -1,186 +1,96 @@
-"""AI 对话业务逻辑（SSE 流式）"""
+"""AI 对话 Manager
 
-import json
+职责：
+- 作为 harness 模块的外观（Facade），对外暴露 get_or_create_session / stream_chat
+- 编排 harness 子模块的调用顺序
+- 保持与现有 API（ai.py）和测试的兼容性
 
-import httpx
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+harness 模块：
+  session.py   — 会话创建/查找/复用/归属校验
+  context.py   — 上下文窗口（历史消息 + System Prompt 组装）
+  memory.py    — 消息持久化（用户/AI 消息入库、会话时间刷新）
+  streaming.py — DeepSeek API 客户端 + 模拟回复
+"""
 
 from app.config import settings
-from app.models.conversation import Conversation, Message
+from app.harness import context, memory, session, streaming
+from app.models.conversation import Message
 from app.schemas.ai import MessageItem, SessionResponse
 
 
-async def get_or_create_session(db: AsyncSession, user_id: int) -> SessionResponse:
-    """获取最近一次 active 会话，没有则新建"""
-    stmt = (
-        select(Conversation)
-        .where(Conversation.user_id == user_id)
-        .order_by(Conversation.updated_at.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
+async def get_or_create_session(db, user_id: int) -> SessionResponse:
+    """获取会话（后端决定新建或复用）
 
-    if session is None:
-        session = Conversation(user_id=user_id, title="")
-        db.add(session)
-        await db.flush()
-
-    # 获取最近 20 条消息
-    msg_stmt = (
-        select(Message)
-        .where(Message.conversation_id == session.id)
-        .order_by(Message.created_at.asc())
-        .limit(20)
-    )
-    msg_result = await db.execute(msg_stmt)
-    messages = [
-        MessageItem(
-            id=m.id,
-            role=m.role,
-            content=m.content,
-            created_at=m.created_at,
-        )
-        for m in msg_result.scalars().all()
-    ]
+    对外 API（POST /ai/session 调用）：
+    - 查找最近一次 active 的会话
+    - 没有则新建
+    - 返回 session_id + 历史消息
+    """
+    conv = await session.get_or_create(db, user_id)
+    recent_messages = await context.get_recent_messages(db, conv.id)
 
     return SessionResponse(
-        session_id=session.id,
-        title=session.title or "",
-        messages=messages,
+        session_id=conv.id,
+        title=conv.title or "",
+        messages=[
+            MessageItem(
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                created_at=m.created_at,
+            )
+            for m in recent_messages
+        ],
     )
 
 
-async def stream_chat(
-    db: AsyncSession,
-    user_id: int,
-    session_id: int,
-    message: str,
-):
+async def stream_chat(db, user_id: int, session_id: int, message: str):
+    """发送消息，SSE 流式返回
+
+    对外 API（POST /ai/chat 调用）：
+    1. 校验 session 归属 → 拒绝跨用户访问
+    2. 保存用户消息
+    3. 获取历史上下文
+    4. 调 DeepSeek（真实 API 或模拟模式）
+    5. 保存 AI 回复
+    6. 刷新会话时间
+
+    产出 (event, data) 元组，符合 SSE 事件协议：
+      ("token", content)  — AI 回复文字块
+      ("done", "")        — 流结束
+      ("error", msg)      — 错误提示
     """
-    发送消息给 DeepSeek API，SSE 流式返回。
-    生成器产出 (event, data) 元组。
-    """
-    # 校验 session 归属
-    conv_result = await db.execute(
-        select(Conversation).where(
-            Conversation.id == session_id,
-            Conversation.user_id == user_id,
-        )
-    )
-    conversation = conv_result.scalar_one_or_none()
-    if not conversation:
+    # ── Step 1: 归属校验 ──
+    conv = await session.verify_ownership(db, session_id, user_id)
+    if conv is None:
         yield ("error", "会话不存在或无权限访问")
         return
 
-    # 保存用户消息
-    user_msg = Message(
-        conversation_id=session_id,
-        role="user",
-        content=message,
-    )
-    db.add(user_msg)
-    await db.flush()
+    # ── Step 2: 保存用户消息 ──
+    await memory.save_user_message(db, session_id, message)
 
-    # 获取会话历史（最近 20 条）
-    msg_stmt = (
-        select(Message)
-        .where(Message.conversation_id == session_id)
-        .order_by(Message.created_at.asc())
-        .limit(20)
-    )
-    msg_result = await db.execute(msg_stmt)
-    history = msg_result.scalars().all()
+    # ── Step 3: 获取历史上下文 ──
+    history = await context.get_recent_messages(db, session_id)
+    deepseek_messages = context.build_deepseek_messages(history, message)
 
-    # 构建 DeepSeek messages
-    deepseek_messages = [
-        {"role": "system", "content": "你是兰园社区助手，帮助小区业主解答供暖、停车等小区生活问题。请用温暖亲切的语气回复。"}
-    ]
-    for m in history:
-        deepseek_messages.append({"role": m.role, "content": m.content})
+    # ── Step 4: 选择数据源 — 真实 API 或模拟模式 ──
+    source = streaming.deepseek_chat if settings.DEEPSEEK_API_KEY else streaming.mock_chat
 
-    # 效验 API Key
-    if not settings.DEEPSEEK_API_KEY:
-        # 无 API key 时返回模拟回复
-        mock_reply = f"收到您的消息：「{message}」\n\n（当前为模拟模式，未配置 DeepSeek API Key。请在后端环境变量中设置 DEEPSEEK_API_KEY 以启用真实 AI 对话。）"
-        yield ("token", mock_reply)
-        yield ("done", "")
-
-        # 保存模拟回复
-        assistant_msg = Message(
-            conversation_id=session_id,
-            role="assistant",
-            content=mock_reply,
-        )
-        db.add(assistant_msg)
-
-        # 更新会话时间
-        await db.execute(
-            update(Conversation)
-            .where(Conversation.id == session_id)
-            .values()
-        )
-        await db.commit()
-        return
-
-    # 调 DeepSeek API（SSE 流式）
+    # ── Step 5: 流式返回 + 持久化 ──
     full_reply = ""
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream(
-                "POST",
-                f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": settings.DEEPSEEK_MODEL,
-                    "messages": deepseek_messages,
-                    "stream": True,
-                },
-            ) as response:
-                if response.status_code != 200:
-                    error_text = await response.aread()
-                    yield ("error", f"DeepSeek API 返回错误: {response.status_code}")
-                    return
-
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data_str = line[6:].strip()
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        data = json.loads(data_str)
-                        delta = data.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            full_reply += content
-                            yield ("token", content)
-                    except json.JSONDecodeError:
-                        continue
-
-        yield ("done", "")
-
-        # 保存完整回复
-        assistant_msg = Message(
-            conversation_id=session_id,
-            role="assistant",
-            content=full_reply,
-        )
-        db.add(assistant_msg)
-        await db.commit()
-
+        async for event, data in source(deepseek_messages):
+            if event == "token":
+                full_reply += data
+            yield (event, data)
     except Exception as e:
-        yield ("error", f"AI 对话出错: {str(e)}")
-        # 保存错误信息作为回复
         error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
-        assistant_msg = Message(
-            conversation_id=session_id,
-            role="assistant",
-            content=error_reply,
-        )
-        db.add(assistant_msg)
-        await db.commit()
+        await memory.save_assistant_message(db, session_id, error_reply)
+        await memory.touch_conversation(db, session_id)
+        yield ("error", error_reply)
+        return
+
+    # ── Step 6: 保存 AI 回复 + 刷新会话 ──
+    if full_reply:
+        await memory.save_assistant_message(db, session_id, full_reply)
+        await memory.touch_conversation(db, session_id)

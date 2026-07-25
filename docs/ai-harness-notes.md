@@ -31,6 +31,8 @@
 
 ### learn-claude-code（教学路线）
 
+源码路径：`/home/ubuntu/workspace/learn-claude-code/`（只读）
+
 https://github.com/shareAI-lab/learn-claude-code
 
 从零到完整 coding agent 的 20 个步骤，每个步骤一个独立文件：
