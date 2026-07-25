@@ -10,10 +10,10 @@
     <view class="post-card">
       <!-- 帖子头部 -->
       <view class="post-header">
-        <image class="post-avatar" src="{{fullUrl(post.user.avatar)}}" mode="aspectFill"></image>
+        <image class="post-avatar" src="{{post.displayAvatar}}" mode="aspectFill"></image>
         <view class="post-meta">
           <text class="post-author">{{post.user.nickname}}</text>
-          <text class="post-time">{{displayTime}}</text>
+          <text class="post-time">{{post.displayTime}}</text>
         </view>
       </view>
 
@@ -21,20 +21,20 @@
       <view class="post-body">{{post.content}}</view>
 
       <!-- 图片网格 -->
-      <view class="post-images count-{{post.images.length}}" wx:if="{{post.images && post.images.length > 0}}">
-        <image wx:for="{{post.images}}" wx:for-item="img" wx:key="*this" src="{{fullUrl(img)}}" mode="aspectFill" bindtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}"></image>
+      <view class="post-images count-{{post.images.length}}" wx:if="{{post.displayImages && post.displayImages.length > 0}}">
+        <image wx:for="{{post.displayImages}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" bindtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}"></image>
       </view>
 
-      <!-- 点赞和评论数 -->
-      <view class="post-stats">
-        <text wx:if="{{post.likers && post.likers.length > 0}}">{{post.likers.length}} 人觉得很赞</text>
+      <!-- 点赞统计 -->
+      <view class="post-stats" wx:if="{{post.likers && post.likers.length > 0}}">
+        <text>{{post.likers.length}} 人觉得很赞</text>
       </view>
     </view>
 
     <!-- 分隔 -->
     <view class="section-divider"></view>
 
-    <!-- 评论列表标题 -->
+    <!-- 评论标题 -->
     <view class="comments-header">
       <text class="comments-title">评论 ({{post.comments.length}})</text>
     </view>
@@ -45,13 +45,13 @@
     </view>
 
     <!-- 评论列表 -->
-    <view class="comments-list" wx:if="{{post.comments.length > 0}}">
-      <view class="comment-item" wx:for="{{post.comments}}" wx:for-item="cm" wx:key="id" bindtap="onTapComment" data-cid="{{cm.id}}" data-cuid="{{cm.user.id}}" data-cname="{{cm.user.nickname}}">
-        <image class="comment-avatar" src="{{fullUrl(cm.user.avatar)}}" mode="aspectFill"></image>
+    <view class="comments-list" wx:if="{{post.displayComments && post.displayComments.length > 0}}">
+      <view class="comment-item" wx:for="{{post.displayComments}}" wx:for-item="cm" wx:key="id" bindtap="onTapComment" data-cid="{{cm.id}}" data-cuid="{{cm.user.id}}" data-cname="{{cm.user.nickname}}">
+        <image class="comment-avatar" src="{{cm.displayAvatar}}" mode="aspectFill"></image>
         <view class="comment-body">
           <view class="comment-head">
             <text class="comment-author">{{cm.user.nickname}}</text>
-            <text class="comment-time">{{formatTime(cm.created_at)}}</text>
+            <text class="comment-time">{{cm.displayTime}}</text>
           </view>
           <view class="comment-content">
             <text wx:if="{{cm.reply_to}}" class="reply-label">回复</text>
@@ -70,9 +70,8 @@
   <!-- 底部操作栏 -->
   <view class="bottom-bar" wx:if="{{!loading && post}}">
     <view class="bar-actions">
-      <!-- 点赞按钮 -->
       <view class="bar-btn {{post.liked ? 'liked' : ''}}" bindtap="toggleLike">
-        <text>{{post.liked ? '❤' : '🤍'}}</text>
+        <text>{{post.liked ? '❤️' : '🤍'}}</text>
         <text wx:if="{{post.likers && post.likers.length > 0}}" class="bar-count">{{post.likers.length}}</text>
       </view>
     </view>

@@ -6,6 +6,7 @@ Page({
   data: {
     loading: true,
     post: null,
+    /** 评论输入 */
     commentText: '',
     canSend: false,
     /** 被回复的评论 ID（空=直接评论） */
@@ -31,16 +32,36 @@ Page({
     this.setData({ loading: true });
     try {
       const post = await request('GET', `/posts/${this.postId}`);
-      this.setData({
-        post,
-        loading: false,
-        displayTime: this.formatTime(post.created_at),
-      });
+      // 预处理显示字段
+      post.displayTime = this._formatTime(post.created_at);
+      post.displayAvatar = fullUrl(post.user.avatar);
+      // 图片 URL 预处理
+      if (post.images && post.images.length > 0) {
+        post.displayImages = post.images.map(img => fullUrl(img));
+      }
+      // 评论预处理
+      if (post.comments && post.comments.length > 0) {
+        post.displayComments = post.comments.map(cm => ({
+          ...cm,
+          displayTime: this._formatTime(cm.created_at),
+          displayAvatar: fullUrl(cm.user.avatar),
+        }));
+      }
+      this.setData({ post, loading: false });
     } catch (err) {
       console.error('加载帖子失败', err);
       wx.showToast({ title: '加载失败', icon: 'none' });
       this.setData({ loading: false });
     }
+  },
+
+  /** 图片预览 */
+  previewImage(e) {
+    const { current, urls } = e.currentTarget.dataset;
+    wx.previewImage({
+      current: fullUrl(current),
+      urls: (urls || []).map(u => fullUrl(u)),
+    });
   },
 
   /** 点赞切换 */
@@ -49,45 +70,44 @@ Page({
     if (!post) return;
     // 乐观更新
     const liked = !post.liked;
-    const likeCount = liked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1);
+    const likeCount = liked ? (post.likers ? post.likers.length : 0) + 1
+      : Math.max(0, (post.likers ? post.likers.length : 0) - 1);
     this.setData({
-      post: { ...post, liked, like_count: likeCount },
+      'post.liked': liked,
+      'post.likers': this._updateLikers(post.likers, liked),
     });
     try {
       const res = await request('POST', `/posts/${post.id}/like`);
       // 用服务器返回的正式值修正
+      const updatedLikers = res.liked
+        ? (post.likers || [])
+        : (post.likers || []).slice(0, -1);
       this.setData({
         'post.liked': res.liked,
-        'post.like_count': res.likeCount,
+        'post.likers': updatedLikers,
       });
     } catch (err) {
       // 回滚
       this.setData({
         'post.liked': post.liked,
-        'post.like_count': post.like_count,
+        'post.likers': post.likers,
       });
     }
+  },
+
+  _updateLikers(likers, liked) {
+    if (!likers) return liked ? [{ id: this.data.currentUserId }] : [];
+    if (liked) {
+      return [...likers, { id: this.data.currentUserId }];
+    }
+    return likers.filter(l => l.id !== this.data.currentUserId);
   },
 
   /** 点击评论 — 设置回复目标 */
   onTapComment(e) {
     const { cid, cuid, cname } = e.currentTarget.dataset;
-    // 自己的评论不显示回复，改为可删除（后续实现）
     if (cuid === this.data.currentUserId) return;
-    this.setData({
-      replyToId: cid,
-      replyToName: cname,
-    });
-    // 聚焦输入框
-    this._focusInput();
-  },
-
-  _focusInput() {
-    // 延迟聚焦，等渲染完成
-    setTimeout(() => {
-      // 通过 wx.createSelectorQuery 找到 textarea 并聚焦
-      // 微信小程序 textarea auto-focus 需要从用户事件触发
-    }, 100);
+    this.setData({ replyToId: cid, replyToName: cname });
   },
 
   /** 评论输入 */
@@ -107,7 +127,6 @@ Page({
     try {
       await request('POST', `/posts/${this.postId}/comments`, payload);
       this.setData({ commentText: '', canSend: false, replyToId: null, replyToName: '' });
-      // 重新加载帖子以刷新评论列表
       this.loadPost();
     } catch (err) {
       console.error('评论失败', err);
@@ -115,12 +134,12 @@ Page({
     }
   },
 
-  /** 取消回复（点击输入框旁 X 或其它操作） */
+  /** 取消回复 */
   cancelReply() {
     this.setData({ replyToId: null, replyToName: '' });
   },
 
-  formatTime(timestamp) {
+  _formatTime(timestamp) {
     if (!timestamp) return '';
     const utcStr = typeof timestamp === 'string' && !timestamp.endsWith('Z') && !timestamp.includes('+')
       ? timestamp + 'Z' : timestamp;
