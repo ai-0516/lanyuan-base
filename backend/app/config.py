@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # 云存储 (开发环境本地存储)
     UPLOAD_DIR: str = "./uploads"
 
+    # 日志
+    LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR
+    LOG_TARGET: str = "local"                    # local | oss
+    LOG_DIR: str = "./logs"                      # LOG_TARGET=local 时日志文件目录
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

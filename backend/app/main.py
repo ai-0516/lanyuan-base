@@ -8,12 +8,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.core.database import init_db, close_db
+from app.logger import setup_logging
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload
 from app.api.response import api_exception_handler, api_success
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     await init_db()
     yield
     await close_db()
