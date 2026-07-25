@@ -197,15 +197,22 @@ Page({
     }, 50);
   },
 
-  /** 格式化时间（后端 UTC → 前端本地时区） */
+  /** 格式化时间
+   *  后端 func.now() 受数据库时区影响（SQLite 返回 UTC，MySQL 返回 session 时区），
+   *  但无论如何结果都是"后端认为的本地时间"。
+   *  作为简易方案，直接按字符串解析，不转时区。
+   */
   formatTime(timestamp) {
     if (!timestamp) return '';
-    // 后端 func.now() 返回 UTC 但不带时区标记，补 Z 确保正确转成本地时间
-    const utcStr = typeof timestamp === 'string' && !timestamp.endsWith('Z') && !timestamp.includes('+')
-      ? timestamp + 'Z' : timestamp;
-    const date = new Date(utcStr);
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
+    // Unix 时间戳（number 类型，如 Date.now()）→ 直接构造
+    if (typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      const h = String(date.getHours()).padStart(2, '0');
+      const m = String(date.getMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
+    }
+    // ISO 字符串（后端 isoformat()）→ 取 HH:MM 部分直接显示
+    const match = String(timestamp).match(/(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : '';
   },
 });
