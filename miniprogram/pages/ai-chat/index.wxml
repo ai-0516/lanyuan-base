@@ -5,7 +5,7 @@
       <view class="msg {{item.role === 'assistant' ? 'ai' : 'me'}}" wx:for="{{messages}}" wx:key="index">
         <view class="msg-avatar {{item.role === 'assistant' ? 'ai' : 'me'}}">{{item.role === 'assistant' ? 'AI' : '我'}}</view>
         <view class="msg-bubble {{item.role === 'assistant' ? 'ai' : 'me'}}">
-          <text class="bubble-text">{{item.content}}</text>
+          <text class="bubble-text" selectable="{{true}}">{{item.content}}</text>
         </view>
         <text class="msg-time">{{item.time}}</text>
       </view>
