@@ -1,4 +1,4 @@
-// 帖子详情页
+// 帖子详情页 — 和 feed 页完全一致的交互方式
 const { request } = require('../../utils/request');
 const { fullUrl } = require('../../utils/constants');
 
@@ -6,12 +6,14 @@ Page({
   data: {
     loading: true,
     post: null,
-    /** 评论输入 */
+    /** 当前打开的滑出面板（空=关闭） */
+    actionOpenId: '',
+    /** 评论弹窗是否打开 */
+    commentSheetOpen: false,
     commentText: '',
     canSend: false,
-    /** 被回复的评论 ID（空=直接评论） */
+    /** 回复目标 */
     replyToId: null,
-    /** 被回复的用户昵称 */
     replyToName: '',
     currentUserId: null,
   },
@@ -32,14 +34,11 @@ Page({
     this.setData({ loading: true });
     try {
       const post = await request('GET', `/posts/${this.postId}`);
-      // 预处理显示字段
       post.displayTime = this._formatTime(post.created_at);
       post.displayAvatar = fullUrl(post.user.avatar);
-      // 图片 URL 预处理
       if (post.images && post.images.length > 0) {
         post.displayImages = post.images.map(img => fullUrl(img));
       }
-      // 评论预处理
       if (post.comments && post.comments.length > 0) {
         post.displayComments = post.comments.map(cm => ({
           ...cm,
@@ -47,7 +46,6 @@ Page({
           displayAvatar: fullUrl(cm.user.avatar),
         }));
       }
-      // 点赞名单文字
       post.likersText = (post.likers || []).map(l => l.nickname).join('，') + ' 觉得很赞';
       this.setData({ post, loading: false });
     } catch (err) {
@@ -66,13 +64,30 @@ Page({
     });
   },
 
-  /** 点赞切换 */
-  async toggleLike() {
+  /** ── 滑出面板 ── */
+
+  noop() {},
+
+  toggleActions(e) {
+    const faId = e.currentTarget.dataset.faId;
+    this.setData({
+      actionOpenId: this.data.actionOpenId === faId ? '' : faId,
+    });
+  },
+
+  closeActions() {
+    this.setData({ actionOpenId: '' });
+  },
+
+  /** ── 点赞 ── */
+
+  async toggleLike(e) {
     const post = this.data.post;
     if (!post) return;
-    // 乐观更新
     const liked = !post.liked;
-    const newLikers = this._updateLikers(post.likers, liked);
+    const newLikers = liked
+      ? (post.likers || []).concat([{ id: this.data.currentUserId, nickname: '' }])
+      : (post.likers || []).filter(l => l.id !== this.data.currentUserId);
     this.setData({
       'post.liked': liked,
       'post.likers': newLikers,
@@ -80,46 +95,48 @@ Page({
     });
     try {
       const res = await request('POST', `/posts/${post.id}/like`);
-      const updatedLikers = res.liked
-        ? (post.likers || []).concat([{ id: this.data.currentUserId, nickname: '' }])
-        : (post.likers || []).filter(l => l.id !== this.data.currentUserId);
       this.setData({
         'post.liked': res.liked,
-        'post.likers': updatedLikers,
-        'post.likersText': updatedLikers.map(l => l.nickname || '').filter(Boolean).join('，') + ' 觉得很赞',
       });
+      // 重新加载获取最新的 likers
+      this.loadPost();
     } catch (err) {
-      // 回滚
-      this.setData({
-        'post.liked': post.liked,
-        'post.likers': post.likers,
-        'post.likersText': post.likersText,
-      });
+      this.loadPost();
     }
   },
 
-  _updateLikers(likers, liked) {
-    if (!likers) return liked ? [{ id: this.data.currentUserId }] : [];
-    if (liked) {
-      return [...likers, { id: this.data.currentUserId }];
-    }
-    return likers.filter(l => l.id !== this.data.currentUserId);
+  /** ── 评论弹窗 ── */
+
+  openCommentSheet() {
+    this.setData({ commentSheetOpen: true, actionOpenId: '' });
   },
 
-  /** 点击评论 — 设置回复目标 */
+  closeCommentSheet() {
+    this.setData({
+      commentSheetOpen: false,
+      commentText: '',
+      canSend: false,
+      replyToId: null,
+      replyToName: '',
+    });
+  },
+
   onTapComment(e) {
     const { cid, cuid, cname } = e.currentTarget.dataset;
     if (cuid === this.data.currentUserId) return;
-    this.setData({ replyToId: cid, replyToName: cname });
+    this.setData({
+      replyToId: cid,
+      replyToName: cname,
+      commentSheetOpen: true,
+      actionOpenId: '',
+    });
   },
 
-  /** 评论输入 */
   onCommentInput(e) {
     const val = e.detail.value;
     this.setData({ commentText: val, canSend: val.trim().length > 0 });
   },
 
-  /** 发送评论 */
   async sendComment() {
     const text = this.data.commentText.trim();
     if (!text) return;
@@ -129,17 +146,12 @@ Page({
     }
     try {
       await request('POST', `/posts/${this.postId}/comments`, payload);
-      this.setData({ commentText: '', canSend: false, replyToId: null, replyToName: '' });
+      this.closeCommentSheet();
       this.loadPost();
     } catch (err) {
       console.error('评论失败', err);
       wx.showToast({ title: '评论失败', icon: 'none' });
     }
-  },
-
-  /** 取消回复 */
-  cancelReply() {
-    this.setData({ replyToId: null, replyToName: '' });
   },
 
   _formatTime(timestamp) {

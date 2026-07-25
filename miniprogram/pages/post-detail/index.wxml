@@ -6,7 +6,7 @@
 
   <!-- 内容区 -->
   <scroll-view class="detail-scroll" scroll-y enhanced show-scrollbar="{{false}}" wx:if="{{!loading && post}}">
-    <!-- 帖子和 feed 完全一样 -->
+    <!-- 单个帖子，结构和 feed 完全一样 -->
     <view class="feed-post">
       <view class="post-left">
         <image class="post-avatar" src="{{post.displayAvatar}}" mode="aspectFill"></image>
@@ -23,20 +23,31 @@
           <image wx:for="{{post.displayImages}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" bindtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}"></image>
         </view>
 
-        <!-- 操作栏 -->
-        <view class="feed-actions">
+        <!-- 操作栏（和 feed 完全一样）-->
+        <view class="feed-actions {{actionOpenId === 'fa-' + post.id ? 'open' : ''}}" id="fa-{{post.id}}" catchtap="noop">
           <view class="action-left">
             <text>{{post.displayTime}}</text>
           </view>
+          <view class="action-slide">
+            <view class="slide-btn {{post.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{post.id}}" data-fa-id="fa-{{post.id}}">
+              <image class="slide-icon" src="{{post.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
+              <text>{{post.liked ? '取消点赞' : '点赞'}}</text>
+            </view>
+            <view class="slide-btn" bindtap="openCommentSheet">
+              <image class="slide-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
+              <text>评论</text>
+            </view>
+          </view>
+          <text class="action-dots" bindtap="toggleActions" data-fa-id="fa-{{post.id}}">⋯</text>
         </view>
 
         <!-- 点赞名单 -->
         <view class="likers-row" wx:if="{{post.likers && post.likers.length > 0}}">
           <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
-          <text class="likers-text">{{likersText}}</text>
+          <text class="likers-text">{{post.likersText}}</text>
         </view>
 
-        <!-- 评论预览（和 feed 一样）-->
+        <!-- 评论预览（和 feed 完全一样）-->
         <view class="comment-preview" wx:if="{{post.displayComments && post.displayComments.length > 0}}">
           <view class="comment-inline" wx:for="{{post.displayComments}}" wx:for-item="comment" wx:key="id" bindtap="onTapComment" data-postid="{{post.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}">
             <view class="ci-body">
@@ -51,43 +62,14 @@
         </view>
       </view>
     </view>
-
-    <!-- 全部评论（详情页特有） -->
-    <view class="full-comments" wx:if="{{post.comments && post.comments.length > 0}}">
-      <view class="fc-header">全部评论</view>
-      <view class="comment-inline full" wx:for="{{post.displayComments}}" wx:for-item="comment" wx:key="id">
-        <image class="fc-avatar" src="{{comment.displayAvatar}}" mode="aspectFill"></image>
-        <view class="fc-body">
-          <view class="ci-body">
-            <text class="ci-author">{{comment.user.nickname}}</text>
-            <text wx:if="{{!comment.reply_to}}">：</text>
-            <text wx:if="{{comment.reply_to}}" class="ci-reply">回复</text>
-            <text wx:if="{{comment.reply_to}}" class="ci-author">{{comment.reply_to.nickname}}</text>
-            <text wx:if="{{comment.reply_to}}" class="ci-reply">：</text>
-            <text class="ci-text">{{comment.content}}</text>
-          </view>
-          <text class="fc-time">{{comment.displayTime}}</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 底部占位 -->
-    <view class="bottom-spacer"></view>
   </scroll-view>
 
-  <!-- 底部操作栏 -->
-  <view class="bottom-bar" wx:if="{{!loading && post}}">
-    <view class="bar-btn {{post.liked ? 'liked' : ''}}" bindtap="toggleLike">
-      <image class="bar-icon" src="{{post.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
-      <text>{{post.liked ? '取消点赞' : '点赞'}}</text>
-    </view>
-    <view class="bar-input-area">
-      <view class="reply-hint" wx:if="{{replyToName}}" bindtap="cancelReply">
-        <text>回复 {{replyToName}}：</text>
-        <text class="cancel-reply">✕</text>
-      </view>
-      <textarea class="bar-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height maxlength="-1" confirm-type="send" bindconfirm="sendComment"></textarea>
-      <view class="bar-send {{canSend ? 'active' : ''}}" bindtap="sendComment">→</view>
+  <!-- 评论弹窗（和 feed 完全一样）-->
+  <view class="comment-overlay {{commentSheetOpen ? 'show' : ''}}" bindtap="closeCommentSheet"></view>
+  <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
+    <view class="cs-input-area">
+      <textarea class="cs-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
+      <view class="cs-send {{canSend ? 'active' : ''}}" bindtap="sendComment">→</view>
     </view>
   </view>
 </view>
