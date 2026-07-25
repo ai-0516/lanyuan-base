@@ -83,6 +83,7 @@
 .notif-action {
   font-size: 26rpx;
   color: var(--bark);
+  padding-left: 16rpx;
 }
 .notif-post {
   font-size: 24rpx;
