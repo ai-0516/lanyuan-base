@@ -54,6 +54,20 @@ async def get_unread_count(db: AsyncSession, user_id: int) -> int:
     return result.scalar() or 0
 
 
+async def mark_all_as_read(db: AsyncSession, user_id: int) -> int:
+    """将所有未读通知标记为已读，返回更新的行数"""
+    stmt = (
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.is_read == False,
+        )
+        .values(is_read=True, read_at=func.now())
+    )
+    result = await db.execute(stmt)
+    return result.rowcount
+
+
 async def mark_as_read(db: AsyncSession, user_id: int, post_id: int) -> int:
     """将某一帖子相关的所有通知标记为已读，返回更新的行数"""
     stmt = (

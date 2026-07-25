@@ -40,6 +40,95 @@ async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostR
     )
 
 
+async def get_post_by_id(
+    db: AsyncSession,
+    post_id: int,
+    current_user_id: int,
+) -> PostResponse | None:
+    """获取单个帖子详情（含评论和点赞）"""
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        return None
+
+    # 作者信息
+    user_result = await db.execute(select(User).where(User.id == post.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        return None
+
+    # 当前用户是否点赞
+    liked_stmt = select(Like).where(
+        Like.post_id == post.id, Like.user_id == current_user_id
+    )
+    liked_result = await db.execute(liked_stmt)
+    liked = liked_result.scalar_one_or_none() is not None
+
+    # 全部评论
+    comment_stmt = (
+        select(Comment)
+        .where(Comment.post_id == post.id)
+        .order_by(Comment.created_at.asc())
+    )
+    comment_result = await db.execute(comment_stmt)
+    comments_raw = comment_result.scalars().all()
+
+    comments = []
+    for cm in comments_raw:
+        cu_result = await db.execute(select(User).where(User.id == cm.user_id))
+        cu = cu_result.scalar_one_or_none()
+        if not cu:
+            continue
+
+        reply_to = None
+        if cm.parent_comment_id:
+            parent_result = await db.execute(
+                select(Comment, User).join(User, Comment.user_id == User.id).where(
+                    Comment.id == cm.parent_comment_id
+                )
+            )
+            parent_row = parent_result.one_or_none()
+            if parent_row:
+                parent_comment, parent_user = parent_row
+                reply_to = ReplyTo(
+                    user_id=parent_user.id,
+                    nickname=parent_user.nickname,
+                )
+
+        comments.append(
+            CommentItem(
+                id=cm.id,
+                user=UserBrief(id=cu.id, nickname=cu.nickname, avatar=cu.avatar),
+                content=cm.content,
+                reply_to=reply_to,
+                created_at=cm.created_at,
+            )
+        )
+
+    # 点赞者名单
+    likers_stmt = (
+        select(User)
+        .join(Like, Like.user_id == User.id)
+        .where(Like.post_id == post.id)
+    )
+    likers_result = await db.execute(likers_stmt)
+    likers = [
+        UserBrief(id=lu.id, nickname=lu.nickname, avatar=lu.avatar)
+        for lu in likers_result.scalars().all()
+    ]
+
+    return PostResponse(
+        id=post.id,
+        user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
+        content=post.content,
+        images=post.images if isinstance(post.images, list) else [],
+        liked=liked,
+        comments=comments,
+        likers=likers,
+        created_at=post.created_at,
+    )
+
+
 async def get_posts(
     db: AsyncSession,
     current_user_id: int,
@@ -198,9 +287,9 @@ async def toggle_like(
 
     await db.flush()
 
-    count_result = await db.execute(
-        select(func.count(Like.id)).where(Like.post_id == post_id)
-    )
+    # 获取最新点赞数
+    count_stmt = select(func.count(Like.id)).where(Like.post_id == post_id)
+    count_result = await db.execute(count_stmt)
     like_count = count_result.scalar() or 0
 
     return liked, like_count

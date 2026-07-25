@@ -30,6 +30,16 @@ async def notification_count(
     return api_success({"count": count})
 
 
+@router.put("/read-all")
+async def mark_all_read(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """将所有通知标记为已读"""
+    updated = await notification_service.mark_all_as_read(db, user_id)
+    return api_success({"updated": updated})
+
+
 @router.post("/read")
 async def mark_read(
     data: dict,

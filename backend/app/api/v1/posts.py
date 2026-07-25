@@ -34,6 +34,19 @@ async def create_post(
     return api_success(result)
 
 
+@router.get("/{post_id}")
+async def get_post(
+    post_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """获取单个帖子详情"""
+    result = await post_service.get_post_by_id(db, post_id, user_id)
+    if not result:
+        return api_error(40401, "帖子不存在")
+    return api_success(result)
+
+
 @router.delete("/{post_id}")
 async def delete_post(
     post_id: int,

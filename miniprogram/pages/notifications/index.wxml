@@ -8,6 +8,11 @@
 
     <!-- 通知列表 -->
     <view class="notif-list" wx:if="{{notifications.length > 0}}">
+      <!-- 全部已读 -->
+      <view class="notif-header">
+        <text class="notif-header-title">消息通知</text>
+        <text class="mark-all-btn" wx:if="{{notifications.length > 0}}" bindtap="markAllRead">全部已读</text>
+      </view>
       <view class="notif-item {{item.is_read ? '' : 'unread'}}" wx:for="{{notifications}}" wx:key="id" bindtap="onTapNotification" data-id="{{item.id}}" data-post-id="{{item.post_id}}">
         <view class="notif-avatar">
           <image src="{{item.from_user.avatar || 'https://i.pravatar.cc/80'}}" mode="aspectFill"></image>

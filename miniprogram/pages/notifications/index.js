@@ -26,6 +26,22 @@ Page({
     }
   },
 
+  /** 标记全部已读 */
+  async markAllRead() {
+    const unreadCount = this.data.notifications.filter(n => !n.is_read).length;
+    if (unreadCount === 0) return;
+
+    try {
+      await request('PUT', '/notifications/read-all');
+      // 全部标记为已读
+      const list = this.data.notifications.map(item => ({ ...item, is_read: true }));
+      this.setData({ notifications: list });
+      wx.showToast({ title: '已全部已读', icon: 'none' });
+    } catch (err) {
+      console.error('标记已读失败', err);
+    }
+  },
+
   async onTapNotification(e) {
     const { id, postId } = e.currentTarget.dataset;
     const targetPostId = postId || e.currentTarget.dataset.post_id;
@@ -42,7 +58,7 @@ Page({
     }
 
     if (targetPostId) {
-      wx.switchTab({ url: '/pages/feed/index' });
+      wx.navigateTo({ url: '/pages/post-detail/index?id=' + targetPostId });
     }
   },
 

@@ -51,6 +51,7 @@ const PAGES = {
   NOTIFICATIONS: '/pages/notifications/index',
   EDIT_PROFILE: '/pages/edit-profile/index',
   LOGIN: '/pages/login/index',
+  POST_DETAIL: '/pages/post-detail/index',
 }
 
 /** 应用版本号 — 集中管理，所有页面统一读取 */
