@@ -1,22 +1,72 @@
 """AI 对话 Manager
 
 职责：
-- 作为 AIAgent 的工厂，对外暴露一致的 API
-- 保持与现有 API（ai.py）和测试的兼容性
+- 编排 AIAgent 的完整调用流程（数据准备 → 执行 → 持久化）
+- AIAgent 只负责跟 LLM 交互，不接触 DB
+
+流程：
+  1. 校验 session 归属
+  2. 保存用户消息
+  3. 读取历史 + 组装 messages
+  4. 调 AIAgent.run() 获取 LLM 回复
+  5. 保存 AI 回复 + 刷新会话
 """
 
+from app.config import settings
+from app.harness import context, session
 from app.harness.agent import AIAgent
-from app.schemas.ai import SessionResponse
+from app.schemas.ai import MessageItem, SessionResponse
 
 
 async def get_or_create_session(db, user_id: int) -> SessionResponse:
-    """获取会话"""
-    agent = AIAgent(user_id=user_id)
-    return await agent.init_session(db)
+    """获取会话（后端决定新建或复用）"""
+    conv = await session.get_or_create(db, user_id)
+    recent = await context.get_recent_messages(db, conv.id)
+
+    return SessionResponse(
+        session_id=conv.id,
+        title=conv.title or "",
+        messages=[
+            MessageItem(
+                id=m.id, role=m.role,
+                content=m.content, created_at=m.created_at,
+            )
+            for m in recent
+        ],
+    )
 
 
 async def stream_chat(db, user_id: int, session_id: int, message: str):
     """发送消息，SSE 流式返回"""
-    agent = AIAgent(user_id=user_id, session_id=session_id)
-    async for event, data in agent.run(db, message):
-        yield (event, data)
+    # ── 1. 归属校验 ──
+    conv = await session.verify_ownership(db, session_id, user_id)
+    if conv is None:
+        yield ("error", "会话不存在或无权限访问")
+        return
+
+    # ── 2. 保存用户消息 ──
+    await session.save_user_message(db, session_id, message)
+
+    # ── 3. 构建上下文 ──
+    history = await context.get_recent_messages(db, session_id)
+    deepseek_messages = context.build_deepseek_messages(history, message)
+
+    # ── 4. 调 AIAgent ──
+    agent = AIAgent()
+    full_reply = ""
+    try:
+        async for event, data in agent.run(deepseek_messages):
+            if event == "token":
+                full_reply += data
+            yield (event, data)
+    except Exception as e:
+        error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
+        await session.save_assistant_message(db, session_id, error_reply)
+        await session.touch_conversation(db, session_id)
+        yield ("error", error_reply)
+        return
+
+    # ── 5. 持久化 ──
+    if full_reply:
+        await session.save_assistant_message(db, session_id, full_reply)
+        await session.touch_conversation(db, session_id)
