@@ -47,6 +47,8 @@ Page({
           displayAvatar: fullUrl(cm.user.avatar),
         }));
       }
+      // 点赞名单文字
+      post.likersText = (post.likers || []).map(l => l.nickname).join('，') + ' 觉得很赞';
       this.setData({ post, loading: false });
     } catch (err) {
       console.error('加载帖子失败', err);
@@ -70,27 +72,28 @@ Page({
     if (!post) return;
     // 乐观更新
     const liked = !post.liked;
-    const likeCount = liked ? (post.likers ? post.likers.length : 0) + 1
-      : Math.max(0, (post.likers ? post.likers.length : 0) - 1);
+    const newLikers = this._updateLikers(post.likers, liked);
     this.setData({
       'post.liked': liked,
-      'post.likers': this._updateLikers(post.likers, liked),
+      'post.likers': newLikers,
+      'post.likersText': newLikers.map(l => l.nickname || '').filter(Boolean).join('，') + ' 觉得很赞',
     });
     try {
       const res = await request('POST', `/posts/${post.id}/like`);
-      // 用服务器返回的正式值修正
       const updatedLikers = res.liked
-        ? (post.likers || [])
-        : (post.likers || []).slice(0, -1);
+        ? (post.likers || []).concat([{ id: this.data.currentUserId, nickname: '' }])
+        : (post.likers || []).filter(l => l.id !== this.data.currentUserId);
       this.setData({
         'post.liked': res.liked,
         'post.likers': updatedLikers,
+        'post.likersText': updatedLikers.map(l => l.nickname || '').filter(Boolean).join('，') + ' 觉得很赞',
       });
     } catch (err) {
       // 回滚
       this.setData({
         'post.liked': post.liked,
         'post.likers': post.likers,
+        'post.likersText': post.likersText,
       });
     }
   },
