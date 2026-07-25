@@ -2,7 +2,7 @@
 
 职责：
 - 模拟回复（无 API Key 时的 fallback）
-- DeepSeek API 的 HTTP SSE 请求
+- DeepSeek API 的 HTTP SSE 请求，支持工具调用
 - 逐 token 产出 (event, data) 元组
 """
 
@@ -19,27 +19,53 @@ MOCK_REPLY_TEMPLATE = (
 )
 
 
-async def mock_chat(messages: list[dict]) :
-    """模拟回复 — API Key 未配置时使用
-
-    从 messages 中取最后一条用户消息构造回复。
-    产出 (event, data) 元组序列：一个 token 事件 + done。
-    """
+async def mock_chat(messages: list[dict]):
+    """模拟回复 — API Key 未配置时使用"""
     user_msg = messages[-1]["content"] if messages else ""
     reply = MOCK_REPLY_TEMPLATE.format(message=user_msg)
     yield ("token", reply)
     yield ("done", "")
 
 
-async def deepseek_chat(messages: list[dict]):
-    """调用 DeepSeek API（SSE 流式）
+def _merge_tool_call(
+    accumulator: dict[int, dict],
+    index: int,
+    chunk: dict,
+):
+    """将流式 chunk 中的 tool_call delta 合并到累加器中"""
+    if index not in accumulator:
+        accumulator[index] = {
+            "id": "",
+            "type": "function",
+            "function": {"name": "", "arguments": ""},
+        }
+    tc = chunk.get("tool_calls", [{}])[0]
+    if tc.get("id"):
+        accumulator[index]["id"] = tc["id"]
+    if tc.get("function", {}).get("name"):
+        accumulator[index]["function"]["name"] = tc["function"]["name"]
+    if tc.get("function", {}).get("arguments"):
+        accumulator[index]["function"]["arguments"] += tc["function"]["arguments"]
+
+
+async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
+    """调用 DeepSeek API（SSE 流式），支持工具调用
 
     产出 (event, data) 元组序列：
-    - ("token", content) — 逐字或逐段文本
-    - ("done", "") — 流正常结束
+    - ("token", content) — AI 回复文字
+    - ("tool_call", tool_call_dict) — 模型请求调用工具
+    - ("done", "") — 流正常结束（无工具调用时）
     - ("error", msg) — 发生错误
     """
     try:
+        request_body = {
+            "model": settings.DEEPSEEK_MODEL,
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            request_body["tools"] = tools
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
@@ -48,15 +74,14 @@ async def deepseek_chat(messages: list[dict]):
                     "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": settings.DEEPSEEK_MODEL,
-                    "messages": messages,
-                    "stream": True,
-                },
+                json=request_body,
             ) as response:
                 if response.status_code != 200:
                     yield ("error", f"DeepSeek API 返回错误: {response.status_code}")
                     return
+
+                tool_call_accumulator: dict[int, dict] = {}
+                finish_reason: str | None = None
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
@@ -66,14 +91,33 @@ async def deepseek_chat(messages: list[dict]):
                         break
                     try:
                         data = json.loads(data_str)
-                        delta = data.get("choices", [{}])[0].get("delta", {})
+                        choice = data.get("choices", [{}])[0]
+                        delta = choice.get("delta", {})
+                        finish_reason = choice.get("finish_reason")
+
+                        # 文本 token
                         content = delta.get("content", "")
                         if content:
                             yield ("token", content)
+
+                        # 工具调用（按 index 合并多 chunk 参数）
+                        if delta.get("tool_calls"):
+                            for tc_chunk in delta["tool_calls"]:
+                                _merge_tool_call(
+                                    tool_call_accumulator,
+                                    tc_chunk.get("index", 0),
+                                    {"tool_calls": [tc_chunk]},
+                                )
+
                     except json.JSONDecodeError:
                         continue
 
-        yield ("done", "")
+        # 流结束 — 判断是工具调用还是纯文本
+        if tool_call_accumulator:
+            for tc in tool_call_accumulator.values():
+                yield ("tool_call", tc)
+        else:
+            yield ("done", "")
 
     except Exception as e:
         yield ("error", f"AI 对话出错: {str(e)}")

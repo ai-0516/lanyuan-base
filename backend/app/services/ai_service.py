@@ -3,18 +3,11 @@
 职责：
 - 编排 AIAgent 的完整调用流程（数据准备 → 执行 → 持久化）
 - AIAgent 只负责跟 LLM 交互，不接触 DB
-
-流程：
-  1. 校验 session 归属
-  2. 保存用户消息
-  3. 读取历史 + 组装 messages
-  4. 调 AIAgent.run() 获取 LLM 回复
-  5. 保存 AI 回复 + 刷新会话
 """
 
-from app.config import settings
 from app.harness import context, session
 from app.harness.agent import AIAgent
+from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
 
 
@@ -51,11 +44,11 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     history = await context.get_recent_messages(db, session_id)
     deepseek_messages = context.build_deepseek_messages(history, message)
 
-    # ── 4. 调 AIAgent ──
-    agent = AIAgent()
+    # ── 4. Agent Loop（含工具调用） ──
+    agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
     full_reply = ""
     try:
-        async for event, data in agent.run(deepseek_messages):
+        async for event, data in agent.run(deepseek_messages, db=db, user_id=user_id):
             if event == "token":
                 full_reply += data
             yield (event, data)
