@@ -33,7 +33,16 @@ Page({
     this.setData({ loading: true });
     try {
       const post = await request('GET', `/posts/${this.postId}`);
+      // 一次性预处理所有显示字段，不依赖组件 observer
+      post.displayTime = this._formatTime(post.created_at);
+      post.displayAvatar = fullUrl(post.user?.avatar) || `https://i.pravatar.cc/80?img=${(post.user?.id || 1) % 70}`;
       post.displayImages = (post.images || []).map(img => fullUrl(img));
+      post.displayComments = (post.comments || []).map(cm => ({
+        ...cm,
+        displayTime: this._formatTime(cm.created_at),
+        displayAvatar: fullUrl(cm.user?.avatar),
+      }));
+      post.likersText = (post.likers || []).map(l => l.nickname).filter(Boolean).join('，');
       this.setData({ post, loading: false });
     } catch (err) {
       console.error('加载帖子失败', err);
