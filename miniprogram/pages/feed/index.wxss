@@ -24,7 +24,7 @@ page::-webkit-scrollbar {
 
 /* 帖子列表容器 */
 .post-list {
-  padding: 0 24rpx 120rpx;
+  padding-bottom: 120rpx;
 }
 
 /* 加载中 */

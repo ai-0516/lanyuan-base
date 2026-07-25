@@ -12,8 +12,8 @@ Component({
   observers: {
     post(val) {
       if (!val || val._processed) return;
-      const p = val;
-      // 已由父页面预处理的值就不覆盖
+      // 必须克隆对象，否则 WeChat 的 diff 检测不到属性变化
+      const p = { ...val };
       if (!p.displayTime) p.displayTime = this._formatTime(p.created_at);
       if (!p.displayAvatar) {
         p.displayAvatar = p.user?.avatar || `https://i.pravatar.cc/80?img=${(p.user?.id || 1) % 70}`;
