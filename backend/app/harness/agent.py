@@ -32,8 +32,7 @@ class AIAgent:
 
         产出 (event, data) 元组：
           ("token", content)   — AI 回复文字
-          ("tool_call", dict)  — 模型请求调用工具
-          ("tool_result", str) — 工具执行结果
+          ("tool_call", dict)  — 模型请求调用工具（前端可用此事件展示状态）
           ("done", "")         — 流正常结束
           ("error", msg)       — 错误提示
         """
@@ -78,7 +77,5 @@ class AIAgent:
                     "tool_call_id": tc.get("id", ""),
                     "content": result,
                 })
-
-                yield ("tool_result", result)
 
         yield ("error", f"Agent 循环超过 {_MAX_TURNS} 次上限")
