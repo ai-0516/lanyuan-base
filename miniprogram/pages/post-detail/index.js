@@ -1,5 +1,6 @@
 // 帖子详情页 — 和 feed 页完全一致的交互（区别：只显示一个帖子）
 const { request } = require('../../utils/request');
+const { fullUrl } = require('../../utils/constants');
 
 Page({
   data: {
@@ -32,6 +33,7 @@ Page({
     this.setData({ loading: true });
     try {
       const post = await request('GET', `/posts/${this.postId}`);
+      post.displayImages = (post.images || []).map(img => fullUrl(img));
       this.setData({ post, loading: false });
     } catch (err) {
       console.error('加载帖子失败', err);

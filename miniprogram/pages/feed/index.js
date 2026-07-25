@@ -1,5 +1,6 @@
 // 发现页 - 帖子信息流
 const { request } = require('../../utils/request');
+const { fullUrl } = require('../../utils/constants');
 
 Page({
   data: {
@@ -91,6 +92,7 @@ Page({
         likersText: this.getLikersText(post.likers),
         displayTime: this.formatTime(post.created_at),
         displayAvatar: post.user?.avatar || `https://i.pravatar.cc/80?img=${(post.user?.id || 1) % 70}`,
+        displayImages: (post.images || []).map(img => fullUrl(img)),
       }));
       this.setData({
         posts: reset ? newPosts : [...this.data.posts, ...newPosts],
