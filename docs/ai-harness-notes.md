@@ -149,10 +149,28 @@ harness/
 - 压缩中：调辅助模型生成摘要，创建新 session（"def"）
 - 压缩后：session_id = "def"，messages = [摘要, tail]
 - 旧 session "abc" 保留原始消息，可追溯
-- **AIAgent 实例不持有压缩状态**，只当 session_id 指针
 
 **对我们的启示**：
 - 新建 session 比 inject 摘要消息更合理
 - 旧 session 作为原始记录保留，方便 debug/审计/RAG
 - AIAgent 轻量（只持有 user_id + session_id），不缓存任何消息内容
 - 所有状态在 MySQL，压缩只是"换一个 session_id 指针"
+
+### 2026-07-25: AI 不调 create_post 工具（待修复）
+
+**症状**：
+用户让 AI 发帖，AI 回复"帖子已发布"但 DB 中没有记录。从日志确认 `finish_reason=stop`（非 `tool_calls`），LLM 编了回复文字但没有触发工具调用。
+
+**尝试过的方案（无效）**：
+1. 强化 system prompt：强调"必须调用工具，不能只回复文字"
+2. 修复 `get_recent_messages`：原来是取最早 20 条，现在是取全部消息
+
+**怀疑方向**：
+- System Prompt 可能被上下文中的历史消息"稀释"了——用户已经跟 AI 聊了 21 轮，历史中 AI 曾经回复过"已发布"，模型倾向于模仿历史行为
+- DeepSeek 的 system prompt 权重可能不够高，历史 user/assistant 消息对模型行为的影响更大
+- 可以尝试：在用户消息末尾注入更直接的指令，或者在 Agent Loop 层面加"工具调用保证"逻辑
+
+**下一步**：
+- 检查 messages 数组中 System Prompt 是否仍在第一位置
+- 考虑在用户消息后面追加一条 system 风格的消息强调工具调用
+- 或考虑 Agent Loop 层面做 fallback：如果 LLM 纯文本回复但用户意图明显需要工具，重试
