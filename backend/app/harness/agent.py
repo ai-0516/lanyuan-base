@@ -9,8 +9,12 @@ Agent Loop 逻辑：
   3. 如果返回纯文本 → done
 """
 
+import logging
+
 from app.config import settings
 from app.harness import streaming
+
+logger = logging.getLogger(__name__)
 
 _MAX_TURNS = 10
 
@@ -56,10 +60,13 @@ class AIAgent:
 
             # 无工具调用 → 结束
             if not tool_calls:
+                logger.info("Agent Loop: done after %d turn(s)", turn + 1)
                 return
 
             # 有工具调用 → 执行 → 回填 → 继续
             for tc in tool_calls:
+                tool_name = tc.get("function", {}).get("name", "?")
+                logger.info("Agent Loop: turn=%d tool=%s", turn + 1, tool_name)
                 if self.tool_executor:
                     result = await self.tool_executor(db, user_id, tc)
                 else:
@@ -79,3 +86,4 @@ class AIAgent:
                 })
 
         yield ("error", f"Agent 循环超过 {_MAX_TURNS} 次上限")
+        logger.warning("Agent Loop: exceeded %d turns", _MAX_TURNS)

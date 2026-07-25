@@ -7,10 +7,13 @@
 """
 
 import json
+import logging
 
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 MOCK_REPLY_TEMPLATE = (
     "收到您的消息：「{message}」\n\n"
@@ -23,6 +26,7 @@ async def mock_chat(messages: list[dict]):
     """模拟回复 — API Key 未配置时使用"""
     user_msg = messages[-1]["content"] if messages else ""
     reply = MOCK_REPLY_TEMPLATE.format(message=user_msg)
+    logger.info("LLM request (mock): messages=%d", len(messages))
     yield ("token", reply)
     yield ("done", "")
 
@@ -66,6 +70,13 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
         if tools:
             request_body["tools"] = tools
 
+        logger.info(
+            "LLM request: model=%s messages=%d tools=%s",
+            settings.DEEPSEEK_MODEL,
+            len(messages),
+            "yes" if tools else "no",
+        )
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
@@ -82,6 +93,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
 
                 tool_call_accumulator: dict[int, dict] = {}
                 finish_reason: str | None = None
+                token_count = 0
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
@@ -98,6 +110,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                         # 文本 token
                         content = delta.get("content", "")
                         if content:
+                            token_count += 1
                             yield ("token", content)
 
                         # 工具调用（按 index 合并多 chunk 参数）
@@ -114,10 +127,20 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
 
         # 流结束 — 判断是工具调用还是纯文本
         if tool_call_accumulator:
+            logger.info(
+                "LLM response: tokens=%d finish_reason=tool_calls tools=%d",
+                token_count,
+                len(tool_call_accumulator),
+            )
             for tc in tool_call_accumulator.values():
                 yield ("tool_call", tc)
         else:
+            logger.info(
+                "LLM response: tokens=%d finish_reason=stop",
+                token_count,
+            )
             yield ("done", "")
 
     except Exception as e:
+        logger.error("LLM error: %s", e)
         yield ("error", f"AI 对话出错: {str(e)}")

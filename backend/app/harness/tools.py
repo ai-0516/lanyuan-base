@@ -4,9 +4,12 @@
 """
 
 import json
+import logging
 
 from app.schemas.post import PostCreate
 from app.services import post_service
+
+logger = logging.getLogger(__name__)
 
 # ── 工具定义 ──────────────────────────────────────
 
@@ -61,6 +64,7 @@ async def execute_tool(db, user_id: int, tool_call: dict) -> str:
         return f"参数解析失败: {raw_args}"
 
     if name == "create_post":
+        logger.info("Tool: create_post args=%s", raw_args)
         return await _handle_create_post(db, user_id, args)
 
     return f"未知工具: {name}"
