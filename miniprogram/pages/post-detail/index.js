@@ -147,6 +147,13 @@ Page({
     });
   },
 
+  /** 收起滑出面板 */
+  closeActions() {
+    if (this.data.actionOpenId) {
+      this.setData({ actionOpenId: '' });
+    }
+  },
+
   onCommentInput(e) {
     const val = e.detail.value;
     this.setData({ commentText: val, canSend: val.trim().length > 0 });

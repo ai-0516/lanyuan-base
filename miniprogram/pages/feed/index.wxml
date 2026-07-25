@@ -26,6 +26,7 @@
       bind:tapcomment="onPostTapComment"
       bind:previewimage="onPostPreviewImage"
       bind:delete="onPostDelete"
+      bind:blanktap="closeActions"
     />
 
     <!-- 加载更多 -->

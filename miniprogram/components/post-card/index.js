@@ -39,6 +39,11 @@ Component({
   methods: {
     noop() {},
 
+    /** 点击空白区域 → 通知父页面收起滑出面板 */
+    onBlankTap() {
+      this.triggerEvent('blanktap');
+    },
+
     onLike() {
       this.triggerEvent('like', { postId: this.data.post.id });
     },

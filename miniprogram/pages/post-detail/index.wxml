@@ -5,7 +5,7 @@
   </view>
 
   <!-- 帖子（复用 post-card 组件） -->
-  <scroll-view class="detail-scroll" scroll-y enhanced show-scrollbar="{{false}}" wx:if="{{!loading && post}}">
+  <scroll-view class="detail-scroll" scroll-y enhanced show-scrollbar="{{false}}" wx:if="{{!loading && post}}" bindtap="closeActions">
     <post-card
       post="{{post}}"
       currentUserId="{{currentUserId}}"
@@ -16,6 +16,7 @@
       bind:tapcomment="onPostTapComment"
       bind:previewimage="onPostPreviewImage"
       bind:delete="onPostDelete"
+      bind:blanktap="closeActions"
     />
   </scroll-view>
 

@@ -1,5 +1,5 @@
 <!-- post-card 组件 — 对齐 feed 流式布局 -->
-<view class="feed-post" data-post-id="{{post.id}}" catchtap="noop">
+<view class="feed-post" data-post-id="{{post.id}}" catchtap="onBlankTap">
   <view class="post-left">
     <image class="post-avatar" src="{{post.displayAvatar}}" mode="aspectFill"></image>
   </view>
