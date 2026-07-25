@@ -1,53 +1,57 @@
-<!-- post-card 帖子卡片组件 -->
-<view class="post-card">
-  <!-- 顶部：用户头像 + 昵称 + 发布时间 + 删除 -->
-  <view class="post-header">
-    <image class="avatar" src="{{post.user.avatar}}" mode="aspectFill"></image>
-    <view class="user-info">
-      <text class="nickname">{{post.user.nickname}}</text>
-      <text class="create-time">{{post.createdAt}}</text>
-    </view>
-    <view class="header-actions">
-      <text class="delete-icon" wx:if="{{post.user.id === currentUserId}}" bind:tap="onDeletePost">×</text>
-    </view>
+<!-- post-card 组件 — 对齐 feed 流式布局 -->
+<view class="feed-post" data-post-id="{{post.id}}" catchtap="noop">
+  <view class="post-left">
+    <image class="post-avatar" src="{{post.displayAvatar}}" mode="aspectFill"></image>
   </view>
-
-  <!-- 正文内容 -->
-  <view class="post-content">{{post.content}}</view>
-
-  <!-- 图片网格（条件渲染） -->
-  <image-grid
-    wx:if="{{post.images && post.images.length}}"
-    images="{{post.images}}"
-    bind:preview="onPreviewImage"
-  />
-
-  <!-- 底部操作栏 -->
-  <view class="post-actions">
-    <like-button
-      postId="{{post.id}}"
-      liked="{{post.liked}}"
-      count="{{post.likeCount}}"
-      bind:change="onLikeChange"
-    />
-    <view class="comment-entry" bind:tap="onCommentTap">
-      <text>{{post.commentCount}} 条评论</text>
+  <view class="post-right">
+    <view class="feed-header">
+      <text class="feed-user">{{post.user.nickname}}</text>
     </view>
-  </view>
 
-  <!-- 点赞用户名单展开区 -->
-  <view wx:if="{{likedUsers.length > 0}}" class="liked-users">
-    <text class="liked-label">❤️ {{likedUsers.join('、')}}</text>
-  </view>
+    <view class="feed-body">{{post.content}}</view>
 
-  <!-- 评论列表区 -->
-  <view wx:if="{{post.comments && post.comments.length > 0}}" class="comment-list">
-    <view wx:for="{{post.comments}}" wx:key="id" class="comment-item">
-      <!-- 格式：作者：内容 或 作者 回复 被回复者：内容 -->
-      <text class="comment-author">{{item.user.nickname}}</text>
-      <text wx:if="{{item.replyTo}}" class="comment-reply-to"> 回复 {{item.replyTo.nickname}}</text>
-      <text class="comment-colon">：</text>
-      <text class="comment-content">{{item.content}}</text>
+    <!-- 图片网格 -->
+    <view class="feed-images count-{{post.images.length}}" wx:if="{{post.images && post.images.length > 0}}">
+      <image wx:for="{{post.displayImages}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" catchtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}"></image>
+    </view>
+
+    <!-- 操作栏 -->
+    <view class="feed-actions {{actionOpenId === 'fa-' + post.id ? 'open' : ''}}" id="fa-{{post.id}}" catchtap="noop">
+      <view class="action-left">
+        <text>{{post.displayTime}}</text>
+        <text class="delete-icon" wx:if="{{post.user.id === currentUserId}}" catchtap="onDelete">删除</text>
+      </view>
+      <view class="action-slide">
+        <view class="slide-btn {{post.liked ? 'liked' : ''}}" catchtap="onLike">
+          <image class="slide-icon" src="{{post.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
+          <text>{{post.liked ? '取消点赞' : '点赞'}}</text>
+        </view>
+        <view class="slide-btn" catchtap="onComment">
+          <image class="slide-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
+          <text>评论</text>
+        </view>
+      </view>
+      <text class="action-dots" catchtap="onToggleActions" data-fa-id="fa-{{post.id}}">⋯</text>
+    </view>
+
+    <!-- 点赞名单 -->
+    <view class="likers-row" wx:if="{{post.likers && post.likers.length > 0}}" catchtap="noop">
+      <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
+      <text class="likers-text">{{post.likersText}}</text>
+    </view>
+
+    <!-- 评论预览 -->
+    <view class="comment-preview" wx:if="{{post.displayComments && post.displayComments.length > 0}}" catchtap="noop">
+      <view class="comment-inline" wx:for="{{post.displayComments}}" wx:for-item="comment" wx:key="id" catchtap="onTapComment" data-postid="{{post.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}">
+        <view class="ci-body">
+          <text class="ci-author">{{comment.user.nickname}}</text>
+          <text wx:if="{{!comment.reply_to}}">：</text>
+          <text wx:if="{{comment.reply_to}}" class="ci-reply">回复</text>
+          <text wx:if="{{comment.reply_to}}" class="ci-author">{{comment.reply_to.nickname}}</text>
+          <text wx:if="{{comment.reply_to}}" class="ci-reply">：</text>
+          <text class="ci-text">{{comment.content}}</text>
+        </view>
+      </view>
     </view>
   </view>
 </view>

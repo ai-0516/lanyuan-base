@@ -1,7 +1,5 @@
 {
-  "navigationBarTitleText": "帖子详情",
   "usingComponents": {
     "post-card": "../../components/post-card/index"
-  },
-  "disableScroll": false
+  }
 }

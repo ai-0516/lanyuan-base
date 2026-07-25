@@ -1,21 +1,19 @@
-// 帖子详情页 — 和 feed 页完全一致的交互方式
+// 帖子详情页 — 和 feed 页完全一致的交互（区别：只显示一个帖子）
 const { request } = require('../../utils/request');
-const { fullUrl } = require('../../utils/constants');
 
 Page({
   data: {
     loading: true,
     post: null,
-    /** 当前打开的滑出面板（空=关闭） */
+    /** 滑出面板（详情页只有一个帖子，但组件需要此 prop） */
     actionOpenId: '',
-    /** 评论弹窗是否打开 */
+    /** 评论弹窗 */
     commentSheetOpen: false,
     commentText: '',
     canSend: false,
-    /** 回复目标 */
     replyToId: null,
     replyToName: '',
-    currentUserId: null,
+    currentUserId: 0,
   },
 
   onLoad(options) {
@@ -26,7 +24,7 @@ Page({
     }
     this.postId = parseInt(postId, 10);
     const userInfo = wx.getStorageSync('userInfo') || {};
-    this.setData({ currentUserId: userInfo.id || null });
+    this.setData({ currentUserId: userInfo.id || 0 });
     this.loadPost();
   },
 
@@ -34,19 +32,6 @@ Page({
     this.setData({ loading: true });
     try {
       const post = await request('GET', `/posts/${this.postId}`);
-      post.displayTime = this._formatTime(post.created_at);
-      post.displayAvatar = fullUrl(post.user.avatar);
-      if (post.images && post.images.length > 0) {
-        post.displayImages = post.images.map(img => fullUrl(img));
-      }
-      if (post.comments && post.comments.length > 0) {
-        post.displayComments = post.comments.map(cm => ({
-          ...cm,
-          displayTime: this._formatTime(cm.created_at),
-          displayAvatar: fullUrl(cm.user.avatar),
-        }));
-      }
-      post.likersText = (post.likers || []).map(l => l.nickname).join('，') + ' 觉得很赞';
       this.setData({ post, loading: false });
     } catch (err) {
       console.error('加载帖子失败', err);
@@ -55,60 +40,90 @@ Page({
     }
   },
 
-  /** 图片预览 */
-  previewImage(e) {
-    const { current, urls } = e.currentTarget.dataset;
-    wx.previewImage({
-      current: fullUrl(current),
-      urls: (urls || []).map(u => fullUrl(u)),
-    });
-  },
+  /* ===== post-card 组件事件 ===== */
 
-  /** ── 滑出面板 ── */
-
-  noop() {},
-
-  toggleActions(e) {
-    const faId = e.currentTarget.dataset.faId;
+  onPostToggleActions(e) {
+    const { faId } = e.detail;
     this.setData({
       actionOpenId: this.data.actionOpenId === faId ? '' : faId,
     });
   },
 
-  closeActions() {
-    this.setData({ actionOpenId: '' });
+  onPostLike(e) {
+    const { postId } = e.detail;
+    this._toggleLike(postId);
   },
 
-  /** ── 点赞 ── */
+  onPostComment(e) {
+    const { postId } = e.detail;
+    this._openCommentSheet(postId);
+  },
 
-  async toggleLike(e) {
+  onPostTapComment(e) {
+    const { postId, cid, cuid, cname } = e.detail;
+    if (cuid === this.data.currentUserId) {
+      wx.showActionSheet({
+        itemList: ['删除'],
+        success: (res) => {
+          if (res.tapIndex === 0) this.deleteComment(cid);
+        },
+      });
+    } else {
+      this._openCommentSheet(postId);
+      this.setData({ replyToId: cid, replyToName: cname });
+    }
+  },
+
+  onPostPreviewImage(e) {
+    const { current, urls } = e.detail;
+    if (urls && urls.length > 0) {
+      wx.previewImage({ urls, current });
+    }
+  },
+
+  onPostDelete(e) {
+    const { postId } = e.detail;
+    this._deletePost(postId);
+  },
+
+  /* ===== 业务逻辑 ===== */
+
+  async _toggleLike(postId) {
     const post = this.data.post;
-    if (!post) return;
+    if (!post || post.id !== postId) return;
     const liked = !post.liked;
-    const newLikers = liked
-      ? (post.likers || []).concat([{ id: this.data.currentUserId, nickname: '' }])
-      : (post.likers || []).filter(l => l.id !== this.data.currentUserId);
+    const userInfo = wx.getStorageSync('userInfo') || {};
+    const currentNickname = userInfo.nickname || '';
+    let newLikers = [...(post.likers || [])];
+    if (liked) {
+      if (currentNickname && !newLikers.find(l => l.nickname === currentNickname)) {
+        newLikers.push({ id: userInfo.id || 0, nickname: currentNickname });
+      }
+    } else {
+      newLikers = newLikers.filter(l => l.nickname !== currentNickname);
+    }
     this.setData({
       'post.liked': liked,
       'post.likers': newLikers,
-      'post.likersText': newLikers.map(l => l.nickname || '').filter(Boolean).join('，') + ' 觉得很赞',
+      'post.likersText': newLikers.map(l => l.nickname).filter(Boolean).join('，'),
     });
     try {
-      const res = await request('POST', `/posts/${post.id}/like`);
-      this.setData({
-        'post.liked': res.liked,
-      });
-      // 重新加载获取最新的 likers
-      this.loadPost();
+      const res = await request('POST', '/posts/' + postId + '/like');
+      // 用服务端返回修正
+      this.setData({ 'post.liked': res.liked });
     } catch (err) {
       this.loadPost();
     }
   },
 
-  /** ── 评论弹窗 ── */
-
-  openCommentSheet() {
-    this.setData({ commentSheetOpen: true, actionOpenId: '' });
+  _openCommentSheet(postId) {
+    this.setData({
+      commentSheetOpen: true,
+      commentText: '',
+      canSend: false,
+      replyToId: null,
+      replyToName: '',
+    });
   },
 
   closeCommentSheet() {
@@ -121,17 +136,6 @@ Page({
     });
   },
 
-  onTapComment(e) {
-    const { cid, cuid, cname } = e.currentTarget.dataset;
-    if (cuid === this.data.currentUserId) return;
-    this.setData({
-      replyToId: cid,
-      replyToName: cname,
-      commentSheetOpen: true,
-      actionOpenId: '',
-    });
-  },
-
   onCommentInput(e) {
     const val = e.detail.value;
     this.setData({ commentText: val, canSend: val.trim().length > 0 });
@@ -139,13 +143,11 @@ Page({
 
   async sendComment() {
     const text = this.data.commentText.trim();
-    if (!text) return;
-    const payload = { content: text };
-    if (this.data.replyToId) {
-      payload.parent_comment_id = this.data.replyToId;
-    }
+    if (!text || !this.data.canSend) return;
     try {
-      await request('POST', `/posts/${this.postId}/comments`, payload);
+      const payload = { content: text };
+      if (this.data.replyToId) payload.parent_comment_id = this.data.replyToId;
+      await request('POST', '/posts/' + this.postId + '/comments', payload);
       this.closeCommentSheet();
       this.loadPost();
     } catch (err) {
@@ -154,29 +156,37 @@ Page({
     }
   },
 
-  _formatTime(timestamp) {
-    if (!timestamp) return '';
-    const utcStr = typeof timestamp === 'string' && !timestamp.endsWith('Z') && !timestamp.includes('+')
-      ? timestamp + 'Z' : timestamp;
-    const date = new Date(utcStr);
-    const now = new Date();
-    const diff = now - date;
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-    if (date.toDateString() === now.toDateString()) {
-      const h = String(date.getHours()).padStart(2, '0');
-      const m = String(date.getMinutes()).padStart(2, '0');
-      return `${h}:${m}`;
+  async _deletePost(postId) {
+    try {
+      await new Promise((resolve, reject) => {
+        wx.showModal({
+          title: '确认删除',
+          content: '删除后无法恢复',
+          success: (res) => res.confirm ? resolve() : reject('cancel'),
+          fail: reject,
+        });
+      });
+    } catch {
+      return;
     }
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) {
-      const h = String(date.getHours()).padStart(2, '0');
-      const m = String(date.getMinutes()).padStart(2, '0');
-      return `昨天 ${h}:${m}`;
+    try {
+      await request('DELETE', '/posts/' + postId);
+      wx.showToast({ title: '已删除', icon: 'success' });
+      wx.navigateBack();
+    } catch (err) {
+      console.error('删除失败', err);
+      wx.showToast({ title: '删除失败', icon: 'error' });
     }
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${month}-${day}`;
+  },
+
+  async deleteComment(commentId) {
+    try {
+      await request('DELETE', '/comments/' + commentId);
+      this.loadPost();
+      wx.showToast({ title: '已删除', icon: 'success' });
+    } catch (err) {
+      console.error('删除评论失败', err);
+      wx.showToast({ title: '删除失败', icon: 'error' });
+    }
   },
 });

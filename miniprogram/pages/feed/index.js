@@ -21,8 +21,8 @@ Page({
     actionOpenId: '',
     /** 评论弹窗是否打开 */
     commentSheetOpen: false,
-    /** 当前评论的帖子数据 */
-    commentSheetPost: null,
+    /** 当前评论的帖子 ID */
+    commentSheetPostId: null,
     /** 评论输入框文字 */
     commentText: '',
     /** 是否可以发送 */
@@ -31,84 +31,67 @@ Page({
     replyToId: null,
     /** 回复的目标用户昵称 */
     replyToName: '',
-    /** 当前用户头像 */
-    userAvatar: '',
+    /** 当前用户 ID */
+    currentUserId: 0,
   },
 
   onLoad() {
     this.loadPosts(true);
-    // 读取当前用户头像和 ID
     const userInfo = wx.getStorageSync('userInfo') || {};
-    if (userInfo.avatar) {
-      this.setData({ userAvatar: userInfo.avatar });
-    }
     if (userInfo.id) {
       this.setData({ currentUserId: userInfo.id });
     }
   },
 
-  /** 每次页面显示时刷新（从发布页切回时包含最新帖子） */
+  /** 每次页面显示时静默刷新第一页 */
   onShow() {
-    const posts = this.data.posts;
-    if (posts.length > 0) {
-      // 已有数据时静默刷新第一页
+    if (this.data.posts.length > 0) {
       this.loadPosts(true);
     }
   },
 
-  /** 格式化时间（传入 ISO 字符串，返回相对时间或日期） */
+  /* ===== 工具方法 ===== */
+
   formatTime(dateStr) {
     if (!dateStr) return '';
-    // 补 Z 标记为 UTC（后端 func.now() 返回不带时区）
     const utcStr = typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.includes('+')
       ? dateStr + 'Z' : dateStr;
     const date = new Date(utcStr);
     const now = Date.now();
     const diff = now - date.getTime();
-
     const minute = 60 * 1000;
     const hour = 60 * minute;
     const day = 24 * hour;
-
-    if (diff < minute) {
-      return '刚刚';
-    } else if (diff < hour) {
-      return Math.floor(diff / minute) + '分钟前';
-    } else if (diff < day) {
-      return Math.floor(diff / hour) + '小时前';
-    } else if (diff < 7 * day) {
-      return Math.floor(diff / day) + '天前';
-    } else {
-      const m = (date.getMonth() + 1).toString().padStart(2, '0');
-      const d = date.getDate().toString().padStart(2, '0');
-      return m + '/' + d;
-    }
+    if (diff < minute) return '刚刚';
+    if (diff < hour) return Math.floor(diff / minute) + '分钟前';
+    if (diff < day) return Math.floor(diff / hour) + '小时前';
+    if (diff < 7 * day) return Math.floor(diff / day) + '天前';
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return m + '/' + d;
   },
 
-  /** 获取点赞者文本（逗号分隔昵称） */
   getLikersText(likers) {
     if (!likers || likers.length === 0) return '';
     return likers.map(item => item.nickname).join('，');
   },
 
-  /** 加载帖子列表 */
+  /* ===== 数据加载 ===== */
+
   async loadPosts(reset = false) {
     const page = reset ? 1 : this.data.page;
     const size = this.data.pageSize;
-
     try {
       const result = await request('GET', '/posts?page=' + page + '&size=' + size);
-
       const newPosts = (result.items || result.records || result || []).map(post => ({
         ...post,
         like_count: (post.likers || []).length,
         comment_count: (post.comments || []).length,
         displayComments: post.comments || [],
-        likersText: (post.likers || []).map(l => l.nickname).join('，'),
+        likersText: this.getLikersText(post.likers),
         displayTime: this.formatTime(post.created_at),
         displayAvatar: post.user?.avatar || `https://i.pravatar.cc/80?img=${(post.user?.id || 1) % 70}`,
       }));
-
       this.setData({
         posts: reset ? newPosts : [...this.data.posts, ...newPosts],
         page: reset ? 2 : page + 1,
@@ -120,133 +103,140 @@ Page({
     } catch (err) {
       console.error('加载帖子失败:', err);
       wx.showToast({ title: '加载失败', icon: 'none' });
-      this.setData({
-        loading: false,
-        loadingMore: false,
-        refresherTriggered: false,
-      });
+      this.setData({ loading: false, loadingMore: false, refresherTriggered: false });
     }
   },
 
-  /** 下拉刷新 */
   onPullDownRefresh() {
     this.setData({ refresherTriggered: true });
     this.loadPosts(true);
   },
 
-  /** 上拉加载更多 */
   onLoadMore() {
     if (this.data.loadingMore || !this.data.hasMore) return;
     this.setData({ loadingMore: true });
     this.loadPosts(false);
   },
 
-  /** 切换三点菜单（点击 dots 时滑出/收起操作面板） */
-  toggleActions(e) {
-    const faId = e.currentTarget.dataset.faId;
-    // 如果已打开同一点击收起，否则打开并关闭其他
+  /* ===== post-card 组件事件处理 ===== */
+
+  /** 点赞 */
+  onPostLike(e) {
+    const { postId } = e.detail;
+    this._toggleLike(postId);
+  },
+
+  /** 三点菜单切换滑出面板 */
+  onPostToggleActions(e) {
+    const { faId } = e.detail;
     this.setData({
       actionOpenId: this.data.actionOpenId === faId ? '' : faId,
     });
   },
 
-  /** 关闭所有滑出面板（点击帖子空白区域触发） */
-  closeActions() {
-    if (this.data.actionOpenId) {
-      this.setData({ actionOpenId: '' });
+  /** 打开评论弹窗 */
+  onPostComment(e) {
+    const { postId } = e.detail;
+    this._openCommentSheet(postId);
+  },
+
+  /** 点击评论 */
+  onPostTapComment(e) {
+    const { postId, cid, cuid, cname } = e.detail;
+    if (cuid === this.data.currentUserId) {
+      wx.showActionSheet({
+        itemList: ['删除'],
+        success: (res) => {
+          if (res.tapIndex === 0) this.deleteComment(cid);
+        },
+      });
+    } else {
+      this._openCommentSheet(postId);
+      this.setData({ replyToId: cid, replyToName: cname });
     }
   },
 
-  /** 空函数：阻止事件冒泡 */
-  noop() {},
+  /** 图片预览 */
+  onPostPreviewImage(e) {
+    const { current, urls } = e.detail;
+    if (urls && urls.length > 0) {
+      wx.previewImage({ urls, current });
+    }
+  },
+
+  /** 删除帖子 */
+  onPostDelete(e) {
+    const { postId } = e.detail;
+    this._deletePost(postId);
+  },
+
+  /* ===== 业务逻辑（内部方法） ===== */
 
   /** 点赞/取消点赞 */
-  async toggleLike(e) {
-    const postId = e.currentTarget.dataset.postId;
-    // 关闭当前滑出面板
-    const faId = e.currentTarget.dataset.faId;
-    if (faId && this.data.actionOpenId === faId) {
-      this.setData({ actionOpenId: '' });
-    }
+  async _toggleLike(postId) {
+    this.setData({ actionOpenId: '' });
     const posts = [...this.data.posts];
     const index = posts.findIndex(p => p.id === postId);
     if (index === -1) return;
-
     const post = posts[index];
     const liked = !post.liked;
     const userInfo = wx.getStorageSync('userInfo') || {};
     const currentNickname = userInfo.nickname || '';
 
     try {
-      // 乐观更新：切换 liked 状态，同时更新 likers 名单
       let newLikers = [...(post.likers || [])];
       if (liked) {
-        // 点赞 → 添加当前用户到列表
         if (currentNickname && !newLikers.find(l => l.nickname === currentNickname)) {
           newLikers.push({ id: userInfo.id || 0, nickname: currentNickname, avatar: userInfo.avatar || '' });
         }
       } else {
-        // 取消赞 → 从列表移除
         newLikers = newLikers.filter(l => l.nickname !== currentNickname);
       }
-
       posts[index] = {
         ...post,
         liked,
         like_count: liked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1),
         likers: newLikers,
-        likersText: newLikers.map(l => l.nickname).join('，'),
+        likersText: this.getLikersText(newLikers),
       };
       this.setData({ posts });
-
       await request('POST', '/posts/' + postId + '/like');
     } catch (err) {
-      // 回滚
       posts[index] = post;
       this.setData({ posts });
       wx.showToast({ title: '操作失败', icon: 'none' });
     }
   },
 
-  /** 打开图片预览 */
-  openLightbox(e) {
-    const { images, index } = e.currentTarget.dataset;
-    if (images && images.length > 0) {
-      wx.previewImage({ urls: images, current: images[index || 0] });
-    }
-  },
-
   /** 打开评论弹窗 */
-  async openCommentSheet(e) {
-    const postId = e.currentTarget.dataset.postId;
-    // 从帖子列表中找到对应帖子
+  _openCommentSheet(postId) {
+    this.setData({ actionOpenId: '' });
     const post = this.data.posts.find(p => p.id === postId);
     if (!post) return;
-
-    // 关闭三点菜单
-    this.setData({ actionOpenId: '' });
-
-    // 准备弹窗数据：所有评论加上 displayTime
     const allComments = (post.comments || []).map(c => ({
       ...c,
       displayTime: this.formatTime(c.created_at),
     }));
-
     this.setData({
       commentSheetOpen: true,
-      commentSheetPost: {
-        id: post.id,
-        nickname: post.user?.nickname || '',
-        allComments,
-      },
+      commentSheetPostId: postId,
       commentText: '',
       canSend: false,
+      replyToId: null,
+      replyToName: '',
     });
   },
 
   /** 关闭评论弹窗 */
   closeCommentSheet() {
-    this.setData({ commentSheetOpen: false, commentSheetPost: null, commentText: '', canSend: false, replyToId: null, replyToName: '' });
+    this.setData({
+      commentSheetOpen: false,
+      commentSheetPostId: null,
+      commentText: '',
+      canSend: false,
+      replyToId: null,
+      replyToName: '',
+    });
   },
 
   /** 评论输入 */
@@ -255,25 +245,68 @@ Page({
     this.setData({ commentText: val, canSend: val.trim().length > 0 });
   },
 
-  /** 点击评论 */
-  onTapComment(e) {
-    const { cid, cuid, cname, postid } = e.currentTarget.dataset;
-    const userInfo = wx.getStorageSync('userInfo') || {};
-    const currentUserId = userInfo.id;
+  /** 发送评论 */
+  async sendComment() {
+    const text = this.data.commentText.trim();
+    if (!text || !this.data.commentSheetPostId || !this.data.canSend) return;
+    const postId = this.data.commentSheetPostId;
+    this.setData({ commentText: '' });
+    try {
+      const payload = { content: text };
+      if (this.data.replyToId) payload.parent_comment_id = this.data.replyToId;
+      const newComment = await request('POST', '/posts/' + postId + '/comments', payload);
+      const userInfo = wx.getStorageSync('userInfo') || {};
+      const commentObj = {
+        id: newComment.id || Date.now(),
+        user: { id: userInfo.id, nickname: userInfo.nickname || '我', avatar: userInfo.avatar || '' },
+        content: text,
+        reply_to: this.data.replyToId ? { nickname: this.data.replyToName } : null,
+        created_at: new Date().toISOString(),
+        displayTime: '刚刚',
+      };
+      const posts = [...this.data.posts];
+      const pIndex = posts.findIndex(p => p.id === postId);
+      if (pIndex !== -1) {
+        const oldPost = posts[pIndex];
+        const updatedComments = [...(oldPost.comments || []), commentObj];
+        posts[pIndex] = {
+          ...oldPost,
+          comments: updatedComments,
+          comment_count: (oldPost.comment_count || 0) + 1,
+          displayComments: updatedComments,
+        };
+      }
+      this.setData({ posts });
+      this.closeCommentSheet();
+      wx.showToast({ title: '发送成功', icon: 'success' });
+    } catch (err) {
+      console.error('发送评论失败', err);
+      wx.showToast({ title: '发送失败', icon: 'error' });
+      this.setData({ commentText: text });
+    }
+  },
 
-    if (cuid === currentUserId) {
-      // 自己的评论 → 删除
-      wx.showActionSheet({
-        itemList: ['删除'],
-        success: (res) => {
-          if (res.tapIndex === 0) this.deleteComment(cid);
-        },
-        fail: () => {},
+  /** 删除帖子 */
+  async _deletePost(postId) {
+    try {
+      await new Promise((resolve, reject) => {
+        wx.showModal({
+          title: '确认删除',
+          content: '删除后无法恢复',
+          success: (res) => res.confirm ? resolve() : reject('cancel'),
+          fail: reject,
+        });
       });
-    } else {
-      // 别人的评论 → 直接打开评论输入框，标记为回复
-      this.openCommentSheet({ currentTarget: { dataset: { postId: postid } } });
-      this.setData({ replyToId: cid, replyToName: cname });
+    } catch {
+      return;
+    }
+    try {
+      await request('DELETE', '/posts/' + postId);
+      this.setData({ posts: this.data.posts.filter(p => p.id !== postId) });
+      wx.showToast({ title: '已删除', icon: 'success' });
+    } catch (err) {
+      console.error('删除失败', err);
+      wx.showToast({ title: '删除失败', icon: 'error' });
     }
   },
 
@@ -281,8 +314,6 @@ Page({
   async deleteComment(commentId) {
     try {
       await request('DELETE', '/comments/' + commentId);
-      
-      // 从所有帖子中移除该评论
       const posts = [...this.data.posts];
       for (let i = 0; i < posts.length; i++) {
         const post = posts[i];
@@ -297,7 +328,6 @@ Page({
           break;
         }
       }
-      
       this.setData({ posts });
       wx.showToast({ title: '已删除', icon: 'success' });
     } catch (err) {
@@ -306,93 +336,10 @@ Page({
     }
   },
 
-  /** 发送评论 */
-  async sendComment() {
-    const text = this.data.commentText.trim();
-    if (!text || !this.data.commentSheetPost || !this.data.canSend) return;
-
-    const postId = this.data.commentSheetPost.id;
-    const parentCommentId = this.data.replyToId;
-    this.setData({ commentText: '' });
-
-    try {
-      const payload = { content: text };
-      if (parentCommentId) payload.parent_comment_id = parentCommentId;
-
-      const newComment = await request('POST', '/posts/' + postId + '/comments', payload);
-
-      // 构建新评论对象
-      const userInfo = wx.getStorageSync('userInfo') || {};
-      const commentObj = {
-        id: newComment.id || Date.now(),
-        user: { id: userInfo.id, nickname: userInfo.nickname || '我', avatar: userInfo.avatar || '' },
-        content: text,
-        reply_to: parentCommentId ? { nickname: this.data.replyToName } : null,
-        created_at: new Date().toISOString(),
-        displayTime: '刚刚',
-      };
-
-      // 更新弹窗内评论列表
-      const post = this.data.commentSheetPost;
-      const updatedAllComments = [...(post.allComments || []), commentObj];
-      const updatedPost = { ...post, allComments: updatedAllComments };
-
-      // 更新帖子列表中的评论数据
-      const posts = [...this.data.posts];
-      const pIndex = posts.findIndex(p => p.id === postId);
-      if (pIndex !== -1) {
-        const oldPost = posts[pIndex];
-        const updatedComments = [...(oldPost.comments || []), commentObj];
-        posts[pIndex] = {
-          ...oldPost,
-          comments: updatedComments,
-          comment_count: (oldPost.comment_count || 0) + 1,
-          displayComments: updatedComments,
-        };
-      }
-
-      this.setData({
-        commentSheetPost: updatedPost,
-        posts,
-        commentText: '',
-        canSend: false,
-      });
-
-      // 发送成功后关闭弹窗
-      this.closeCommentSheet();
-
-      wx.showToast({ title: '发送成功', icon: 'success' });
-    } catch (err) {
-      console.error('发送评论失败', err);
-      wx.showToast({ title: '发送失败', icon: 'error' });
-      this.setData({ commentText: text }); // 恢复输入文字
-    }
-  },
-
-  /** 删除帖子 */
-  async onDeletePost(e) {
-    const postId = e.currentTarget.dataset.postId;
-    try {
-      await new Promise((resolve, reject) => {
-        wx.showModal({
-          title: '确认删除',
-          content: '删除后无法恢复',
-          success: (res) => res.confirm ? resolve() : reject('cancel'),
-          fail: reject,
-        });
-      });
-    } catch {
-      return; // 取消
-    }
-    try {
-      await request('DELETE', '/posts/' + postId);
-      this.setData({
-        posts: this.data.posts.filter(p => p.id !== postId),
-      });
-      wx.showToast({ title: '已删除', icon: 'success' });
-    } catch (err) {
-      console.error('删除失败', err);
-      wx.showToast({ title: '删除失败', icon: 'error' });
+  /** 关闭所有滑出面板 */
+  closeActions() {
+    if (this.data.actionOpenId) {
+      this.setData({ actionOpenId: '' });
     }
   },
 
@@ -404,17 +351,5 @@ Page({
   /** 跳转通知页 */
   goToNotifications() {
     wx.navigateTo({ url: '/pages/notifications/index' });
-  },
-
-  /** 跳转个人主页 */
-  goToProfile(e) {
-    const userId = e.currentTarget.dataset.userId;
-    wx.navigateTo({ url: '/pages/profile/index?userId=' + userId });
-  },
-
-  /** 查看帖子详情 */
-  viewPost(e) {
-    const postId = e.currentTarget.dataset.postId;
-    wx.navigateTo({ url: '/pages/post-detail/index?postId=' + postId });
   },
 });

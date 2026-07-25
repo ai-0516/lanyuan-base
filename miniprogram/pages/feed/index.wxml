@@ -14,65 +14,19 @@
   </view>
 
   <!-- 帖子列表 -->
-  <view class="post-list" wx:if="{{posts.length > 0}}">
-    <view class="feed-post" wx:for="{{posts}}" wx:key="id" data-post-id="{{item.id}}" bindtap="closeActions">
-      <!-- 帖子头部 -->
-      <view class="post-left">
-        <image class="post-avatar" src="{{item.displayAvatar}}" mode="aspectFill" bindtap="goToProfile" data-user-id="{{item.user.id}}"></image>
-      </view>
-      <view class="post-right">
-        <view class="feed-header">
-          <text class="feed-user">{{item.user.nickname}}</text>
-        </view>
-
-        <!-- 帖子正文 -->
-        <view class="feed-body">{{item.content}}</view>
-
-        <!-- 图片网格 -->
-        <view class="feed-images count-{{item.images.length}}" wx:if="{{item.images && item.images.length > 0}}">
-          <image wx:for="{{item.images}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" bindtap="openLightbox" data-images="{{item.images}}" data-index="{{index}}"></image>
-        </view>
-
-        <!-- 操作栏 -->
-        <view class="feed-actions {{actionOpenId === 'fa-' + item.id ? 'open' : ''}}" id="fa-{{item.id}}" catchtap="noop">
-          <view class="action-left">
-            <text>{{item.displayTime}}</text>
-            <text class="delete-icon" wx:if="{{item.user.id === currentUserId}}" bindtap="onDeletePost" data-post-id="{{item.id}}" catchtap>删除</text>
-          </view>
-          <view class="action-slide">
-            <view class="slide-btn {{item.liked ? 'liked' : ''}}" bindtap="toggleLike" data-post-id="{{item.id}}" data-fa-id="fa-{{item.id}}">
-              <image class="slide-icon" src="{{item.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
-              <text>{{item.liked ? '取消点赞' : '点赞'}}</text>
-            </view>
-            <view class="slide-btn" bindtap="openCommentSheet" data-post-id="{{item.id}}" data-comment-count="{{item.comment_count}}">
-              <image class="slide-icon" src="/images/comment-icon.png" mode="aspectFit"></image>
-              <text>评论</text>
-            </view>
-          </view>
-          <text class="action-dots" bindtap="toggleActions" data-fa-id="fa-{{item.id}}">⋯</text>
-        </view>
-
-        <!-- 点赞用户名单 -->
-        <view class="likers-row" wx:if="{{item.likers && item.likers.length > 0}}">
-          <image class="like-icon-small" src="/images/liked-icon.png" mode="aspectFit"></image>
-          <text class="likers-text">{{item.likersText}}</text>
-        </view>
-
-        <!-- 评论预览 -->
-        <view class="comment-preview" wx:if="{{item.displayComments && item.displayComments.length > 0}}">
-          <view class="comment-inline" wx:for="{{item.displayComments}}" wx:for-item="comment" wx:key="id" bindtap="onTapComment" data-postid="{{item.id}}" data-cid="{{comment.id}}" data-cuid="{{comment.user.id}}" data-cname="{{comment.user.nickname}}">
-            <view class="ci-body">
-              <text class="ci-author">{{comment.user.nickname}}</text>
-              <text wx:if="{{!comment.reply_to}}">：</text>
-              <text wx:if="{{comment.reply_to}}" class="ci-reply">回复</text>
-              <text wx:if="{{comment.reply_to}}" class="ci-author">{{comment.reply_to.nickname}}</text>
-              <text wx:if="{{comment.reply_to}}" class="ci-reply">：</text>
-              <text class="ci-text">{{comment.content}}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-    </view>
+  <view class="post-list" wx:if="{{posts.length > 0}}" bindtap="closeActions">
+    <post-card
+      wx:for="{{posts}}" wx:key="id"
+      post="{{item}}"
+      currentUserId="{{currentUserId}}"
+      actionOpenId="{{actionOpenId}}"
+      bind:like="onPostLike"
+      bind:toggleactions="onPostToggleActions"
+      bind:comment="onPostComment"
+      bind:tapcomment="onPostTapComment"
+      bind:previewimage="onPostPreviewImage"
+      bind:delete="onPostDelete"
+    />
 
     <!-- 加载更多 -->
     <view class="load-more" wx:if="{{loadingMore}}">
