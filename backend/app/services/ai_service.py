@@ -6,14 +6,13 @@
 - 保持与现有 API（ai.py）和测试的兼容性
 
 harness 模块：
-  session.py   — 会话创建/查找/复用/归属校验
+  storage.py   — 会话与消息的存储操作（创建/校验/持久化）
   context.py   — 上下文窗口（历史消息 + System Prompt 组装）
-  message.py   — 消息持久化（用户/AI 消息入库、会话时间刷新）
   streaming.py — DeepSeek API 客户端 + 模拟回复
 """
 
 from app.config import settings
-from app.harness import context as ctx, message as msg, session, streaming
+from app.harness import context as ctx, storage, streaming
 from app.models.conversation import Message
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -26,7 +25,7 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
     - 没有则新建
     - 返回 session_id + 历史消息
     """
-    conv = await session.get_or_create(db, user_id)
+    conv = await storage.get_or_create(db, user_id)
     recent_messages = await ctx.get_recent_messages(db, conv.id)
 
     return SessionResponse(
@@ -61,13 +60,13 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
       ("error", msg)      — 错误提示
     """
     # ── Step 1: 归属校验 ──
-    conv = await session.verify_ownership(db, session_id, user_id)
+    conv = await storage.verify_ownership(db, session_id, user_id)
     if conv is None:
         yield ("error", "会话不存在或无权限访问")
         return
 
     # ── Step 2: 保存用户消息 ──
-    await msg.save_user_message(db, session_id, message)
+    await storage.save_user_message(db, session_id, message)
 
     # ── Step 3: 获取历史上下文 ──
     history = await ctx.get_recent_messages(db, session_id)
@@ -85,12 +84,12 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             yield (event, data)
     except Exception as e:
         error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
-        await msg.save_assistant_message(db, session_id, error_reply)
-        await msg.touch_conversation(db, session_id)
+        await storage.save_assistant_message(db, session_id, error_reply)
+        await storage.touch_conversation(db, session_id)
         yield ("error", error_reply)
         return
 
     # ── Step 6: 保存 AI 回复 + 刷新会话 ──
     if full_reply:
-        await msg.save_assistant_message(db, session_id, full_reply)
-        await msg.touch_conversation(db, session_id)
+        await storage.save_assistant_message(db, session_id, full_reply)
+        await storage.touch_conversation(db, session_id)
