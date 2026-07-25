@@ -10,9 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Message
 
-# 作为 DeepSeek 上下文的消息数
-CONTEXT_LIMIT = 20
-
 # System Prompt — 决定 AI 的角色和行为
 SYSTEM_PROMPT = (
     "你是兰园社区助手，帮助小区业主解答供暖、停车等小区生活问题。"
@@ -26,23 +23,18 @@ SYSTEM_PROMPT = (
 async def get_recent_messages(
     db: AsyncSession,
     conversation_id: int,
-    limit: int = CONTEXT_LIMIT,
 ) -> list[Message]:
-    """获取会话中最近 N 条消息（按时间正序）
+    """获取会话全部消息（按时间正序）
 
-    先按 created_at DESC 取最新 N 条，再反转回正序，
-    确保 build_deepseek_messages 按时间顺序组装上下文。
+    全部消息都发给 LLM，不截断。上下文压缩由专门的模块（如 session 旋转）处理。
     """
     stmt = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at.desc(), Message.id.desc())
-        .limit(limit)
+        .order_by(Message.created_at.asc(), Message.id.asc())
     )
     result = await db.execute(stmt)
-    msgs = list(result.scalars().all())
-    msgs.reverse()  # 反转回正序
-    return msgs
+    return list(result.scalars().all())
 
 
 def build_deepseek_messages(

@@ -628,8 +628,8 @@ class TestAISession:
 
         assert session.session_id == session_id
 
-    async def test_return_recent_20_messages(self):
-        """复用会话时返回最近 20 条消息"""
+    async def test_return_all_messages(self):
+        """复用会话时返回全部历史消息，不截断"""
         uid = await _create_user()
         async with async_session_factory() as db:
             from app.models.conversation import Conversation, Message
@@ -645,10 +645,10 @@ class TestAISession:
         async with async_session_factory() as db:
             session = await get_or_create_session(db, uid)
 
-        assert len(session.messages) <= 20
-        # 返回最近 20 条（msg5~msg24），按时间正序排列
+        # 返回全部 25 条消息，不截断
+        assert len(session.messages) == 25
+        assert session.messages[0].content == "msg0"
         assert session.messages[-1].content == "msg24"
-        assert session.messages[0].content == "msg5"
 
     async def test_session_per_user_isolation(self):
         """不同用户会话隔离"""
