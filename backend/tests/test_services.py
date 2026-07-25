@@ -646,8 +646,9 @@ class TestAISession:
             session = await get_or_create_session(db, uid)
 
         assert len(session.messages) <= 20
-        # 返回最早 20 条（msg0~msg19）
-        assert session.messages[-1].content == "msg19"
+        # 返回最近 20 条（msg5~msg24），按时间正序排列
+        assert session.messages[-1].content == "msg24"
+        assert session.messages[0].content == "msg5"
 
     async def test_session_per_user_isolation(self):
         """不同用户会话隔离"""

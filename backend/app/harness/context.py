@@ -17,7 +17,9 @@ CONTEXT_LIMIT = 20
 SYSTEM_PROMPT = (
     "你是兰园社区助手，帮助小区业主解答供暖、停车等小区生活问题。"
     "请用温暖亲切的语气回复。"
-    "当用户需要发布帖子时，使用 create_post 工具。"
+    "当用户需要发布帖子时，你必须调用 create_post 工具来真正发布，"
+    "不能只回复一段「已发布」的文字。记住：用户看不到帖子内容，"
+    "只有你调用工具才能真正发出去。"
 )
 
 
@@ -26,20 +28,21 @@ async def get_recent_messages(
     conversation_id: int,
     limit: int = CONTEXT_LIMIT,
 ) -> list[Message]:
-    """获取会话中最早 N 条消息（按 created_at ASC）
+    """获取会话中最近 N 条消息（按时间正序）
 
-    注：limit 取最早 N 条，不是最近 N 条。
-    因为消息按正序插入，limit 20 取的是最早 20 轮对话。
-    后续可优化为滑动窗口。
+    先按 created_at DESC 取最新 N 条，再反转回正序，
+    确保 build_deepseek_messages 按时间顺序组装上下文。
     """
     stmt = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at.asc())
+        .order_by(Message.created_at.desc(), Message.id.desc())
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    msgs = list(result.scalars().all())
+    msgs.reverse()  # 反转回正序
+    return msgs
 
 
 def build_deepseek_messages(
