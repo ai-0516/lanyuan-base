@@ -140,4 +140,19 @@ harness/
 
 ## 讨论区
 
-（从这里开始讨论——你想从哪一步切入？）
+### 2026-07-25: Context 压缩策略
+
+**问题**：对话长了以后需要压缩上下文，压缩后的消息怎么维护？
+
+**参考 Hermes Agent 的做法**（`conversation_compression.py`）：
+- 压缩前：session_id = "abc"，messages 全在 DB
+- 压缩中：调辅助模型生成摘要，创建新 session（"def"）
+- 压缩后：session_id = "def"，messages = [摘要, tail]
+- 旧 session "abc" 保留原始消息，可追溯
+- **AIAgent 实例不持有压缩状态**，只当 session_id 指针
+
+**对我们的启示**：
+- 新建 session 比 inject 摘要消息更合理
+- 旧 session 作为原始记录保留，方便 debug/审计/RAG
+- AIAgent 轻量（只持有 user_id + session_id），不缓存任何消息内容
+- 所有状态在 MySQL，压缩只是"换一个 session_id 指针"
