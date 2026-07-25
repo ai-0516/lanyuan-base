@@ -590,3 +590,208 @@ class TestEdgeCases:
             result = await comment_service.get_post_comments(db, pid)
         # 孤儿评论被跳过，结果为空
         assert all(r.user is not None for r in result)
+
+
+# ═══════════════════════════════════════════
+#  ai_service 测试
+# ═══════════════════════════════════════════
+
+class TestAISession:
+    """AI 会话管理"""
+
+    async def test_create_new_session(self):
+        """首次进入 AI → 创建新会话"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            session = await get_or_create_session(db, uid)
+            await db.commit()
+
+        assert session.session_id > 0
+        assert session.messages == []
+
+    async def test_reuse_existing_session(self):
+        """再次进入 AI → 复用最近会话"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.models.conversation import Conversation
+            s1 = Conversation(user_id=uid, title="")
+            db.add(s1)
+            await db.flush()
+            session_id = s1.id
+            await db.commit()
+
+        from app.services.ai_service import get_or_create_session
+        async with async_session_factory() as db:
+            session = await get_or_create_session(db, uid)
+            await db.commit()
+
+        assert session.session_id == session_id
+
+    async def test_return_recent_20_messages(self):
+        """复用会话时返回最近 20 条消息"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.models.conversation import Conversation, Message
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            cid = conv.id
+            for i in range(25):
+                db.add(Message(conversation_id=cid, role="user", content=f"msg{i}"))
+            await db.commit()
+
+        from app.services.ai_service import get_or_create_session
+        async with async_session_factory() as db:
+            session = await get_or_create_session(db, uid)
+
+        assert len(session.messages) <= 20
+        # 返回最早 20 条（msg0~msg19）
+        assert session.messages[-1].content == "msg19"
+
+    async def test_session_per_user_isolation(self):
+        """不同用户会话隔离"""
+        uid1 = await _create_user("A", "a_openid")
+        uid2 = await _create_user("B", "b_openid")
+
+        async with async_session_factory() as db:
+            from app.models.conversation import Conversation
+            db.add(Conversation(user_id=uid1, title=""))
+            await db.commit()
+
+        from app.services.ai_service import get_or_create_session
+        async with async_session_factory() as db:
+            s1 = await get_or_create_session(db, uid1)
+            s2 = await get_or_create_session(db, uid2)
+            await db.commit()
+
+        # A 复用了已有会话
+        assert s1.session_id > 0
+        # B 是新会话
+        assert s2.session_id > 0
+        assert s1.session_id != s2.session_id
+
+
+class TestAIStreamChat:
+    """AI 流式聊天"""
+
+    async def test_invalid_session_returns_error(self):
+        """不属于当前用户的 session → error 事件"""
+        uid1 = await _create_user("A", "a_s")
+        uid2 = await _create_user("B", "b_s")
+
+        async with async_session_factory() as db:
+            from app.models.conversation import Conversation
+            conv = Conversation(user_id=uid1, title="")
+            db.add(conv)
+            await db.flush()
+            sid = conv.id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            events = []
+            async for event, content in stream_chat(db, uid2, sid, "你好"):
+                events.append((event, content))
+            await db.commit()
+
+        assert len(events) == 1
+        assert events[0][0] == "error"
+
+    async def test_saves_user_message(self):
+        """用户消息存入 messages 表"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            session = await get_or_create_session(db, uid)
+            sid = session.session_id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "你好"):
+                pass
+            await db.commit()
+
+        from app.models.conversation import Message
+        from sqlalchemy import select
+        async with async_session_factory() as db:
+            msgs = (await db.execute(
+                select(Message).where(Message.conversation_id == sid)
+            )).scalars().all()
+
+        assert len(msgs) == 2  # 用户消息 + AI 回复
+        assert msgs[0].role == "user"
+        assert msgs[0].content == "你好"
+
+    async def test_mock_reply_without_api_key(self):
+        """无 DEEPSEEK_API_KEY 时返回模拟回复"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            session = await get_or_create_session(db, uid)
+            sid = session.session_id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            events = []
+            async for event, content in stream_chat(db, uid, sid, "暖气温控"):
+                events.append((event, content))
+            await db.commit()
+
+        # token → done
+        assert len(events) == 2
+        assert events[0][0] == "token"
+        assert "暖气温控" in str(events[0][1])
+        assert events[1][0] == "done"
+
+    async def test_saves_assistant_reply(self):
+        """AI 回复存入 messages 表"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            session = await get_or_create_session(db, uid)
+            sid = session.session_id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "测试"):
+                pass
+            await db.commit()
+
+        from app.models.conversation import Message
+        from sqlalchemy import select
+        async with async_session_factory() as db:
+            msgs = (await db.execute(
+                select(Message).where(Message.conversation_id == sid)
+                    .order_by(Message.created_at.asc())
+            )).scalars().all()
+
+        assert len(msgs) == 2
+        assert msgs[1].role == "assistant"
+        assert len(msgs[1].content) > 0
+
+    async def test_conversation_updated_at_refreshed(self):
+        """发送消息后会话 updated_at 刷新"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            session = await get_or_create_session(db, uid)
+            sid = session.session_id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "你好"):
+                pass
+            await db.commit()
+
+        from app.models.conversation import Conversation
+        from sqlalchemy import select
+        async with async_session_factory() as db:
+            conv = (await db.execute(
+                select(Conversation).where(Conversation.id == sid)
+            )).scalar_one()
+        assert conv.updated_at is not None
