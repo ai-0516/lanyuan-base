@@ -2,10 +2,37 @@
 
 > **创建**: 2026-07-25 | **作者**: Dev  
 > **关联**: `docs/PRD.md` US-05, `docs/TECH_SPEC.md` §2.4 场景 B, `docs/design/v3-ai-chat.html`
+> **状态**: v1 已上线 → 计划重构为 `harness/` 模块化架构
 
 ---
 
-## 1. 架构总览
+## 0. 路线图
+
+### 当前（v1 — 单体实现）
+
+`backend/app/services/ai_service.py`（~186 行）把会话、流式、上下文、持久化混在一个文件里。能跑，但不好理解和扩展。
+
+### 目标（v2 — harness 模块化）
+
+参考 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) 的逐步搭建思路，把 `ai_service.py` 拆为 `backend/harness/` 目录下的独立模块：
+
+```
+backend/harness/
+├── session.py      # 会话管理（创建/查找/复用）
+├── context.py      # 上下文窗口（消息历史组装 + 裁剪策略）
+├── loop.py         # Agent Loop（while True + stop condition）
+├── tool_use.py     # 工具定义 + 分发映射表 TOOL_HANDLERS
+├── streaming.py    # SSE 收发抽象
+└── memory.py       # 消息持久化（数据库读写）
+```
+
+当前 `ai_service.py` 的代码分布在 4 个模块中已有实现（session、streaming、memory 的雏形、context 的硬编码 20 条），loop 层和 tool_use 层是新增的核心。
+
+> 详细讨论记录见 `docs/ai-harness-notes.md`
+
+---
+
+## 1. 架构总览（v1）
 
 ```
 ┌──────────────┐     POST /ai/chat (SSE)      ┌──────────────────┐
@@ -226,10 +253,13 @@ DEEPSEEK_MODEL=deepseek-chat           # 或 deepseek-reasoner
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 ```
 
-### 后续优化方向
+### 后续优化方向（已定稿）
 
-1. 引入 Redis 做消息滑动窗口（`LPUSH + LTRIM conversation:{id}`）
-2. 为业务方添加 tool definitions（查询暖气费、停车位等）
-3. 前端 `status` 事件处理（加载动画 + 打字机切换）
-4. SSE 数据跨 chunk 边界健壮性测试
-5. DeepSeek `deepseek-reasoner` 模型的思考链显示
+按 `docs/ai-harness-notes.md` 的讨论节奏，v2 的重构顺序：
+
+1. **抽取模块边界** — 从 `ai_service.py` 中拆出 `session.py`、`context.py`、`streaming.py`、`memory.py`
+2. **Agent Loop** — 实现 `loop.py`，明确 `while True` 的退出条件
+3. **Tool Use** — 第一个工具定义 + `TOOL_HANDLERS` 分发映射
+4. **Tool Result** — 工具结果回填 LLM
+5. **Permission** — 敏感操作的确认防护
+6. 后续依次 ...

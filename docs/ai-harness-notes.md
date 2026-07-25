@@ -5,7 +5,7 @@
 
 ---
 
-## 初始问题
+## 1. 初始问题
 
 通过实现这个 AI tab，我想理解的核心问题：
 
@@ -27,6 +27,115 @@
 
 ---
 
+## 2. 两条参考线
+
+### learn-claude-code（教学路线）
+
+https://github.com/shareAI-lab/learn-claude-code
+
+从零到完整 coding agent 的 20 个步骤，每个步骤一个独立文件：
+
+| 步骤 | 核心概念 | 一句话 |
+|------|---------|--------|
+| s01 | Agent Loop | `while True` + 工具调用 → 结果回填 → 继续 |
+| s02 | Tool Use | 从 1 个工具扩展到 N 个 + 分发映射表 |
+| s03 | Permission | 危险操作需要用户确认 |
+| s04 | Hooks | 工具执行前后的拦截点 |
+| s05 | Todo Write | 任务规划与追踪 |
+| s06 | Subagent | 子代理委派 |
+| s07 | Skill Loading | 经验复用 |
+| s08 | Context Compact | 上下文窗口撑爆时的压缩 |
+| s09 | Memory | 持久记忆 |
+| s10 | System Prompt | 系统提示工程 |
+| s11 | Error Recovery | 容错与重试 |
+| s12 | Task System | DAG 任务编排 |
+| s13 | Background Tasks | 后台任务 |
+| s14 | Cron Scheduler | 定时任务 |
+| s15 | Agent Teams | 多 Agent 协作 |
+| s16 | Team Protocols | 团队通信协议 |
+| s17 | Autonomous Agents | 自主运行模式 |
+| s18 | Worktree Isolation | 工作目录隔离 |
+| s19 | MCP Plugin | 外部工具集成 |
+| s20 | Comprehensive | 完整系统 |
+
+核心认知：**s01 的 30 行 `while True` 就是整个代码助手的内核。** 后面所有步骤都是在这个循环上叠加的保护和扩展机制。模型负责"要不要调工具、调哪个"，harness 负责"调了就跑、结果喂回去"。
+
+### Hermes Agent（生产参考）
+
+Hermes Agent 不是教学项目，它是在这个循环上叠加了完整的保护系统：
+- `agent/agent_runtime_helpers.py` — Agent 运行时基础设施
+- `agent/agent_init.py` — 初始化和配置加载
+- `run_agent.py` — 主入口
+
+关键差异（参考 learn-claude-code s01 README 的"深入 CC 源码"一节）：
+- 教学版看 `stop_reason == "tool_use"`；生产版看内容里有没有 `tool_use` 块（流式响应中 stop_reason 不可靠）
+- 教学版用 `messages` 一个数组；生产版用 `State` 对象 10 个字段追踪各种状态
+- 教学版 1 条退出路径；生产版多条退出/恢复路径（blocking limit、prompt too long、abort、hook stop、max turns...）
+- 教学版顺序执行工具；生产版可并行（根据工具 concurrency-safe 标记）
+
+---
+
+## 3. 差异：coding agent vs 社区 chatbot
+
+learn-claude-code 是 **coding agent** — 它的工具是 bash/read/write/edit，目标是写代码。
+
+我们的场景是 **社区 AI 助手** — 工具是查询暖气费、查帖子、通知等，目标是回答小区生活问题。
+
+共同点（harness 消除的差异）：
+
+| 维度 | Coding Agent | 社区 Chatbot |
+|------|-------------|-------------|
+| 对话 | 单轮任务为主 | 多轮持久对话 |
+| 工具 | 文件系统操作 | 数据库/API 查询 |
+| 上下文 | 整个项目文件 | 最近 N 条对话 |
+| 输出 | 代码 + 文件改动 | 自然语言 + SSE 流式 |
+| 安全 | 不能 rm -rf / | 不能查别人隐私数据 |
+| 退路 | 人工修复 | 模拟回复 |
+
+**harness 要做的是：把"从 LLM 到工具"这个模式抽象出来，不管工具背后是 bash 还是 SQL。**
+
+---
+
+## 4. 当前项目的 Harness 现状
+
+目前 AI tab 的 `ai_service.py`（~186 行）已经包含了：
+
+```
+POST /ai/session  → 查找/创建会话 + 返回历史 20 条
+POST /ai/chat     → 存用户消息 → 调 DeepSeek (SSE) → 逐 token 返回 → 存回复
+```
+
+但它把"Agent Loop"（调 LLM）、"Tool Dispatch"（尚无）、"Context Management"（硬编码 20 条）、"Session Management" 全部混在一个文件里。
+
+如果按 learn-claude-code 的模块化思路拆，可以拆成：
+
+```
+harness/
+├── session.py      # 会话创建/查找/复用（已实现，可提取）
+├── context.py      # 上下文窗口管理（目前硬编码 20 条）
+├── loop.py         # Agent Loop（while True + stop condition）
+├── tool_use.py     # 工具定义 + 分发映射（目前无工具）
+├── streaming.py    # SSE 转发（已实现，在 ai_service.py 混着）
+└── memory.py       # 消息持久化（已实现，在 ai_service.py 混着）
+```
+
+---
+
+## 5. 讨论计划
+
+你想按 learn-claude-code 的节奏一步步搭，每个模块讨论清楚再写代码。
+
+从当前 `ai_service.py` 的 186 行出发，可以按这个顺序演进：
+
+1. **抽取模块边界** — 把 session / loop / streaming / context / memory 拆开
+2. **Agent Loop** — 先不加工具，只做纯对话：`while True`（发消息 → DeepSeek 回复 → 是否调工具？→ 是则执行 → 继续；否则结束）
+3. **Tool Use** — 定义第一个工具（比如 `get_community_info`），实现 `TOOL_HANDLERS` 分发
+4. **Tool Result** — 把工具结果回填到 DeepSeek，让模型基于结果生成自然语言回复
+5. **Permission** — 敏感操作需要用户确认（比如查别人隐私数据）
+6. 依次类推...
+
+---
+
 ## 讨论区
 
-（空 — 等后面写入）
+（从这里开始讨论——你想从哪一步切入？）
