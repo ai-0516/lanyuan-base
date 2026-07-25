@@ -200,4 +200,23 @@ Page({
       wx.showToast({ title: '删除失败', icon: 'error' });
     }
   },
+
+  _formatTime(timestamp) {
+    if (!timestamp) return '';
+    const utcStr = typeof timestamp === 'string' && !timestamp.endsWith('Z') && !timestamp.includes('+')
+      ? timestamp + 'Z' : timestamp;
+    const date = new Date(utcStr);
+    const now = Date.now();
+    const diff = now - date.getTime();
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) return '刚刚';
+    if (diff < hour) return Math.floor(diff / minute) + '分钟前';
+    if (diff < day) return Math.floor(diff / hour) + '小时前';
+    if (diff < 7 * day) return Math.floor(diff / day) + '天前';
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return m + '/' + d;
+  },
 });
