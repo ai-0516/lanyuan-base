@@ -8,12 +8,12 @@
 harness 模块：
   session.py   — 会话创建/查找/复用/归属校验
   context.py   — 上下文窗口（历史消息 + System Prompt 组装）
-  memory.py    — 消息持久化（用户/AI 消息入库、会话时间刷新）
+  message.py   — 消息持久化（用户/AI 消息入库、会话时间刷新）
   streaming.py — DeepSeek API 客户端 + 模拟回复
 """
 
 from app.config import settings
-from app.harness import context, memory, session, streaming
+from app.harness import context as ctx, message as msg, session, streaming
 from app.models.conversation import Message
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -27,7 +27,7 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
     - 返回 session_id + 历史消息
     """
     conv = await session.get_or_create(db, user_id)
-    recent_messages = await context.get_recent_messages(db, conv.id)
+    recent_messages = await ctx.get_recent_messages(db, conv.id)
 
     return SessionResponse(
         session_id=conv.id,
@@ -67,11 +67,11 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
         return
 
     # ── Step 2: 保存用户消息 ──
-    await memory.save_user_message(db, session_id, message)
+    await msg.save_user_message(db, session_id, message)
 
     # ── Step 3: 获取历史上下文 ──
-    history = await context.get_recent_messages(db, session_id)
-    deepseek_messages = context.build_deepseek_messages(history, message)
+    history = await ctx.get_recent_messages(db, session_id)
+    deepseek_messages = ctx.build_deepseek_messages(history, message)
 
     # ── Step 4: 选择数据源 — 真实 API 或模拟模式 ──
     source = streaming.deepseek_chat if settings.DEEPSEEK_API_KEY else streaming.mock_chat
@@ -85,12 +85,12 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             yield (event, data)
     except Exception as e:
         error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
-        await memory.save_assistant_message(db, session_id, error_reply)
-        await memory.touch_conversation(db, session_id)
+        await msg.save_assistant_message(db, session_id, error_reply)
+        await msg.touch_conversation(db, session_id)
         yield ("error", error_reply)
         return
 
     # ── Step 6: 保存 AI 回复 + 刷新会话 ──
     if full_reply:
-        await memory.save_assistant_message(db, session_id, full_reply)
-        await memory.touch_conversation(db, session_id)
+        await msg.save_assistant_message(db, session_id, full_reply)
+        await msg.touch_conversation(db, session_id)
