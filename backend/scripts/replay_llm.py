@@ -117,7 +117,18 @@ def _replay(entry: dict, truncate: int | None = None):
         print("[error] 未找到 DEEPSEEK_API_KEY，无法重放")
         return
 
-    reconstructed = [{"role": m["role"], "content": m.get("content", "")} for m in msgs]
+    reconstructed = []
+    for m in msgs:
+        entry: dict = {"role": m["role"]}
+        if m["role"] == "tool":
+            entry["tool_call_id"] = m.get("tool_call_id", "")
+            entry["content"] = m.get("content", "")
+        elif m["role"] == "assistant" and m.get("tool_calls"):
+            entry["content"] = m.get("content") or None
+            entry["tool_calls"] = m["tool_calls"]
+        else:
+            entry["content"] = m.get("content", "")
+        reconstructed.append(entry)
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     print(f">>> 重放 {entry.get('id', '?')} → {model}")
