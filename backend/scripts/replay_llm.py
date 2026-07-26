@@ -101,21 +101,11 @@ def _replay(entry: dict):
         return
 
     import httpx
+    from app.config import settings
 
-    model = entry.get("model")
-    api_url = entry.get("api_url")
-
-    # 从 .env 加载 API Key
-    import os
-    _dotenv = os.path.join(os.path.dirname(__file__), "..", ".env")
-    if os.path.isfile(_dotenv):
-        with open(_dotenv) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
-    deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")
+    model = entry.get("model") or settings.DEEPSEEK_MODEL
+    api_url = entry.get("api_url") or f"{settings.DEEPSEEK_BASE_URL}/chat/completions"
+    deepseek_api_key = settings.DEEPSEEK_API_KEY
 
     if not deepseek_api_key:
         print("[error] 未找到 DEEPSEEK_API_KEY，无法重放")
