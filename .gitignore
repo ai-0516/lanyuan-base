@@ -26,5 +26,11 @@ backend/uploads/*
 .coverage
 htmlcov/
 
+# Logs
+backend/logs/
+
+# uv
+backend/uv.lock
+
 # Environment
 .env
