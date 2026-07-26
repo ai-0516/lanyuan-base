@@ -94,7 +94,7 @@ def _print_entry(entry: dict, verbose: bool = False):
 
 
 def _replay(entry: dict, truncate: int | None = None):
-    """重新发送 messages_sent 到 DeepSeek API（非流式，省 token）"""
+    """重放：Agent Loop（非流式，支持多轮工具调用）"""
     turns = entry.get("turns", [])
     msgs = turns[0].get("messages_sent", []) if turns else []
     tools = turns[0].get("tools_sent") if turns else None
@@ -118,58 +118,97 @@ def _replay(entry: dict, truncate: int | None = None):
         return
 
     reconstructed = [{"role": m["role"], "content": m.get("content", "")} for m in msgs]
-
-    request_body = {
-        "model": model,
-        "messages": reconstructed,
-        "stream": False,
-    }
-    if tools:
-        request_body["tools"] = tools
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     print(f">>> 重放 {entry.get('id', '?')} → {model}")
     label = f" (截取前 {truncate} 条)" if truncate else ""
     print(f">>> messages={len(reconstructed)}{label}, tools={'yes' if tools else 'no'}")
     print()
 
-    try:
-        resp = httpx.post(
-            api_url,
-            headers={
-                "Authorization": f"Bearer {deepseek_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=request_body,
-            timeout=60.0,
-        )
-    except Exception as e:
-        print(f"[error] API 请求失败: {e}")
-        return
+    max_turns = 10
+    turn = 0
+    for turn in range(max_turns):
+        request_body = {
+            "model": model,
+            "messages": reconstructed,
+            "stream": False,
+        }
+        if tools:
+            request_body["tools"] = tools
 
-    if resp.status_code != 200:
-        print(f"[error] API 返回 {resp.status_code}: {resp.text[:500]}")
-        return
+        try:
+            resp = httpx.post(
+                api_url,
+                headers={
+                    "Authorization": f"Bearer {deepseek_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=request_body,
+                timeout=60.0,
+            )
+        except Exception as e:
+            print(f"[error] API 请求失败: {e}")
+            return
 
-    data = resp.json()
-    choice = data.get("choices", [{}])[0]
-    finish = choice.get("finish_reason", "?")
-    msg = choice.get("message", {})
+        if resp.status_code != 200:
+            print(f"[error] API 返回 {resp.status_code}: {resp.text[:500]}")
+            return
 
-    print(f"  finish_reason: {finish}")
-    print(f"  content:       {msg.get('content', '')[:500]}")
-    if msg.get("tool_calls"):
-        print(f"  tool_calls:    {len(msg['tool_calls'])}")
-        for tc in msg["tool_calls"]:
-            name = tc.get("function", {}).get("name", "?")
-            args = tc.get("function", {}).get("arguments", "{}")
-            print(f"    → {name}({args[:200]})")
-    else:
-        print(f"  tool_calls:    0")
+        data = resp.json()
+        choice = data.get("choices", [{}])[0]
+        finish = choice.get("finish_reason", "?")
+        msg = choice.get("message", {})
+        content = msg.get("content", "")
+        tool_calls = msg.get("tool_calls")
+        usage = data.get("usage", {})
+        for k in total_usage:
+            total_usage[k] = total_usage.get(k, 0) + usage.get(k, 0)
 
-    usage = data.get("usage", {})
-    print(f"  usage:         {json.dumps(usage)}")
+        print(f"  [Turn {turn + 1}] finish_reason: {finish}  tokens: {usage.get('completion_tokens', '?')}")
+        if content:
+            print(f"  content: {content[:400]}")
+        if tool_calls:
+            print(f"  tool_calls: {len(tool_calls)}")
+            for tc in tool_calls:
+                name = tc.get("function", {}).get("name", "?")
+                args = tc.get("function", {}).get("arguments", "{}")
+                print(f"    → {name}({args[:200]})")
 
+        # 无工具调用 → 结束
+        if not tool_calls:
+            break
 
+        # 回填 assistant + tool 消息
+        reconstructed.append({
+            "role": "assistant",
+            "content": content or None,
+            "tool_calls": [dict(tc) for tc in tool_calls],
+        })
+        for tc in tool_calls:
+            tool_name = tc.get("function", {}).get("name", "?")
+            tool_args = tc.get("function", {}).get("arguments", "{}")
+            tool_id = tc.get("id", "")
+            # 模拟工具执行结果（不真正调 DB）
+            if tool_name == "create_post":
+                result = json.dumps({
+                    "success": True,
+                    "post_id": 999,
+                    "message": "帖子发布成功（重放模拟）",
+                }, ensure_ascii=False)
+            else:
+                result = json.dumps({
+                    "success": True,
+                    "message": f"工具 {tool_name} 执行成功（重放模拟）",
+                }, ensure_ascii=False)
+            reconstructed.append({
+                "role": "tool",
+                "tool_call_id": tool_id,
+                "content": result,
+            })
+            print(f"    ↳ result: {result[:120]}")
+        print()
+
+    print(f"  --- 总计 {turn + 1} 轮, total_tokens={total_usage}")
 def main():
     parser = argparse.ArgumentParser(description="LLM 请求重放工具")
     parser.add_argument("--id", help="请求 ID")
