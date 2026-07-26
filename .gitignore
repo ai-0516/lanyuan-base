@@ -6,6 +6,8 @@ venv/
 .venv/
 backend/.venv/
 *.db
+*.egg-info/
+*.egg
 
 # IDE
 .vscode/
