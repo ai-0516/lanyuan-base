@@ -73,6 +73,8 @@ class AIAgent:
             "duration_ms": round(duration * 1000),
             "session_id": self._log_meta.get("session_id"),
             "user_message": self._log_meta.get("user_message"),
+            "model": settings.DEEPSEEK_MODEL,
+            "api_url": f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
             "turns": self._log_turns,
             "error": self._error,
         }
