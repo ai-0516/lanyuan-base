@@ -101,31 +101,42 @@ def _replay(entry: dict):
         return
 
     import httpx
-    from app.config import settings
 
-    if not settings.DEEPSEEK_API_KEY:
-        print("[error] DEEPSEEK_API_KEY 未配置，无法重放")
+    model = entry.get("model")
+    api_url = entry.get("api_url")
+    if not model or not api_url:
+        # 旧日志没有 model/api_url 时 fallback 到 settings
+        from app.config import settings
+        model = model or settings.DEEPSEEK_MODEL
+        api_url = api_url or f"{settings.DEEPSEEK_BASE_URL}/chat/completions"
+        deepseek_api_key = settings.DEEPSEEK_API_KEY
+    else:
+        import os
+        deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")
+
+    if not deepseek_api_key:
+        print("[error] 未找到 DEEPSEEK_API_KEY，无法重放")
         return
 
     reconstructed = [{"role": m["role"], "content": m.get("content", "")} for m in msgs]
 
     request_body = {
-        "model": settings.DEEPSEEK_MODEL,
+        "model": model,
         "messages": reconstructed,
         "stream": False,
     }
     if tools:
         request_body["tools"] = tools
 
-    print(f">>> 重放 {entry.get('id', '?')} → {settings.DEEPSEEK_MODEL}")
+    print(f">>> 重放 {entry.get('id', '?')} → {model}")
     print(f">>> messages={len(reconstructed)}, tools={'yes' if tools else 'no'}")
     print()
 
     try:
         resp = httpx.post(
-            f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
+            api_url,
             headers={
-                "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+                "Authorization": f"Bearer {deepseek_api_key}",
                 "Content-Type": "application/json",
             },
             json=request_body,
