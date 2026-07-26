@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: lanyuan-base-backend
+Version: 0.1.0
+Summary: 兰园公共底座 - 后端
+Requires-Python: >=3.11
