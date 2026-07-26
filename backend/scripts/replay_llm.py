@@ -25,12 +25,10 @@ _LOG_DIR = "logs/llm-requests"
 
 
 def _find_log_files() -> list[str]:
-    """返回所有 JSONL 日志文件（按时间正序）"""
     return sorted(glob.glob(os.path.join(_LOG_DIR, "*.jsonl")))
 
 
 def _read_entries(files: list[str]) -> list[dict]:
-    """从日志文件中读取所有条目"""
     entries = []
     for f in files:
         with open(f, "r", encoding="utf-8") as fh:
@@ -45,7 +43,6 @@ def _read_entries(files: list[str]) -> list[dict]:
 
 
 def _print_entry(entry: dict, verbose: bool = False):
-    """打印一条日志条目"""
     rid = entry.get("id", "?")
     ts = entry.get("timestamp", "?")
     dur = entry.get("duration_ms", "?")
@@ -54,20 +51,12 @@ def _print_entry(entry: dict, verbose: bool = False):
     err = entry.get("error")
     turns = entry.get("turns", [])
 
-    # 新格式：从最后一轮取响应数据
-    # 旧格式：直接从 response 字段取
-    if turns:
-        last = turns[-1]
-        finish = last.get("finish_reason", "?")
-        tokens = last.get("tokens", "?")
-        tool_calls = last.get("tool_calls", [])
-        content = last.get("content", "")
-    else:
-        resp = entry.get("response", {})
-        finish = resp.get("finish_reason", "?")
-        tokens = resp.get("tokens", "?")
-        tool_calls = resp.get("tool_calls", [])
-        content = resp.get("content", "")
+    # 从最后一轮取响应数据
+    last = turns[-1] if turns else {}
+    finish = last.get("finish_reason", "?")
+    tokens = last.get("tokens", "?")
+    tool_calls = last.get("tool_calls", [])
+    content = last.get("content", "")
 
     print(f"── {rid} ─────────────────────────────────")
     print(f"  Time:       {ts}")
@@ -88,12 +77,7 @@ def _print_entry(entry: dict, verbose: bool = False):
         print(f"  Reply:      {content[:300]}")
 
     if verbose or err:
-        # 新格式：从 turns 拿 messages_sent
-        if turns:
-            msgs = turns[0].get("messages_sent", [])
-        # 旧格式：直接从顶层拿
-        else:
-            msgs = entry.get("messages_sent", [])
+        msgs = turns[0].get("messages_sent", []) if turns else []
         print(f"  Messages:   {len(msgs)}")
         for i, m in enumerate(msgs):
             role = m.get("role", "?")
@@ -106,15 +90,8 @@ def _print_entry(entry: dict, verbose: bool = False):
 def _replay(entry: dict):
     """重新发送 messages_sent 到 DeepSeek API（非流式，省 token）"""
     turns = entry.get("turns", [])
-
-    # 新格式：从 turns 拿
-    if turns:
-        # 把所有轮次的 messages 拼起来发给 LLM（重放第一轮的原始输入）
-        msgs = turns[0].get("messages_sent", [])
-        tools = turns[0].get("tools_sent")
-    else:
-        msgs = entry.get("messages_sent", [])
-        tools = entry.get("tools_sent")
+    msgs = turns[0].get("messages_sent", []) if turns else []
+    tools = turns[0].get("tools_sent") if turns else None
 
     if not msgs:
         print("[error] 没有 messages_sent 数据，无法重放")
@@ -127,18 +104,12 @@ def _replay(entry: dict):
         print("[error] DEEPSEEK_API_KEY 未配置，无法重放")
         return
 
-    # 重建原始消息（截断的用占位符替换）
-    reconstructed = []
-    for m in msgs:
-        content = m.get("content", "")
-        if "(len=" in content and ", truncated)" in content:
-            content = content  # 保留截断标记，但至少能看到前半部分
-        reconstructed.append({"role": m["role"], "content": content})
+    reconstructed = [{"role": m["role"], "content": m.get("content", "")} for m in msgs]
 
     request_body = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": reconstructed,
-        "stream": False,  # 非流式，直接看完整结果
+        "stream": False,
     }
     if tools:
         request_body["tools"] = tools
@@ -204,14 +175,12 @@ def main():
         print("[info] 日志中没有有效条目")
         return
 
-    # 按 session 过滤
     if args.session is not None:
         entries = [e for e in entries if e.get("session_id") == args.session]
         if not entries:
             print(f"[info] 没有 session_id={args.session} 的记录")
             return
 
-    # 按 ID 查找
     target = None
     if args.id:
         for e in entries:
@@ -220,7 +189,6 @@ def main():
                 break
         if target is None:
             print(f"[error] 未找到请求 ID: {args.id}")
-            # 显示最近的 ID 列表
             print(f"\n最近的请求 ID（共 {len(entries)} 条）:")
             for e in entries[-10:]:
                 print(f"  {e.get('id')}  |  session={e.get('session_id')}  |  {e.get('timestamp', '?')[:19]}")
@@ -231,15 +199,14 @@ def main():
             _replay(target)
         return
 
-    # 默认：显示最近 N 条摘要
     n = min(args.latest, len(entries))
     print(f"最近的 {n} 条 LLM 请求（共 {len(entries)} 条）:\n")
     for e in entries[-n:]:
         _print_entry(e, verbose=args.verbose)
 
     print("---")
-    print(f"提示: 用 --id <请求ID> 查看详情并重放")
-    print(f"      用 --session <session_id> 过滤特定会话")
+    print("提示: 用 --id <请求ID> 查看详情并重放")
+    print("      用 --session <session_id> 过滤特定会话")
 
 
 if __name__ == "__main__":
