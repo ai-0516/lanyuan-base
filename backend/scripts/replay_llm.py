@@ -2,17 +2,17 @@
 """LLM 请求重放工具
 
 用法：
-  # 查看最近 N 条请求
-  uv run python scripts/replay_llm.py --latest 5
+  # 查看最近 N 条请求（默认，不调 API）
+  replay-llm --latest 5
 
-  # 按请求 ID 查看详情（不调 API）
-  uv run python scripts/replay_llm.py --id req_20260726_123000_abc123 --dry-run
+  # 按请求 ID 查看详情 + messages_sent
+  replay-llm --id req_20260726_123000_abc123 --verbose
 
-  # 按请求 ID 重放（再次调 DeepSeek API）
-  uv run python scripts/replay_llm.py --id req_20260726_123000_abc123
+  # 按请求 ID 真正调 API 重放
+  replay-llm --id req_20260726_123000_abc123 --replay
 
   # 按 session_id 搜索
-  uv run python scripts/replay_llm.py --session 42 --latest 3
+  replay-llm --session 42 --latest 3
 """
 
 import argparse
@@ -51,7 +51,6 @@ def _print_entry(entry: dict, verbose: bool = False):
     err = entry.get("error")
     turns = entry.get("turns", [])
 
-    # 从最后一轮取响应数据
     last = turns[-1] if turns else {}
     finish = last.get("finish_reason", "?")
     tokens = last.get("tokens", "?")
@@ -161,7 +160,7 @@ def main():
     parser.add_argument("--id", help="请求 ID")
     parser.add_argument("--latest", type=int, default=5, help="显示最近 N 条")
     parser.add_argument("--session", type=int, help="按 session_id 过滤")
-    parser.add_argument("--dry-run", action="store_true", help="只查看，不调 API")
+    parser.add_argument("--replay", action="store_true", help="真正调 DeepSeek API 重放（默认不调）")
     parser.add_argument("--verbose", "-v", action="store_true", help="显示完整 messages_sent")
     args = parser.parse_args()
 
@@ -195,7 +194,7 @@ def main():
             return
 
         _print_entry(target, verbose=args.verbose)
-        if not args.dry_run:
+        if args.replay:
             _replay(target)
         return
 
@@ -205,8 +204,9 @@ def main():
         _print_entry(e, verbose=args.verbose)
 
     print("---")
-    print("提示: 用 --id <请求ID> 查看详情并重放")
-    print("      用 --session <session_id> 过滤特定会话")
+    print("提示: replay-llm --id <请求ID>            # 查看详情")
+    print("      replay-llm --id <请求ID> --replay   # 重放调 API")
+    print("      replay-llm --session <ID> --latest 3  # 按 session 筛")
 
 
 if __name__ == "__main__":

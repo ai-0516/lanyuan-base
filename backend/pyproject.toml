@@ -1,0 +1,11 @@
+[project]
+name = "lanyuan-base-backend"
+version = "0.1.0"
+description = "兰园公共底座 - 后端"
+requires-python = ">=3.11"
+
+[project.scripts]
+replay-llm = "scripts.replay_llm:main"
+
+[tool.uv]
+dev-dependencies = ["pytest>=8"]
