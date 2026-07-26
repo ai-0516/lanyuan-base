@@ -31,7 +31,7 @@ class AIAgent:
         self.tools = tools
         self.tool_executor = tool_executor
 
-    async def run(self, messages: list[dict], db=None, user_id=None):
+    async def run(self, messages: list[dict], db=None, user_id=None, meta=None):
         """Agent Loop
 
         产出 (event, data) 元组：
@@ -47,6 +47,8 @@ class AIAgent:
             kw = {}
             if self.tools and settings.DEEPSEEK_API_KEY:
                 kw["tools"] = self.tools
+            if meta and settings.DEEPSEEK_API_KEY:
+                kw["meta"] = meta
 
             tool_calls = []
             full_reply = ""

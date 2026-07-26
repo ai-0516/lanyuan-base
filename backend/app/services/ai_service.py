@@ -48,7 +48,12 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
     full_reply = ""
     try:
-        async for event, data in agent.run(deepseek_messages, db=db, user_id=user_id):
+        async for event, data in agent.run(
+            deepseek_messages,
+            db=db,
+            user_id=user_id,
+            meta={"session_id": session_id, "user_message": message},
+        ):
             if event == "token":
                 full_reply += data
             yield (event, data)
