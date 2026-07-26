@@ -11,6 +11,9 @@
   # 按请求 ID 真正调 API 重放
   replay-llm --id req_20260726_123000_abc123 --replay
 
+  # 只取前 19 条 message 重放（复现第 18 条助手成功调工具的场景）
+  replay-llm --id req_20260726_123000_abc123 --replay --truncate 19
+
   # 按 session_id 搜索
   replay-llm --session 42 --latest 3
 """
@@ -90,11 +93,14 @@ def _print_entry(entry: dict, verbose: bool = False):
     print()
 
 
-def _replay(entry: dict):
+def _replay(entry: dict, truncate: int | None = None):
     """重新发送 messages_sent 到 DeepSeek API（非流式，省 token）"""
     turns = entry.get("turns", [])
     msgs = turns[0].get("messages_sent", []) if turns else []
     tools = turns[0].get("tools_sent") if turns else None
+
+    if truncate is not None:
+        msgs = msgs[:truncate]
 
     if not msgs:
         print("[error] 没有 messages_sent 数据，无法重放")
@@ -122,7 +128,8 @@ def _replay(entry: dict):
         request_body["tools"] = tools
 
     print(f">>> 重放 {entry.get('id', '?')} → {model}")
-    print(f">>> messages={len(reconstructed)}, tools={'yes' if tools else 'no'}")
+    label = f" (截取前 {truncate} 条)" if truncate else ""
+    print(f">>> messages={len(reconstructed)}{label}, tools={'yes' if tools else 'no'}")
     print()
 
     try:
@@ -169,6 +176,7 @@ def main():
     parser.add_argument("--latest", type=int, default=5, help="显示最近 N 条")
     parser.add_argument("--session", type=int, help="按 session_id 过滤")
     parser.add_argument("--replay", action="store_true", help="真正调 DeepSeek API 重放（默认不调）")
+    parser.add_argument("--truncate", type=int, help="只取前 N 条 message 重放")
     parser.add_argument("--verbose", "-v", action="store_true", help="显示完整 messages_sent")
     args = parser.parse_args()
 
@@ -203,7 +211,7 @@ def main():
 
         _print_entry(target, verbose=args.verbose)
         if args.replay:
-            _replay(target)
+            _replay(target, truncate=args.truncate)
         return
 
     n = min(args.latest, len(entries))
@@ -212,9 +220,10 @@ def main():
         _print_entry(e, verbose=args.verbose)
 
     print("---")
-    print("提示: replay-llm --id <请求ID>            # 查看详情")
-    print("      replay-llm --id <请求ID> --replay   # 重放调 API")
-    print("      replay-llm --session <ID> --latest 3  # 按 session 筛")
+    print("提示: replay-llm --id <请求ID>              # 查看详情")
+    print("      replay-llm --id <请求ID> --replay     # 重放调 API")
+    print("      replay-llm --id <ID> --replay --truncate 19  # 截取前19条重放")
+    print("      replay-llm --session <ID> --latest 3    # 按 session 筛")
 
 
 if __name__ == "__main__":
