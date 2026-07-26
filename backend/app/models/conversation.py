@@ -1,6 +1,6 @@
 """AI 对话模型"""
 
-from sqlalchemy import Column, DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 
 from app.core.database import Base
 
@@ -20,6 +20,8 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(Integer, nullable=False, index=True)
-    role = Column(Enum("user", "assistant", name="message_role"), nullable=False)
-    content = Column(Text, nullable=False)
+    role = Column(String(20), nullable=False, index=True)
+    content = Column(Text, nullable=True)
+    tool_calls = Column(Text, nullable=True)
+    tool_call_id = Column(String(100), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

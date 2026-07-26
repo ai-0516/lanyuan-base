@@ -55,7 +55,6 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 4. Agent Loop（含工具调用） ──
     agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
-    full_reply = ""
     try:
         async for event, data in agent.run(
             deepseek_messages,
@@ -63,8 +62,6 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             user_id=user_id,
             meta={"session_id": session_id, "user_message": message},
         ):
-            if event == "token":
-                full_reply += data
             yield (event, data)
     except Exception as e:
         error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
@@ -73,9 +70,30 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
         yield ("error", error_reply)
         return
 
-    # ── 5. 持久化 ──
-    if full_reply:
-        await session.save_assistant_message(db, session_id, full_reply)
+    # ── 5. 持久化：从 agent log 回填真实 tool_call 结构 ──
+    log = agent.get_log()
+    if log.get("turns"):
+        for turn in log["turns"]:
+            tc = turn.get("tool_calls", [])
+            if tc:
+                # 保存 assistant tool_call 消息（含真实 tool_calls 结构）
+                await session.save_tool_call_message(
+                    db, session_id, tc,
+                    content=turn.get("content") or None,
+                )
+                # 保存 tool 执行结果
+                for tr in turn.get("tool_results", []):
+                    await session.save_tool_result_message(
+                        db, session_id,
+                        tool_call_id=tr.get("tool_call_id", ""),
+                        content=tr.get("result", ""),
+                    )
+            else:
+                # 纯文本回复
+                if turn.get("content"):
+                    await session.save_assistant_message(
+                        db, session_id, turn["content"],
+                    )
         await session.touch_conversation(db, session_id)
 
     # ── 6. 写 LLM 请求日志（完整轮次，一条记录） ──

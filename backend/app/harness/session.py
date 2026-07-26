@@ -60,8 +60,45 @@ async def save_user_message(db: AsyncSession, conversation_id: int, content: str
 
 
 async def save_assistant_message(db: AsyncSession, conversation_id: int, content: str) -> Message:
-    """保存 AI 回复"""
+    """保存 AI 回复（纯文本）"""
     msg = Message(conversation_id=conversation_id, role="assistant", content=content)
+    db.add(msg)
+    await db.flush()
+    return msg
+
+
+async def save_tool_call_message(
+    db: AsyncSession,
+    conversation_id: int,
+    tool_calls: list[dict],
+    content: str | None = None,
+) -> Message:
+    """保存 assistant 消息（含 tool_calls 结构）"""
+    import json
+    msg = Message(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=content,
+        tool_calls=json.dumps(tool_calls, ensure_ascii=False),
+    )
+    db.add(msg)
+    await db.flush()
+    return msg
+
+
+async def save_tool_result_message(
+    db: AsyncSession,
+    conversation_id: int,
+    tool_call_id: str,
+    content: str,
+) -> Message:
+    """保存 tool 执行结果消息"""
+    msg = Message(
+        conversation_id=conversation_id,
+        role="tool",
+        content=content,
+        tool_call_id=tool_call_id,
+    )
     db.add(msg)
     await db.flush()
     return msg

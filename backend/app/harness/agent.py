@@ -167,6 +167,7 @@ class AIAgent:
                 })
                 turn_log["tool_results"].append({
                     "tool": tool_name,
+                    "tool_call_id": tc.get("id", ""),
                     "result": result,
                 })
 

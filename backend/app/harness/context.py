@@ -43,9 +43,21 @@ def build_deepseek_messages(
 ) -> list[dict]:
     """组装 DeepSeek 请求的 messages 数组
 
-    System Prompt 在最前，历史消息在中间，当前用户消息在最后。
+    System Prompt 在最前，历史消息在中间。
+    用户消息在上一步已写入 DB，因此已包含在 history 中。
+    user_message 参数保留用于未来扩展。
     """
+    import json
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
     for m in history:
-        messages.append({"role": m.role, "content": m.content})
+        entry: dict = {"role": m.role}
+        if m.role == "tool":
+            entry["tool_call_id"] = m.tool_call_id
+            entry["content"] = m.content
+        elif m.role == "assistant" and m.tool_calls:
+            entry["content"] = m.content or None
+            entry["tool_calls"] = json.loads(m.tool_calls)
+        else:
+            entry["content"] = m.content
+        messages.append(entry)
     return messages
