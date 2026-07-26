@@ -4,14 +4,10 @@
 - 模拟回复（无 API Key 时的 fallback）
 - DeepSeek API 的 HTTP SSE 请求，支持工具调用
 - 逐 token 产出 (event, data) 元组
-- LLM 请求/响应日志（用于调试复现）
 """
 
 import json
 import logging
-import os
-import secrets
-from datetime import datetime, timezone
 
 import httpx
 
@@ -24,40 +20,6 @@ MOCK_REPLY_TEMPLATE = (
     "（当前为模拟模式，未配置 DeepSeek API Key。"
     "请在后端环境变量中设置 DEEPSEEK_API_KEY 以启用真实 AI 对话。）"
 )
-
-# ── LLM 请求日志 ──────────────────────────────────
-
-_LOG_DIR = "logs/llm-requests"
-
-
-def _log_path() -> str:
-    """获取今天的 JSONL 日志文件路径"""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return os.path.join(_LOG_DIR, f"{today}.jsonl")
-
-
-def _gen_req_id() -> str:
-    now = datetime.now(timezone.utc)
-    ts = now.strftime("%Y%m%d_%H%M%S")
-    rand = secrets.token_hex(3)
-    return f"req_{ts}_{rand}"
-
-
-def _write_log_entry(entry: dict):
-    """追写一行 JSON 到日志文件（原子操作：一次 write + flush）"""
-    path = _log_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line)
-        f.flush()
-
-
-def _truncate_str(s: str, max_len: int) -> str:
-    """截断长字符串用于日志，保留前后可读性"""
-    if len(s) <= max_len:
-        return s
-    return s[:max_len] + f"...(len={len(s)}, truncated)"
 
 
 async def mock_chat(messages: list[dict]):
@@ -90,12 +52,7 @@ def _merge_tool_call(
         accumulator[index]["function"]["arguments"] += tc["function"]["arguments"]
 
 
-async def deepseek_chat(
-    messages: list[dict],
-    tools: list[dict] | None = None,
-    *,
-    meta: dict | None = None,
-):
+async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
     """调用 DeepSeek API（SSE 流式），支持工具调用
 
     产出 (event, data) 元组序列：
@@ -104,14 +61,6 @@ async def deepseek_chat(
     - ("done", "") — 流正常结束（无工具调用时）
     - ("error", msg) — 发生错误
     """
-    req_id = _gen_req_id()
-    start_time = datetime.now(timezone.utc)
-    accumulated_content = ""
-    error_msg: str | None = None
-    tool_call_accumulator: dict[int, dict] = {}
-    finish_reason: str | None = None
-    token_count = 0
-
     try:
         request_body = {
             "model": settings.DEEPSEEK_MODEL,
@@ -122,8 +71,7 @@ async def deepseek_chat(
             request_body["tools"] = tools
 
         logger.info(
-            "LLM request: id=%s model=%s messages=%d tools=%s",
-            req_id,
+            "LLM request: model=%s messages=%d tools=%s",
             settings.DEEPSEEK_MODEL,
             len(messages),
             "yes" if tools else "no",
@@ -140,9 +88,12 @@ async def deepseek_chat(
                 json=request_body,
             ) as response:
                 if response.status_code != 200:
-                    error_msg = f"DeepSeek API 返回错误: {response.status_code}"
-                    yield ("error", error_msg)
+                    yield ("error", f"DeepSeek API 返回错误: {response.status_code}")
                     return
+
+                tool_call_accumulator: dict[int, dict] = {}
+                finish_reason: str | None = None
+                token_count = 0
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
@@ -160,7 +111,6 @@ async def deepseek_chat(
                         content = delta.get("content", "")
                         if content:
                             token_count += 1
-                            accumulated_content += content
                             yield ("token", content)
 
                         # 工具调用（按 index 合并多 chunk 参数）
@@ -178,8 +128,7 @@ async def deepseek_chat(
         # 流结束 — 判断是工具调用还是纯文本
         if tool_call_accumulator:
             logger.info(
-                "LLM response: id=%s tokens=%d finish_reason=tool_calls tools=%d",
-                req_id,
+                "LLM response: tokens=%d finish_reason=tool_calls tools=%d",
                 token_count,
                 len(tool_call_accumulator),
             )
@@ -187,44 +136,11 @@ async def deepseek_chat(
                 yield ("tool_call", tc)
         else:
             logger.info(
-                "LLM response: id=%s tokens=%d finish_reason=stop",
-                req_id,
+                "LLM response: tokens=%d finish_reason=stop",
                 token_count,
             )
             yield ("done", "")
 
     except Exception as e:
-        error_msg = str(e)
-        logger.error("LLM error: id=%s %s", req_id, error_msg)
-        yield ("error", f"AI 对话出错: {error_msg}")
-
-    finally:
-        # ── 写日志（finally 确保无论正常/异常都记录） ──
-        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-        entry = {
-            "id": req_id,
-            "timestamp": start_time.isoformat(),
-            "duration_ms": round(duration * 1000),
-            "session_id": (meta or {}).get("session_id"),
-            "user_message": (meta or {}).get("user_message"),
-            "messages_sent": [
-                {
-                    "role": m.get("role"),
-                    "content": _truncate_str(m.get("content", ""), 500),
-                }
-                for m in messages
-            ],
-            "tools_sent": tools,
-            "response": {
-                "finish_reason": finish_reason if not error_msg else "error",
-                "content": accumulated_content,
-                "tool_calls": (
-                    list(tool_call_accumulator.values())
-                    if tool_call_accumulator
-                    else []
-                ),
-                "tokens": token_count,
-            },
-            "error": error_msg,
-        }
-        _write_log_entry(entry)
+        logger.error("LLM error: %s", e)
+        yield ("error", f"AI 对话出错: {str(e)}")

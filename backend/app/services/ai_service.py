@@ -6,7 +6,7 @@
 """
 
 from app.harness import context, session
-from app.harness.agent import AIAgent
+from app.harness.agent import AIAgent, _write_log_entry
 from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -68,3 +68,6 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     if full_reply:
         await session.save_assistant_message(db, session_id, full_reply)
         await session.touch_conversation(db, session_id)
+
+    # ── 6. 写 LLM 请求日志（完整轮次，一条记录） ──
+    _write_log_entry(agent.get_log())

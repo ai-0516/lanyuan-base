@@ -52,11 +52,22 @@ def _print_entry(entry: dict, verbose: bool = False):
     sid = entry.get("session_id", "?")
     user_msg = entry.get("user_message", "?")
     err = entry.get("error")
-    resp = entry.get("response", {})
-    finish = resp.get("finish_reason", "?")
-    tokens = resp.get("tokens", "?")
-    tool_calls = resp.get("tool_calls", [])
-    content = resp.get("content", "")
+    turns = entry.get("turns", [])
+
+    # 新格式：从最后一轮取响应数据
+    # 旧格式：直接从 response 字段取
+    if turns:
+        last = turns[-1]
+        finish = last.get("finish_reason", "?")
+        tokens = last.get("tokens", "?")
+        tool_calls = last.get("tool_calls", [])
+        content = last.get("content", "")
+    else:
+        resp = entry.get("response", {})
+        finish = resp.get("finish_reason", "?")
+        tokens = resp.get("tokens", "?")
+        tool_calls = resp.get("tool_calls", [])
+        content = resp.get("content", "")
 
     print(f"── {rid} ─────────────────────────────────")
     print(f"  Time:       {ts}")
@@ -77,7 +88,12 @@ def _print_entry(entry: dict, verbose: bool = False):
         print(f"  Reply:      {content[:300]}")
 
     if verbose or err:
-        msgs = entry.get("messages_sent", [])
+        # 新格式：从 turns 拿 messages_sent
+        if turns:
+            msgs = turns[0].get("messages_sent", [])
+        # 旧格式：直接从顶层拿
+        else:
+            msgs = entry.get("messages_sent", [])
         print(f"  Messages:   {len(msgs)}")
         for i, m in enumerate(msgs):
             role = m.get("role", "?")
@@ -89,8 +105,16 @@ def _print_entry(entry: dict, verbose: bool = False):
 
 def _replay(entry: dict):
     """重新发送 messages_sent 到 DeepSeek API（非流式，省 token）"""
-    msgs = entry.get("messages_sent", [])
-    tools = entry.get("tools_sent")
+    turns = entry.get("turns", [])
+
+    # 新格式：从 turns 拿
+    if turns:
+        # 把所有轮次的 messages 拼起来发给 LLM（重放第一轮的原始输入）
+        msgs = turns[0].get("messages_sent", [])
+        tools = turns[0].get("tools_sent")
+    else:
+        msgs = entry.get("messages_sent", [])
+        tools = entry.get("tools_sent")
 
     if not msgs:
         print("[error] 没有 messages_sent 数据，无法重放")
