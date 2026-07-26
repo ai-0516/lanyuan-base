@@ -48,7 +48,8 @@ async def chat(
         async for event, content in ai_service.stream_chat(
             db, user_id, data.session_id, data.message
         ):
-            yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
+            if event in ("token", "done", "error", "cmd_new_session"):
+                yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),
