@@ -30,6 +30,14 @@ async def get_or_create(db: AsyncSession, user_id: int) -> Conversation:
     return conv
 
 
+async def create_new(db: AsyncSession, user_id: int) -> Conversation:
+    """强制创建新会话（忽略现有会话）"""
+    conv = Conversation(user_id=user_id, title="")
+    db.add(conv)
+    await db.flush()
+    return conv
+
+
 async def verify_ownership(db: AsyncSession, session_id: int, user_id: int) -> Conversation | None:
     """校验 session 是否属于指定用户"""
     result = await db.execute(

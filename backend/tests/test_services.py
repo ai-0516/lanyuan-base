@@ -796,3 +796,52 @@ class TestAIStreamChat:
                 select(Conversation).where(Conversation.id == sid)
             )).scalar_one()
         assert conv.updated_at is not None
+
+
+class TestAICmdNew:
+    """AI 命令：/new 创建新会话"""
+
+    async def test_new_creates_new_session(self):
+        uid = await _create_user()
+        sid = None
+        # 先创建一个会话
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            s = await get_or_create_session(db, uid)
+            sid = s.session_id
+            await db.commit()
+
+        # 发 /new 命令
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            events = []
+            async for event, content in stream_chat(db, uid, sid, "/new"):
+                events.append((event, content))
+            await db.commit()
+
+        assert len(events) == 2
+        assert events[0][0] == "cmd_new_session"
+        new_sid = events[0][1]
+        assert isinstance(new_sid, int)
+        assert new_sid != sid  # 新 session id 不同
+        assert events[1] == ("done", "")
+
+    async def test_new_ignores_command_with_prefix(self):
+        """"/new" 作为前缀时不触发命令"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            s = await get_or_create_session(db, uid)
+            sid = s.session_id
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            events = []
+            async for event, content in stream_chat(db, uid, sid, "/new 帮我发个帖子"):
+                events.append((event, content))
+            await db.commit()
+
+        # 不是纯 "/new"，走正常 stream 流程
+        events_types = [e[0] for e in events]
+        assert "cmd_new_session" not in events_types

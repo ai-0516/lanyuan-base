@@ -111,6 +111,7 @@ Page({
     });
 
     let buffer = '';
+    let currentEvent = '';  // 跟踪当前 SSE 事件类型
 
     task.onChunkReceived((res) => {
       const chunk = this.arrayBufferToString(res.data);
@@ -121,6 +122,10 @@ Page({
       buffer = lines.pop() || ''; // 保留不完整的行
 
       for (const line of lines) {
+        // 记录事件类型
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        }
         if (line.startsWith('event: done')) {
           // 流结束
           this.setData({ isLoading: false });
@@ -133,6 +138,13 @@ Page({
         }
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6);
+          // cmd_new_session 事件：重载会话
+          if (currentEvent === 'cmd_new_session') {
+            this.setData({ isLoading: false });
+            this.initSession();
+            currentEvent = '';
+            continue;
+          }
           try {
             const parsed = JSON.parse(dataStr);
             // parsed 可能是 {"content":"..."} 或 裸字符串 "内容"（token 事件）

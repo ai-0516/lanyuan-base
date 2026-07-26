@@ -31,6 +31,15 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
 
 async def stream_chat(db, user_id: int, session_id: int, message: str):
     """发送消息，SSE 流式返回"""
+
+    # ── 0. 处理 /new 命令 ──
+    if message.strip() == "/new":
+        new_conv = await session.create_new(db, user_id)
+        await db.commit()
+        yield ("cmd_new_session", new_conv.id)
+        yield ("done", "")
+        return
+
     # ── 1. 归属校验 ──
     conv = await session.verify_ownership(db, session_id, user_id)
     if conv is None:
