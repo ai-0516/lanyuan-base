@@ -119,7 +119,7 @@ Page({
       'post.likersText': newLikers.map(l => l.nickname).filter(Boolean).join('，'),
     });
     try {
-      const res = await request('POST', '/posts/' + postId + '/like');
+      const res = await request(liked ? 'POST' : 'DELETE', '/posts/' + postId + '/like');
       // 用服务端返回修正
       this.setData({ 'post.liked': res.liked });
     } catch (err) {

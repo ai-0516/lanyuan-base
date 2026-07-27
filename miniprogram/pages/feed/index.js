@@ -202,7 +202,7 @@ Page({
         likersText: this.getLikersText(newLikers),
       };
       this.setData({ posts });
-      await request('POST', '/posts/' + postId + '/like');
+      await request(liked ? 'POST' : 'DELETE', '/posts/' + postId + '/like');
     } catch (err) {
       posts[index] = post;
       this.setData({ posts });

@@ -1,5 +1,5 @@
 // like-button 组件 —— 点赞按钮
-// 显示点赞数和心形图标，点击切换点赞状态
+// 已点赞 → DELETE 取消，未点赞 → POST 点赞
 const request = require('../../utils/request');
 
 Component({
@@ -24,13 +24,15 @@ Component({
       const postId = this.data.postId;
       if (!postId) return;
 
+      const isLiked = this.data.liked;
       request({
         url: `/posts/${postId}/like`,
-        method: 'POST'
+        method: isLiked ? 'DELETE' : 'POST'
       })
         .then(res => {
-          const newLiked = res.data.liked;
-          const newCount = res.data.count;
+          // res 已被 request 自动解包为 { liked, likeCount }
+          const newLiked = res.liked !== undefined ? res.liked : !isLiked;
+          const newCount = res.likeCount || this.data.count;
           this.setData({
             liked: newLiked,
             count: newCount
