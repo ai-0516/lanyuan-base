@@ -91,19 +91,6 @@ page::-webkit-scrollbar {
   flex-shrink: 0;
 }
 
-/* 加载中提示 */
-.bubble-loading {
-  font-size: 28rpx;
-  color: #c8b8a8;
-  letter-spacing: 6rpx;
-  animation: loading 1.5s ease infinite;
-}
-
-@keyframes loading {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
 /* 底部输入区 — 对齐设计: margin 8px 16px 0 / border-radius 18px */
 .chat-input-wrap {
   display: flex;
