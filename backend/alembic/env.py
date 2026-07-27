@@ -65,6 +65,13 @@ elif "aiomysql" in db_url:
 # ... etc.
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """自动迁移时忽略 users 表的 created_at / updated_at（MySQL 自动管理，Model 不映射）"""
+    if type_ == "column" and name in ("created_at", "updated_at") and obj.table.name == "users":
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -73,9 +80,6 @@ def run_migrations_offline() -> None:
     here as well.  By skipping the Engine creation
     we don't even need a DBAPI to be available.
 
-    Calls to context.execute() here emit the given string to the
-    script output.
-
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -83,6 +87,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -96,7 +101,8 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
