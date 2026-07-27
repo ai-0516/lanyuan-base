@@ -2,16 +2,16 @@
 .h2w {
     font-family: PingFang SC, Lantinghei SC, Microsoft Yahei, Hiragino Sans GB, Microsoft Sans Serif, WenQuanYi Micro Hei, sans-serif;
     font-weight:300;
-    font-size: 32rpx;
-    line-height: 1.8;
+    font-size: 26rpx;
+    line-height: 1.7;
     word-wrap: break-word;
     word-break: normal;
     text-align:justify;
 }
 
 .h2w__main {
-    margin: 0 40rpx 40rpx 40rpx;
-    padding-top: 40rpx;
+    margin: 0;
+    padding-top: 0;
 }
 
 /**标题**/
@@ -136,13 +136,12 @@
 
 /**代码块**/
 .h2w__pre {
-    /*white-space:nowrap;*/
-    padding: 10rpx 14rpx 10rpx 10rpx;
-    font-size: 28rpx;
+    padding: 14rpx 18rpx;
+    font-size: 24rpx;
     word-break: normal;
     border-width: 1rpx;
     border-style: solid;
-    margin-bottom: 40rpx;
+    margin: 10rpx 0;
     white-space: nowrap;
     overflow-x: auto;
     tab-size:4;
@@ -194,7 +193,7 @@
 /**列表**/
 .h2w__ul,
 .h2w__ol {
-    margin-bottom: 40rpx;
+    margin-bottom: 0;
     padding-left: 1rem;
 }
 
@@ -256,13 +255,14 @@
 
 /**块元素**/
 .h2w__p {
-    margin: 20rpx 0 20rpx 0;
+    margin: 10rpx 0 10rpx 0;
 }
 
 .h2w__blockquote {
-    border-left-width: 8rpx;
+    border-left-width: 6rpx;
     border-left-style: solid;
-    padding: 0 20rpx;
+    padding: 0 16rpx;
+    margin: 8rpx 0;
 }
 
 /**内连元素**/
