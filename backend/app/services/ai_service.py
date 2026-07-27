@@ -59,6 +59,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 4. Agent Loop（含工具调用） ──
     agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
+    logger.info("Agent 启动: session_id=%s user_id=%s tools=%d", session_id, user_id, len(TOOLS))
     try:
         async for event, data in agent.run(
             deepseek_messages,
