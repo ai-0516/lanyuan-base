@@ -7,7 +7,6 @@
 
 | # | 标题 | 日期 | 状态 |
 |---|------|------|------|
-| [001](001-tool-call-fabrication) | LLM 不调 create_post 工具，直接回复"已发布" | 2026-07-26 | ✅ |
-| [002](002-history-truncation) | 截断历史后 LLM 行为不一致 | 2026-07-26 | ✅ |
-| [003](003-reasoning-content) | DeepSeek 推理模型要求传回 `reasoning_content` | 2026-07-27 | ✅ |
-| [004](004-tool-data-overload) | tool 返回巨量原始数据，LLM 看不懂且撑爆消息体 | 2026-07-27 | ✅ |
+| [001](001-tool-call-fabrication) | LLM 编造回复不调工具 + 截断历史后行为不一致 | 2026-07-26 | ✅ |
+| [002](002-reasoning-content) | DeepSeek 推理模型要求传回 `reasoning_content` | 2026-07-27 | ✅ |
+| [003](003-tool-data-overload) | tool 返回巨量原始数据，LLM 看不懂且撑爆消息体 | 2026-07-27 | ✅ |

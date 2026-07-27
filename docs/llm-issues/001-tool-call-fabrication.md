@@ -1,16 +1,24 @@
 ---
-title: "LLM 不调 create_post 工具，直接回复\"已发布\""
+title: "LLM 编造回复不调工具 + 截断历史后行为不一致"
 date: 2026-07-26
 status: resolved
 ---
 
 ## 症状
 
+### 1. LLM 不调工具，直接回复文字
+
 用户多次要求发帖，AI 每次都回复"帖子已发布成功"，但日志显示 `finish_reason=stop, tool_calls=0`，DeepSeek 根本没有调用 `create_post` 工具。
+
+### 2. 截断历史后 LLM 行为不一致
+
+用 `replay-llm --truncate 4` 只传前 4 条消息时，LLM 反过来向用户提问（"请补充帖子详细信息"）。但在真实对话中（38 条完整历史），LLM 直接"发布"了帖子（实际没调工具，只是编了文字）。
 
 ## 根因
 
-历史消息中存的是 LLM 编造的"帖子已发布"纯文本。当构建上下文传给 DeepSeek 时，模型从历史中学到了"直接写文字回复就行，不用调工具"。
+历史消息中存的是 LLM 编造的"帖子已发布"纯文本。当构建上下文传给 DeepSeek 时，模型从历史中学到了"直接写文字回复就行，不用调工具"。截断后去掉了污染数据，LLM 恢复了正常行为（反问用户），反而暴露了问题所在。
+
+两者同源：**历史中存在幻觉回复 → 模型倾向于模仿自己的历史行为**。
 
 ## 解决方案
 
@@ -49,11 +57,11 @@ status: resolved
 | 修复 context window | 原来取最早 20 条改为取全部消息（DB/LLM 一致） | ❌ 无效 |
 | 回填真实 tool_call | 让 LLM 在历史中看到真实的 tool_call + tool result 结构 | ✅ 有效 |
 
-## 怀疑方向
+## 教训
 
-1. **历史中存在幻觉回复** — AI 之前回复过"已发布"的文字，模型倾向于模仿自己的历史行为 ✅ **确认，已修复**
-2. **System Prompt 被历史稀释** — 用户已经跟 AI 聊了 20+ 轮，历史消息中的 user/assistant 示例对模型行为的权重高于 system prompt ✅ 已验证
-3. **DeepSeek system prompt 权重偏低** — 某些模型对 system 角色的指令敏感度低于对 user/assistant 对话示例的模仿 ✅ 已验证（通过回填真实 tool_call 解决）
+3. **System Prompt 被历史稀释** — 用户已经跟 AI 聊了 20+ 轮，历史消息中的 user/assistant 示例对模型行为的权重高于 system prompt
+2. **DeepSeek system prompt 权重偏低** — 某些模型对 system 角色的指令敏感度低于对 user/assistant 对话示例的模仿
+3. **截断历史能暴露问题** — 如果全量历史与截断历史的行为不一致，说明历史已被污染
 
 ## 后续优化方向（非必选）
 
