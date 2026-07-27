@@ -225,8 +225,12 @@ class ToolDef:
 
         # SQLAlchemy model → dict（如 get_my_profile 返回的 User 对象）
         if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
-            await db.refresh(result)
-            result = {c.name: getattr(result, c.name) for c in result.__table__.columns}
+            # 只读 LLM 关心的字段，跳过内部时间戳（updated_at 含 onupdate，会触发异步懒加载）
+            result = {
+                c.name: getattr(result, c.name)
+                for c in result.__table__.columns
+                if c.name not in ("created_at", "updated_at")
+            }
 
         result = json.dumps(result, ensure_ascii=False, default=str)
         # 去掉 base64 头像数据（LLM 不需要看图片二进制）
