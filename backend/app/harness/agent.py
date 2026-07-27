@@ -56,6 +56,7 @@ class AIAgent:
     def __init__(self, tools: list[dict] | None = None, tool_executor=None):
         self.tools = tools
         self.tool_executor = tool_executor
+        self._reasoning_content: str = ""
         self._log_turns: list[dict] = []
         self._log_meta: dict = {}
         self._log_req_id: str = ""
@@ -113,11 +114,16 @@ class AIAgent:
             token_count = 0
             has_tool_call = False
             has_error = False
+            self._reasoning_content = ""  # 每轮重置
 
             async for event, data in source(messages, **kw):
                 if event == "token":
                     full_reply += data
                     token_count += 1
+                elif event == "reasoning":
+                    self._reasoning_content = data
+                elif event == "reasoning_token":
+                    pass  # 前端若展示思考过程可从这里 yield，当前仅取完整文本
                 elif event == "tool_call":
                     tool_calls.append(data)
                     has_tool_call = True
@@ -153,12 +159,15 @@ class AIAgent:
                 else:
                     result = f"未配置工具执行器，无法执行: {tc['function']['name']}"
 
-                # 回填 assistant tool_call
-                messages.append({
+                # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
+                msg: dict = {
                     "role": "assistant",
                     "content": None,
                     "tool_calls": [tc],
-                })
+                }
+                if self._reasoning_content:
+                    msg["reasoning_content"] = self._reasoning_content
+                messages.append(msg)
                 # 回填 tool 结果
                 messages.append({
                     "role": "tool",

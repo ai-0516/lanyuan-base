@@ -98,6 +98,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                     return
 
                 tool_call_accumulator: dict[int, dict] = {}
+                reasoning_content_parts: list[str] = []
                 finish_reason: str | None = None
                 token_count = 0
 
@@ -112,6 +113,12 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                         choice = data.get("choices", [{}])[0]
                         delta = choice.get("delta", {})
                         finish_reason = choice.get("finish_reason")
+
+                        # 思考过程 token（DeepSeek 推理模型）
+                        rc = delta.get("reasoning_content", "")
+                        if rc:
+                            reasoning_content_parts.append(rc)
+                            yield ("reasoning_token", rc)
 
                         # 文本 token
                         content = delta.get("content", "")
@@ -132,6 +139,9 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                         continue
 
         # 流结束 — 判断是工具调用还是纯文本
+        if reasoning_content_parts:
+            yield ("reasoning", "".join(reasoning_content_parts))
+
         if tool_call_accumulator:
             logger.info(
                 "LLM response: tokens=%d finish_reason=tool_calls tools=%d",
