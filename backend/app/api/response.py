@@ -2,12 +2,16 @@
 
 所有非 SSE 接口统一使用:
 
-成功: {"code": 0, "data": {...}, "message": "ok"}
+成功: {"code": 0, "data": ..., "message": "ok"}
 失败: {"code": 40001, "message": "错误描述"}
 """
 
+import logging
+
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 def api_success(data=None, message: str = "ok") -> dict:
@@ -42,7 +46,8 @@ async def api_exception_handler(request, exc):
             status_code=exc.status_code,
             content={"code": exc.status_code * 100, "message": str(detail)},
         )
-    # 非 HTTPException（如 Pydantic ValidationError）
+    # 非 HTTPException（如 Pydantic ValidationError、SQL 错误等）
+    logger.exception("未捕获的异常: %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"code": 50000, "message": "服务器内部错误"},

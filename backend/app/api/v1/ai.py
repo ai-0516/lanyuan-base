@@ -1,6 +1,7 @@
 """AI 对话 API（SSE 流式）"""
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -10,6 +11,8 @@ from app.api.deps import get_current_user, get_db
 from app.api.response import api_success
 from app.schemas.ai import ChatRequest
 from app.services import ai_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI 对话"])
 
@@ -45,11 +48,15 @@ async def chat(
     """发送消息，SSE 流式返回"""
 
     async def event_stream():
-        async for event, content in ai_service.stream_chat(
-            db, user_id, data.session_id, data.message
-        ):
-            if event in ("token", "done", "error", "cmd_new_session"):
-                yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
+        try:
+            async for event, content in ai_service.stream_chat(
+                db, user_id, data.session_id, data.message
+            ):
+                if event in ("token", "done", "error", "cmd_new_session"):
+                    yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("SSE 流异常: user_id=%s session_id=%s", user_id, data.session_id)
+            yield f"event: error\ndata: {json.dumps('AI回复被中断，请重试', ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),
