@@ -1,6 +1,5 @@
 """用户相关 Pydantic 模型"""
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -39,7 +38,6 @@ class UserResponse(BaseModel):
     bio: Optional[str] = None
     show_building: bool = True
     show_room: bool = False
-    created_at: datetime
 
     model_config = {"from_attributes": True}
 

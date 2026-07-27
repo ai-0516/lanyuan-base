@@ -1,6 +1,6 @@
 """用户模型"""
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, Column, Integer, String, Text
 
 from app.core.database import Base
 
@@ -20,5 +20,3 @@ class User(Base):
     bio = Column(String(200), nullable=True, default="")
     show_building = Column(Boolean, default=True)
     show_room = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
