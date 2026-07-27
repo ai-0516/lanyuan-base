@@ -1,5 +1,7 @@
 """帖子相关 API"""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +14,26 @@ from app.services import post_service
 router = APIRouter(prefix="/posts", tags=["帖子"])
 
 
+def _format_list_posts(data: dict[str, Any]) -> str:
+    """list_posts 结果 → LLM 友好摘要"""
+    items = data.get("items", [])
+    total = data.get("total", 0)
+    page = data.get("page", 1)
+    size = data.get("size", 20)
+
+    lines = [f"共 {total} 条帖子（第 {page}/{max(1, -(-total // size))} 页，每页 {size} 条）："]
+    for p in items:
+        pid = p.get("id", "?")
+        user = p.get("user", {}).get("nickname", "?")
+        content = (p.get("content") or "")[:80]
+        cmt = f'{len(p.get("comments", []))}条评论'
+        like = f'{len(p.get("likers", []))}赞'
+        lines.append(f"  #{pid} {user}：{content} [{cmt}, {like}]")
+    return "\n".join(lines)
+
+
 @router.get("")
-@tool
+@tool(result_formatter=_format_list_posts)
 async def list_posts(
     page: int = 1,
     size: int = 20,

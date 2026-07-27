@@ -12,6 +12,9 @@ import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
 
+# Type alias for result formatter: (data) -> str
+ResultFormatter = Callable[[Any], str]
+
 from fastapi.params import Depends as DependsClass
 from pydantic import BaseModel
 
@@ -87,13 +90,15 @@ class ToolDef:
     __slots__ = (
         "name", "description", "fn",
         "_pydantic_param", "_inject_db", "_inject_user",
-        "schema",
+        "result_formatter", "schema",
     )
 
-    def __init__(self, name: str, description: str, fn: Callable):
+    def __init__(self, name: str, description: str, fn: Callable,
+                 result_formatter: Optional[ResultFormatter] = None):
         self.name = name
         self.description = description
         self.fn = fn
+        self.result_formatter = result_formatter
         self._pydantic_param: Optional[str] = None
         self._inject_db = False
         self._inject_user = False
@@ -206,6 +211,10 @@ class ToolDef:
         if isinstance(result, dict) and "code" in result and "data" in result:
             result = result["data"]
 
+        # 如果有 result_formatter，用它生成 LLM 友好的摘要文本
+        if self.result_formatter:
+            return self.result_formatter(result)
+
         if isinstance(result, str):
             return result
         result = json.dumps(result, ensure_ascii=False, default=str)
@@ -263,7 +272,7 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 
-def tool(fn=None, *, name: str = None):
+def tool(fn=None, *, name: str = None, result_formatter: Optional[ResultFormatter] = None):
     """@tool 装饰器：将 router 函数注册为 AI tool
 
     用法：
@@ -272,15 +281,20 @@ def tool(fn=None, *, name: str = None):
 
         @tool(name="custom_name")
         async def my_func(...): ...
+
+        @tool(result_formatter=my_formatter)
+        async def list_posts(...): ...
+          → 返回时自动调 my_formatter(data) 生成摘要文本
     """
     if fn is None:
-        return lambda f: _register(f, name=name)
-    return _register(fn, name=name)
+        return lambda f: _register(f, name=name, result_formatter=result_formatter)
+    return _register(fn, name=name, result_formatter=result_formatter)
 
 
-def _register(fn: Callable, name: str = None) -> Callable:
+def _register(fn: Callable, name: str = None,
+              result_formatter: Optional[ResultFormatter] = None) -> Callable:
     tool_name = name or fn.__name__
     description = (fn.__doc__ or "").strip()
-    td = ToolDef(tool_name, description, fn)
+    td = ToolDef(tool_name, description, fn, result_formatter=result_formatter)
     registry.register(td)
     return fn  # 返回原函数，不影响 FastAPI router

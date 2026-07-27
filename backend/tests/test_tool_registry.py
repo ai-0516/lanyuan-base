@@ -166,6 +166,25 @@ class TestExecution:
         # data 字段被提取，不再有 code 包装
         assert "code" not in json.dumps(result)
 
+    @pytest.mark.asyncio
+    async def test_result_formatter(self):
+        """result_formatter 返回自定义摘要"""
+        r = ToolRegistry()
+
+        def _fmt(data):
+            return f"摘要：共{data['total']}条"
+
+        async def _list_posts(page=1):
+            return {"code": 0, "data": {"items": [], "total": 15, "page": 1, "size": 20}}
+
+        td = ToolDef("fmt_test", "test", _list_posts, result_formatter=_fmt)
+        r.register(td)
+
+        result = await r.execute("db", 1, {
+            "function": {"name": "fmt_test", "arguments": '{"page": 1}'}
+        })
+        assert result == "摘要：共15条"
+
 
 # ── Test ToolRegistry ──
 
