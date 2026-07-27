@@ -5,37 +5,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_success
+from app.harness.tool_registry import tool
 from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["通知"])
 
 
 @router.get("")
+@tool
 async def list_notifications(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """未读通知列表"""
+    """获取当前用户的所有未读通知，返回通知列表。"""
     notifications = await notification_service.get_unread_notifications(db, user_id)
     return api_success(notifications)
 
 
 @router.get("/count")
+@tool(name="notification_count")
 async def notification_count(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """未读通知数量"""
+    """获取当前用户的未读通知数量。"""
     count = await notification_service.get_unread_count(db, user_id)
     return api_success({"count": count})
 
 
 @router.put("/read-all")
+@tool
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """将所有通知标记为已读"""
+    """将所有未读通知标记为已读。"""
     updated = await notification_service.mark_all_as_read(db, user_id)
     return api_success({"updated": updated})
 

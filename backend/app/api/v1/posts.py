@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
+from app.harness.tool_registry import tool
 from app.schemas.post import PostCreate
 from app.services import post_service
 
@@ -12,35 +13,38 @@ router = APIRouter(prefix="/posts", tags=["帖子"])
 
 
 @router.get("")
+@tool
 async def list_posts(
     page: int = 1,
     size: int = 20,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """帖子列表（时间倒序，含评论和点赞）"""
+    """获取社区帖子列表，按时间倒序。返回每条帖子的内容、作者信息、评论列表和点赞详情。"""
     result = await post_service.get_posts(db, user_id, page, size)
     return api_success(result)
 
 
 @router.post("")
+@tool
 async def create_post(
     data: PostCreate,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """发布帖子"""
+    """发布帖子到社区。用户在这里分享生活、寻求帮助或组织活动。支持图文混排，最多9张图片。"""
     result = await post_service.create_post(db, user_id, data)
     return api_success(result)
 
 
 @router.get("/{post_id}")
+@tool
 async def get_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """获取单个帖子详情"""
+    """获取单个帖子的详细信息，包括全部评论和点赞者名单。"""
     result = await post_service.get_post_by_id(db, post_id, user_id)
     if not result:
         return api_error(40401, "帖子不存在")
@@ -48,24 +52,26 @@ async def get_post(
 
 
 @router.delete("/{post_id}")
+@tool
 async def delete_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """删除帖子（仅作者）"""
+    """删除自己的帖子（仅作者可以操作）"""
     success = await post_service.delete_post(db, post_id, user_id)
     if not success:
-        api_error(40301, "无权删除此帖子")
+        return api_error(40301, "无权删除此帖子")
     return api_success({})
 
 
 @router.post("/{post_id}/like")
+@tool
 async def toggle_like(
     post_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """点赞/取消点赞"""
+    """点赞或取消点赞帖子。如果已点赞则取消，如果未点赞则点赞。"""
     liked, like_count = await post_service.toggle_like(db, post_id, user_id)
     return api_success({"liked": liked, "likeCount": like_count})
