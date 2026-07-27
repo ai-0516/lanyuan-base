@@ -5,10 +5,14 @@
 - AIAgent 只负责跟 LLM 交互，不接触 DB
 """
 
+import logging
+
 from app.harness import context, session
 from app.harness.agent import AIAgent, _write_log_entry
 from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
+
+logger = logging.getLogger(__name__)
 
 
 async def get_or_create_session(db, user_id: int) -> SessionResponse:
@@ -64,6 +68,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
         ):
             yield (event, data)
     except Exception as e:
+        logger.exception("stream_chat 异常: session_id=%s user_id=%s", session_id, user_id)
         error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
         await session.save_assistant_message(db, session_id, error_reply)
         await session.touch_conversation(db, session_id)
