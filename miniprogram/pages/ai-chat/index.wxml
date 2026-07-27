@@ -6,7 +6,7 @@
         <view class="msg-avatar {{item.role === 'assistant' ? 'ai' : 'me'}}">{{item.role === 'assistant' ? 'AI' : '我'}}</view>
         <view class="msg-bubble {{item.role === 'assistant' ? 'ai' : 'me'}}">
           <block wx:if="{{item.role === 'assistant'}}">
-            <towxml nodes="{{item.nodes}}"/>
+            <rich-text class="bubble-rich" nodes="{{item.nodes}}"></rich-text>
           </block>
           <block wx:else>
             <text class="bubble-text" selectable="{{true}}">{{item.content}}</text>

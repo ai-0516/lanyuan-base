@@ -1,6 +1,4 @@
 {
-  "usingComponents": {
-    "towxml": "towxml/towxml"
-  },
+  "usingComponents": {},
   "navigationBarTitleText": "AI"
 }

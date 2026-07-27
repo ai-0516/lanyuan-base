@@ -1,5 +1,6 @@
 const { request, BASE_URL } = require('../../utils/request');
 const app = getApp();
+const towxmlRender = require('../../utils/towxml-render');
 
 Page({
   data: {
@@ -33,7 +34,7 @@ Page({
         .map(msg => ({
         role: msg.role,
         content: msg.content,
-        nodes: msg.role === 'assistant' ? app.towxml(msg.content || '', 'markdown', { theme: 'light' }) : [],
+        nodes: msg.role === 'assistant' ? towxmlRender.render(app.towxml(msg.content || '', 'markdown', { theme: 'light' })) : [],
         time: this.formatTime(msg.created_at),
       }));
       this.setData({
@@ -170,7 +171,7 @@ Page({
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.role === 'assistant') {
       lastMsg.content += text;
-      lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
+      lastMsg.nodes = towxmlRender.render(app.towxml(lastMsg.content, 'markdown', { theme: 'light' }));
       this.setData({ messages });
       this.scrollToBottom();
     }
