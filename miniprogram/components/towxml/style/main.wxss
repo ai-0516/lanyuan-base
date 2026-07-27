@@ -1,12 +1,12 @@
 /*正文样式*/
 .h2w {
-    font-family: PingFang SC, Lantinghei SC, Microsoft Yahei, Hiragino Sans GB, Microsoft Sans Serif, WenQuanYi Micro Hei, sans-serif;
-    font-weight:300;
+    font-family: PingFang SC, -apple-system, "Helvetica Neue", sans-serif;
+    font-weight:400;
     font-size: 26rpx;
-    line-height: 1.7;
+    line-height: 1.6;
     word-wrap: break-word;
     word-break: normal;
-    text-align:justify;
+    color: var(--bark, #5a4a3a);
 }
 
 .h2w__main {

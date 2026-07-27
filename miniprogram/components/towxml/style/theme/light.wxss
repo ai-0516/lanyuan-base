@@ -1,28 +1,26 @@
 /*正文样式 —— 适配聊天气泡，背景透明 */
 .h2w-light {
-  color:#333;
+  color: var(--bark, #5a4a3a);
   background-color:transparent;
 }
 
 /**标题**/
 .h2w-light .h2w__h1,
 .h2w-light .h2w__h2 {
-    border-color:#eee;
+    border-color:#e0d0c0;
 }
-
 
 /**表格**/
 .h2w-light .h2w__thead .h2w__tr {
-    background-color:#f6f8fa;
+    background-color:var(--warm-white, #f8f0e8);
 }
 .h2w-light .h2w__table .h2w__tr:nth-child(2n){
-    background-color:#fbfcfd;
+    background-color:rgba(232, 213, 192, 0.2);
 }
 .h2w-light .h2w__th,
 .h2w-light .h2w__td {
-    border-color:#dfe2e5;
+    border-color:#e0d0c0;
 }
-
 
 /**代码块**/
 .h2w-light .h2w__pre {
@@ -35,7 +33,6 @@
     border-color:#eaedf0;
 }
 
-
 /**块元素**/
 .h2w-light .h2w__blockquote {
     border-left-color:#c07a5a;
@@ -47,16 +44,16 @@
 }
 
 .h2w-light .h2w__hr {
-    background-color:#eee;
+    background-color:#e0d0c0;
 }
 
 .h2w-light .h2w__mark {
-    background:yellow;
-    color:black;
+    background:rgba(255, 230, 180, 0.6);
+    color:inherit;
 }
 
 .h2w-light .h2w__lineNum {
-    color:#ccc;
+    color:#c8b8a8;
 }
 
 /**代码高亮样式**/
