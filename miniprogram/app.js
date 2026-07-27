@@ -11,6 +11,9 @@ const auth = require('./utils/auth')
 const http = require('./utils/request')
 
 App({
+  /** towxml Markdown 渲染 */
+  towxml: require('./lib/towxml/index'),
+
   /** 全局共享数据 */
   globalData: {
     /** 当前用户信息（登录后设置） */

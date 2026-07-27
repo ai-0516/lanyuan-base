@@ -91,17 +91,6 @@ page::-webkit-scrollbar {
   flex-shrink: 0;
 }
 
-/* rich-text Markdown 渲染 */
-.bubble-rich {
-  font-size: 26rpx;
-  line-height: 1.6;
-  color: inherit;
-}
-.bubble-rich pre,
-.bubble-rich code {
-  font-size: 24rpx;
-}
-
 /* 底部输入区 — 对齐设计: margin 8px 16px 0 / border-radius 18px */
 .chat-input-wrap {
   display: flex;
