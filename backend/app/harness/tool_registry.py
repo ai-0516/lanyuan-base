@@ -222,6 +222,11 @@ class ToolDef:
 
         if isinstance(result, str):
             return result
+
+        # SQLAlchemy model → dict（如 get_my_profile 返回的 User 对象）
+        if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
+            result = {c.name: getattr(result, c.name) for c in result.__table__.columns}
+
         result = json.dumps(result, ensure_ascii=False, default=str)
         # 去掉 base64 头像数据（LLM 不需要看图片二进制）
         result = _strip_base64_uris(result)
