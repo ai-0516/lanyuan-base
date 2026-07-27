@@ -14,7 +14,7 @@ from app.services import post_service
 router = APIRouter(prefix="/posts", tags=["帖子"])
 
 
-def _format_list_posts(data: dict[str, Any]) -> str:
+def _format_list_posts(data: dict) -> str:
     """list_posts 结果 → LLM 友好摘要"""
     items = data.get("items", [])
     total = data.get("total", 0)

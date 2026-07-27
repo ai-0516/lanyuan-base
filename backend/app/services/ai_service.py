@@ -69,7 +69,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             yield (event, data)
     except Exception as e:
         logger.exception("stream_chat 异常: session_id=%s user_id=%s", session_id, user_id)
-        error_reply = f"抱歉，AI 回复被中断，请重试。错误：{str(e)}"
+        error_reply = "抱歉，AI 回复被中断，请重试。"
         await session.save_assistant_message(db, session_id, error_reply)
         await session.touch_conversation(db, session_id)
         yield ("error", error_reply)

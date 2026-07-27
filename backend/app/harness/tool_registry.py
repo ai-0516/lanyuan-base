@@ -213,6 +213,11 @@ class ToolDef:
 
         # 如果有 result_formatter，用它生成 LLM 友好的摘要文本
         if self.result_formatter:
+            # Pydantic model → dict，formatter 统一处理 dict
+            if hasattr(result, "model_dump"):
+                result = result.model_dump()
+            elif hasattr(result, "dict"):
+                result = result.dict()
             return self.result_formatter(result)
 
         if isinstance(result, str):
