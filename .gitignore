@@ -34,9 +34,5 @@ backend/logs/
 # uv
 backend/uv.lock
 
-# WeChat Mini Program npm
-miniprogram/node_modules/
-miniprogram/miniprogram_npm/
-
 # Environment
 .env
