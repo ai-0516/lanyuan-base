@@ -1,6 +1,7 @@
 """AI 对话模型"""
 
 from sqlalchemy import Column, DateTime, Integer, String, Text, func
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 
 from app.core.database import Base
 
@@ -21,7 +22,7 @@ class Message(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(Integer, nullable=False, index=True)
     role = Column(String(20), nullable=False, index=True)
-    content = Column(Text, nullable=True)
-    tool_calls = Column(Text, nullable=True)
+    content = Column(MEDIUMTEXT, nullable=True)
+    tool_calls = Column(MEDIUMTEXT, nullable=True)
     tool_call_id = Column(String(100), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

@@ -196,7 +196,11 @@ class ToolDef:
 
         if isinstance(result, str):
             return result
-        return json.dumps(result, ensure_ascii=False, default=str)
+        result = json.dumps(result, ensure_ascii=False, default=str)
+        # 截断过长结果，避免 MySQL TEXT 溢出
+        if len(result) > 5000:
+            result = result[:5000] + "...(截断)"
+        return result
 
 
 # ── ToolRegistry ──
