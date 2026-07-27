@@ -225,6 +225,7 @@ class ToolDef:
 
         # SQLAlchemy model → dict（如 get_my_profile 返回的 User 对象）
         if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
+            await db.refresh(result)
             result = {c.name: getattr(result, c.name) for c in result.__table__.columns}
 
         result = json.dumps(result, ensure_ascii=False, default=str)
