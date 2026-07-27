@@ -1,4 +1,5 @@
 const { request, BASE_URL } = require('../../utils/request');
+const md = require('../../utils/md-parser');
 
 Page({
   data: {
@@ -32,6 +33,7 @@ Page({
         .map(msg => ({
         role: msg.role,
         content: msg.content,
+        nodes: msg.role === 'assistant' ? md.parse(msg.content || '') : [],
         time: this.formatTime(msg.created_at),
       }));
       this.setData({
@@ -77,6 +79,7 @@ Page({
     const aiMsg = {
       role: 'assistant',
       content: '',
+      nodes: [],
       time: this.formatTime(Date.now()),
     };
     this.setData({
@@ -167,6 +170,7 @@ Page({
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.role === 'assistant') {
       lastMsg.content += text;
+      lastMsg.nodes = md.parse(lastMsg.content);
       this.setData({ messages });
       this.scrollToBottom();
     }
@@ -182,6 +186,7 @@ Page({
       messages.push({
         role: 'assistant',
         content: 'AI 回复被中断，请重试',
+        nodes: [],
         time: this.formatTime(Date.now()),
       });
     }
