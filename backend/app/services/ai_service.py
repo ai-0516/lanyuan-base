@@ -76,30 +76,34 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
         return
 
     # ── 5. 持久化：从 agent log 回填真实 tool_call 结构 ──
-    log = agent.get_log()
-    if log.get("turns"):
-        for turn in log["turns"]:
-            tc = turn.get("tool_calls", [])
-            if tc:
-                # 保存 assistant tool_call 消息（含真实 tool_calls 结构）
-                await session.save_tool_call_message(
-                    db, session_id, tc,
-                    content=turn.get("content") or None,
-                )
-                # 保存 tool 执行结果
-                for tr in turn.get("tool_results", []):
-                    await session.save_tool_result_message(
-                        db, session_id,
-                        tool_call_id=tr.get("tool_call_id", ""),
-                        content=tr.get("result", ""),
+    try:
+        log = agent.get_log()
+        if log.get("turns"):
+            for turn in log["turns"]:
+                tc = turn.get("tool_calls", [])
+                if tc:
+                    # 保存 assistant tool_call 消息（含真实 tool_calls 结构）
+                    await session.save_tool_call_message(
+                        db, session_id, tc,
+                        content=turn.get("content") or None,
                     )
-            else:
-                # 纯文本回复
-                if turn.get("content"):
-                    await session.save_assistant_message(
-                        db, session_id, turn["content"],
-                    )
-        await session.touch_conversation(db, session_id)
+                    # 保存 tool 执行结果
+                    for tr in turn.get("tool_results", []):
+                        await session.save_tool_result_message(
+                            db, session_id,
+                            tool_call_id=tr.get("tool_call_id", ""),
+                            content=tr.get("result", ""),
+                        )
+                else:
+                    # 纯文本回复
+                    if turn.get("content"):
+                        await session.save_assistant_message(
+                            db, session_id, turn["content"],
+                        )
+            await session.touch_conversation(db, session_id)
 
-    # ── 6. 写 LLM 请求日志（完整轮次，一条记录） ──
-    _write_log_entry(agent.get_log())
+        # ── 6. 写 LLM 请求日志（完整轮次，一条记录） ──
+        _write_log_entry(agent.get_log())
+    except Exception as e:
+        logger.exception("持久化/log 异常: session_id=%s user_id=%s", session_id, user_id)
+        # 持久化失败不影响已发出的 SSE 事件，仅记录日志
