@@ -88,6 +88,12 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                 json=request_body,
             ) as response:
                 if response.status_code != 200:
+                    body = await response.aread()
+                    body_text = body.decode("utf-8", errors="replace")[:2000]
+                    logger.error(
+                        "DeepSeek API error: status=%s body=%s",
+                        response.status_code, body_text,
+                    )
                     yield ("error", f"DeepSeek API 返回错误: {response.status_code}")
                     return
 
