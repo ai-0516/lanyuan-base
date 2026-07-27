@@ -20,12 +20,6 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
     conv = await session.get_or_create(db, user_id)
     recent = await context.get_recent_messages(db, conv.id)
 
-    # 新会话第一条消息：AI 问候语
-    if not recent:
-        greeting = "你好呀！👋 我是兰园社区助手，可以帮你查看帖子、评论、通知和个人资料。有什么需要帮忙的吗？"
-        await session.save_assistant_message(db, conv.id, greeting)
-        recent = await context.get_recent_messages(db, conv.id)
-
     return SessionResponse(
         session_id=conv.id,
         title=conv.title or "",

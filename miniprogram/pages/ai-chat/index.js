@@ -41,10 +41,31 @@ Page({
         messages: formatted,
       });
       this.scrollToBottom();
+
+      // 新会话：自动发 Hi 让 AI 打招呼（不显示 Hi 气泡）
+      if ((messages || []).length === 0) {
+        this.silentGreeting(session_id);
+      }
     } catch (err) {
       console.error('获取 AI 会话失败', err);
       wx.showToast({ title: '会话创建失败', icon: 'none' });
     }
+  },
+
+  /** 新会话：自动发送 Hi，但只显示 AI 回复 */
+  silentGreeting(sessionId) {
+    // 添加空 AI 气泡（打字机效果）
+    this.setData({
+      isLoading: true,
+      messages: [...this.data.messages, {
+        role: 'assistant',
+        content: '',
+        nodes: [],
+        time: this.formatTime(Date.now()),
+      }],
+    });
+    this.scrollToBottom();
+    this.streamChat(sessionId, 'Hi');
   },
 
   /** 输入框内容变化 */

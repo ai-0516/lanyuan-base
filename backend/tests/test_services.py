@@ -636,9 +636,7 @@ class TestAISession:
             await db.commit()
 
         assert session.session_id > 0
-        assert len(session.messages) == 1
-        assert session.messages[0].role == "assistant"
-        assert "你好" in (session.messages[0].content or "")
+        assert session.messages == []
 
     async def test_reuse_existing_session(self):
         """再次进入 AI → 复用最近会话"""
@@ -751,11 +749,9 @@ class TestAIStreamChat:
                 select(Message).where(Message.conversation_id == sid)
             )).scalars().all()
 
-        assert len(msgs) == 3  # 问候语 + 用户消息 + AI 回复
-        assert msgs[0].role == "assistant"  # 问候语
-        assert "你好呀" in msgs[0].content
-        assert msgs[1].role == "user"
-        assert msgs[1].content == "你好"
+        assert len(msgs) == 2  # 用户消息 + AI 回复
+        assert msgs[0].role == "user"
+        assert msgs[0].content == "你好"
 
     async def test_mock_reply_without_api_key(self):
         """无 DEEPSEEK_API_KEY 时返回模拟回复"""
@@ -802,9 +798,9 @@ class TestAIStreamChat:
                     .order_by(Message.created_at.asc())
             )).scalars().all()
 
-        assert len(msgs) == 3  # 问候语 + 用户消息 + AI 回复
-        assert msgs[2].role == "assistant"
-        assert len(msgs[2].content) > 0
+        assert len(msgs) == 2
+        assert msgs[1].role == "assistant"
+        assert len(msgs[1].content) > 0
 
     async def test_conversation_updated_at_refreshed(self):
         """发送消息后会话 updated_at 刷新"""
