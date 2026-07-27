@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 class MessageItem(BaseModel):
     id: int
-    role: str  # user / assistant
-    content: str
+    role: str  # user / assistant / tool
+    content: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
