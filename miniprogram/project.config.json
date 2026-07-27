@@ -21,7 +21,7 @@
     "uglifyFileName": false,
     "uploadWithSourceMap": true,
     "useIsolateContext": true,
-    "nodeModules": true,
+    "nodeModules": false,
     "enhance": true,
     "useMultiFrameRuntime": true,
     "useApiHook": true,
