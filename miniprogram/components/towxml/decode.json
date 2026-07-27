@@ -1,12 +1,12 @@
 {
   "component": true,
   "usingComponents": {
-    "decode": "/towxml/decode",
-    "audio-player": "/towxml/audio-player/audio-player",
-    "latex": "/towxml/latex/latex",
-    "table": "/towxml/table/table",
-    "todogroup": "/towxml/todogroup/todogroup",
-    "yuml": "/towxml/yuml/yuml",
-    "img": "/towxml/img/img"
+    "decode": "/components/towxml/decode",
+    "audio-player": "/components/towxml/audio-player/audio-player",
+    "latex": "/components/towxml/latex/latex",
+    "table": "/components/towxml/table/table",
+    "todogroup": "/components/towxml/todogroup/todogroup",
+    "yuml": "/components/towxml/yuml/yuml",
+    "img": "/components/towxml/img/img"
   }
 }
