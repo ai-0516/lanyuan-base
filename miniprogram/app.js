@@ -1,18 +1,9 @@
-/**
- * 兰园公共底座 — 全局入口
- *
- * App() 生命周期：
- *   - onLaunch: 检查登录态、获取设备信息、静默登录（微信模式）
- *   - onShow: 同步登录态变化
- *   - onHide: 清理不需要的临时数据
- */
-
 const auth = require('./utils/auth')
 const http = require('./utils/request')
 
 App({
   /** towxml Markdown 渲染 */
-  towxml: require('./components/towxml/index'),
+  towxml: require('towxml'),
 
   /** 全局共享数据 */
   globalData: {
