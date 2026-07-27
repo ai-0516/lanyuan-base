@@ -26,8 +26,10 @@ Page({
     try {
       const res = await request('POST', '/ai/session');
       const { session_id, messages } = res;
-      // 格式化历史消息
-      const formatted = (messages || []).map(msg => ({
+      // 格式化历史消息（过滤 tool 角色，AI 内部结果不对用户展示）
+      const formatted = (messages || [])
+        .filter(msg => msg.role !== 'tool')
+        .map(msg => ({
         role: msg.role,
         content: msg.content,
         time: this.formatTime(msg.created_at),
