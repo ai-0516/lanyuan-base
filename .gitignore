@@ -29,8 +29,7 @@ backend/uploads/*
 htmlcov/
 
 # Logs
-backend/logs/**/*.log
-backend/logs/**/*.log.*
+backend/logs/
 
 # uv
 backend/uv.lock
