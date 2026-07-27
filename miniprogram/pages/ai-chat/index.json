@@ -1,6 +1,6 @@
 {
   "usingComponents": {
-    "towxml": "towxml/towxml"
+    "towxml": "/miniprogram_npm/towxml/towxml"
   },
   "navigationBarTitleText": "AI"
 }
