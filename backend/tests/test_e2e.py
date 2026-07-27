@@ -337,14 +337,16 @@ class TestLikes:
                                  headers=headers_a)
         return resp.json()["data"]["id"]
 
-    async def test_toggle_like(self, client, headers_a, post_id):
-        """点赞/取消点赞切换正常"""
+    async def test_like_unlike(self, client, headers_a, post_id):
+        """点赞→取消→再点赞"""
         on = await client.post(f"/api/v1/posts/{post_id}/like", headers=headers_a)
         assert on.json()["data"]["liked"] is True
         assert on.json()["data"]["likeCount"] == 1
-        off = await client.post(f"/api/v1/posts/{post_id}/like", headers=headers_a)
-        assert off.json()["data"]["liked"] is False
+        off = await client.delete(f"/api/v1/posts/{post_id}/like", headers=headers_a)
+        assert off.json()["data"]["unliked"] is True
         assert off.json()["data"]["likeCount"] == 0
+        on2 = await client.post(f"/api/v1/posts/{post_id}/like", headers=headers_a)
+        assert on2.json()["data"]["liked"] is True
 
     async def test_like_count_from_multiple_users(self, client, headers_a, headers_b, post_id):
         """多人点赞计数正确"""

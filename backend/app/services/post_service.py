@@ -255,41 +255,53 @@ async def delete_post(db: AsyncSession, post_id: int, user_id: int) -> bool:
     return True
 
 
-async def toggle_like(
+async def like_post(
     db: AsyncSession, post_id: int, user_id: int
 ) -> tuple[bool, int]:
-    """切换点赞状态，返回 (是否已点赞, 点赞总数)"""
+    """点赞。如果已点赞则无操作。返回 (是否新点赞, 点赞数)"""
     result = await db.execute(
         select(Like).where(Like.post_id == post_id, Like.user_id == user_id)
     )
     existing = result.scalar_one_or_none()
-
     if existing:
-        await db.delete(existing)
-        liked = False
-    else:
-        like = Like(post_id=post_id, user_id=user_id)
-        db.add(like)
+        return False, await _get_like_count(db, post_id)
 
-        # 给帖子作者发通知
-        post_result = await db.execute(select(Post).where(Post.id == post_id))
-        post = post_result.scalar_one_or_none()
-        if post and post.user_id != user_id:
-            notif = Notification(
-                user_id=post.user_id,
-                type="like",
-                from_user_id=user_id,
-                post_id=post_id,
-            )
-            db.add(notif)
+    db.add(Like(post_id=post_id, user_id=user_id))
 
-        liked = True
+    # 给帖子作者发通知
+    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    post = post_result.scalar_one_or_none()
+    if post and post.user_id != user_id:
+        notif = Notification(
+            user_id=post.user_id,
+            type="like",
+            from_user_id=user_id,
+            post_id=post_id,
+        )
+        db.add(notif)
 
     await db.flush()
+    return True, await _get_like_count(db, post_id)
 
-    # 获取最新点赞数
-    count_stmt = select(func.count(Like.id)).where(Like.post_id == post_id)
-    count_result = await db.execute(count_stmt)
-    like_count = count_result.scalar() or 0
 
-    return liked, like_count
+async def unlike_post(
+    db: AsyncSession, post_id: int, user_id: int
+) -> tuple[bool, int]:
+    """取消点赞。如果未点赞则无操作。返回 (是否取消, 点赞数)"""
+    result = await db.execute(
+        select(Like).where(Like.post_id == post_id, Like.user_id == user_id)
+    )
+    existing = result.scalar_one_or_none()
+    if not existing:
+        return False, await _get_like_count(db, post_id)
+
+    await db.delete(existing)
+    await db.flush()
+    return True, await _get_like_count(db, post_id)
+
+
+async def _get_like_count(db: AsyncSession, post_id: int) -> int:
+    """查询帖子点赞总数"""
+    stmt = select(func.count(Like.id)).where(Like.post_id == post_id)
+    result = await db.execute(stmt)
+    return result.scalar() or 0

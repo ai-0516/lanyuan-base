@@ -67,11 +67,23 @@ async def delete_post(
 
 @router.post("/{post_id}/like")
 @tool
-async def toggle_like(
+async def like_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """点赞或取消点赞帖子。如果已点赞则取消，如果未点赞则点赞。"""
-    liked, like_count = await post_service.toggle_like(db, post_id, user_id)
+    """点赞帖子。如果已经点过赞则无操作，不会重复点赞。"""
+    liked, like_count = await post_service.like_post(db, post_id, user_id)
     return api_success({"liked": liked, "likeCount": like_count})
+
+
+@router.delete("/{post_id}/like")
+@tool
+async def unlike_post(
+    post_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """取消点赞帖子。如果未点赞则无操作。"""
+    unliked, like_count = await post_service.unlike_post(db, post_id, user_id)
+    return api_success({"unliked": unliked, "likeCount": like_count})

@@ -176,7 +176,7 @@ class TestPostServiceGet:
         pid = await _create_post(uid1, "测点赞")
 
         async with async_session_factory() as db:
-            await post_service.toggle_like(db, pid, uid2)
+            await post_service.like_post(db, pid, uid2)
             await db.commit()
 
         # 用 uid2 查询 — liked 应为 True
@@ -234,7 +234,7 @@ class TestPostServiceDelete:
         # 添加评论和点赞
         async with async_session_factory() as db:
             await comment_service.create_comment(db, uid, pid, CommentCreate(content="评论"))
-            await post_service.toggle_like(db, pid, uid)
+            await post_service.like_post(db, pid, uid)
             await db.commit()
 
         # 删除帖子
@@ -254,29 +254,57 @@ class TestPostServiceDelete:
 class TestPostServiceLike:
     """点赞/取消点赞"""
 
-    async def test_toggle_like_on_off(self):
+    async def test_like_then_unlike(self):
         """点赞→取消→再点赞"""
         uid1 = await _create_user("A", "a")
         uid2 = await _create_user("B", "b")
         pid = await _create_post(uid1, "测点赞")
 
         async with async_session_factory() as db:
-            liked, count = await post_service.toggle_like(db, pid, uid2)
+            liked, count = await post_service.like_post(db, pid, uid2)
             await db.commit()
         assert liked is True
         assert count == 1
 
         async with async_session_factory() as db:
-            liked, count = await post_service.toggle_like(db, pid, uid2)
+            unliked, count = await post_service.unlike_post(db, pid, uid2)
             await db.commit()
-        assert liked is False
+        assert unliked is True
         assert count == 0
 
         async with async_session_factory() as db:
-            liked, count = await post_service.toggle_like(db, pid, uid2)
+            liked, count = await post_service.like_post(db, pid, uid2)
             await db.commit()
         assert liked is True
         assert count == 1
+
+    async def test_like_idempotent(self):
+        """重复点赞不重复计数"""
+        uid1 = await _create_user("A", "a")
+        uid2 = await _create_user("B", "b")
+        pid = await _create_post(uid1, "幂等")
+
+        async with async_session_factory() as db:
+            liked, count = await post_service.like_post(db, pid, uid2)
+            await db.commit()
+        assert liked is True
+        assert count == 1
+
+        async with async_session_factory() as db:
+            liked, count = await post_service.like_post(db, pid, uid2)
+            await db.commit()
+        assert liked is False  # 已点赞，无操作
+        assert count == 1       # 计数不变
+
+    async def test_unlike_idempotent(self):
+        """取消未点赞的帖子无操作"""
+        uid1 = await _create_user("A", "a")
+        pid = await _create_post(uid1, "未点赞取消")
+        async with async_session_factory() as db:
+            unliked, count = await post_service.unlike_post(db, pid, uid1)
+            await db.commit()
+        assert unliked is False
+        assert count == 0
 
     async def test_multiple_users_like(self):
         """多用户点赞计数"""
@@ -286,13 +314,13 @@ class TestPostServiceLike:
         pid = await _create_post(uid1, "多赞")
 
         async with async_session_factory() as db:
-            await post_service.toggle_like(db, pid, uid1)
-            _, count = await post_service.toggle_like(db, pid, uid2)
+            await post_service.like_post(db, pid, uid1)
+            _, count = await post_service.like_post(db, pid, uid2)
             await db.commit()
         assert count == 2
 
         async with async_session_factory() as db:
-            _, count = await post_service.toggle_like(db, pid, uid3)
+            _, count = await post_service.like_post(db, pid, uid3)
             await db.commit()
         assert count == 3
 
