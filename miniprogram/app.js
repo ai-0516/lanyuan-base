@@ -12,7 +12,7 @@ const http = require('./utils/request')
 
 App({
   /** towxml Markdown 渲染 */
-  towxml: require('./lib/towxml/index'),
+  towxml: require('towxml'),
 
   /** 全局共享数据 */
   globalData: {
