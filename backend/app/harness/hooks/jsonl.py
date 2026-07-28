@@ -54,24 +54,11 @@ async def on_agent_start(data: dict):
 
 @on(events.TURN_START)
 async def on_turn_start(data: dict):
-    """本轮开始：保存上一轮，准备新轮"""
-    req_id = data.get("req_id", "")
-
-    # 保存上一轮（如果存在且尚未保存）
-    prev = _current_turns.get(req_id)
-    entry = _entries.get(req_id)
-    if prev is not None and entry is not None:
-        entry["turns"].append(prev)
-
-    _current_turns[req_id] = None
-
-
-@on(events.LLM_START)
-async def on_llm_start(data: dict):
-    req_id = data.get("req_id", "")
+    """本轮开始：准备空的数据槽"""
+    req_id = data["req_id"]
     _current_turns[req_id] = {
-        "messages_sent": data.get("messages_sent"),
-        "tools_sent": data.get("tools_sent"),
+        "messages_sent": None,
+        "tools_sent": None,
         "finish_reason": "",
         "tokens": 0,
         "content": "",
@@ -80,9 +67,19 @@ async def on_llm_start(data: dict):
     }
 
 
+@on(events.LLM_START)
+async def on_llm_start(data: dict):
+    """LLM 调用前：填入 messages 和 tools"""
+    req_id = data["req_id"]
+    turn = _current_turns.get(req_id)
+    if turn is not None:
+        turn["messages_sent"] = data.get("messages_sent")
+        turn["tools_sent"] = data.get("tools_sent")
+
+
 @on(events.LLM_END)
 async def on_llm_end(data: dict):
-    req_id = data.get("req_id", "")
+    req_id = data["req_id"]
     turn = _current_turns.get(req_id)
     if turn is not None:
         turn["finish_reason"] = data["finish_reason"]
@@ -93,7 +90,7 @@ async def on_llm_end(data: dict):
 
 @on(events.TOOL_END)
 async def on_tool_end(data: dict):
-    req_id = data.get("req_id", "")
+    req_id = data["req_id"]
     turn = _current_turns.get(req_id)
     if turn is not None:
         turn["tool_results"].append({
@@ -103,14 +100,27 @@ async def on_tool_end(data: dict):
         })
 
 
-@on(events.AGENT_END)
-async def on_agent_end(data: dict):
-    req_id = data.get("req_id", "")
+@on(events.TURN_END)
+async def on_turn_end(data: dict):
+    """本轮结束：保存到 entry"""
+    req_id = data["req_id"]
     turn = _current_turns.get(req_id)
     entry = _entries.get(req_id)
     if turn is not None and entry is not None:
         entry["turns"].append(turn)
+        _current_turns[req_id] = None
+
+
+@on(events.AGENT_END)
+async def on_agent_end(data: dict):
+    """Agent 结束：写入文件"""
+    req_id = data["req_id"]
+    entry = _entries.get(req_id)
     if entry:
+        # 兜底：如果 turn:end 没来得及保存，这里保底
+        turn = _current_turns.get(req_id)
+        if turn is not None:
+            entry["turns"].append(turn)
         entry["duration_ms"] = 0
         if error := data.get("error"):
             entry["error"] = error
