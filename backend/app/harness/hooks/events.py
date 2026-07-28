@@ -10,7 +10,7 @@ handler 异常只记日志，不阻断 consumer 循环。
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, TypedDict, NotRequired
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ TOOL_END = "tool:end"
 
 class AgentStartData(TypedDict):
     meta: dict
+    req_id: str
 
 
 class TurnStartData(TypedDict):
@@ -48,6 +49,7 @@ class LlmStartData(TypedDict):
     turn: int
     messages_sent: list
     tools_sent: list | None
+    req_id: str
 
 
 class LlmEndData(TypedDict):
@@ -57,6 +59,8 @@ class LlmEndData(TypedDict):
     content: str
     tool_calls: list
     tool_calls_count: int
+    req_id: str
+    usage: NotRequired[dict[str, Any]]
 
 
 class ToolStartData(TypedDict):
