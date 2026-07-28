@@ -25,27 +25,39 @@ if not _logger.handlers:
         when="midnight", backupCount=30,
     )
     handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(req_id)s] tool=%(tool_name)s result_len=%(result_len)d threshold=%(threshold)d"
+        "%(asctime)s [%(req_id)s] tool=%(tool_name)s result_len=%(result_len)d"
     ))
     _logger.addHandler(handler)
     _logger.setLevel(logging.WARNING)
 
-_THRESHOLD = 3000  # bytes，超过此值记到独立文件
+# 普通日志器（propagate 到 app.log），每回都记
+_oversize_logger = logging.getLogger("app.harness.hooks.large_tool")
+
+# 初始阈值设大，收集数据后再调
+_THRESHOLD = 50000  # bytes
 
 
 @on(events.TOOL_END)
 async def check_tool_size(data: dict):
     result = data.get("result", "")
     result_len = len(result)
+    req_id = data.get("req_id", "-")
+    tool_name = data.get("tool_name", "?")
+
+    # 每回都记到 app.log，作为调阈值的参考
+    oversize_logger.info(
+        "[%s] [tool:end] tool=%s result_len=%d threshold=%d",
+        req_id, tool_name, result_len, _THRESHOLD,
+    )
+
     if result_len <= _THRESHOLD:
         return
 
     _logger.warning(
         "tool result oversized",
         extra={
-            "req_id": data.get("req_id", "-"),
-            "tool_name": data.get("tool_name", "?"),
+            "req_id": req_id,
+            "tool_name": tool_name,
             "result_len": result_len,
-            "threshold": _THRESHOLD,
         },
     )
