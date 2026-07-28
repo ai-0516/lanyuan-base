@@ -279,7 +279,9 @@ class ToolRegistry:
 
         # tool:start — 日志等辅助功能
         await emit("tool:start", tool_name=name, args=args, raw_args=raw_args)
-        return await tool.execute(db, user_id, args)
+        result = await tool.execute(db, user_id, args)
+        await emit("tool:end", tool_name=name, result=result)
+        return result
 
 
 # ── 全局实例 & @tool 装饰器 ──

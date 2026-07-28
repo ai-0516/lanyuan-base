@@ -23,8 +23,8 @@ async def log_llm_start(turn: int, **_kwargs):
     logger.info("Agent Loop: turn=%d → calling LLM", turn + 1)
 
 
-@on("turn:end")
-async def log_turn_end(turn: int, finish_reason: str, tokens: int, tool_calls_count: int, **_kwargs):
+@on("llm:end")
+async def log_llm_end(turn: int, finish_reason: str, tokens: int, tool_calls_count: int, **_kwargs):
     """每轮 LLM 调用结束后"""
     if finish_reason == "tool_calls":
         logger.info(

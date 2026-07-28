@@ -147,9 +147,9 @@ class AIAgent:
             turn_log["tool_calls"] = copy.deepcopy(tool_calls)
             turn_log["tool_results"] = []
 
-            # turn:end — 本轮结束
+            # llm:end — LLM 调用完成
             await emit(
-                "turn:end",
+                "llm:end",
                 turn=turn,
                 finish_reason=turn_log["finish_reason"],
                 tokens=token_count,

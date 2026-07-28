@@ -97,7 +97,7 @@ class TestBuiltinHooks:
         assert "tool:start" in events._handlers
         assert "agent:start" in events._handlers
         assert "agent:end" in events._handlers
-        assert "turn:end" in events._handlers
+        assert "llm:end" in events._handlers
         assert "llm:start" in events._handlers
 
     def test_log_hook_has_all_handlers(self):
@@ -105,7 +105,7 @@ class TestBuiltinHooks:
         total = (
             len(events._handlers.get("agent:start", []))
             + len(events._handlers.get("llm:start", []))
-            + len(events._handlers.get("turn:end", []))
+            + len(events._handlers.get("llm:end", []))
             + len(events._handlers.get("agent:end", []))
             + len(events._handlers.get("tool:start", []))
         )
