@@ -10,7 +10,7 @@ handler 异常只记日志，不阻断 consumer 循环。
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypedDict, NotRequired
+from typing import Any, Callable, Mapping, TypedDict, NotRequired
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +82,18 @@ class AgentEndData(EventBase):
 # ── 实现 ──
 
 
-_handlers: dict[str, list[Callable[[dict], Any]]] = {}
+_handlers: dict[str, list[Callable[[Mapping[str, Any]], Any]]] = {}
 _queue: "asyncio.Queue[Event] | None" = None
 _consumer_task: asyncio.Task | None = None
 
 
-@dataclass
 class Event:
     name: str
-    data: dict[str, Any] = field(default_factory=dict)
+    data: Mapping[str, Any]
+
+    def __init__(self, name: str, data: Mapping[str, Any] | None = None) -> None:
+        self.name = name
+        self.data = data or {}
 
 
 def _ensure_queue() -> "asyncio.Queue[Event]":
@@ -114,7 +117,7 @@ def on(event: str):
     return wrapper
 
 
-def emit(event: str, data: dict[str, Any] | None = None) -> None:
+def emit(event: str, data: Mapping[str, Any] | None = None) -> None:
     """将事件放入队列，不阻塞调用方"""
     global _consumer_task
     if _consumer_task is None:

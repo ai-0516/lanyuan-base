@@ -119,7 +119,7 @@ class AIAgent:
             turn_trace["tool_results"] = []
 
             # llm:end — LLM 调用完成
-            llm_end_data: dict[str, Any] = {
+            llm_end_data: events.LlmEndData = {
                 "turn": turn,
                 "finish_reason": turn_trace["finish_reason"],
                 "tokens": token_count,
