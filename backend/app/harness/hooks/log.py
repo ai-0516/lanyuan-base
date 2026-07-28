@@ -120,12 +120,14 @@ async def log_tool_end(data: dict):
     tool_name = data.get("tool_name", "?")
     result = data.get("result", "")
     status = "ok" if result and "error" not in result.lower()[:100] else "err"
+    result_flat = result.replace("\n", "\\n").replace("\r", "\\r")
+    result_preview = _truncate(result_flat, 200) if status == "ok" else _truncate(result_flat, 500)
     ts = _timestamps.get(req_id, {})
     elapsed = _fmt_elapsed(ts.pop("tool", None))
     sid = _session_ids.get(req_id, "?")
     logger.info(
-        "[%s] [%s] [%s] tool=%s result_len=%d %s (%s)",
-        sid, req_id, events.TOOL_END, tool_name, len(result), status, elapsed,
+        "[%s] [%s] [%s] tool=%s result_len=%d %s: %s (%s)",
+        sid, req_id, events.TOOL_END, tool_name, len(result), status, result_preview, elapsed,
     )
 
 
