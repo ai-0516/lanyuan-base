@@ -7,4 +7,3 @@
 
 from . import events  # noqa: F401 — 事件系统
 from . import jsonl  # noqa: F401 — JSONL 日志
-from . import log  # noqa: F401 — 终端日志
