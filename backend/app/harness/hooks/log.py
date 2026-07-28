@@ -28,7 +28,7 @@ async def log_agent_start(data: dict):
     req_id = data.get("req_id", "-")
     meta = data.get("meta", {})
     msg = meta.get("user_message", "")
-    logger.info("[%s] [%s] 用户: %s", event_name, req_id, _truncate(msg))
+    logger.info("[%s] [%s] 用户: %s", req_id, event_name, _truncate(msg))
 
 
 @on(events.LLM_END)
@@ -43,7 +43,7 @@ async def log_llm_end(data: dict):
         content = data.get("content", "")
         logger.info(
             "[%s] [%s] turn=%d AI回复(%d tokens): %s",
-            event_name, req_id, turn, tokens, _truncate(content),
+            req_id, event_name, turn, tokens, _truncate(content),
         )
     elif reason == "tool_calls":
         tools = data.get("tool_calls", [])
@@ -53,7 +53,7 @@ async def log_llm_end(data: dict):
         ]
         logger.info(
             "[%s] [%s] turn=%d 调用工具(%s) (%d tokens)",
-            event_name, req_id, turn, ", ".join(tool_names), tokens,
+            req_id, event_name, turn, ", ".join(tool_names), tokens,
         )
     elif reason == "error":
-        logger.warning("[%s] [%s] turn=%d LLM 返回错误", event_name, req_id, turn)
+        logger.warning("[%s] [%s] turn=%d LLM 返回错误", req_id, event_name, turn)
