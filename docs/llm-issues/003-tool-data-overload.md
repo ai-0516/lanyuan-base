@@ -61,3 +61,39 @@ ToolDef.execute()
 ## 教训
 
 **每个 tool 都应该考虑给 LLM 看什么，而不只是把 HTTP 响应原样丢过去。** HTTP 要完整，LLM 要精炼，两者是不同需求。`result_formatter` 是 @tool 的可选参数，简单 tool 不需要，数据量大时必须用。
+
+---
+
+## 后续改进（2026-07-28）
+
+### 1. `_strip_avatar`：统一移除头像字段
+
+之前用正则 `_BASE64_PATTERN` 在 JSON 字符串中替换 base64 值，但：
+- 有 `result_formatter` 的工具返回的是摘要文本，不会走到正则
+- 正则只能清空值，不能删字段
+
+改为 **序列化前递归删除所有 dict 的 `avatar` 键**（commit `1969d98`）：
+
+```python
+def _strip_avatar(data) -> None:
+    if isinstance(data, dict):
+        data.pop("avatar", None)
+        for v in data.values():
+            _strip_avatar(v)
+    elif isinstance(data, list):
+        for item in data:
+            _strip_avatar(item)
+```
+
+放在 `ToolDef.execute()` 的 api_success 解包后、result_formatter 判断前，覆盖两条路径。
+
+### 2. `large_tool` hook：自动监控大结果
+
+新增独立钩子 `hooks/large_tool.py`（commit `5b6db92`）：
+- 每个 tool 返回后记一行到 `app.log`（含 result_len）
+- 超出阈值（暂设 50KB）额外记到 `logs/tool-oversize.log`
+- 用于收集数据判断哪些 tool 需要加 formatter
+
+### 3. 日志透传原始结果
+
+`tool:end` handler 直接显示原始 result，不截断不展平，方便观察哪些字段占空间（commit `e037d93`）。
