@@ -1,19 +1,28 @@
 """
-事件系统 — on() / emit()
+事件系统 — 观察者模式
 
-参考 Hermes Agent 的 HookRegistry 设计：
-所有钩子都是辅助功能（日志、监控），即发即忘，不干涉主流程。
+生产者通过 emit() 将事件放入 asyncio.Queue，后台 consumer Task
+循环消费并调用 handler。emit() 是纯同步 put_nowait，不阻塞调用方。
 
-handler 异常只记日志，不阻断主流程。
+handler 异常只记日志，不阻断 consumer 循环。
 """
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-_handlers: dict[str, list[Callable]] = {}
+_handlers: dict[str, list[Callable[[dict], Any]]] = {}
+_queue: asyncio.Queue["Event"] = asyncio.Queue()
+_consumer_task: asyncio.Task | None = None
+
+
+@dataclass
+class Event:
+    name: str
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 def on(event: str):
@@ -21,8 +30,8 @@ def on(event: str):
 
     用法：
         @on("tool:start")
-        async def log_tool_call(tool_name, args):
-            logger.info("Tool: %s", tool_name)
+        async def log_tool_call(data: dict):
+            logger.info("Tool: %s", data["tool_name"])
     """
     def wrapper(fn: Callable):
         _handlers.setdefault(event, []).append(fn)
@@ -30,12 +39,32 @@ def on(event: str):
     return wrapper
 
 
-async def emit(event: str, **context) -> None:
-    """触发事件，忽略 handler 返回值"""
-    for fn in _handlers.get(event, []):
-        try:
-            result = fn(**context)
-            if asyncio.iscoroutine(result):
-                await result
-        except Exception:
-            logger.exception("事件处理器异常 [%s]", event)
+def emit(event: str, data: dict[str, Any] | None = None) -> None:
+    """将事件放入队列，不阻塞调用方"""
+    global _consumer_task
+    if _consumer_task is None:
+        _consumer_task = asyncio.create_task(_consumer())
+    _queue.put_nowait(Event(event, data or {}))
+
+
+def reset():
+    """清空队列和 consumer（测试用）"""
+    global _consumer_task
+    if _consumer_task:
+        _consumer_task.cancel()
+        _consumer_task = None
+    while not _queue.empty():
+        _queue.get_nowait()
+
+
+async def _consumer():
+    """后台协程：循环消费队列事件"""
+    while True:
+        ev = await _queue.get()
+        for fn in _handlers.get(ev.name, []):
+            try:
+                result = fn(ev.data)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                logger.exception("事件处理器异常 [%s]", ev.name)

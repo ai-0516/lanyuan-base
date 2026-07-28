@@ -1,99 +1,98 @@
 """
 事件系统和钩子集成测试
-
-测试：
-1. events.py 的 on() / emit() 基础功能
-2. 内置钩子是否正确加载
 """
+
+import asyncio
 
 import pytest
 
 from app.harness.hooks import events
-from app.harness.hooks.events import on, emit
+from app.harness.hooks.events import on, emit, reset
 
 
-# ── 基础事件测试 ──
+async def _drain():
+    """反复让出控制权，等待 consumer 消费完所有事件"""
+    for _ in range(20):
+        await asyncio.sleep(0)
 
 
 class TestEvents:
     """验证 on() / emit() 核心功能"""
 
+    @pytest.fixture(autouse=True)
+    def _cleanup(self):
+        reset()
+        yield
+        reset()
+
     @pytest.mark.asyncio
     async def test_emit_calls_all_handlers(self):
-        """emit: 所有 handler 被调用"""
-
         called = []
 
         @on("test:all")
-        async def handler_a(**_kw):
+        async def handler_a(data: dict):
             called.append("a")
 
         @on("test:all")
-        async def handler_b(**_kw):
+        async def handler_b(data: dict):
             called.append("b")
 
-        await emit("test:all", x=1)
+        emit("test:all", {"x": 1})
+        await _drain()
         assert called == ["a", "b"]
 
     @pytest.mark.asyncio
     async def test_emit_no_handlers(self):
-        """emit: 没有 handler 不报错"""
-        await emit("test:no_handler", x=1)
+        emit("test:no_handler", {"x": 1})
+        await _drain()
 
     @pytest.mark.asyncio
     async def test_handler_exception_logged_not_raised(self):
-        """emit: handler 抛异常只记日志不传播"""
-
         @on("test:bad")
-        async def bad_handler(**_kw):
+        async def bad_handler(data: dict):
             raise ValueError("handler error")
 
         @on("test:bad")
-        async def good_handler(**_kw):
+        async def good_handler(data: dict):
             called.append("good")
 
         called = []
-        await emit("test:bad")
+        emit("test:bad")
+        await _drain()
         assert called == ["good"]
 
     @pytest.mark.asyncio
     async def test_sync_handler_works(self):
-        """emit: 同步 handler 也能正确执行"""
-
         @on("test:sync")
-        def sync_handler(**_kw):
+        def sync_handler(data: dict):
             called.append("sync")
 
         called = []
-        await emit("test:sync")
+        emit("test:sync")
+        await _drain()
         assert called == ["sync"]
 
     @pytest.mark.asyncio
     async def test_handler_return_value_ignored(self):
-        """emit: handler 返回值被忽略，不影响后续 handler"""
-
         values = []
 
         @on("test:return_val")
-        async def handler_a(**_kw):
-            return "blocked"
+        async def handler_a(data: dict):
+            return "ignored"
 
         @on("test:return_val")
-        async def handler_b(**_kw):
+        async def handler_b(data: dict):
             values.append("b")
 
-        await emit("test:return_val")
+        emit("test:return_val")
+        await _drain()
         assert values == ["b"]
 
 
-# ── 内置钩子验证 ──
-
-
 class TestBuiltinHooks:
-    """验证内置钩子通过 harness/hooks/__init__ 正确加载"""
+    """验证内置钩子加载"""
 
     def test_all_events_registered(self):
-        """所有预期事件都有 handler"""
         assert "tool:start" in events._handlers
         assert "tool:end" in events._handlers
         assert "agent:start" in events._handlers
@@ -101,14 +100,13 @@ class TestBuiltinHooks:
         assert "llm:end" in events._handlers
         assert "llm:start" in events._handlers
 
-    def test_log_hook_has_all_handlers(self):
-        """log + jsonl 共注册了多个 handler（计数确保没漏也没多）"""
+    def test_handler_counts(self):
         total = (
-            len(events._handlers.get("agent:start", []))   # log + jsonl = 2
-            + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
-            + len(events._handlers.get("llm:end", []))      # log + jsonl = 2
-            + len(events._handlers.get("agent:end", []))    # log + jsonl = 2
-            + len(events._handlers.get("tool:start", []))   # log = 1
-            + len(events._handlers.get("tool:end", []))     # jsonl = 1
+            len(events._handlers.get("agent:start", []))
+            + len(events._handlers.get("llm:start", []))
+            + len(events._handlers.get("llm:end", []))
+            + len(events._handlers.get("agent:end", []))
+            + len(events._handlers.get("tool:start", []))
+            + len(events._handlers.get("tool:end", []))
         )
         assert total == 10

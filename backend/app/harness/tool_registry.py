@@ -278,9 +278,9 @@ class ToolRegistry:
             return f"参数解析失败: {raw_args}"
 
         # tool:start — 日志等辅助功能
-        await emit("tool:start", tool_name=name, args=args, raw_args=raw_args)
+        emit("tool:start", {"tool_name": name, "args": args, "raw_args": raw_args})
         result = await tool.execute(db, user_id, args)
-        await emit("tool:end", tool_name=name, tool_call_id=tool_call.get("id", ""), result=result)
+        emit("tool:end", {"tool_name": name, "tool_call_id": tool_call.get("id", ""), "result": result})
         return result
 
 
