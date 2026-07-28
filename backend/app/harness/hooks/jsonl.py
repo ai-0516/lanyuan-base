@@ -55,6 +55,13 @@ async def on_agent_start(data: dict):
 @on(events.LLM_START)
 async def on_llm_start(data: dict):
     req_id = data.get("req_id", "")
+
+    # 保存上一轮（如果存在且尚未保存）
+    prev = _current_turns.get(req_id)
+    entry = _entries.get(req_id)
+    if prev is not None and entry is not None:
+        entry["turns"].append(prev)
+
     _current_turns[req_id] = {
         "messages_sent": data.get("messages_sent"),
         "tools_sent": data.get("tools_sent"),
