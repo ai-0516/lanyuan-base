@@ -30,56 +30,53 @@ TOOL_END = "tool:end"
 # ── 事件数据类型 ──
 
 
-class AgentStartData(TypedDict):
+class EventBase(TypedDict):
+    """所有事件数据的基类"""
+    req_id: str
+
+
+class AgentStartData(EventBase):
     meta: dict
-    req_id: str
 
 
-class TurnStartData(TypedDict):
+class TurnStartData(EventBase):
     turn: int
-    req_id: str
 
 
-class TurnEndData(TypedDict):
+class TurnEndData(EventBase):
     turn: int
-    req_id: str
 
 
-class LlmStartData(TypedDict):
+class LlmStartData(EventBase):
     turn: int
     messages_sent: list
     tools_sent: list | None
-    req_id: str
 
 
-class LlmEndData(TypedDict):
+class LlmEndData(EventBase):
     turn: int
     finish_reason: str
     tokens: int
     content: str
     tool_calls: list
     tool_calls_count: int
-    req_id: str
     usage: NotRequired[dict[str, Any]]
 
 
-class ToolStartData(TypedDict):
+class ToolStartData(EventBase):
     tool_name: str
     tool_call_id: str
-    req_id: str
 
 
-class ToolEndData(TypedDict):
+class ToolEndData(EventBase):
     tool_name: str
     tool_call_id: str
     result: str
-    req_id: str
 
 
-class AgentEndData(TypedDict):
+class AgentEndData(EventBase):
     total_turns: int
     error: str | None
-    req_id: str
 
 
 # ── 实现 ──
