@@ -37,6 +37,9 @@ def setup_logging():
     # 清除已有 handler（避免重复初始化）
     root.handlers.clear()
 
+    # 抑制 SQLAlchemy engine 日志（SQL 语句无意义）
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
     # ── Console Handler（所有环境） ──
     console = logging.StreamHandler()
     console.setLevel(level)
