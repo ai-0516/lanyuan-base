@@ -66,6 +66,7 @@ class AIAgent:
         events.emit(events.AGENT_START, {"meta": meta, "req_id": correlation_id})
 
         for turn in range(_MAX_TURNS):
+            events.emit(events.TURN_START, {"turn": turn, "req_id": correlation_id})
             # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
             turn_messages_sent = copy.deepcopy(messages)
             turn_trace: dict[str, Any] = {
@@ -129,6 +130,7 @@ class AIAgent:
             if not tool_calls:
                 turn_trace["tool_results"] = []
                 self._turns.append(turn_trace)
+                events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
                 events.emit(events.AGENT_END, {"total_turns": turn + 1, "error": None, "req_id": correlation_id})
                 return
 
@@ -164,6 +166,7 @@ class AIAgent:
                 })
 
             self._turns.append(turn_trace)
+            events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
 
         error = f"Agent 循环超过 {_MAX_TURNS} 次上限"
         yield ("error", error)

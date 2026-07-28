@@ -97,16 +97,18 @@ class TestBuiltinHooks:
         assert "tool:end" in events._handlers
         assert "agent:start" in events._handlers
         assert "agent:end" in events._handlers
+        assert "turn:start" in events._handlers
         assert "llm:end" in events._handlers
         assert "llm:start" in events._handlers
 
     def test_handler_counts(self):
         total = (
-            len(events._handlers.get("agent:start", []))
-            + len(events._handlers.get("llm:start", []))
-            + len(events._handlers.get("llm:end", []))
-            + len(events._handlers.get("agent:end", []))
-            + len(events._handlers.get("tool:start", []))
-            + len(events._handlers.get("tool:end", []))
+            len(events._handlers.get("agent:start", []))   # log + jsonl = 2
+            + len(events._handlers.get("turn:start", []))   # jsonl = 1
+            + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
+            + len(events._handlers.get("llm:end", []))      # log + jsonl = 2
+            + len(events._handlers.get("agent:end", []))    # log + jsonl = 2
+            + len(events._handlers.get("tool:start", []))   # log = 1
+            + len(events._handlers.get("tool:end", []))     # jsonl = 1
         )
-        assert total == 10
+        assert total == 11

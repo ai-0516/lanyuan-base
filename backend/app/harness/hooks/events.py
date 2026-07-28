@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 AGENT_START = "agent:start"
 AGENT_END = "agent:end"
+TURN_START = "turn:start"
+TURN_END = "turn:end"
 LLM_START = "llm:start"
 LLM_END = "llm:end"
 TOOL_START = "tool:start"
@@ -30,6 +32,16 @@ TOOL_END = "tool:end"
 
 class AgentStartData(TypedDict):
     meta: dict
+
+
+class TurnStartData(TypedDict):
+    turn: int
+    req_id: str
+
+
+class TurnEndData(TypedDict):
+    turn: int
+    req_id: str
 
 
 class LlmStartData(TypedDict):
@@ -50,17 +62,20 @@ class LlmEndData(TypedDict):
 class ToolStartData(TypedDict):
     tool_name: str
     tool_call_id: str
+    req_id: str
 
 
 class ToolEndData(TypedDict):
     tool_name: str
     tool_call_id: str
     result: str
+    req_id: str
 
 
 class AgentEndData(TypedDict):
     total_turns: int
     error: str | None
+    req_id: str
 
 
 # ── 实现 ──

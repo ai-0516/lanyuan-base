@@ -36,10 +36,12 @@
 | 事件常量 | 数据形状 | 触发时机 | 注册的 handler |
 |----------|---------|---------|---------------|
 | `AGENT_START` | `AgentStartData` | AIAgent.run() 入口 | log + jsonl |
+| `TURN_START` | `TurnStartData` | 每轮开始时 | jsonl |
 | `LLM_START` | `LlmStartData` | 每轮 LLM 调用前 | log + jsonl |
 | `LLM_END` | `LlmEndData` | LLM 返回后（含 finish_reason） | log + jsonl |
 | `TOOL_START` | `ToolStartData` | 每个工具执行前 | log |
 | `TOOL_END` | `ToolEndData` | 每个工具执行后 | jsonl |
+| `TURN_END` | `TurnEndData` | 每轮结束时（工具执行后） | 暂无 |
 | `AGENT_END` | `AgentEndData` | 循环结束（正常或超限） | log + jsonl |
 
 ### AgentStartData
@@ -48,6 +50,19 @@
 class AgentStartData(TypedDict):
     meta: dict          # {"session_id": int, "user_message": str}
 ```
+
+### TurnStartData
+
+```python
+class TurnStartData(TypedDict):
+    turn: int           # 当前轮次（从 0 开始）
+```
+
+### TurnEndData
+
+```python
+class TurnEndData(TypedDict):
+    turn: int
 
 ### LlmStartData
 
