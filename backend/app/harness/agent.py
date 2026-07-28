@@ -132,10 +132,12 @@ class AIAgent:
             # 有工具调用 → 执行 → 回填 → 继续
             for tc in tool_calls:
                 tool_name = tc.get("function", {}).get("name", "?")
+                emit("tool:start", {"tool_name": tool_name, "tool_call_id": tc.get("id", "")})
                 if self.tool_executor:
                     result = await self.tool_executor(db, user_id, tc)
                 else:
                     result = f"未配置工具执行器，无法执行: {tc['function']['name']}"
+                emit("tool:end", {"tool_name": tool_name, "tool_call_id": tc.get("id", ""), "result": result})
 
                 # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
                 msg: dict = {

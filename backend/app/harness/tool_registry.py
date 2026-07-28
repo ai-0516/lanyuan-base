@@ -18,8 +18,6 @@ ResultFormatter = Callable[[Any], str]
 from fastapi.params import Depends as DependsClass
 from pydantic import BaseModel
 
-from app.harness.hooks.events import emit
-
 logger = logging.getLogger(__name__)
 
 # ── Python type → JSON Schema type mapping ──
@@ -277,11 +275,7 @@ class ToolRegistry:
         except json.JSONDecodeError:
             return f"参数解析失败: {raw_args}"
 
-        # tool:start — 日志等辅助功能
-        emit("tool:start", {"tool_name": name, "args": args, "raw_args": raw_args})
-        result = await tool.execute(db, user_id, args)
-        emit("tool:end", {"tool_name": name, "tool_call_id": tool_call.get("id", ""), "result": result})
-        return result
+        return await tool.execute(db, user_id, args)
 
 
 # ── 全局实例 & @tool 装饰器 ──
