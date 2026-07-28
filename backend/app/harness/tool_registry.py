@@ -214,6 +214,9 @@ class ToolDef:
         if isinstance(result, dict) and "code" in result and "data" in result:
             result = result["data"]
 
+        # 递归移除 avatar 字段（base64 头像数据，LLM 不需要）
+        _strip_avatar(result)
+
         # 如果有 result_formatter，用它生成 LLM 友好的摘要文本
         if self.result_formatter:
             # Pydantic model → dict，formatter 统一处理 dict
@@ -235,9 +238,6 @@ class ToolDef:
                 if c.name not in ("created_at", "updated_at")
             }
         
-        # 递归移除 avatar 字段（base64 头像数据，LLM 不需要）
-        _strip_avatar(result)
-
         result = json.dumps(result, ensure_ascii=False, default=str)
         # 正则兜底：strip_base64_uris 的保留，处理任何遗漏的 data URI
         result = _BASE64_PATTERN.sub('""', result)
