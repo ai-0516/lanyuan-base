@@ -8,7 +8,7 @@
 import logging
 
 from app.harness import context, session
-from app.harness.agent import AIAgent, _write_log_entry
+from app.harness.agent import AIAgent
 from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -107,8 +107,6 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                         )
             await session.touch_conversation(db, session_id)
 
-        # ── 6. 写 LLM 请求日志（完整轮次，一条记录） ──
-        _write_log_entry(agent.get_log())
     except Exception as e:
         logger.exception("持久化/log 异常: session_id=%s user_id=%s", session_id, user_id)
         # 持久化失败不影响已发出的 SSE 事件，仅记录日志

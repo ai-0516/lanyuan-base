@@ -95,18 +95,20 @@ class TestBuiltinHooks:
     def test_all_events_registered(self):
         """所有预期事件都有 handler"""
         assert "tool:start" in events._handlers
+        assert "tool:end" in events._handlers
         assert "agent:start" in events._handlers
         assert "agent:end" in events._handlers
         assert "llm:end" in events._handlers
         assert "llm:start" in events._handlers
 
     def test_log_hook_has_all_handlers(self):
-        """log.py 注册了 5 个 handler"""
+        """log + jsonl 共注册了多个 handler（计数确保没漏也没多）"""
         total = (
-            len(events._handlers.get("agent:start", []))
-            + len(events._handlers.get("llm:start", []))
-            + len(events._handlers.get("llm:end", []))
-            + len(events._handlers.get("agent:end", []))
-            + len(events._handlers.get("tool:start", []))
+            len(events._handlers.get("agent:start", []))   # log + jsonl = 2
+            + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
+            + len(events._handlers.get("llm:end", []))      # log + jsonl = 2
+            + len(events._handlers.get("agent:end", []))    # log + jsonl = 2
+            + len(events._handlers.get("tool:start", []))   # log = 1
+            + len(events._handlers.get("tool:end", []))     # jsonl = 1
         )
-        assert total == 5
+        assert total == 10
