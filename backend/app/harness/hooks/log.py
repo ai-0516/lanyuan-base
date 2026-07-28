@@ -84,8 +84,8 @@ async def log_llm_end(data: dict):
     if reason == "stop":
         content = data.get("content", "")
         logger.info(
-            "[%s] [%s] [%s] turn=%d AI回复(%d tokens) (%s): %s",
-            sid, req_id, events.LLM_END, turn, tokens, elapsed, _truncate(content),
+            "[%s] [%s] [%s] turn=%d AI回复(%d tokens): %s (%s)",
+            sid, req_id, events.LLM_END, turn, tokens, _truncate(content), elapsed,
         )
     elif reason == "tool_calls":
         tools = data.get("tool_calls", [])
