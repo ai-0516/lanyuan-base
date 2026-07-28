@@ -117,10 +117,6 @@ async def on_agent_end(data: dict):
     req_id = data["req_id"]
     entry = _entries.get(req_id)
     if entry:
-        # 兜底：如果 turn:end 没来得及保存，这里保底
-        turn = _current_turns.get(req_id)
-        if turn is not None:
-            entry["turns"].append(turn)
         entry["duration_ms"] = 0
         if error := data.get("error"):
             entry["error"] = error
