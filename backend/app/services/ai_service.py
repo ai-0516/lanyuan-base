@@ -65,7 +65,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             deepseek_messages,
             db=db,
             user_id=user_id,
-            meta={"session_id": session_id, "user_message": message},
+            meta={"session_id": session_id, "user_id": user_id, "user_message": message},
         ):
             # LLM 返回的错误事件（非异常），记录下来便于排查
             if event == "error":

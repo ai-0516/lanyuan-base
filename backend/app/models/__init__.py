@@ -4,8 +4,9 @@ from .comment import Comment
 from .like import Like
 from .notification import Notification
 from .conversation import Conversation, Message
+from .llm_usage import LlmUsage
 
 __all__ = [
     "User", "Post", "Comment", "Like",
-    "Notification", "Conversation", "Message",
+    "Notification", "Conversation", "Message", "LlmUsage",
 ]

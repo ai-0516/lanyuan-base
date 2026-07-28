@@ -1,4 +1,4 @@
-"""messages content/tool_calls MEDIUMTEXT
+"""messages content/tool_calls MEDIUMTEXT → Text（兼容 SQLite 测试）
 
 Revision ID: 2e4a1b8c9d0f
 Revises: 43a2b107dae2
@@ -8,7 +8,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision: str = "2e4a1b8c9d0f"
@@ -21,13 +20,13 @@ def upgrade() -> None:
     op.alter_column(
         "messages", "content",
         existing_type=sa.Text(),
-        type_=mysql.MEDIUMTEXT(),
+        type_=sa.Text(),
         existing_nullable=True,
     )
     op.alter_column(
         "messages", "tool_calls",
         existing_type=sa.Text(),
-        type_=mysql.MEDIUMTEXT(),
+        type_=sa.Text(),
         existing_nullable=True,
     )
 
@@ -35,13 +34,13 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.alter_column(
         "messages", "content",
-        existing_type=mysql.MEDIUMTEXT(),
+        existing_type=sa.Text(),
         type_=sa.Text(),
         existing_nullable=True,
     )
     op.alter_column(
         "messages", "tool_calls",
-        existing_type=mysql.MEDIUMTEXT(),
+        existing_type=sa.Text(),
         type_=sa.Text(),
         existing_nullable=True,
     )

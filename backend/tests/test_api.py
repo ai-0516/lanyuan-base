@@ -10,23 +10,15 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_lanyuan.db"
 
 from app.main import app
 from app.core.database import init_db, close_db
+from app.harness.hooks import events as hook_events
 
 
 @pytest.fixture(autouse=True)
 async def setup_db():
     """每个测试前重建数据库"""
+    hook_events.reset()
     await init_db()
     yield
-    # 清理测试数据库
-    import aiosqlite
-    try:
-        async with aiosqlite.connect("./test_lanyuan.db") as db:
-            tables = ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]
-            for table in tables:
-                await db.execute(f"DELETE FROM {table}")
-            await db.commit()
-    except Exception:
-        pass
 
 
 @pytest.fixture
