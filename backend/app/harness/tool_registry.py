@@ -73,9 +73,15 @@ def _get_dep_name(default: Any) -> str:
 _BASE64_PATTERN = re.compile(r'"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}"')
 
 
-def _strip_base64_uris(text: str) -> str:
-    """替换 JSON 字符串中的 base64 头像数据为空字符串"""
-    return _BASE64_PATTERN.sub('""', text)
+def _strip_avatar(data) -> None:
+    """递归移除所有 dict 中的 avatar 字段"""
+    if isinstance(data, dict):
+        data.pop("avatar", None)
+        for v in data.values():
+            _strip_avatar(v)
+    elif isinstance(data, list):
+        for item in data:
+            _strip_avatar(item)
 
 
 # ── ToolDef ──
@@ -228,10 +234,13 @@ class ToolDef:
                 for c in result.__table__.columns
                 if c.name not in ("created_at", "updated_at")
             }
+        
+        # 递归移除 avatar 字段（base64 头像数据，LLM 不需要）
+        _strip_avatar(result)
 
         result = json.dumps(result, ensure_ascii=False, default=str)
-        # 去掉 base64 头像数据（LLM 不需要看图片二进制）
-        result = _strip_base64_uris(result)
+        # 正则兜底：strip_base64_uris 的保留，处理任何遗漏的 data URI
+        result = _BASE64_PATTERN.sub('""', result)
         # 最后防线：超过 50KB 才截断
         if len(result) > 50000:
             result = result[:50000] + "…(结果过长已截断)"
