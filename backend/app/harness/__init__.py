@@ -2,3 +2,5 @@
 
 将 ai_service.py 的单体逻辑拆为独立模块，ai_service.py 保留为 manager。
 """
+
+from . import hooks  # noqa: F401 — 激活钩子系统

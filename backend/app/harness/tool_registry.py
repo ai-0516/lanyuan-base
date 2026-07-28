@@ -8,7 +8,6 @@ db 和 user_id 自动注入，不暴露给 LLM。
 import inspect
 import json
 import logging
-import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
 
@@ -17,6 +16,8 @@ ResultFormatter = Callable[[Any], str]
 
 from fastapi.params import Depends as DependsClass
 from pydantic import BaseModel
+
+from app.harness.hooks.events import emit_collect
 
 logger = logging.getLogger(__name__)
 
@@ -60,19 +61,6 @@ def _resolve_type(tp: Any) -> dict:
 
     # Fallback
     return {"type": "string"}
-
-
-_BASE64_PATTERN = re.compile(r'"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}"')
-
-
-def _strip_base64_uris(text: str) -> str:
-    """替换 JSON 字符串中的 base64 头像数据为空字符串
-
-    LLM 不需要看到 base64 图片数据（动辄 50-100KB），去掉后大幅缩小消息体积。
-    """
-    return _BASE64_PATTERN.sub('""', text)
-
-
 def _get_dep_name(default: Any) -> str:
     """Extract the dependency function name from a DependsClass() default."""
     if isinstance(default, DependsClass):
@@ -233,11 +221,6 @@ class ToolDef:
             }
 
         result = json.dumps(result, ensure_ascii=False, default=str)
-        # 去掉 base64 头像数据（LLM 不需要看图片二进制）
-        result = _strip_base64_uris(result)
-        # 最后防线：超过 50KB 才截断
-        if len(result) > 50000:
-            result = result[:50000] + "…(结果过长已截断)"
         return result
 
 
@@ -278,8 +261,18 @@ class ToolRegistry:
         except json.JSONDecodeError:
             return f"参数解析失败: {raw_args}"
 
-        logger.info("Tool execute: %s args=%s", name, raw_args)
-        return await tool.execute(db, user_id, args)
+        # tool:pre — 可阻断
+        blocked = await emit_collect("tool:pre", tool_name=name, args=args, raw_args=raw_args)
+        if blocked:
+            return str(blocked[0])
+
+        result = await tool.execute(db, user_id, args)
+
+        # tool:post — 清理、截断
+        cleaned = await emit_collect("tool:post", tool_name=name, result=result)
+        if cleaned:
+            return str(cleaned[0])
+        return result
 
 
 # ── 全局实例 & @tool 装饰器 ──

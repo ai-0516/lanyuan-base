@@ -11,15 +11,13 @@ Agent Loop 逻辑：
 
 import copy
 import json
-import logging
 import os
 import secrets
 from datetime import datetime, timezone
 
 from app.config import settings
 from app.harness import streaming
-
-logger = logging.getLogger(__name__)
+from app.harness.hooks.events import emit
 
 _MAX_TURNS = 10
 
@@ -109,6 +107,9 @@ class AIAgent:
             if self.tools and settings.DEEPSEEK_API_KEY:
                 kw["tools"] = self.tools
 
+            # agent:start — 即将调用 LLM
+            await emit("agent:start", turn=turn)
+
             tool_calls = []
             full_reply = ""
             token_count = 0
@@ -143,17 +144,25 @@ class AIAgent:
             turn_log["tool_calls"] = copy.deepcopy(tool_calls)
             turn_log["tool_results"] = []
 
+            # agent:turn — 本轮结束
+            await emit(
+                "agent:turn",
+                turn=turn,
+                finish_reason=turn_log["finish_reason"],
+                tokens=token_count,
+                tool_calls_count=len(tool_calls),
+            )
+
             # 无工具调用 → 结束
             if not tool_calls:
                 turn_log["tool_results"] = []
                 self._log_turns.append(turn_log)
-                logger.info("Agent Loop: done after %d turn(s)", turn + 1)
+                await emit("agent:end", total_turns=turn + 1, error=None)
                 return
 
             # 有工具调用 → 执行 → 回填 → 继续
             for tc in tool_calls:
                 tool_name = tc.get("function", {}).get("name", "?")
-                logger.info("Agent Loop: turn=%d tool=%s", turn + 1, tool_name)
                 if self.tool_executor:
                     result = await self.tool_executor(db, user_id, tc)
                 else:
@@ -184,4 +193,4 @@ class AIAgent:
 
         self._error = f"Agent 循环超过 {_MAX_TURNS} 次上限"
         yield ("error", self._error)
-        logger.warning("Agent Loop: exceeded %d turns", _MAX_TURNS)
+        await emit("agent:end", total_turns=_MAX_TURNS, error=self._error)
