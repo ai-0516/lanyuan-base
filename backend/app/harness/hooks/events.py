@@ -10,12 +10,64 @@ handler 异常只记日志，不阻断 consumer 循环。
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
 
 logger = logging.getLogger(__name__)
 
+
+# ── 事件名常量 ──
+
+AGENT_START = "agent:start"
+AGENT_END = "agent:end"
+LLM_START = "llm:start"
+LLM_END = "llm:end"
+TOOL_START = "tool:start"
+TOOL_END = "tool:end"
+
+
+# ── 事件数据类型 ──
+
+
+class AgentStartData(TypedDict):
+    meta: dict
+
+
+class LlmStartData(TypedDict):
+    turn: int
+    messages_sent: list
+    tools_sent: list | None
+
+
+class LlmEndData(TypedDict):
+    turn: int
+    finish_reason: str
+    tokens: int
+    content: str
+    tool_calls: list
+    tool_calls_count: int
+
+
+class ToolStartData(TypedDict):
+    tool_name: str
+    tool_call_id: str
+
+
+class ToolEndData(TypedDict):
+    tool_name: str
+    tool_call_id: str
+    result: str
+
+
+class AgentEndData(TypedDict):
+    total_turns: int
+    error: str | None
+
+
+# ── 实现 ──
+
+
 _handlers: dict[str, list[Callable[[dict], Any]]] = {}
-_queue: asyncio.Queue["Event"] = asyncio.Queue()
+_queue: "asyncio.Queue[Event] | None" = None
 _consumer_task: asyncio.Task | None = None
 
 
@@ -25,12 +77,19 @@ class Event:
     data: dict[str, Any] = field(default_factory=dict)
 
 
+def _ensure_queue() -> "asyncio.Queue[Event]":
+    global _queue
+    if _queue is None:
+        _queue = asyncio.Queue()
+    return _queue
+
+
 def on(event: str):
     """装饰器：注册事件处理器
 
     用法：
-        @on("tool:start")
-        async def log_tool_call(data: dict):
+        @on(events.TOOL_END)
+        async def log_tool_call(data: events.ToolEndData):
             logger.info("Tool: %s", data["tool_name"])
     """
     def wrapper(fn: Callable):
@@ -44,23 +103,27 @@ def emit(event: str, data: dict[str, Any] | None = None) -> None:
     global _consumer_task
     if _consumer_task is None:
         _consumer_task = asyncio.create_task(_consumer())
-    _queue.put_nowait(Event(event, data or {}))
+    _ensure_queue().put_nowait(Event(event, data or {}))
 
 
 def reset():
     """清空队列和 consumer（测试用）"""
-    global _consumer_task
+    global _consumer_task, _queue
     if _consumer_task:
         _consumer_task.cancel()
         _consumer_task = None
-    while not _queue.empty():
-        _queue.get_nowait()
+    q = _queue
+    _queue = None
+    if q:
+        while not q.empty():
+            q.get_nowait()
 
 
 async def _consumer():
     """后台协程：循环消费队列事件"""
+    q = _ensure_queue()
     while True:
-        ev = await _queue.get()
+        ev = await q.get()
         for fn in _handlers.get(ev.name, []):
             try:
                 result = fn(ev.data)

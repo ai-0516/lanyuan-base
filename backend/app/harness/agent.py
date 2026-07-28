@@ -15,7 +15,7 @@ from typing import Any
 
 from app.config import settings
 from app.harness import streaming
-from app.harness.hooks.events import emit
+from app.harness.hooks import events
 
 _MAX_TURNS = 10
 
@@ -61,7 +61,7 @@ class AIAgent:
         source = streaming.deepseek_chat if settings.DEEPSEEK_API_KEY else streaming.mock_chat
 
         # agent:start — 整个 Agent 循环开始
-        emit("agent:start", {"meta": meta})
+        events.emit(events.AGENT_START, {"meta": meta})
 
         for turn in range(_MAX_TURNS):
             # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
@@ -76,7 +76,7 @@ class AIAgent:
                 kw["tools"] = self.tools
 
             # llm:start — 即将调用 LLM
-            emit("llm:start", {"turn": turn, "messages_sent": turn_messages_sent, "tools_sent": turn_trace["tools_sent"]})
+            events.emit(events.LLM_START, {"turn": turn, "messages_sent": turn_messages_sent, "tools_sent": turn_trace["tools_sent"]})
 
             tool_calls = []
             full_reply = ""
@@ -113,7 +113,7 @@ class AIAgent:
             turn_trace["tool_results"] = []
 
             # llm:end — LLM 调用完成
-            emit("llm:end", {
+            events.emit(events.LLM_END, {
                 "turn": turn,
                 "finish_reason": turn_trace["finish_reason"],
                 "tokens": token_count,
@@ -126,18 +126,18 @@ class AIAgent:
             if not tool_calls:
                 turn_trace["tool_results"] = []
                 self._turns.append(turn_trace)
-                emit("agent:end", {"total_turns": turn + 1, "error": None})
+                events.emit(events.AGENT_END, {"total_turns": turn + 1, "error": None})
                 return
 
             # 有工具调用 → 执行 → 回填 → 继续
             for tc in tool_calls:
                 tool_name = tc.get("function", {}).get("name", "?")
-                emit("tool:start", {"tool_name": tool_name, "tool_call_id": tc.get("id", "")})
+                events.emit(events.TOOL_START, {"tool_name": tool_name, "tool_call_id": tc.get("id", "")})
                 if self.tool_executor:
                     result = await self.tool_executor(db, user_id, tc)
                 else:
                     result = f"未配置工具执行器，无法执行: {tc['function']['name']}"
-                emit("tool:end", {"tool_name": tool_name, "tool_call_id": tc.get("id", ""), "result": result})
+                events.emit(events.TOOL_END, {"tool_name": tool_name, "tool_call_id": tc.get("id", ""), "result": result})
 
                 # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
                 msg: dict = {
@@ -164,4 +164,4 @@ class AIAgent:
 
         error = f"Agent 循环超过 {_MAX_TURNS} 次上限"
         yield ("error", error)
-        emit("agent:end", {"total_turns": _MAX_TURNS, "error": error})
+        events.emit(events.AGENT_END, {"total_turns": _MAX_TURNS, "error": error})

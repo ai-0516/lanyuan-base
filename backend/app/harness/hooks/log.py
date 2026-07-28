@@ -4,26 +4,24 @@
 
 import logging
 
+from app.harness.hooks import events
 from app.harness.hooks.events import on
 
 logger = logging.getLogger(__name__)
 
 
-@on("agent:start")
-async def log_agent_start(data: dict):
-    """整个 Agent 循环启动"""
+@on(events.AGENT_START)
+async def log_agent_start(data: events.AgentStartData):
     logger.info("Agent Loop: started")
 
 
-@on("llm:start")
-async def log_llm_start(data: dict):
-    """每轮 LLM 调用前"""
+@on(events.LLM_START)
+async def log_llm_start(data: events.LlmStartData):
     logger.info("Agent Loop: turn=%d → calling LLM", data["turn"] + 1)
 
 
-@on("llm:end")
-async def log_llm_end(data: dict):
-    """每轮 LLM 调用结束后"""
+@on(events.LLM_END)
+async def log_llm_end(data: events.LlmEndData):
     turn = data["turn"]
     reason = data["finish_reason"]
     tokens = data["tokens"]
@@ -34,14 +32,12 @@ async def log_llm_end(data: dict):
         logger.info("Agent Loop: turn=%d done finish=%s tokens=%d", turn + 1, reason, tokens)
 
 
-@on("agent:end")
-async def log_agent_end(data: dict):
-    """循环退出前"""
+@on(events.AGENT_END)
+async def log_agent_end(data: events.AgentEndData):
     if error := data.get("error"):
         logger.warning("Agent Loop: exceeded %d turns", data["total_turns"])
 
 
-@on("tool:start")
-async def log_tool_call(data: dict):
-    """工具执行前"""
+@on(events.TOOL_START)
+async def log_tool_call(data: events.ToolStartData):
     logger.info("Agent Loop: tool=%s executing", data["tool_name"])

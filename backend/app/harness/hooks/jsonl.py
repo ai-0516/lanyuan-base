@@ -1,7 +1,5 @@
 """
 JSONL 日志钩子 — 记录每次 LLM 调用的完整轮次
-
-从事件中收集数据，在 agent:end 时写入 logs/llm-requests/YYYY-MM-DD.jsonl。
 """
 
 import json
@@ -12,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.config import settings
+from app.harness.hooks import events
 from app.harness.hooks.events import on
 
 logger = logging.getLogger(__name__)
@@ -46,8 +45,8 @@ def _write_entry():
         f.flush()
 
 
-@on("agent:start")
-async def on_agent_start(data: dict):
+@on(events.AGENT_START)
+async def on_agent_start(data: events.AgentStartData):
     _reset()
     meta = data.get("meta", {})
     _entry["id"] = _gen_req_id()
@@ -59,8 +58,8 @@ async def on_agent_start(data: dict):
     _entry["turns"] = []
 
 
-@on("llm:start")
-async def on_llm_start(data: dict):
+@on(events.LLM_START)
+async def on_llm_start(data: events.LlmStartData):
     global _current_turn
     _current_turn = {
         "messages_sent": data.get("messages_sent"),
@@ -73,8 +72,8 @@ async def on_llm_start(data: dict):
     }
 
 
-@on("llm:end")
-async def on_llm_end(data: dict):
+@on(events.LLM_END)
+async def on_llm_end(data: events.LlmEndData):
     if _current_turn is not None:
         _current_turn["finish_reason"] = data["finish_reason"]
         _current_turn["tokens"] = data["tokens"]
@@ -82,8 +81,8 @@ async def on_llm_end(data: dict):
         _current_turn["tool_calls"] = data.get("tool_calls", [])
 
 
-@on("tool:end")
-async def on_tool_end(data: dict):
+@on(events.TOOL_END)
+async def on_tool_end(data: events.ToolEndData):
     if _current_turn is not None:
         _current_turn["tool_results"].append({
             "tool": data["tool_name"],
@@ -92,8 +91,8 @@ async def on_tool_end(data: dict):
         })
 
 
-@on("agent:end")
-async def on_agent_end(data: dict):
+@on(events.AGENT_END)
+async def on_agent_end(data: events.AgentEndData):
     if _current_turn is not None:
         _entry["turns"].append(_current_turn)
     _entry["duration_ms"] = 0
