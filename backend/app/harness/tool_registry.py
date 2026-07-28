@@ -261,15 +261,15 @@ class ToolRegistry:
         except json.JSONDecodeError:
             return f"参数解析失败: {raw_args}"
 
-        # tool:pre — 可阻断
-        blocked = await emit_collect("tool:pre", tool_name=name, args=args, raw_args=raw_args)
+        # tool:start — 可阻断
+        blocked = await emit_collect("tool:start", tool_name=name, args=args, raw_args=raw_args)
         if blocked:
             return str(blocked[0])
 
         result = await tool.execute(db, user_id, args)
 
-        # tool:post — 清理、截断
-        cleaned = await emit_collect("tool:post", tool_name=name, result=result)
+        # tool:end — 清理、截断
+        cleaned = await emit_collect("tool:end", tool_name=name, result=result)
         if cleaned:
             return str(cleaned[0])
         return result

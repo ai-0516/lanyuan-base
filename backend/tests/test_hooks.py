@@ -176,11 +176,11 @@ class TestToolRegistryHooks:
     """验证 ToolRegistry.execute() 正确触发 tool:pre / tool:post"""
 
     @pytest.mark.asyncio
-    async def test_tool_pre_blocks_execution(self):
-        """tool:pre 返回非 None 时阻止工具执行"""
+    async def test_tool_start_blocks_execution(self):
+        """tool:start 返回非 None 时阻止工具执行"""
         executed = [False]
 
-        @on("tool:pre")
+        @on("tool:start")
         async def block_hook(tool_name, **_kw):
             if tool_name == "blocked_tool":
                 return "blocked by hook"
@@ -202,12 +202,12 @@ class TestToolRegistryHooks:
         assert executed[0] is False  # 工具未被执行
 
     @pytest.mark.asyncio
-    async def test_tool_post_modifies_result(self):
-        """tool:post 返回字符串时替换工具结果"""
+    async def test_tool_end_modifies_result(self):
+        """tool:end 返回字符串时替换工具结果"""
         original_result = "original"
         modified_result = "modified"
 
-        @on("tool:post")
+        @on("tool:end")
         async def modify_hook(tool_name, result, **_kw):
             if result == "original":
                 return modified_result
@@ -230,9 +230,10 @@ class TestToolRegistryHooks:
     async def test_builtin_hooks_active(self):
         """内置钩子被正确加载（通过 harness/hooks/__init__）"""
         from app.harness.hooks import events as evt
-        # 内置钩子应该注册了 tool:post 和 tool:pre
-        assert "tool:pre" in evt._handlers
-        assert "tool:post" in evt._handlers
+        assert "tool:start" in evt._handlers
+        assert "tool:end" in evt._handlers
         assert "agent:start" in evt._handlers
-        assert "agent:turn" in evt._handlers
         assert "agent:end" in evt._handlers
+        assert "turn:start" in evt._handlers
+        assert "turn:end" in evt._handlers
+        assert "llm:start" in evt._handlers

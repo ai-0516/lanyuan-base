@@ -95,7 +95,12 @@ class AIAgent:
 
         source = streaming.deepseek_chat if settings.DEEPSEEK_API_KEY else streaming.mock_chat
 
+        # agent:start — 整个 Agent 循环开始
+        await emit("agent:start")
+
         for turn in range(_MAX_TURNS):
+            # turn:start — 一轮开始
+            await emit("turn:start", turn=turn)
             # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
             turn_messages_sent = copy.deepcopy(messages)
             turn_log: dict = {
@@ -107,8 +112,8 @@ class AIAgent:
             if self.tools and settings.DEEPSEEK_API_KEY:
                 kw["tools"] = self.tools
 
-            # agent:start — 即将调用 LLM
-            await emit("agent:start", turn=turn)
+            # llm:start — 即将调用 LLM
+            await emit("llm:start", turn=turn)
 
             tool_calls = []
             full_reply = ""
@@ -132,6 +137,9 @@ class AIAgent:
                     has_error = True
                 yield (event, data)
 
+            # llm:end — LLM 调用完成
+            await emit("llm:end", turn=turn)
+
             # 记录本轮响应
             if has_error:
                 turn_log["finish_reason"] = "error"
@@ -144,9 +152,9 @@ class AIAgent:
             turn_log["tool_calls"] = copy.deepcopy(tool_calls)
             turn_log["tool_results"] = []
 
-            # agent:turn — 本轮结束
+            # turn:end — 本轮结束
             await emit(
-                "agent:turn",
+                "turn:end",
                 turn=turn,
                 finish_reason=turn_log["finish_reason"],
                 tokens=token_count,

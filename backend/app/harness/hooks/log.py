@@ -12,14 +12,26 @@ logger = logging.getLogger(__name__)
 
 
 @on("agent:start")
-async def log_agent_start(turn: int, **_kwargs):
-    """每轮 LLM 调用前记录"""
+async def log_agent_start(**_kwargs):
+    """整个 Agent 循环启动"""
+    logger.info("Agent Loop: started")
+
+
+@on("turn:start")
+async def log_turn_start(turn: int, **_kwargs):
+    """每轮开始"""
+    logger.info("Agent Loop: turn=%d starting", turn + 1)
+
+
+@on("llm:start")
+async def log_llm_start(turn: int, **_kwargs):
+    """每轮 LLM 调用前"""
     logger.info("Agent Loop: turn=%d → calling LLM", turn + 1)
 
 
-@on("agent:turn")
-async def log_agent_turn(turn: int, finish_reason: str, tokens: int, tool_calls_count: int, **_kwargs):
-    """每轮 LLM 调用结束后记录"""
+@on("turn:end")
+async def log_turn_end(turn: int, finish_reason: str, tokens: int, tool_calls_count: int, **_kwargs):
+    """每轮 LLM 调用结束后"""
     if finish_reason == "tool_calls":
         logger.info(
             "Agent Loop: turn=%d done tool_calls=%d tokens=%d",
@@ -34,12 +46,12 @@ async def log_agent_turn(turn: int, finish_reason: str, tokens: int, tool_calls_
 
 @on("agent:end")
 async def log_agent_end(total_turns: int, error: str | None, **_kwargs):
-    """循环退出前记录"""
+    """循环退出前"""
     if error:
         logger.warning("Agent Loop: exceeded %d turns", total_turns)
 
 
-@on("tool:pre")
+@on("tool:start")
 async def log_tool_call(tool_name: str, **_kwargs):
-    """工具执行前记录"""
+    """工具执行前"""
     logger.info("Agent Loop: tool=%s executing", tool_name)

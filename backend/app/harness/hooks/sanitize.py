@@ -12,7 +12,7 @@ _BASE64_PATTERN = re.compile(r'"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}"')
 _MAX_RESULT_LENGTH = 50000
 
 
-@on("tool:post")
+@on("tool:end")
 async def sanitize_tool_result(tool_name: str, result: str, **_kwargs) -> str | None:
     """清洗工具结果：移除 base64 头像数据并截断
 
