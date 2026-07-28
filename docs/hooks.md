@@ -36,13 +36,13 @@
 | 事件常量 | 数据形状 | 触发时机 | 注册的 handler |
 |----------|---------|---------|---------------|
 | `AGENT_START` | `AgentStartData` | AIAgent.run() 入口 | log + jsonl |
-| `TURN_START` | `TurnStartData` | 每轮开始时 | jsonl |
-| `LLM_START` | `LlmStartData` | 每轮 LLM 调用前 | log + jsonl |
-| `LLM_END` | `LlmEndData` | LLM 返回后（含 finish_reason） | log + jsonl |
+| `TURN_START` | `TurnStartData` | 每轮开始时，初始化本轮数据 | jsonl |
+| `LLM_START` | `LlmStartData` | LLM 调用前，填入 messages/tools | log + jsonl |
+| `LLM_END` | `LlmEndData` | LLM 返回后 | log + jsonl |
 | `TOOL_START` | `ToolStartData` | 每个工具执行前 | log |
-| `TOOL_END` | `ToolEndData` | 每个工具执行后 | jsonl |
-| `TURN_END` | `TurnEndData` | 每轮结束时（工具执行后） | 暂无 |
-| `AGENT_END` | `AgentEndData` | 循环结束（正常或超限） | log + jsonl |
+| `TOOL_END` | `ToolEndData` | 每个工具执行后，追加结果到本轮 | jsonl |
+| `TURN_END` | `TurnEndData` | 每轮结束时，保存本轮到 entry | jsonl |
+| `AGENT_END` | `AgentEndData` | 循环结束，写入文件 | log + jsonl |
 
 ### AgentStartData
 
