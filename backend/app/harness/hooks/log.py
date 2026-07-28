@@ -17,12 +17,6 @@ async def log_agent_start(**_kwargs):
     logger.info("Agent Loop: started")
 
 
-@on("turn:start")
-async def log_turn_start(turn: int, **_kwargs):
-    """每轮开始"""
-    logger.info("Agent Loop: turn=%d starting", turn + 1)
-
-
 @on("llm:start")
 async def log_llm_start(turn: int, **_kwargs):
     """每轮 LLM 调用前"""

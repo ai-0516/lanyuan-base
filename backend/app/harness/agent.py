@@ -99,8 +99,6 @@ class AIAgent:
         await emit("agent:start")
 
         for turn in range(_MAX_TURNS):
-            # turn:start — 一轮开始
-            await emit("turn:start", turn=turn)
             # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
             turn_messages_sent = copy.deepcopy(messages)
             turn_log: dict = {

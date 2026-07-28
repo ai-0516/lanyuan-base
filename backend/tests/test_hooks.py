@@ -97,20 +97,16 @@ class TestBuiltinHooks:
         assert "tool:start" in events._handlers
         assert "agent:start" in events._handlers
         assert "agent:end" in events._handlers
-        assert "turn:start" in events._handlers
         assert "turn:end" in events._handlers
         assert "llm:start" in events._handlers
 
     def test_log_hook_has_all_handlers(self):
-        """log.py 注册了 6 个 handler"""
-        # agent:start × 1 + turn:start × 1 + llm:start × 1
-        # + turn:end × 1 + agent:end × 1 + tool:start × 1
+        """log.py 注册了 5 个 handler"""
         total = (
             len(events._handlers.get("agent:start", []))
-            + len(events._handlers.get("turn:start", []))
             + len(events._handlers.get("llm:start", []))
             + len(events._handlers.get("turn:end", []))
             + len(events._handlers.get("agent:end", []))
             + len(events._handlers.get("tool:start", []))
         )
-        assert total == 6
+        assert total == 5
