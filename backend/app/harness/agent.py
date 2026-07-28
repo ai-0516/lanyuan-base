@@ -86,6 +86,7 @@ class AIAgent:
             token_count = 0
             has_tool_call = False
             has_error = False
+            usage_data = None
             self._reasoning_content = ""  # 每轮重置
 
             async for event, data in source(messages, **kw):
@@ -99,6 +100,8 @@ class AIAgent:
                 elif event == "tool_call":
                     tool_calls.append(data)
                     has_tool_call = True
+                elif event == "usage":
+                    usage_data = data
                 elif event == "error":
                     has_error = True
                 yield (event, data)
@@ -116,7 +119,7 @@ class AIAgent:
             turn_trace["tool_results"] = []
 
             # llm:end — LLM 调用完成
-            events.emit(events.LLM_END, {
+            llm_end_data: dict[str, Any] = {
                 "turn": turn,
                 "finish_reason": turn_trace["finish_reason"],
                 "tokens": token_count,
@@ -124,7 +127,10 @@ class AIAgent:
                 "tool_calls": copy.deepcopy(tool_calls),
                 "tool_calls_count": len(tool_calls),
                 "req_id": correlation_id,
-            })
+            }
+            if usage_data:
+                llm_end_data["usage"] = usage_data
+            events.emit(events.LLM_END, llm_end_data)
 
             # 无工具调用 → 结束
             if not tool_calls:

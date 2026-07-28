@@ -101,6 +101,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                 reasoning_content_parts: list[str] = []
                 finish_reason: str | None = None
                 token_count = 0
+                usage_data: dict | None = None
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
@@ -138,6 +139,10 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                     except json.JSONDecodeError:
                         continue
 
+                    # 捕获 usage（通常在最后一个 chunk 中）
+                    if data.get("usage"):
+                        usage_data = data["usage"]
+
         # 流结束 — 判断是工具调用还是纯文本
         if reasoning_content_parts:
             yield ("reasoning", "".join(reasoning_content_parts))
@@ -150,12 +155,16 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
             )
             for tc in tool_call_accumulator.values():
                 yield ("tool_call", tc)
+            if usage_data:
+                yield ("usage", usage_data)
         else:
             logger.info(
                 "LLM response: tokens=%d finish_reason=stop",
                 token_count,
             )
             yield ("done", "")
+            if usage_data:
+                yield ("usage", usage_data)
 
     except Exception as e:
         logger.error("LLM error: %s", e)

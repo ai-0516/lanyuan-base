@@ -17,6 +17,7 @@
 | 生产者 | `agent.py` | 编排层，发出所有事件 |
 | 管道 | `hooks/events.py` | 同步 put_nowait 入队，后台 consumer 循环消费 |
 | 消费者 | `hooks/log.py` | 终端日志（用户消息 + AI 决策） |
+| 消费者 | `hooks/stats.py` | Token 统计（总量 + 缓存命中率） |
 | 消费者 | `hooks/jsonl.py` | JSONL 文件日志（完整轮次数据） |
 
 ## 设计原则
@@ -35,14 +36,14 @@
 
 | 事件常量 | 数据形状 | 触发时机 | 注册的 handler |
 |----------|---------|---------|---------------|
-| `AGENT_START` | `AgentStartData` | AIAgent.run() 入口 | log + jsonl |
+| `AGENT_START` | `AgentStartData` | AIAgent.run() 入口 | log + jsonl + stats |
 | `TURN_START` | `TurnStartData` | 每轮开始时，初始化本轮数据 | jsonl |
 | `LLM_START` | `LlmStartData` | LLM 调用前，填入 messages/tools | jsonl |
-| `LLM_END` | `LlmEndData` | LLM 返回后，记录 AI 决策 | log + jsonl |
+| `LLM_END` | `LlmEndData` | LLM 返回后，记录 AI 决策 | log + jsonl + stats |
 | `TOOL_START` | `ToolStartData` | 每个工具执行前 | log |
 | `TOOL_END` | `ToolEndData` | 每个工具执行后，追加结果到本轮 | jsonl |
 | `TURN_END` | `TurnEndData` | 每轮结束时，保存本轮到 entry | jsonl |
-| `AGENT_END` | `AgentEndData` | 循环结束，写入文件 | jsonl |
+| `AGENT_END` | `AgentEndData` | 循环结束，写入文件 | jsonl + stats |
 
 ### AgentStartData
 
