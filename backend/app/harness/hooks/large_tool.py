@@ -45,7 +45,7 @@ async def check_tool_size(data: dict):
     tool_name = data.get("tool_name", "?")
 
     # 每回都记到 app.log，作为调阈值的参考
-    oversize_logger.info(
+    _oversize_logger.info(
         "[%s] [tool:end] tool=%s result_len=%d threshold=%d",
         req_id, tool_name, result_len, _THRESHOLD,
     )
