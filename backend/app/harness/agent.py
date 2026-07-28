@@ -86,6 +86,7 @@ class AIAgent:
             token_count = 0
             has_tool_call = False
             has_error = False
+            error_msg = ""
             usage_data = None
             self._reasoning_content = ""  # 每轮重置
 
@@ -104,6 +105,7 @@ class AIAgent:
                     usage_data = data
                 elif event == "error":
                     has_error = True
+                    error_msg = str(data)
                 yield (event, data)
 
             # 记录本轮响应
@@ -130,12 +132,16 @@ class AIAgent:
             }
             if usage_data:
                 llm_end_data["usage"] = usage_data
+            if has_error and error_msg:
+                llm_end_data["error"] = error_msg
             events.emit(events.LLM_END, llm_end_data)
 
             # 无工具调用 → 结束
             if not tool_calls:
                 turn_trace["tool_results"] = []
                 self._turns.append(turn_trace)
+                if has_error:
+                    yield ("done", {"finish_reason": "error", "error": error_msg})
                 events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
                 events.emit(events.AGENT_END, {"total_turns": turn + 1, "error": None, "req_id": correlation_id})
                 return

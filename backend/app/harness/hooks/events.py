@@ -61,6 +61,7 @@ class LlmEndData(EventBase):
     tool_calls: list
     tool_calls_count: int
     usage: NotRequired[dict[str, Any]]
+    error: NotRequired[str]
 
 
 class ToolStartData(EventBase):

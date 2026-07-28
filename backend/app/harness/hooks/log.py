@@ -95,9 +95,10 @@ async def log_llm_end(data: dict):
             sid, req_id, events.LLM_END, turn, ", ".join(tool_names), tokens, elapsed,
         )
     elif reason == "error":
+        error_detail = data.get("error", "未知错误")
         logger.warning(
-            "[%s] [%s] [%s] turn=%d LLM 返回错误 (%s)",
-            sid, req_id, events.LLM_END, turn, elapsed,
+            "[%s] [%s] [%s] turn=%d LLM 返回错误 (%s): %s",
+            sid, req_id, events.LLM_END, turn, elapsed, error_detail,
         )
 
 

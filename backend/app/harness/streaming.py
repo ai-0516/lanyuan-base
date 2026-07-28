@@ -167,5 +167,5 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                 yield ("usage", usage_data)
 
     except Exception as e:
-        logger.error("LLM error: %s", e)
+        logger.exception("LLM error")
         yield ("error", f"AI 对话出错: {str(e)}")
