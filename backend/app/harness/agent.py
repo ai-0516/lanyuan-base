@@ -135,9 +135,6 @@ class AIAgent:
                     has_error = True
                 yield (event, data)
 
-            # llm:end — LLM 调用完成
-            await emit("llm:end", turn=turn)
-
             # 记录本轮响应
             if has_error:
                 turn_log["finish_reason"] = "error"
