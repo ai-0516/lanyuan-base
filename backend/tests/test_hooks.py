@@ -110,7 +110,7 @@ class TestBuiltinHooks:
             + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
             + len(events._handlers.get("llm:end", []))      # log + jsonl + stats = 3
             + len(events._handlers.get("tool:start", []))   # log = 1
-            + len(events._handlers.get("tool:end", []))     # log + jsonl = 2
+            + len(events._handlers.get("tool:end", []))     # log + jsonl + large_tool = 3
             + len(events._handlers.get("agent:end", []))    # log + jsonl + stats = 3
         )
-        assert total == 18
+        assert total == 19
