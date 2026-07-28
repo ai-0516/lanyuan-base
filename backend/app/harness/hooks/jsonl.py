@@ -8,7 +8,6 @@ JSONL 日志钩子 — 记录每次 LLM 调用的完整轮次（并行安全）
 import json
 import logging
 import os
-import secrets
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,13 +24,6 @@ _entries: dict[str, dict[str, Any]] = {}
 _current_turns: dict[str, dict[str, Any] | None] = {}
 
 
-def _gen_req_id() -> str:
-    now = datetime.now(timezone.utc)
-    ts = now.strftime("%Y%m%d_%H%M%S")
-    rand = secrets.token_hex(3)
-    return f"req_{ts}_{rand}"
-
-
 def _write_entry(req_id: str):
     entry = _entries.get(req_id)
     if not entry or not entry.get("turns"):
@@ -46,10 +38,10 @@ def _write_entry(req_id: str):
 
 @on(events.AGENT_START)
 async def on_agent_start(data: dict):
-    req_id = data.get("req_id", _gen_req_id())
+    req_id = data["req_id"]
     meta = data.get("meta", {})
     _entries[req_id] = {
-        "id": _gen_req_id(),
+        "id": req_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "session_id": meta.get("session_id"),
         "user_message": meta.get("user_message"),
