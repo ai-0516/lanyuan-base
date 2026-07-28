@@ -8,6 +8,7 @@ db 和 user_id 自动注入，不暴露给 LLM。
 import inspect
 import json
 import logging
+import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
 
@@ -17,7 +18,7 @@ ResultFormatter = Callable[[Any], str]
 from fastapi.params import Depends as DependsClass
 from pydantic import BaseModel
 
-from app.harness.hooks.events import emit_collect
+from app.harness.hooks.events import emit
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,16 @@ def _get_dep_name(default: Any) -> str:
         dep = getattr(default, "dependency", None)
         return dep.__name__ if dep else ""
     return ""
+
+
+# ── 结果清洗 ──
+
+_BASE64_PATTERN = re.compile(r'"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}"')
+
+
+def _strip_base64_uris(text: str) -> str:
+    """替换 JSON 字符串中的 base64 头像数据为空字符串"""
+    return _BASE64_PATTERN.sub('""', text)
 
 
 # ── ToolDef ──
@@ -221,6 +232,11 @@ class ToolDef:
             }
 
         result = json.dumps(result, ensure_ascii=False, default=str)
+        # 去掉 base64 头像数据（LLM 不需要看图片二进制）
+        result = _strip_base64_uris(result)
+        # 最后防线：超过 50KB 才截断
+        if len(result) > 50000:
+            result = result[:50000] + "…(结果过长已截断)"
         return result
 
 
@@ -261,18 +277,9 @@ class ToolRegistry:
         except json.JSONDecodeError:
             return f"参数解析失败: {raw_args}"
 
-        # tool:start — 可阻断
-        blocked = await emit_collect("tool:start", tool_name=name, args=args, raw_args=raw_args)
-        if blocked:
-            return str(blocked[0])
-
-        result = await tool.execute(db, user_id, args)
-
-        # tool:end — 清理、截断
-        cleaned = await emit_collect("tool:end", tool_name=name, result=result)
-        if cleaned:
-            return str(cleaned[0])
-        return result
+        # tool:start — 日志等辅助功能
+        await emit("tool:start", tool_name=name, args=args, raw_args=raw_args)
+        return await tool.execute(db, user_id, args)
 
 
 # ── 全局实例 & @tool 装饰器 ──

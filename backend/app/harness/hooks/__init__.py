@@ -7,4 +7,3 @@
 
 from . import events  # noqa: F401 — 事件系统
 from . import log  # noqa: F401 — 日志钩子
-from . import sanitize  # noqa: F401 — 结果清理钩子
