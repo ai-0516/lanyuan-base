@@ -24,13 +24,17 @@ def _truncate(text: str, max_len: int = 120) -> str:
 
 @on(events.AGENT_START)
 async def log_agent_start(data: dict):
+    event_name = events.AGENT_START
+    req_id = data.get("req_id", "-")
     meta = data.get("meta", {})
     msg = meta.get("user_message", "")
-    logger.info("[Agent] 用户: %s", _truncate(msg))
+    logger.info("[%s] [%s] 用户: %s", event_name, req_id, _truncate(msg))
 
 
 @on(events.LLM_END)
 async def log_llm_end(data: dict):
+    event_name = events.LLM_END
+    req_id = data.get("req_id", "-")
     reason = data["finish_reason"]
     tokens = data["tokens"]
     turn = data["turn"] + 1
@@ -38,8 +42,8 @@ async def log_llm_end(data: dict):
     if reason == "stop":
         content = data.get("content", "")
         logger.info(
-            "[Agent] turn=%d AI回复(%d tokens): %s",
-            turn, tokens, _truncate(content),
+            "[%s] [%s] turn=%d AI回复(%d tokens): %s",
+            event_name, req_id, turn, tokens, _truncate(content),
         )
     elif reason == "tool_calls":
         tools = data.get("tool_calls", [])
@@ -48,8 +52,8 @@ async def log_llm_end(data: dict):
             for tc in tools
         ]
         logger.info(
-            "[Agent] turn=%d 调用工具(%s) (%d tokens)",
-            turn, ", ".join(tool_names), tokens,
+            "[%s] [%s] turn=%d 调用工具(%s) (%d tokens)",
+            event_name, req_id, turn, ", ".join(tool_names), tokens,
         )
     elif reason == "error":
-        logger.warning("[Agent] turn=%d LLM 返回错误", turn)
+        logger.warning("[%s] [%s] turn=%d LLM 返回错误", event_name, req_id, turn)
