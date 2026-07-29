@@ -27,7 +27,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 _LOG_DIR = "logs/llm-requests"

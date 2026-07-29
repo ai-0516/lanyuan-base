@@ -13,7 +13,6 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any
 
 from app.config import settings
 from app.harness.hooks import events
