@@ -216,6 +216,17 @@ def _build_atif(req_events: list[dict]) -> dict:
     model_name = agent_start.get("model", "")
     user_message = agent_start.get("user_message", "")
 
+    # 收集所有 turn 的 tool_definitions（去重）
+    tool_defs_seen: set[str] = set()
+    tool_definitions: list[dict] = []
+    for ev in req_events:
+        if ev.get("event") == _EVENT_LLM_START:
+            for t in (ev.get("tools_sent") or []):
+                name = t.get("function", {}).get("name", "")
+                if name and name not in tool_defs_seen:
+                    tool_defs_seen.add(name)
+                    tool_definitions.append(t)
+
     # 按 turn 分组事件
     turns_events: dict[int, list[dict]] = defaultdict(list)
     for ev in req_events:
@@ -239,6 +250,7 @@ def _build_atif(req_events: list[dict]) -> dict:
 
     for turn_idx in sorted_turns:
         evs = turns_events[turn_idx]
+        turn_ts = next((e.get("ts") for e in evs if e.get("ts")), None)
 
         # 找 llm:start 获取 messages_sent
         llm_start = next((e for e in evs if e.get("event") == _EVENT_LLM_START), None)
@@ -261,23 +273,29 @@ def _build_atif(req_events: list[dict]) -> dict:
                 # 第一条用户消息
                 if user_message:
                     step_id += 1
-                    steps.append({
+                    step: dict[str, Any] = {
                         "step_id": step_id,
                         "source": "user",
                         "message": user_message,
-                    })
+                    }
+                    if turn_ts:
+                        step["timestamp"] = turn_ts
+                    steps.append(step)
             else:
-                # 后续 turn：找新增的用户消息（messages_sent 中最后一个 user 消息）
+                # 后续 turn：找新增的用户消息
                 curr_users = _extract_user_messages(messages_sent)
                 prev_users = _extract_user_messages(prev_messages_sent)
                 new_users = curr_users[len(prev_users):]
                 for msg in new_users:
                     step_id += 1
-                    steps.append({
+                    step = {
                         "step_id": step_id,
                         "source": "user",
                         "message": msg,
-                    })
+                    }
+                    if turn_ts:
+                        step["timestamp"] = turn_ts
+                    steps.append(step)
 
         # Agent step
         if llm_end:
@@ -287,28 +305,27 @@ def _build_atif(req_events: list[dict]) -> dict:
                 "source": "agent",
                 "message": llm_end.get("content", ""),
             }
+            if turn_ts:
+                agent_step["timestamp"] = turn_ts
 
-            # tools_sent（当前 turn 传给 LLM 的工具定义）
-            tools_sent = llm_start.get("tools_sent") if llm_start else None
-            if tools_sent:
-                agent_step["tools"] = tools_sent
-
-            # tool_calls
+            # tool_calls（RFC 格式：function_name + arguments Object）
             tool_calls = llm_end.get("tool_calls", [])
             if tool_calls:
-                agent_step["tool_calls"] = [
-                    {
+                rfc_calls = []
+                for tc in tool_calls:
+                    args_str = tc.get("function", {}).get("arguments", "{}")
+                    try:
+                        args_obj = json.loads(args_str) if isinstance(args_str, str) else args_str
+                    except (json.JSONDecodeError, TypeError):
+                        args_obj = {}
+                    rfc_calls.append({
                         "tool_call_id": tc.get("id", ""),
-                        "type": "function",
-                        "function": {
-                            "name": tc.get("function", {}).get("name", ""),
-                            "arguments": tc.get("function", {}).get("arguments", "{}"),
-                        },
-                    }
-                    for tc in tool_calls
-                ]
+                        "function_name": tc.get("function", {}).get("name", ""),
+                        "arguments": args_obj,
+                    })
+                agent_step["tool_calls"] = rfc_calls
 
-                # observation: 按 tool_call_id 匹配结果
+                # observation.results
                 results = []
                 for tc in tool_calls:
                     tcid = tc.get("id", "")
@@ -319,16 +336,23 @@ def _build_atif(req_events: list[dict]) -> dict:
                             "source_call_id": tcid,
                         })
                 if results:
-                    agent_step["observation"] = {"result": results}
+                    agent_step["observation"] = {"results": results}
 
             # metrics
             usage = llm_end.get("usage")
             tokens = llm_end.get("tokens", 0)
             if usage:
-                agent_step["metrics"] = {
+                metrics: dict[str, Any] = {
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
                 }
+                cached = usage.get("cached_tokens")
+                if cached is not None:
+                    metrics["cached_tokens"] = cached
+                cost = usage.get("cost_usd")
+                if cost is not None:
+                    metrics["cost_usd"] = cost
+                agent_step["metrics"] = metrics
             elif tokens:
                 agent_step["metrics"] = {
                     "prompt_tokens": 0,
@@ -348,18 +372,6 @@ def _build_atif(req_events: list[dict]) -> dict:
             total_prompt += m.get("prompt_tokens", 0)
             total_completion += m.get("completion_tokens", 0)
 
-    # duration
-    duration_ms = 0
-    ts_start = agent_start.get("ts", "")
-    ts_end = agent_end.get("ts", "")
-    if ts_start and ts_end:
-        try:
-            t_start = datetime.fromisoformat(ts_start)
-            t_end = datetime.fromisoformat(ts_end)
-            duration_ms = int((t_end - t_start).total_seconds() * 1000)
-        except (ValueError, TypeError):
-            pass
-
     atif: dict[str, Any] = {
         "schema_version": "ATIF-v1.7",
         "trajectory_id": req_id,
@@ -374,11 +386,12 @@ def _build_atif(req_events: list[dict]) -> dict:
             "total_completion_tokens": total_completion,
             "total_steps": len(steps),
         },
-        "duration_ms": duration_ms,
     }
 
     if session_id:
         atif["session_id"] = session_id
+    if tool_definitions:
+        atif["agent"]["tool_definitions"] = tool_definitions
 
     err = agent_end.get("error")
     if err:
