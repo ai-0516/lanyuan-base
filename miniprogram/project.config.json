@@ -46,7 +46,7 @@
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "libVersion": "3.7.0",
+  "libVersion": "3.17.0",
   "appid": "wxabf10c294a858a34",
   "projectname": "lanyuan-base",
   "condition": {},
