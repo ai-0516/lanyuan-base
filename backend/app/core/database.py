@@ -6,15 +6,20 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
 
-# SQLite 默认 5 秒超时，显式设 15 秒避免并发测试锁冲突
+# SQLite → 单连接池（pool_size=1, 无溢出）完全串行化，避免并发写锁；
+# MySQL → 默认池（10 连接 + 10 溢出）
 _connect_args = {"timeout": 15} if "sqlite" in settings.DATABASE_URL else {}
+_sqlite_pool = (
+    {"pool_size": 1, "max_overflow": 0}
+    if "sqlite" in settings.DATABASE_URL
+    else {"pool_size": 10, "max_overflow": 10}
+)
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=10,
     connect_args=_connect_args,
+    **_sqlite_pool,
 )
 
 # 为 SQLite 启用 WAL 模式（允许多连接并发读 + 串行写）
@@ -30,7 +35,7 @@ if "sqlite" in settings.DATABASE_URL:
         raw = getattr(aiosqlite_conn, "_conn", aiosqlite_conn)
         if isinstance(raw, sqlite3.Connection):
             raw.execute("PRAGMA journal_mode=WAL")
-            raw.execute("PRAGMA busy_timeout=8000")
+            raw.execute("PRAGMA busy_timeout=15000")
 
 async_session_factory = async_sessionmaker(
     engine,
