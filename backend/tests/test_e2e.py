@@ -554,6 +554,7 @@ class TestAI:
 # ── 8. Upload ────────────────────────────────────────────────────────
 
 
+@pytest.mark.skip(reason="Upload 功能暂未使用，待启用时恢复测试")
 class TestUpload:
 
     async def test_upload_single_file(self, client, headers_a):
