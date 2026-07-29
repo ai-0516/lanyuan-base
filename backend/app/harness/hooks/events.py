@@ -23,6 +23,7 @@ TURN_START = "turn:start"
 TURN_END = "turn:end"
 LLM_START = "llm:start"
 LLM_END = "llm:end"
+LLM_ERROR = "llm:error"  # LLM 调用发生错误（API 错误、超时等）
 TOOL_START = "tool:start"
 TOOL_END = "tool:end"
 
@@ -64,6 +65,13 @@ class LlmEndData(EventBase):
     error: NotRequired[str]
 
 
+class LlmErrorData(EventBase):
+    """LLM 调用发生错误时的独立事件（API 拒绝、超时、解析失败等）"""
+    turn: int
+    error: str
+    detail: NotRequired[str]
+
+
 class ToolStartData(EventBase):
     tool_name: str
     tool_call_id: str
@@ -73,6 +81,7 @@ class ToolEndData(EventBase):
     tool_name: str
     tool_call_id: str
     result: str
+    status: str  # "ok" | "error"
 
 
 class AgentEndData(EventBase):

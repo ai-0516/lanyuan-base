@@ -99,6 +99,7 @@ class TestBuiltinHooks:
         assert "turn:end" in events._handlers
         assert "llm:start" in events._handlers
         assert "llm:end" in events._handlers
+        assert "llm:error" in events._handlers
         assert "tool:start" in events._handlers
         assert "tool:end" in events._handlers
 
@@ -109,8 +110,9 @@ class TestBuiltinHooks:
             + len(events._handlers.get("turn:end", []))     # log + jsonl = 2
             + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
             + len(events._handlers.get("llm:end", []))      # log + jsonl + stats = 3
+            + len(events._handlers.get("llm:error", []))    # log = 1
             + len(events._handlers.get("tool:start", []))   # log = 1
             + len(events._handlers.get("tool:end", []))     # log + jsonl + large_tool = 3
             + len(events._handlers.get("agent:end", []))    # log + jsonl + stats = 3
         )
-        assert total == 19
+        assert total == 20

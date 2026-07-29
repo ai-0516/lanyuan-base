@@ -102,6 +102,26 @@ async def log_llm_end(data: dict):
         )
 
 
+@on(events.LLM_ERROR)
+async def log_llm_error(data: dict):
+    """LLM 调用失败时的独立日志"""
+    req_id = data["req_id"]
+    turn = data["turn"] + 1
+    error = data.get("error", "未知错误")
+    detail = data.get("detail")
+    sid = _session_ids.get(req_id, "?")
+    if detail:
+        logger.error(
+            "[%s] [%s] [%s] turn=%d LLM 请求失败: %s 详情: %s",
+            sid, req_id, events.LLM_ERROR, turn, error, detail,
+        )
+    else:
+        logger.error(
+            "[%s] [%s] [%s] turn=%d LLM 请求失败: %s",
+            sid, req_id, events.LLM_ERROR, turn, error,
+        )
+
+
 @on(events.TOOL_START)
 async def log_tool_start(data: dict):
     req_id = data["req_id"]
@@ -120,13 +140,15 @@ async def log_tool_end(data: dict):
     req_id = data["req_id"]
     tool_name = data.get("tool_name", "?")
     result = data.get("result", "")
-    status = "ok" if result and "error" not in result.lower()[:100] else "err"
+    status = data.get("status", "ok")  # "ok" | "error"
     ts = _timestamps.get(req_id, {})
     elapsed = _fmt_elapsed(ts.pop("tool", None))
     sid = _session_ids.get(req_id, "?")
     logger.info(
-        "[%s] [%s] [%s] tool=%s result_len=%d %s\n%s (%s)",
-        sid, req_id, events.TOOL_END, tool_name, len(result), status, result, elapsed,
+        "[%s] [%s] [%s] tool=%s result_len=%d status=%s%s (%s)",
+        sid, req_id, events.TOOL_END, tool_name, len(result), status,
+        f"\n{result}" if result else "",
+        elapsed,
     )
 
 

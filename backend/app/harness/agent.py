@@ -10,6 +10,7 @@ Agent Loop 逻辑：
 """
 
 import copy
+import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Any
@@ -17,6 +18,8 @@ from typing import Any
 from app.config import settings
 from app.harness import streaming
 from app.harness.hooks import events
+
+logger = logging.getLogger(__name__)
 
 _MAX_TURNS = 10
 
@@ -106,6 +109,11 @@ class AIAgent:
                 elif event == "error":
                     has_error = True
                     error_msg = str(data)
+                    events.emit(events.LLM_ERROR, {
+                        "turn": turn,
+                        "error": error_msg,
+                        "req_id": correlation_id,
+                    })
                 yield (event, data)
 
             # 记录本轮响应
@@ -149,12 +157,19 @@ class AIAgent:
             # 有工具调用 → 执行 → 回填 → 继续
             for tc in tool_calls:
                 tool_name = tc.get("function", {}).get("name", "?")
-                events.emit(events.TOOL_START, {"tool_name": tool_name, "tool_call_id": tc.get("id", ""), "req_id": correlation_id})
-                if self.tool_executor:
-                    result = await self.tool_executor(db, user_id, tc)
-                else:
-                    result = f"未配置工具执行器，无法执行: {tc['function']['name']}"
-                events.emit(events.TOOL_END, {"tool_name": tool_name, "tool_call_id": tc.get("id", ""), "result": result, "req_id": correlation_id})
+                tool_call_id = tc.get("id", "")
+                events.emit(events.TOOL_START, {"tool_name": tool_name, "tool_call_id": tool_call_id, "req_id": correlation_id})
+                try:
+                    if self.tool_executor:
+                        result = await self.tool_executor(db, user_id, tc)
+                    else:
+                        result = f"未配置工具执行器，无法执行: {tool_name}"
+                    tool_status = "ok"
+                except Exception as e:
+                    logger.exception("工具 %s 执行异常", tool_name)
+                    result = str(e)
+                    tool_status = "error"
+                events.emit(events.TOOL_END, {"tool_name": tool_name, "tool_call_id": tool_call_id, "result": result, "status": tool_status, "req_id": correlation_id})
 
                 # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
                 msg: dict = {

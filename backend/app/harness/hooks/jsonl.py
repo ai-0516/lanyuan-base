@@ -97,6 +97,7 @@ async def on_tool_end(data: dict):
             "tool": data["tool_name"],
             "tool_call_id": data.get("tool_call_id", ""),
             "result": data.get("result", ""),
+            "status": data.get("status", "ok"),
         })
 
 
