@@ -9,6 +9,7 @@
 | [07-26](2026-07-26.md) | Agent 幻觉修复 & 调试工具链 | 回填真实 tool_call、replay-llm CLI |
 | [07-27](2026-07-27.md) | @tool 装饰器系统 & Markdown 渲染 | 14 个工具、towxml 集成 |
 | [07-28](2026-07-28.md) | 事件驱动的钩子系统 | 观察者模式、8 事件、类型安全 |
+| [07-29](2026-07-29.md) | NeMo Relay vs replay-llm 对比分析 | ATIF 轨迹导出、Correlation ID、Codec 层 |
 
 ---
 
