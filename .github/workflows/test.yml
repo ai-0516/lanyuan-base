@@ -75,5 +75,67 @@ jobs:
           grep -E "^(Name |app/|TOTAL|---)" /tmp/coverage.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+      - name: Post coverage comment to PR
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = fs.readFileSync('/tmp/coverage.txt', 'utf8');
+            const lines = coverage.split('\n').filter(l => /^(Name |app\/|TOTAL|---)/.test(l));
+
+            const body = `## 📊 Coverage Report\n\n\`\`\`\n${lines.join('\n')}\n\`\`\``;
+
+            const branch = context.ref.replace('refs/heads/', '');
+
+            // Only post comment on non-main branches
+            if (branch === 'main') {
+              console.log('On main branch, skipping PR comment');
+              return;
+            }
+
+            // Find open PR for this branch
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
+            });
+
+            if (pulls.length === 0) {
+              console.log(`No open PR found for branch ${branch}`);
+              return;
+            }
+
+            const prNumber = pulls[0].number;
+            console.log(`Found PR #${prNumber} for branch ${branch}`);
+
+            // Check for existing coverage comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const covComment = comments.find(c => c.body.includes('📊 Coverage Report'));
+
+            if (covComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: covComment.id,
+                body,
+              });
+              console.log(`Updated comment #${covComment.id} on PR #${prNumber}`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+              console.log(`Created new comment on PR #${prNumber}`);
+            }
+
       - name: Test replay-llm --help
         run: python scripts/replay_llm.py --help
