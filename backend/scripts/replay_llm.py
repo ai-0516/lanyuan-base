@@ -346,7 +346,13 @@ def _build_atif(req_events: list[dict]) -> dict:
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
                 }
-                cached = usage.get("cached_tokens")
+                cached = None
+                if usage.get("cached_tokens") is not None:
+                    cached = usage["cached_tokens"]
+                elif usage.get("prompt_tokens_details", {}).get("cached_tokens") is not None:
+                    cached = usage["prompt_tokens_details"]["cached_tokens"]
+                elif usage.get("prompt_cache_hit_tokens") is not None:
+                    cached = usage["prompt_cache_hit_tokens"]
                 if cached is not None:
                     metrics["cached_tokens"] = cached
                 cost = usage.get("cost_usd")
