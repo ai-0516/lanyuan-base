@@ -24,7 +24,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: false
+          enable-cache: false
 
       - name: Install dependencies
         run: pip install -r requirements.txt
