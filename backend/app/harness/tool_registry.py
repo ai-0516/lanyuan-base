@@ -11,12 +11,11 @@ import logging
 import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
+from fastapi.params import Depends as DependsClass
+from pydantic import BaseModel
 
 # Type alias for result formatter: (data) -> str
 ResultFormatter = Callable[[Any], str]
-
-from fastapi.params import Depends as DependsClass
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 

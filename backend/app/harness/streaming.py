@@ -99,7 +99,6 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
 
                 tool_call_accumulator: dict[int, dict] = {}
                 reasoning_content_parts: list[str] = []
-                finish_reason: str | None = None
                 token_count = 0
                 usage_data: dict | None = None
 
@@ -113,7 +112,6 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                         data = json.loads(data_str)
                         choice = data.get("choices", [{}])[0]
                         delta = choice.get("delta", {})
-                        finish_reason = choice.get("finish_reason")
 
                         # 思考过程 token（DeepSeek 推理模型）
                         rc = delta.get("reasoning_content", "")

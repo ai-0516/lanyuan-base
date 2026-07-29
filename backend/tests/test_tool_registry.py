@@ -4,8 +4,6 @@
 """
 
 import json
-from typing import Optional
-from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.params import Depends as DependsClass

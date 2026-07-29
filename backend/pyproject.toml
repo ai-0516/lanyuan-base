@@ -25,7 +25,10 @@ select = ["E", "F"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"alembic/env.py" = ["E402"]
+"seed_data.py" = ["E501"]
 "scripts/*.py" = ["INP001"]
+"tests/*.py" = ["F841"]
 
 [tool.coverage.run]
 source = ["app"]

@@ -18,7 +18,6 @@
 
 import logging
 import logging.handlers
-import os
 from pathlib import Path
 
 from app.config import settings

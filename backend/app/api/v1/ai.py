@@ -54,7 +54,7 @@ async def chat(
             ):
                 if event in ("token", "done", "error", "cmd_new_session"):
                     yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
-        except Exception as e:
+        except Exception:
             logger.exception("SSE 流异常: user_id=%s session_id=%s", user_id, data.session_id)
             yield f"event: error\ndata: {json.dumps('AI回复被中断，请重试', ensure_ascii=False)}\n\n"
 
