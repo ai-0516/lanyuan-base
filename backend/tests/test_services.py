@@ -7,7 +7,6 @@ from sqlalchemy import select
 
 from app.core.database import async_session_factory, init_db
 from app.models.user import User
-from app.models.post import Post
 from app.models.comment import Comment
 from app.schemas.post import PostCreate
 from app.schemas.comment import CommentCreate
@@ -566,7 +565,6 @@ class TestEdgeCases:
 
     async def test_orphan_post_user_skipped(self):
         """帖子作者已被删除时应跳过该帖"""
-        from app.core.database import engine, Base
         import aiosqlite
 
         # 直接插入一条孤儿帖子（user_id 不存在）

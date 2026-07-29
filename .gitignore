@@ -6,6 +6,8 @@ venv/
 .venv/
 backend/.venv/
 *.db
+*.db-shm
+*.db-wal
 *.egg-info/
 *.egg
 

@@ -19,7 +19,6 @@
   - 另见 bug 任务 t_XXX
 """
 
-import json
 import os
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_e2e.db"
@@ -280,7 +279,7 @@ class TestComments:
                           json={"content": "评论1"}, headers=headers_a)
         await client.post(f"/api/v1/posts/{post_id}/comments",
                           json={"content": "评论2"}, headers=headers_a)
-        resp = await client.get(f"/api/v1/posts", headers=headers_a)
+        resp = await client.get("/api/v1/posts", headers=headers_a)
         comments = resp.json()["data"]["items"][0]["comments"]
         assert comments[0]["content"] == "评论1"
         assert comments[1]["content"] == "评论2"
@@ -323,7 +322,7 @@ class TestComments:
         xss = "<img src=x onerror=alert(1)>"
         await client.post(f"/api/v1/posts/{post_id}/comments",
                           json={"content": xss}, headers=headers_a)
-        resp = await client.get(f"/api/v1/posts", headers=headers_a)
+        resp = await client.get("/api/v1/posts", headers=headers_a)
         saved = resp.json()["data"]["items"][0]["comments"][0]["content"]
         assert saved == xss  # 原样保存
 

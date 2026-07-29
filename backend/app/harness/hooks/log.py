@@ -6,7 +6,6 @@
 
 import logging
 import time as time_module
-from typing import Any
 
 from app.config import settings
 from app.harness.hooks import events

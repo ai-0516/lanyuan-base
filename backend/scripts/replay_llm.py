@@ -197,7 +197,6 @@ def _replay(entry: dict, truncate: int | None = None):
         })
         for tc in tool_calls:
             tool_name = tc.get("function", {}).get("name", "?")
-            tool_args = tc.get("function", {}).get("arguments", "{}")
             tool_id = tc.get("id", "")
             # 模拟工具执行结果（不真正调 DB）
             if tool_name == "create_post":

@@ -9,7 +9,6 @@ handler 异常只记日志，不阻断 consumer 循环。
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, TypedDict, NotRequired
 
 logger = logging.getLogger(__name__)

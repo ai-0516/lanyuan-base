@@ -72,7 +72,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                 logger.error("Agent 返回错误: session_id=%s user_id=%s error=%s",
                              session_id, user_id, data)
             yield (event, data)
-    except Exception as e:
+    except Exception:
         logger.exception("stream_chat 异常: session_id=%s user_id=%s", session_id, user_id)
         error_reply = "抱歉，AI 回复被中断，请重试。"
         await session.save_assistant_message(db, session_id, error_reply)
@@ -107,6 +107,6 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                         )
             await session.touch_conversation(db, session_id)
 
-    except Exception as e:
+    except Exception:
         logger.exception("持久化/log 异常: session_id=%s user_id=%s", session_id, user_id)
         # 持久化失败不影响已发出的 SSE 事件，仅记录日志

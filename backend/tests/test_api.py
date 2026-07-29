@@ -1,11 +1,10 @@
 """兰园公共底座 API 测试"""
 
-import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.core.database import init_db, close_db
+from app.core.database import init_db
 from app.harness.hooks import events as hook_events
 
 
@@ -208,7 +207,7 @@ async def test_comment(client: AsyncClient, auth_headers: dict):
     assert comment["user"]["nickname"] == "兰园业主"
 
     # 验证评论出现在帖子列表中
-    list_resp = await client.get(f"/api/v1/posts", headers=auth_headers)
+    list_resp = await client.get("/api/v1/posts", headers=auth_headers)
     assert len(list_resp.json()["data"]["items"][0]["comments"]) == 1
 
 

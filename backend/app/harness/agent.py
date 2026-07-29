@@ -82,7 +82,10 @@ class AIAgent:
                 kw["tools"] = self.tools
 
             # llm:start — 即将调用 LLM
-            events.emit(events.LLM_START, {"turn": turn, "messages_sent": turn_messages_sent, "tools_sent": turn_trace["tools_sent"], "req_id": correlation_id})
+            events.emit(events.LLM_START, {
+                "turn": turn, "messages_sent": turn_messages_sent,
+                "tools_sent": turn_trace["tools_sent"], "req_id": correlation_id,
+            })
 
             tool_calls = []
             full_reply = ""
@@ -158,7 +161,10 @@ class AIAgent:
             for tc in tool_calls:
                 tool_name = tc.get("function", {}).get("name", "?")
                 tool_call_id = tc.get("id", "")
-                events.emit(events.TOOL_START, {"tool_name": tool_name, "tool_call_id": tool_call_id, "req_id": correlation_id})
+                events.emit(events.TOOL_START, {
+                    "tool_name": tool_name, "tool_call_id": tool_call_id,
+                    "turn": turn, "req_id": correlation_id,
+                })
                 try:
                     if self.tool_executor:
                         result = await self.tool_executor(db, user_id, tc)
@@ -169,7 +175,11 @@ class AIAgent:
                     logger.exception("工具 %s 执行异常", tool_name)
                     result = str(e)
                     tool_status = "error"
-                events.emit(events.TOOL_END, {"tool_name": tool_name, "tool_call_id": tool_call_id, "result": result, "status": tool_status, "req_id": correlation_id})
+                events.emit(events.TOOL_END, {
+                    "tool_name": tool_name, "tool_call_id": tool_call_id,
+                    "result": result, "status": tool_status,
+                    "turn": turn, "req_id": correlation_id,
+                })
 
                 # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
                 msg: dict = {

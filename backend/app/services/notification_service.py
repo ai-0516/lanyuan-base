@@ -7,7 +7,7 @@ from app.models.notification import Notification
 from app.models.post import Post
 from app.models.user import User
 from app.schemas.common import UserBrief
-from app.schemas.notification import NotificationCount, NotificationResponse
+from app.schemas.notification import NotificationResponse
 
 
 async def get_unread_notifications(db: AsyncSession, user_id: int) -> list[NotificationResponse]:
@@ -16,7 +16,7 @@ async def get_unread_notifications(db: AsyncSession, user_id: int) -> list[Notif
         select(Notification, User, Post)
         .join(User, Notification.from_user_id == User.id)
         .join(Post, Notification.post_id == Post.id)
-        .where(Notification.user_id == user_id, Notification.is_read == False)
+        .where(Notification.user_id == user_id, Notification.is_read.is_(False))
         .order_by(Notification.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -48,7 +48,7 @@ async def get_unread_count(db: AsyncSession, user_id: int) -> int:
     """获取未读通知数量"""
     stmt = select(func.count(Notification.id)).where(
         Notification.user_id == user_id,
-        Notification.is_read == False,
+        Notification.is_read.is_(False),
     )
     result = await db.execute(stmt)
     return result.scalar() or 0
@@ -60,7 +60,7 @@ async def mark_all_as_read(db: AsyncSession, user_id: int) -> int:
         update(Notification)
         .where(
             Notification.user_id == user_id,
-            Notification.is_read == False,
+            Notification.is_read.is_(False),
         )
         .values(is_read=True, read_at=func.now())
     )
@@ -75,7 +75,7 @@ async def mark_as_read(db: AsyncSession, user_id: int, post_id: int) -> int:
         .where(
             Notification.user_id == user_id,
             Notification.post_id == post_id,
-            Notification.is_read == False,
+            Notification.is_read.is_(False),
         )
         .values(is_read=True, read_at=func.now())
     )

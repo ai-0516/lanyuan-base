@@ -22,12 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.database import Base
 # Import all models so alembic can detect them
-from app.models.user import User
-from app.models.post import Post
-from app.models.comment import Comment
-from app.models.like import Like
-from app.models.notification import Notification
-from app.models.conversation import Conversation, Message
 
 target_metadata = Base.metadata
 

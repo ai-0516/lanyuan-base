@@ -1,0 +1,145 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "chore/**"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/*.yml"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv & Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: false
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv & Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: false
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest tests/ -v --tb=short --cov=app 2>&1 | tee /tmp/coverage.txt
+
+      - name: Generate HTML coverage report
+        run: pytest --cov=app --cov-report=html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/htmlcov/
+          retention-days: 7
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "## 📊 Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "^(Name |app/|TOTAL|---)" /tmp/coverage.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Post coverage comment to PR
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = fs.readFileSync('/tmp/coverage.txt', 'utf8');
+            const lines = coverage.split('\n').filter(l => /^(Name |app\/|TOTAL|---)/.test(l));
+
+            const body = `## 📊 Coverage Report\n\n\`\`\`\n${lines.join('\n')}\n\`\`\``;
+
+            const branch = context.ref.replace('refs/heads/', '');
+
+            // Only post comment on non-main branches
+            if (branch === 'main') {
+              console.log('On main branch, skipping PR comment');
+              return;
+            }
+
+            // Find open PR for this branch
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
+            });
+
+            if (pulls.length === 0) {
+              console.log(`No open PR found for branch ${branch}`);
+              return;
+            }
+
+            const prNumber = pulls[0].number;
+            console.log(`Found PR #${prNumber} for branch ${branch}`);
+
+            // Check for existing coverage comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const covComment = comments.find(c => c.body.includes('📊 Coverage Report'));
+
+            if (covComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: covComment.id,
+                body,
+              });
+              console.log(`Updated comment #${covComment.id} on PR #${prNumber}`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+              console.log(`Created new comment on PR #${prNumber}`);
+            }
+
+      - name: Test replay-llm --help
+        run: python scripts/replay_llm.py --help
