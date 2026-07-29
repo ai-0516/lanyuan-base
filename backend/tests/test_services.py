@@ -2,9 +2,6 @@
 
 目标: 将 post_service 26% → 85%+，comment_service 29% → 85%+
 """
-import os
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_lanyuan.db"
-
 import pytest
 from sqlalchemy import select
 
@@ -17,19 +14,26 @@ from app.schemas.comment import CommentCreate
 from app.services import post_service, comment_service
 
 
+async def _clear_db():
+    """清理所有表数据（使用 engine session 避免额外连接锁）"""
+    from app.core.database import async_session_factory
+    from sqlalchemy import text
+    try:
+        async with async_session_factory() as session:
+            for t in ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
+                await session.execute(text(f"DELETE FROM {t}"))
+            await session.commit()
+    except Exception:
+        pass
+
+
 @pytest.fixture(autouse=True)
 async def setup_db():
     """每个测试前后清理数据库"""
+    await _clear_db()
     await init_db()
     yield
-    import aiosqlite
-    try:
-        async with aiosqlite.connect("./test_lanyuan.db") as db:
-            for t in ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
-                await db.execute(f"DELETE FROM {t}")
-            await db.commit()
-    except Exception:
-        pass
+    await _clear_db()
 
 
 async def _create_user(nickname: str = "测试用户", openid: str = "test") -> int:

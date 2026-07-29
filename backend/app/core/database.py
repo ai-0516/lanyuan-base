@@ -5,11 +5,15 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
 
+# SQLite 默认 5 秒超时，显式设 10 秒避免并发测试锁冲突
+_connect_args = {"timeout": 10} if "sqlite" in settings.DATABASE_URL else {}
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     pool_size=10,
     max_overflow=10,
+    connect_args=_connect_args,
 )
 
 async_session_factory = async_sessionmaker(

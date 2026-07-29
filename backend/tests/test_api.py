@@ -4,10 +4,6 @@ import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-# 使用 SQLite 内存数据库测试
-import os
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_lanyuan.db"
-
 from app.main import app
 from app.core.database import init_db, close_db
 from app.harness.hooks import events as hook_events
@@ -15,10 +11,25 @@ from app.harness.hooks import events as hook_events
 
 @pytest.fixture(autouse=True)
 async def setup_db():
-    """每个测试前重建数据库"""
+    """每个测试前后清理数据库"""
     hook_events.reset()
+    await _clear_db()
     await init_db()
     yield
+    await _clear_db()
+
+
+async def _clear_db():
+    """清理所有表数据（使用 engine session 避免额外连接锁）"""
+    from app.core.database import async_session_factory
+    from sqlalchemy import text
+    try:
+        async with async_session_factory() as session:
+            for t in ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
+                await session.execute(text(f"DELETE FROM {t}"))
+            await session.commit()
+    except Exception:
+        pass
 
 
 @pytest.fixture

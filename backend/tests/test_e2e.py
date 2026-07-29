@@ -22,7 +22,7 @@
 import json
 import os
 
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_lanyuan.db"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_e2e.db"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -53,19 +53,21 @@ def any_code_body(body: dict) -> dict:
 
 @pytest.fixture(autouse=True)
 async def setup_db():
+    await _clear_db()
     await init_db()
     yield
-    import aiosqlite
+    await _clear_db()
 
+
+async def _clear_db():
+    """清理所有表数据（使用 engine session 避免额外连接锁）"""
+    from app.core.database import async_session_factory
+    from sqlalchemy import text
     try:
-        async with aiosqlite.connect("./test_lanyuan.db") as db:
-            tables = [
-                "messages", "conversations", "notifications",
-                "likes", "comments", "posts", "users"
-            ]
-            for t in tables:
-                await db.execute(f"DELETE FROM {t}")
-            await db.commit()
+        async with async_session_factory() as session:
+            for t in ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
+                await session.execute(text(f"DELETE FROM {t}"))
+            await session.commit()
     except Exception:
         pass
 
