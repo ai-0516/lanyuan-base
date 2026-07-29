@@ -1,8 +1,12 @@
-"""
-JSONL 日志钩子 — 记录每次 LLM 调用的完整轮次（并行安全）
+"""ATOF 日志钩子 — 每事件实时写入，支持按 req_id 分组重建轨迹
 
-每个 agent.run() 生成唯一的 req_id，所有事件携带此 ID。
-钩子通过 req_id 区分不同请求，互不干扰。
+每个 agent.run() 生成的原始事件（agent/turn/llm/tool × start/end/error）
+实时写入 JSONL 文件，一行一个事件。
+
+相比旧版的「agent:end 时一次性写入聚合轨迹」：
+  - 实时落盘，中断最多丢一个事件
+  - 格式统一，方便离线聚合为 ATIF 轨迹
+  - 不影响其他钩子（log、stats）的行为
 """
 
 import json
@@ -19,112 +23,165 @@ logger = logging.getLogger(__name__)
 
 _LOG_DIR = "logs/llm-requests"
 
-# req_id → entry dict，支持并行
-_entries: dict[str, dict[str, Any]] = {}
-_current_turns: dict[str, dict[str, Any] | None] = {}
 
-
-def _write_entry(req_id: str):
-    entry = _entries.get(req_id)
-    if not entry or not entry.get("turns"):
-        return
-    path = os.path.join(_LOG_DIR, f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl")
+def _write_line(data: dict) -> None:
+    """实时写入一行 ATOF JSONL"""
+    path = os.path.join(
+        _LOG_DIR,
+        f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl",
+    )
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
+    line = json.dumps(data, ensure_ascii=False, default=str) + "\n"
     with open(path, "a", encoding="utf-8") as f:
         f.write(line)
         f.flush()
 
 
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ── agent:start ──────────────────────────────────────────────
+
+
 @on(events.AGENT_START)
 async def on_agent_start(data: dict):
-    req_id = data["req_id"]
     meta = data.get("meta", {})
-    _entries[req_id] = {
-        "id": req_id,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+    _write_line({
+        "event": events.AGENT_START,
+        "req_id": data["req_id"],
+        "ts": _ts(),
         "session_id": meta.get("session_id"),
         "user_message": meta.get("user_message"),
         "model": settings.DEEPSEEK_MODEL,
         "api_url": f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
-        "turns": [],
-    }
-    _current_turns[req_id] = None
+    })
+
+
+# ── turn:start ───────────────────────────────────────────────
 
 
 @on(events.TURN_START)
 async def on_turn_start(data: dict):
-    """本轮开始：准备空的数据槽"""
-    req_id = data["req_id"]
-    _current_turns[req_id] = {
-        "messages_sent": None,
-        "tools_sent": None,
-        "finish_reason": "",
-        "tokens": 0,
-        "content": "",
-        "tool_calls": [],
-        "tool_results": [],
-    }
+    _write_line({
+        "event": events.TURN_START,
+        "req_id": data["req_id"],
+        "turn": data["turn"],
+        "ts": _ts(),
+    })
+
+
+# ── llm:start ────────────────────────────────────────────────
 
 
 @on(events.LLM_START)
 async def on_llm_start(data: dict):
-    """LLM 调用前：填入 messages 和 tools"""
-    req_id = data["req_id"]
-    turn = _current_turns.get(req_id)
-    if turn is not None:
-        turn["messages_sent"] = data.get("messages_sent")
-        turn["tools_sent"] = data.get("tools_sent")
+    _write_line({
+        "event": events.LLM_START,
+        "req_id": data["req_id"],
+        "turn": data["turn"],
+        "ts": _ts(),
+        "messages_sent": data.get("messages_sent"),
+        "tools_sent": data.get("tools_sent"),
+    })
+
+
+# ── llm:end ──────────────────────────────────────────────────
 
 
 @on(events.LLM_END)
 async def on_llm_end(data: dict):
-    req_id = data["req_id"]
-    turn = _current_turns.get(req_id)
-    if turn is not None:
-        turn["finish_reason"] = data["finish_reason"]
-        turn["tokens"] = data["tokens"]
-        turn["content"] = data.get("content", "")
-        turn["tool_calls"] = data.get("tool_calls", [])
+    ev = {
+        "event": events.LLM_END,
+        "req_id": data["req_id"],
+        "turn": data["turn"],
+        "ts": _ts(),
+        "finish_reason": data.get("finish_reason"),
+        "tokens": data.get("tokens"),
+        "content": data.get("content", ""),
+        "tool_calls": data.get("tool_calls", []),
+    }
+    usage = data.get("usage")
+    if usage:
+        ev["usage"] = usage
+    err = data.get("error")
+    if err:
+        ev["error"] = err
+    _write_line(ev)
+
+
+# ── llm:error ──────────────────────────────────────────────────
+
+
+@on(events.LLM_ERROR)
+async def on_llm_error(data: dict):
+    ev = {
+        "event": events.LLM_ERROR,
+        "req_id": data["req_id"],
+        "turn": data["turn"],
+        "ts": _ts(),
+        "error": data.get("error", ""),
+    }
+    detail = data.get("detail")
+    if detail:
+        ev["detail"] = detail
+    _write_line(ev)
+
+
+# ── tool:start ────────────────────────────────────────────────
+
+
+@on(events.TOOL_START)
+async def on_tool_start(data: dict):
+    _write_line({
+        "event": events.TOOL_START,
+        "req_id": data["req_id"],
+        "turn": data.get("turn"),
+        "ts": _ts(),
+        "tool_name": data.get("tool_name", ""),
+        "tool_call_id": data.get("tool_call_id", ""),
+    })
+
+
+# ── tool:end ──────────────────────────────────────────────────
 
 
 @on(events.TOOL_END)
 async def on_tool_end(data: dict):
-    req_id = data["req_id"]
-    turn = _current_turns.get(req_id)
-    if turn is not None:
-        turn["tool_results"].append({
-            "tool": data["tool_name"],
-            "tool_call_id": data.get("tool_call_id", ""),
-            "result": data.get("result", ""),
-            "status": data.get("status", "ok"),
-        })
+    _write_line({
+        "event": events.TOOL_END,
+        "req_id": data["req_id"],
+        "turn": data.get("turn"),
+        "ts": _ts(),
+        "tool_name": data.get("tool_name", ""),
+        "tool_call_id": data.get("tool_call_id", ""),
+        "result": data.get("result", ""),
+        "status": data.get("status", "ok"),
+    })
+
+
+# ── turn:end ──────────────────────────────────────────────────
 
 
 @on(events.TURN_END)
 async def on_turn_end(data: dict):
-    """本轮结束：保存到 entry"""
-    req_id = data["req_id"]
-    turn = _current_turns.get(req_id)
-    entry = _entries.get(req_id)
-    if turn is not None and entry is not None:
-        entry["turns"].append(turn)
-        _current_turns[req_id] = None
+    _write_line({
+        "event": events.TURN_END,
+        "req_id": data["req_id"],
+        "turn": data["turn"],
+        "ts": _ts(),
+    })
+
+
+# ── agent:end ──────────────────────────────────────────────────
 
 
 @on(events.AGENT_END)
 async def on_agent_end(data: dict):
-    """Agent 结束：写入文件"""
-    req_id = data["req_id"]
-    entry = _entries.get(req_id)
-    if entry:
-        entry["duration_ms"] = 0
-        if error := data.get("error"):
-            entry["error"] = error
-        try:
-            _write_entry(req_id)
-        except Exception:
-            logger.exception("JSONL 日志写入失败 req_id=%s", req_id)
-        finally:
-            _entries.pop(req_id, None)
-            _current_turns.pop(req_id, None)
+    _write_line({
+        "event": events.AGENT_END,
+        "req_id": data["req_id"],
+        "ts": _ts(),
+        "total_turns": data.get("total_turns", 0),
+        "error": data.get("error"),
+    })
