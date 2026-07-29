@@ -288,6 +288,11 @@ def _build_atif(req_events: list[dict]) -> dict:
                 "message": llm_end.get("content", ""),
             }
 
+            # tools_sent（当前 turn 传给 LLM 的工具定义）
+            tools_sent = llm_start.get("tools_sent") if llm_start else None
+            if tools_sent:
+                agent_step["tools"] = tools_sent
+
             # tool_calls
             tool_calls = llm_end.get("tool_calls", [])
             if tool_calls:
