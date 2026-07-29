@@ -16,5 +16,5 @@
 ## 技术债 & 待办
 
 - [ ] large_tool 数据收集到位后调整阈值
-- [ ] LLM usage 数据写入 DB（模型已建，钩子未写库）
+- [x] LLM usage 数据写入 DB（模型已建，钩子未写库） — ✅ 已实现
 - [ ] `pyproject.toml` 中 `tool.uv.dev-dependencies` 迁移到 `dependency-groups.dev`
