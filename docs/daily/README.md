@@ -20,5 +20,3 @@
 - [x] LLM usage 数据写入 DB（模型已建，钩子未写库） — ✅ 已实现
 - [ ] 部分 tool 返回仍包含 avatar 字段（如 `create_comment`），`_strip_avatar` 未覆盖所有路径 — 需排查并统一清理
 - [x] `pyproject.toml` 中 `tool.uv.dev-dependencies` 迁移到 `dependency-groups.dev` — ✅ 已迁移
-
-test
