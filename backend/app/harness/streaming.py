@@ -277,11 +277,12 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
     """
     # deepseek_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
 
-    # 从 RETRY_CONFIG 取最大重试次数作为 safety limit
+    # safelimit: 最多尝试 max_retries+1 次（attempt 0 为首次，1..max_retries 为重试）
+    # max_retries=3 → 共 4 次：attempt 0(首次) → 1(重试1) → 2(重试2) → 3(重试3→耗尽)
     _max_possible = max(
         (cfg["max_retries"] for cfg in RETRY_CONFIG.values() if cfg is not None),
         default=0,
-    ) + 1  # +1 为首次尝试
+    ) + 1
 
     for attempt in range(_max_possible):
         error_data = None

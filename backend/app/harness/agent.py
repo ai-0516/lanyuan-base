@@ -154,55 +154,29 @@ class AIAgent:
 
                 yield (event, data)
 
-            # 如果降级为模拟回复，跳过后续工具调用判断
+            # ── finish_reason ──
             if used_fallback:
                 turn_trace["finish_reason"] = "fallback"
-                turn_trace["tokens"] = token_count
-                turn_trace["content"] = full_reply
-                turn_trace["tool_calls"] = []
-                turn_trace["tool_results"] = []
-
-                llm_end_data: events.LlmEndData = {
-                    "turn": turn,
-                    "finish_reason": "fallback",
-                    "tokens": token_count,
-                    "content": full_reply,
-                    "tool_calls": [],
-                    "tool_calls_count": 0,
-                    "req_id": correlation_id,
-                    "error_code": error_code,
-                }
-                events.emit(events.LLM_END, llm_end_data)
-
-                self._turns.append(turn_trace)
-                events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
-                events.emit(events.AGENT_END, {
-                    "total_turns": turn + 1,
-                    "error": None,
-                    "req_id": correlation_id,
-                })
-                return
-
-            # 记录本轮响应
-            if has_error:
+            elif has_error:
                 turn_trace["finish_reason"] = "error"
             elif has_tool_call:
                 turn_trace["finish_reason"] = "tool_calls"
             else:
                 turn_trace["finish_reason"] = "stop"
+
             turn_trace["tokens"] = token_count
             turn_trace["content"] = full_reply
-            turn_trace["tool_calls"] = copy.deepcopy(tool_calls)
+            turn_trace["tool_calls"] = [] if used_fallback else copy.deepcopy(tool_calls)
             turn_trace["tool_results"] = []
 
             # llm:end — LLM 调用完成
-            llm_end_data = {
+            llm_end_data: events.LlmEndData = {
                 "turn": turn,
                 "finish_reason": turn_trace["finish_reason"],
                 "tokens": token_count,
                 "content": full_reply,
-                "tool_calls": copy.deepcopy(tool_calls),
-                "tool_calls_count": len(tool_calls),
+                "tool_calls": [] if used_fallback else copy.deepcopy(tool_calls),
+                "tool_calls_count": 0 if used_fallback else len(tool_calls),
                 "req_id": correlation_id,
             }
             if usage_data:
