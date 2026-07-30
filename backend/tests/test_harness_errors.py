@@ -72,7 +72,7 @@ class TestRetryConfig:
     def test_non_retryable_codes_have_none(self):
         """不可重试的错误码配置为 None"""
         non_retryable = [LLMStatus.AUTH_FAILED, LLMStatus.BAD_REQUEST,
-                         LLMStatus.SSE_DISCONNECTED, LLMStatus.SSE_PARSE_ERROR,
+                         LLMStatus.SSE_PARSE_ERROR,
                          LLMStatus.UNEXPECTED]
         for status in non_retryable:
             assert RETRY_CONFIG.get(status) is None, f"{status} 应不可重试"

@@ -111,12 +111,13 @@ def retry_delay(status, attempt, retry_after=None):
 
 **流中断判断**：SSE 流结束但没有收到 `[DONE]` 标记，且已收到部分 token，且没有工具调用。
 
-**当前方案**：不重试，记 `_critical_error` 日志（`logs/critical-errors.log`）。
+**当前方案**：可重试 1 次（`retry_deepseek_chat` 会缓存第一次调用的 token，只 yield 成功那次的结果，不会重复）。
+
+若重试仍失败，记 `_critical_error` 日志（`logs/critical-errors.log`）。
 
 **原因**：
-- 已发出的 token 无法回撤，重试会导致前端看到重复内容
-- 续流需要记录已发 token + 从断点重连，实现复杂
-- 断流概率低，先收集数据
+- 已发出的 token 被 `buffered_events` 缓存，重试不会推给前端，不存在重复问题
+- 实际上是"重试整个请求"而非"续流"，LLM 重新生成，实现不复杂
 
 **重大日志格式**：
 

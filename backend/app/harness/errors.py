@@ -84,7 +84,12 @@ RETRY_CONFIG: dict[LLMStatus, dict | None] = {
     # ── 不可重试（直接降级） ──
     LLMStatus.AUTH_FAILED: None,
     LLMStatus.BAD_REQUEST: None,
-    LLMStatus.SSE_DISCONNECTED: None,
+    LLMStatus.SSE_DISCONNECTED: {
+        "max_retries": 1,
+        "base_delay_ms": 0,
+        "jitter": False,
+        "description": "retry_deepseek_chat 已缓冲，重试不会导致前端重复",
+    },
     LLMStatus.SSE_PARSE_ERROR: None,
     LLMStatus.UNEXPECTED: None,
 }
