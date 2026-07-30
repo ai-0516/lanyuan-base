@@ -116,6 +116,11 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                     code = HTTP_STATUS_MAP.get(
                         response.status_code, LLMStatus.UNEXPECTED
                     )
+                    if code == LLMStatus.UNEXPECTED:
+                        logger.warning(
+                            "Unknown HTTP status code=%s mapped to UNEXPECTED",
+                            response.status_code,
+                        )
 
                     # 认证失败等关键错误直接记 critical
                     if code in (LLMStatus.AUTH_FAILED, LLMStatus.BAD_REQUEST):
@@ -180,7 +185,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
 
                     except json.JSONDecodeError:
                         error_chunk_count += 1
-                        last_error_chunk = data_str[:500]
+                        last_error_chunk = data_str[:2000]
                         continue
 
                     # 捕获 usage（通常在最后一个 chunk 中）
@@ -264,12 +269,22 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
     - 重试耗尽后 yield error 事件
     - 不可重试的错误（401/SSE 断流等）立即 yield error
 
+    **注意**：重试期间会缓存 token，成功后才一次性 yield。
+    这意味着重试时前端会短暂无响应，但能保证不输出重复/
+    错乱的 token。正常情况（一次成功）不受影响。
+
     用法与 deepseek_chat 相同，直接替换即可。
     """
-    # 收集所有重试过程中收到的 token/tool_call（成功后需要保留）
+    # deepseek_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
     buffered_events: list[tuple] = []
 
-    for attempt in range(10):  # safety limit
+    # 从 RETRY_CONFIG 取最大重试次数作为 safety limit
+    _max_possible = max(
+        (cfg["max_retries"] for cfg in RETRY_CONFIG.values() if cfg is not None),
+        default=0,
+    ) + 1  # +1 为首次尝试
+
+    for attempt in range(_max_possible):
         error_data = None
         buffered_events = []
 
@@ -280,24 +295,20 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
             buffered_events.append((event, data))
 
         if error_data is None:
-            # 成功！yield 所有缓存的事件
             for evt, dat in buffered_events:
                 yield (evt, dat)
             return
 
-        # 判断是否需要重试（error_data 来自 deepseek_chat，一定是 dict）
         err: dict = error_data  # type: ignore[assignment]
         code = err.get("code", LLMStatus.UNEXPECTED)
         config = RETRY_CONFIG.get(code)
 
         if config is None:
-            # 不可重试 — 直接 yield error
             yield ("error", err)
             return
 
-        max_retries = config["max_retries"]
+        max_retries = config.get("max_retries", 3)
         if attempt >= max_retries:
-            # 重试耗尽 — yield retry_exhausted
             logger.warning(
                 "LLM retry exhausted: code=%s attempts=%d/%d",
                 code.value, attempt, max_retries,
@@ -309,7 +320,6 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
             })
             return
 
-        # 等待后重试
         retry_after = err.get("retry_after")
         delay = retry_delay(code, attempt, retry_after=retry_after)
         logger.warning(

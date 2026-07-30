@@ -108,7 +108,7 @@ def retry_delay(status: LLMStatus, attempt: int, retry_after: int | None = None)
     if config is None:
         return 0.0
 
-    base = config["base_delay_ms"]
+    base = config.get("base_delay_ms", 500)
     # 指数退避: 500ms → 1000ms → 2000ms → ... 上限 32s
     delay = min(base * (2 ** attempt), 32000) / 1000.0
 
