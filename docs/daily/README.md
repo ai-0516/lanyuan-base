@@ -12,6 +12,7 @@
 | [07-29](2026-07-29.md) | ATIF v1.7 导出 + SQLite 并发修复 | ATOF 实时日志、ATIF 按 RFC 对齐、单连接池 |
 | | 独立产出： | [nemo-relay-vs-replay-llm.md](../nemo-relay-vs-replay-llm.md) |
 | [07-30](2026-07-30.md) | Error Recovery — 三层容错 | LLMStatus 错误码、指数退避、降级兜底 |
+| | 独立产出： | [error-recovery.md](../error-recovery.md) |
 
 ---
 
