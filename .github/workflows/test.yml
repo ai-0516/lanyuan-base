@@ -114,23 +114,23 @@ jobs:
               issue_number: prNumber,
             });
 
-            const covComment = comments.find(c => c.body.includes('📊 Coverage Report'));
+            const covComment = comments.find(c => c.body.includes('Coverage Report'));
 
+            // 删旧重建，让 comment 始终在 PR 最底部
             if (covComment) {
-              await github.rest.issues.updateComment({
+              await github.rest.issues.deleteComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: covComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body,
               });
             }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
 
       - name: Test replay-llm --help
         run: python scripts/replay_llm.py --help
