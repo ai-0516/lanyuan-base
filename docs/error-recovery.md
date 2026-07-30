@@ -25,10 +25,11 @@ ai_service.py
 | 层 | 做的事 | 代码位置 | 触发条件 |
 |----|--------|---------|---------|
 | L1 | 指数退避重试 | `streaming.py:retry_deepseek_chat()` | 429/529/timeout |
-| L2 | 降级为模拟回复 | `agent.py:run()` fallback 分支 | 重试耗尽 / 不可重试错误 |
+| L2 | 降级为模拟回复 | `streaming.py:retry_deepseek_chat()` fallback 分支 | 重试耗尽 / 不可重试错误 |
 | L3 | 兜底异常捕获 | `agent.py` + `ai_service.py` try/except | 任意未捕获异常 |
 
-L1 在前端无感知，L2 用户看到"AI 暂时无法回复"，L3 用户看到"AI 回复被中断"。
+L1 在前端无感知（等待期间 yield `token("AI 正在飞速思考中……")`），L2 用户看到"AI 暂时无法回复"，
+L3 用户看到"AI 回复被中断"。
 
 ## 3. 错误码设计
 
@@ -50,7 +51,7 @@ class LLMStatus(str, Enum):
     SSE_PARSE_ERROR = "sse_parse_error"     # JSON 解析失败 → 重大日志
 
     # 恢复层
-    RETRY_EXHAUSTED = "retry_exhausted"     # 重试耗尽 → 降级
+    RETRY_EXHAUSTED = "retry_exhausted"     # 重试耗尽 → 降级（已被 fallback 事件替代，枚举值保留）
     UNEXPECTED = "unexpected_error"         # 未分类 → 降级
 ```
 
@@ -76,10 +77,10 @@ RETRY_CONFIG = {
     LLMStatus.OVERLOADED:        {"max_retries": 3, "base_delay_ms": 500, "jitter": True},
     LLMStatus.TIMEOUT:           {"max_retries": 1, "base_delay_ms": 1000, "jitter": False},
     LLMStatus.NETWORK_ERROR:     {"max_retries": 1, "base_delay_ms": 1000, "jitter": False},
-    LLMStatus.PAYLOAD_TOO_LARGE: {"max_retries": 1, "base_delay_ms": 0,    # 需 #8 压缩},
+    LLMStatus.PAYLOAD_TOO_LARGE: None,  # 需 #8 压缩后重试，当前直接降级
     LLMStatus.AUTH_FAILED:       None,  # 不可重试
     LLMStatus.BAD_REQUEST:       None,  # 不可重试
-    LLMStatus.SSE_DISCONNECTED:  None,
+    LLMStatus.SSE_DISCONNECTED:  {"max_retries": 1, ...},  # 可重试 1 次（buffer 防重复）
     LLMStatus.SSE_PARSE_ERROR:   None,
     LLMStatus.UNEXPECTED:        None,
 }
@@ -116,8 +117,7 @@ def retry_delay(status, attempt, retry_after=None):
 若重试仍失败，记 `_critical_error` 日志（`logs/critical-errors.log`）。
 
 **原因**：
-- 已发出的 token 被 `buffered_events` 缓存，重试不会推给前端，不存在重复问题
-- 实际上是"重试整个请求"而非"续流"，LLM 重新生成，实现不复杂
+- 重试时缓存 token，成功后只 yield 成功那次的结果，不会重复
 
 **重大日志格式**：
 
@@ -158,25 +158,40 @@ HTTP 状态码到枚举的映射在 `HTTP_STATUS_MAP` 内部完成，不暴露�
 
 `deepseek_chat()` 是 async generator（yield token → tool_call → done），不能直接用 try/except + while 循环包裹。
 
-**方案**：`retry_deepseek_chat()` 是 wrapper generator，内部调用 `deepseek_chat()`，捕获 error 事件后回退重试。重试期间缓存正常事件，只有最后一次成功的结果才 yield。
+**方案**：`retry_deepseek_chat()` 是 wrapper generator，内部调用 `deepseek_chat()`，捕获 error 事件后回退重试。
+
+- **首次尝试**（attempt 0）：直接 yield 所有事件，完全流式
+- **重试**（attempt 1+）：缓存 token，成功后才一次性 yield（避免重复输出）
+- 重试等待期间先 yield `token("AI 正在飞速思考中……")`，让前端有反馈
+- 重试耗尽后 yield `fallback` 事件（不再 yield `error`），agent.py 收到后转为降级回复
 
 ```python
-async for event, data in deepseek_chat(messages, tools=tools):
-    if event == "error":
-        error_data = data
-        break  # 停止当前尝试，准备重试
-    buffered_events.append((event, data))  # 缓存正常事件
+for attempt in range(_max_possible):
+    error_data = None
+    is_retry = attempt > 0
+    retry_buf = []
 
-if error_data is None:
-    # 成功：yield 缓存的正常事件
-    for evt, dat in buffered_events:
-        yield (evt, dat)
-    return
+    async for event, data in deepseek_chat(messages, tools=tools):
+        if event == "error":
+            error_data = data
+            break
+        if is_retry:
+            retry_buf.append((event, data))  # 重试时缓存
+        else:
+            yield (event, data)  # 首次尝试：直接流式
 
-# 重试...（退避 → 再次调用 deepseek_chat）
+    if error_data is None:
+        if is_retry and retry_buf:
+            for evt, dat in retry_buf:
+                yield (evt, dat)
+        return
+
+    # 错误处理... 重试决策...
+    yield ("token", "AI 正在飞速思考中……")  # 填充等待
+    await asyncio.sleep(delay)
 ```
 
-**注意**：第一次调用收到的部分 token 不 yield（缓存丢弃），避免前端看到拼接结果。
+**`fallback` 事件**：重试耗尽时 yield `("fallback", {"message": "..."})` 代替原来的 `("error", {"code": RETRY_EXHAUSTED})`，agent.py 按事件类型友好处理，不再感知重试细节。
 
 ## 7. 排除的方案
 
