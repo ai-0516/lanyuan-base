@@ -7,7 +7,6 @@
 - agent.py: 降级逻辑（mock source）
 """
 
-import asyncio
 import time
 
 import pytest
