@@ -62,12 +62,14 @@ class LlmEndData(EventBase):
     tool_calls_count: int
     usage: NotRequired[dict[str, Any]]
     error: NotRequired[str]
+    error_code: NotRequired[str]
 
 
 class LlmErrorData(EventBase):
     """LLM 调用发生错误时的独立事件（API 拒绝、超时、解析失败等）"""
     turn: int
     error: str
+    error_code: str
     detail: NotRequired[str]
 
 

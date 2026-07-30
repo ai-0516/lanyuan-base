@@ -7,6 +7,11 @@ Agent Loop 逻辑：
   1. 调 LLM（传入 messages + tools）
   2. 如果返回 tool_call → 回调 tool_executor 执行 → 结果回填 messages → 继续
   3. 如果返回纯文本 → done
+
+错误处理（s11）：
+  - LLM 调用使用 retry_deepseek_chat，429/529/timeout 自动退避重试
+  - 重试耗尽或不可重试错误 → 降级为模拟回复
+  - 重大错误（SSE 断流/解析失败）通过 LLM_ERROR 事件传递
 """
 
 import copy
@@ -17,6 +22,7 @@ from typing import Any
 
 from app.config import settings
 from app.harness import streaming
+from app.harness.errors import LLMStatus
 from app.harness.hooks import events
 
 logger = logging.getLogger(__name__)
@@ -63,7 +69,8 @@ class AIAgent:
         self._turns = []
         correlation_id = secrets.token_hex(4)
 
-        source = streaming.deepseek_chat if settings.DEEPSEEK_API_KEY else streaming.mock_chat
+        # LLM 调用源：有 API Key 时用 retry_deepseek_chat（带重试），否则用 mock
+        use_real_llm = bool(settings.DEEPSEEK_API_KEY)
 
         # agent:start — 整个 Agent 循环开始
         events.emit(events.AGENT_START, {"meta": meta, "req_id": correlation_id})
@@ -74,11 +81,11 @@ class AIAgent:
             turn_messages_sent = copy.deepcopy(messages)
             turn_trace: dict[str, Any] = {
                 "messages_sent": turn_messages_sent,
-                "tools_sent": (copy.deepcopy(self.tools) if settings.DEEPSEEK_API_KEY else None),
+                "tools_sent": (copy.deepcopy(self.tools) if use_real_llm else None),
             }
 
             kw = {}
-            if self.tools and settings.DEEPSEEK_API_KEY:
+            if self.tools and use_real_llm:
                 kw["tools"] = self.tools
 
             # llm:start — 即将调用 LLM
@@ -93,31 +100,95 @@ class AIAgent:
             has_tool_call = False
             has_error = False
             error_msg = ""
+            error_code: str | None = None
             usage_data = None
             self._reasoning_content = ""  # 每轮重置
+            used_fallback = False  # 本轮是否降级为模拟回复
+
+            # ── 选择 LLM 源 ──
+            source = streaming.retry_deepseek_chat if use_real_llm else streaming.mock_chat
 
             async for event, data in source(messages, **kw):
                 if event == "token":
+                    assert isinstance(data, str)
                     full_reply += data
                     token_count += 1
                 elif event == "reasoning":
+                    assert isinstance(data, str)
                     self._reasoning_content = data
                 elif event == "reasoning_token":
-                    pass  # 前端若展示思考过程可从这里 yield，当前仅取完整文本
+                    pass
                 elif event == "tool_call":
                     tool_calls.append(data)
                     has_tool_call = True
                 elif event == "usage":
                     usage_data = data
                 elif event == "error":
+                    # 结构化错误数据
+                    if isinstance(data, dict):
+                        code = data.get("code", LLMStatus.UNEXPECTED)
+                        error_code = code.value if isinstance(code, LLMStatus) else str(code)
+                        error_msg = data.get("message", str(data))
+                    else:
+                        error_code = LLMStatus.UNEXPECTED.value
+                        error_msg = str(data)
+
                     has_error = True
-                    error_msg = str(data)
+
+                    # 重试耗尽 → 降级为模拟回复
+                    if isinstance(data, dict) and data.get("code") == LLMStatus.RETRY_EXHAUSTED:
+                        logger.warning(
+                            "LLM retry exhausted, falling back to mock: turn=%s code=%s",
+                            turn, error_code,
+                        )
+                        used_fallback = True
+                        # 用模拟回复替代
+                        fallback_msg = "您好，AI 暂时无法回复您的消息，请稍后重试。"
+                        full_reply = fallback_msg
+                        token_count = len(fallback_msg)
+                        has_error = False
+                        has_tool_call = False
+                        yield ("token", fallback_msg)
+                        yield ("done", "")
+                        break  # 退出 async for，继续到 llm:end
+
                     events.emit(events.LLM_ERROR, {
                         "turn": turn,
                         "error": error_msg,
+                        "error_code": error_code,
                         "req_id": correlation_id,
                     })
+
                 yield (event, data)
+
+            # 如果降级为模拟回复，跳过后续工具调用判断
+            if used_fallback:
+                turn_trace["finish_reason"] = "fallback"
+                turn_trace["tokens"] = token_count
+                turn_trace["content"] = full_reply
+                turn_trace["tool_calls"] = []
+                turn_trace["tool_results"] = []
+
+                llm_end_data: events.LlmEndData = {
+                    "turn": turn,
+                    "finish_reason": "fallback",
+                    "tokens": token_count,
+                    "content": full_reply,
+                    "tool_calls": [],
+                    "tool_calls_count": 0,
+                    "req_id": correlation_id,
+                    "error_code": error_code,
+                }
+                events.emit(events.LLM_END, llm_end_data)
+
+                self._turns.append(turn_trace)
+                events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
+                events.emit(events.AGENT_END, {
+                    "total_turns": turn + 1,
+                    "error": None,
+                    "req_id": correlation_id,
+                })
+                return
 
             # 记录本轮响应
             if has_error:
@@ -132,7 +203,7 @@ class AIAgent:
             turn_trace["tool_results"] = []
 
             # llm:end — LLM 调用完成
-            llm_end_data: events.LlmEndData = {
+            llm_end_data = {
                 "turn": turn,
                 "finish_reason": turn_trace["finish_reason"],
                 "tokens": token_count,
@@ -145,6 +216,7 @@ class AIAgent:
                 llm_end_data["usage"] = usage_data
             if has_error and error_msg:
                 llm_end_data["error"] = error_msg
+                llm_end_data["error_code"] = error_code
             events.emit(events.LLM_END, llm_end_data)
 
             # 无工具调用 → 结束
