@@ -12,27 +12,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend/**'
-              - '.github/workflows/*.yml'
-
   lint:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,8 +34,6 @@ jobs:
         run: ruff check .
 
   test:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -111,13 +89,11 @@ jobs:
 
             const branch = context.ref.replace('refs/heads/', '');
 
-            // Only post comment on non-main branches
             if (branch === 'main') {
               console.log('On main branch, skipping PR comment');
               return;
             }
 
-            // Find open PR for this branch
             const { data: pulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -131,9 +107,7 @@ jobs:
             }
 
             const prNumber = pulls[0].number;
-            console.log(`Found PR #${prNumber} for branch ${branch}`);
 
-            // Check for existing coverage comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -149,7 +123,6 @@ jobs:
                 comment_id: covComment.id,
                 body,
               });
-              console.log(`Updated comment #${covComment.id} on PR #${prNumber}`);
             } else {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
@@ -157,7 +130,6 @@ jobs:
                 issue_number: prNumber,
                 body,
               });
-              console.log(`Created new comment on PR #${prNumber}`);
             }
 
       - name: Test replay-llm --help
