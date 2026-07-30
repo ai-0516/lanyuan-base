@@ -267,6 +267,7 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
     - 可重试的错误（429/529/timeout）自动退避重试
     - 不可重试的错误（401/SSE 断流等）立即 yield error
     - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
+    - 重试等待期间 yield token 事件（俏皮文案），作为普通消息展示
 
     **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
     才缓存 token 并一次性 yield，以避免重复输出。
@@ -329,6 +330,7 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
             "LLM retry: code=%s attempt=%d/%d delay=%.1fs",
             code.value, attempt + 1, max_retries, delay,
         )
+        yield ("token", "AI 正在飞速思考中……")
         await asyncio.sleep(delay)
 
     # safety exit (shouldn't reach here)

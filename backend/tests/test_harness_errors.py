@@ -177,9 +177,11 @@ class TestRetryDeepseekChat:
             elapsed = time.monotonic() - start
             # 至少等待了一次退避
             assert elapsed >= 0.3, f"应该等待退避，实际 {elapsed:.2f}s"
-            assert len(events) == 2
-            assert events[0] == ("token", "success")
-            assert events[1] == ("done", "")
+            # retrying token + success + done
+            assert len(events) == 3
+            assert events[0] == ("token", "AI 正在飞速思考中……")
+            assert events[1] == ("token", "success")
+            assert events[2] == ("done", "")
             assert call_count == 2
         finally:
             S.deepseek_chat = original
@@ -204,9 +206,13 @@ class TestRetryDeepseekChat:
             async for evt, dat in retry_deepseek_chat(["msg"]):
                 events.append((evt, dat))
 
-            assert len(events) == 1
-            assert events[0][0] == "fallback", f"应返回 fallback 事件，实际 {events[0][0]}"
-            assert "message" in events[0][1]
+            # 3 次 retrying token + 1 次 fallback
+            assert len(events) == 4
+            assert events[0] == ("token", "AI 正在飞速思考中……")
+            assert events[1] == ("token", "AI 正在飞速思考中……")
+            assert events[2] == ("token", "AI 正在飞速思考中……")
+            assert events[3][0] == "fallback", f"最后应为 fallback，实际 {events[3][0]}"
+            assert "message" in events[3][1]
             # RATE_LIMIT/OVERLOADED: max_retries=3, 所以总调用 4 次（1 次初始 + 3 次重试）
             assert call_count == 4, f"应有 4 次调用，实际 {call_count}"
         finally:
@@ -265,10 +271,11 @@ class TestRetryDeepseekChat:
             events = []
             async for evt, dat in retry_deepseek_chat(["msg"]):
                 events.append((evt, dat))
-            # 首次尝试直接 yield("partial_")，重试后 yield("complete", "done")
-            assert len(events) == 3
-            assert events[0] == ("token", "partial_")   # 首次尝试直接流式
-            assert events[1] == ("token", "complete")    # 重试缓存后 yield
-            assert events[2] == ("done", "")
+            # 首次尝试直接 yield("partial_")，retrying token，重试后 yield("complete", "done")
+            assert len(events) == 4
+            assert events[0] == ("token", "partial_")              # 首次尝试直接流式
+            assert events[1] == ("token", "AI 正在飞速思考中……")  # 重试提示
+            assert events[2] == ("token", "complete")               # 重试缓存后 yield
+            assert events[3] == ("done", "")
         finally:
             S.deepseek_chat = original
