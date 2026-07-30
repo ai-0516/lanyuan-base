@@ -19,14 +19,14 @@ class LLMStatus(str, Enum):
     # ── HTTP 层（来自 API 响应状态码） ──
     RATE_LIMIT = "rate_limit"               # 429 — 限流，可退避重试
     OVERLOADED = "overloaded"               # 529/503 — 过载，可退避重试
-    AUTH_FAILED="auth_failed"             # 401/403 → 直接降级
-    PAYLOAD_TOO_LARGE = "payload_too_large" # 413 — 请求体超长，需压缩后重试
+    AUTH_FAILED = "auth_failed"             # 401/403 → 直接降级
+    PAYLOAD_TOO_LARGE = "payload_too_large" # 413 — 请求体超长，当前直接降级（#8 后支持压缩重试）
     BAD_REQUEST = "bad_request"             # 400 — 请求参数错误，直接降级
 
     # ── 传输层（来自 httpx 异常或 SSE 解析） ──
     TIMEOUT = "timeout"                     # 连接超时（60s），可重试 1 次
     NETWORK_ERROR = "network_error"         # DNS/拒绝连接，可重试 1 次
-    SSE_DISCONNECTED = "sse_disconnected"   # SSE 流中间断开，无法恢复
+    SSE_DISCONNECTED = "sse_disconnected"   # SSE 流中间断开，可重试（retry buffer 已防重复）
     SSE_PARSE_ERROR = "sse_parse_error"     # SSE JSON 解析失败，需重点记录
 
     # ── 恢复层（重试逻辑内部状态） ──
@@ -75,12 +75,7 @@ RETRY_CONFIG: dict[LLMStatus, dict | None] = {
         "jitter": False,
         "description": "固定 1s 等待后重试 1 次",
     },
-    LLMStatus.PAYLOAD_TOO_LARGE: {
-        "max_retries": 1,
-        "base_delay_ms": 0,
-        "jitter": False,
-        "description": "需触发 #8 上下文压缩后重试，当前先降级",
-    },
+    LLMStatus.PAYLOAD_TOO_LARGE: None,  # 需 #8 压缩后重试，当前直接降级
     # ── 不可重试（直接降级） ──
     LLMStatus.AUTH_FAILED: None,
     LLMStatus.BAD_REQUEST: None,

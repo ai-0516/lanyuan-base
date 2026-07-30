@@ -62,7 +62,7 @@ class TestRetryConfig:
         """可重试的错误码都有配置"""
         retryable = [LLMStatus.RATE_LIMIT, LLMStatus.OVERLOADED,
                      LLMStatus.TIMEOUT, LLMStatus.NETWORK_ERROR,
-                     LLMStatus.PAYLOAD_TOO_LARGE]
+                     LLMStatus.SSE_DISCONNECTED]
         for status in retryable:
             assert RETRY_CONFIG[status] is not None, f"{status} 应可重试"
             assert "max_retries" in RETRY_CONFIG[status]
@@ -71,6 +71,7 @@ class TestRetryConfig:
     def test_non_retryable_codes_have_none(self):
         """不可重试的错误码配置为 None"""
         non_retryable = [LLMStatus.AUTH_FAILED, LLMStatus.BAD_REQUEST,
+                         LLMStatus.PAYLOAD_TOO_LARGE,
                          LLMStatus.SSE_PARSE_ERROR,
                          LLMStatus.UNEXPECTED]
         for status in non_retryable:
