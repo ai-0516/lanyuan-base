@@ -335,6 +335,8 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
             "attempt": attempt + 1,
             "max_retries": max_retries,
             "delay_s": delay,
+            "message": "AI 正在飞速思考中……" if attempt == 0 else "脑细胞即将抵达……",
+            "hint": "再等一小下就好啦",
         })
         await asyncio.sleep(delay)
 
