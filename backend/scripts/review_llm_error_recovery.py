@@ -95,11 +95,11 @@ async def trigger_error(status_code: int, body: str = "{}") -> tuple[list, int]:
         with open("/tmp/llm_review_critical.log") as f:
             crit_content = f.read().strip()
         if crit_content:
-            print(f"  📝 Critical logger: ✅ 有输出")
+            print("  📝 Critical logger: ✅ 有输出")
             for line in crit_content.split("\n")[-3:]:
                 print(f"     {line[:150]}")
         else:
-            print(f"  📝 Critical logger: 无输出")
+            print("  📝 Critical logger: 无输出")
 
         return events, call_count[0]
 
@@ -132,7 +132,7 @@ async def trigger_sse(sse_lines: list[str]) -> list:
         async for event, data in retry_deepseek_chat(messages):
             events.append((event, data))
 
-        print(f"  📞 API调用: 1 次")
+        print("  📞 API调用: 1 次")
         for evt, dat in events:
             if evt == "error":
                 c = dat.get("code", "")
@@ -141,18 +141,18 @@ async def trigger_sse(sse_lines: list[str]) -> list:
             elif evt == "token":
                 print(f"  → token: {str(dat)[:60]}")
             elif evt == "done":
-                print(f"  → done")
+                print("  → done")
             else:
                 print(f"  → {evt}")
 
         with open("/tmp/llm_review_critical.log") as f:
             crit_content = f.read().strip()
         if crit_content:
-            print(f"  📝 Critical logger: ✅ 有输出")
+            print("  📝 Critical logger: ✅ 有输出")
             for line in crit_content.split("\n")[-3:]:
                 print(f"     {line[:150]}")
         else:
-            print(f"  📝 Critical logger: 无输出")
+            print("  📝 Critical logger: 无输出")
 
         return events
 
