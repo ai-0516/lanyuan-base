@@ -24,3 +24,4 @@
 - [ ] 部分 tool 返回仍包含 avatar 字段（如 `create_comment`），`_strip_avatar` 未覆盖所有路径 — 需排查并统一清理
 - [ ] 如何使用导出的 ATIF 文件（文档 + 示例）
 - [ ] 给 dev 和 dev-lead 配置不同的 GitHub 账户，避免 credentials 混淆
+- [ ] SSE 事件类型统一定义（目前 ai.py 用白名单硬编码，streaming/agent 各有事件产出，需统一管理事件类型常量 + 黑白名单策略）
