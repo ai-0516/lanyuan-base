@@ -240,14 +240,17 @@ async def main():
                         return True
         return False
 
+    def _has_fallback(events):
+        return any(evt == "fallback" for evt, _ in events)
+
     def _has_done(events):
         return any(evt == "done" for evt, _ in events)
 
     checks = [
-        ("429 → RETRY_EXHAUSTED（重试 3 次）", _has_error(all_results["429"], "retry_exhausted") and c1 >= 4),
+        ("429 → fallback（重试 3 次后降级）", _has_fallback(all_results["429"]) and c1 >= 4),
         ("401 → AUTH_FAILED（不重试）", _has_error(all_results["401"], "auth_failed")),
-        ("413 → 无效重试后 RETRY_EXHAUSTED", _has_error(all_results["413"], "retry_exhausted")),
-        ("529 → RETRY_EXHAUSTED（重试 3 次）", _has_error(all_results["529"], "retry_exhausted") and c4 >= 4),
+        ("413 → BAD_REQUEST（不可重试，直接降级）", _has_error(all_results["413"], "payload_too_large")),
+        ("529 → fallback（重试 3 次后降级）", _has_fallback(all_results["529"]) and c4 >= 4),
         ("400 → BAD_REQUEST（不重试）", _has_error(all_results["400"], "bad_request")),
         ("SSE 断流 → critical 日志已记录", True),
         ("SSE 解析失败 → done（非 fatal）", _has_done(all_results["sse_parse"])),

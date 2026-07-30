@@ -135,29 +135,22 @@ class AIAgent:
 
                     has_error = True
 
-                    # 重试耗尽 → 降级为模拟回复
-                    if isinstance(data, dict) and data.get("code") == LLMStatus.RETRY_EXHAUSTED:
-                        logger.warning(
-                            "LLM retry exhausted, falling back to mock: turn=%s code=%s",
-                            turn, error_code,
-                        )
-                        used_fallback = True
-                        # 用模拟回复替代
-                        fallback_msg = "您好，AI 暂时无法回复您的消息，请稍后重试。"
-                        full_reply = fallback_msg
-                        token_count = len(fallback_msg)
-                        has_error = False
-                        has_tool_call = False
-                        yield ("token", fallback_msg)
-                        yield ("done", "")
-                        break  # 退出 async for，继续到 llm:end
-
                     events.emit(events.LLM_ERROR, {
                         "turn": turn,
                         "error": error_msg,
                         "error_code": error_code,
                         "req_id": correlation_id,
                     })
+
+                elif event == "fallback":
+                    used_fallback = True
+                    full_reply = data["message"]
+                    token_count = len(full_reply)
+                    has_error = False
+                    has_tool_call = False
+                    yield ("token", full_reply)
+                    yield ("done", "")
+                    break
 
                 yield (event, data)
 

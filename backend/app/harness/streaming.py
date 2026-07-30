@@ -185,7 +185,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
 
                     except json.JSONDecodeError:
                         error_chunk_count += 1
-                        last_error_chunk = data_str[:2000]
+                        last_error_chunk = data_str
                         continue
 
                     # 捕获 usage（通常在最后一个 chunk 中）
@@ -265,18 +265,15 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
 
     产出同 deepseek_chat，但：
     - 可重试的错误（429/529/timeout）自动退避重试
-    - 重试期间不向前端 yield error 事件
-    - 重试耗尽后 yield error 事件
     - 不可重试的错误（401/SSE 断流等）立即 yield error
+    - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
 
-    **注意**：重试期间会缓存 token，成功后才一次性 yield。
-    这意味着重试时前端会短暂无响应，但能保证不输出重复/
-    错乱的 token。正常情况（一次成功）不受影响。
+    **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
+    才缓存 token 并一次性 yield，以避免重复输出。
 
     用法与 deepseek_chat 相同，直接替换即可。
     """
     # deepseek_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
-    buffered_events: list[tuple] = []
 
     # 从 RETRY_CONFIG 取最大重试次数作为 safety limit
     _max_possible = max(
@@ -286,19 +283,25 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
 
     for attempt in range(_max_possible):
         error_data = None
-        buffered_events = []
+        is_retry = attempt > 0
+        retry_buf: list[tuple] = []
 
         async for event, data in deepseek_chat(messages, tools=tools):
             if event == "error":
                 error_data = data
-                break  # 当前尝试失败，不 yield 给前端
-            buffered_events.append((event, data))
+                break
+            if is_retry:
+                retry_buf.append((event, data))
+            else:
+                yield (event, data)  # 首次尝试：直接流式
 
         if error_data is None:
-            for evt, dat in buffered_events:
-                yield (evt, dat)
+            if is_retry and retry_buf:
+                for evt, dat in retry_buf:
+                    yield (evt, dat)
             return
 
+        # ── 错误处理 ──
         err: dict = error_data  # type: ignore[assignment]
         code = err.get("code", LLMStatus.UNEXPECTED)
         config = RETRY_CONFIG.get(code)
@@ -313,9 +316,8 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
                 "LLM retry exhausted: code=%s attempts=%d/%d",
                 code.value, attempt, max_retries,
             )
-            yield ("error", {
-                "code": LLMStatus.RETRY_EXHAUSTED,
-                "message": f"AI 服务暂时不可用（重试 {attempt}/{max_retries} 次后仍失败），请稍后重试",
+            yield ("fallback", {
+                "message": "您好，AI 暂时无法回复您的消息，请稍后重试。",
                 "original_code": code,
             })
             return

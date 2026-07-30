@@ -186,7 +186,7 @@ class TestRetryDeepseekChat:
 
     @pytest.mark.asyncio
     async def test_retry_exhausted(self):
-        """重试耗尽，yield retry_exhausted error"""
+        """重试耗尽，yield fallback 降级"""
         from app.harness.streaming import retry_deepseek_chat
 
         call_count = 0
@@ -205,10 +205,9 @@ class TestRetryDeepseekChat:
                 events.append((evt, dat))
 
             assert len(events) == 1
-            assert events[0][0] == "error"
-            code = events[0][1].get("code")
-            assert code == LLMStatus.RETRY_EXHAUSTED, f"应返回 RETRY_EXHAUSTED，实际 {code}"
-            # RATE_LIMIT: max_retries=3, 所以总调用 4 次（1 次初始 + 3 次重试）
+            assert events[0][0] == "fallback", f"应返回 fallback 事件，实际 {events[0][0]}"
+            assert "message" in events[0][1]
+            # RATE_LIMIT/OVERLOADED: max_retries=3, 所以总调用 4 次（1 次初始 + 3 次重试）
             assert call_count == 4, f"应有 4 次调用，实际 {call_count}"
         finally:
             S.deepseek_chat = original
@@ -243,7 +242,7 @@ class TestRetryDeepseekChat:
 
     @pytest.mark.asyncio
     async def test_downstream_events_preserved_during_buffer(self):
-        """重试前缓存的正常事件不应丢失"""
+        """首次尝试直接 yield（流式），重试成功后再 yield 缓存事件"""
         from app.harness.streaming import retry_deepseek_chat
 
         call_count = 0
@@ -266,9 +265,10 @@ class TestRetryDeepseekChat:
             events = []
             async for evt, dat in retry_deepseek_chat(["msg"]):
                 events.append((evt, dat))
-            # 重试成功后，第一次缓存的事件不 yield（避免重复）
-            assert len(events) == 2
-            assert events[0] == ("token", "complete")
-            assert events[1] == ("done", "")
+            # 首次尝试直接 yield("partial_")，重试后 yield("complete", "done")
+            assert len(events) == 3
+            assert events[0] == ("token", "partial_")   # 首次尝试直接流式
+            assert events[1] == ("token", "complete")   # 重试缓存后 yield
+            assert events[2] == ("done", "")
         finally:
             S.deepseek_chat = original
