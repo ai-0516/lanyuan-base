@@ -106,6 +106,9 @@ def retry_delay(status, attempt, retry_after=None):
 
 ## 5. SSE 流中断处理
 
+> **注意**：这里的"断流"特指**后端 → LLM 的 HTTP SSE 请求**，不是前端 → 后端的 SSE 推送。
+> 前端断线重连属于前端模块职责，不在此范围。
+
 **流中断判断**：SSE 流结束但没有收到 `[DONE]` 标记，且已收到部分 token，且没有工具调用。
 
 **当前方案**：不重试，记 `_critical_error` 日志（`logs/critical-errors.log`）。
