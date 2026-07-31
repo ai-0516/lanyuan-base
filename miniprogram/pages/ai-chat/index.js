@@ -158,10 +158,6 @@ Page({
           this.scrollToBottom();
           return;
         }
-        if (line.startsWith('event: error')) {
-          this.handleStreamError();
-          return;
-        }
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6);
           // cmd_new_session 事件：重载会话
@@ -170,6 +166,22 @@ Page({
             this.initSession();
             currentEvent = '';
             continue;
+          }
+          // error 事件：显示后端错误文案（如「Agent 循环超过上限」），
+          // 不能硬编码固定文案——_MAX_TURNS 超限等场景后端有具体提示
+          if (currentEvent === 'error') {
+            let msg = 'AI 回复被中断，请重试';
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (typeof parsed === 'string') msg = parsed;
+              else msg = parsed.message || parsed.error || msg;
+            } catch (e) {
+              // 非 JSON 原文
+              if (dataStr) msg = dataStr;
+            }
+            this.handleStreamError(msg);
+            currentEvent = '';
+            return;
           }
           try {
             const parsed = JSON.parse(dataStr);
@@ -197,17 +209,23 @@ Page({
     }
   },
 
-  /** 处理流式错误 */
-  handleStreamError() {
+  /** 处理流式错误
+   *  message: 错误文案（后端 error 事件的 data；缺省用通用文案）
+   *  注意：必须同时重建 nodes——WXML 对 AI 气泡只渲染 <towxml nodes="{{item.nodes}}"/>，
+   *  只改 content 不改 nodes 会导致气泡空白（issue #19 根因）。
+   */
+  handleStreamError(message) {
     const messages = [...this.data.messages];
     const lastMsg = messages[messages.length - 1];
+    const text = (typeof message === 'string' && message) ? message : 'AI 回复被中断，请重试';
     if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
-      lastMsg.content = 'AI 回复被中断，请重试';
+      lastMsg.content = text;
+      lastMsg.nodes = app.towxml(text, 'markdown', { theme: 'light' });
     } else {
       messages.push({
         role: 'assistant',
-        content: 'AI 回复被中断，请重试',
-        nodes: [],
+        content: text,
+        nodes: app.towxml(text, 'markdown', { theme: 'light' }),
         time: this.formatTime(Date.now()),
       });
     }

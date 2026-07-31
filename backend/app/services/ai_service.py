@@ -67,7 +67,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             user_id=user_id,
             meta={"session_id": session_id, "user_id": user_id, "user_message": message},
         ):
-            # LLM 返回的错误事件（非异常），记录下来便于排查
+            # LLM 返回的错误事件（非异常），记录 ERROR 级别便于 error.log 定位
             if event == "error":
                 logger.error("Agent 返回错误: session_id=%s user_id=%s error=%s",
                              session_id, user_id, data)

@@ -27,7 +27,7 @@ from app.harness.hooks import events
 
 logger = logging.getLogger(__name__)
 
-_MAX_TURNS = 10
+_MAX_TURNS = 20
 
 
 class AIAgent:
@@ -209,6 +209,7 @@ class AIAgent:
                 tool_call_id = tc.get("id", "")
                 events.emit(events.TOOL_START, {
                     "tool_name": tool_name, "tool_call_id": tool_call_id,
+                    "tool_args": tc.get("function", {}).get("arguments", ""),
                     "turn": turn, "req_id": correlation_id,
                 })
                 try:

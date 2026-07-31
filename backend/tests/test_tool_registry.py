@@ -165,6 +165,50 @@ class TestExecution:
         assert "code" not in json.dumps(result)
 
     @pytest.mark.asyncio
+    async def test_http_exception_propagates(self):
+        """工具抛 HTTPException 不再捕获——冒泡给 agent.py 记录 error.log
+
+        回归 issue #19 反馈：查询类工具（get_user_public/get_post）已改
+        api_success(None) 不抛业务异常；其余真异常（权限拒绝等）应冒泡
+        进 error.log 便于定位问题，而不是被吞成工具结果字符串。
+        """
+        from fastapi import HTTPException
+
+        async def _business_fail(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
+            """业务失败"""
+            raise HTTPException(status_code=403, detail={"code": 40301, "message": "无权删除"})
+
+        r = ToolRegistry()
+        td = ToolDef("business_fail", "业务失败", _business_fail)
+        r.register(td)
+
+        with pytest.raises(HTTPException):
+            await r.execute("mock_db", 1, {
+                "function": {"name": "business_fail", "arguments": "{}"}
+            })
+
+    @pytest.mark.asyncio
+    async def test_api_success_none_returns_null(self):
+        """查询无结果（api_success(None)）→ 正常链路返回 "null"
+
+        回归 issue #19：get_user_public 查无此人返回 api_success(None)——
+        code=0 + data=null 是正常查询结果，不是业务失败。
+        LLM 收到 "null" = 查询成功但用户不存在。
+        """
+        async def _not_found(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
+            """查询用户"""
+            return {"code": 0, "data": None, "message": "ok"}
+
+        r = ToolRegistry()
+        td = ToolDef("not_found", "查询用户", _not_found)
+        r.register(td)
+
+        result = await r.execute("mock_db", 1, {
+            "function": {"name": "not_found", "arguments": "{}"}
+        })
+        assert result == "null"
+
+    @pytest.mark.asyncio
     async def test_result_formatter(self):
         """result_formatter 返回自定义摘要"""
         r = ToolRegistry()

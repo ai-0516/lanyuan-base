@@ -126,11 +126,16 @@ async def log_tool_start(data: dict):
     req_id = data["req_id"]
     tool_name = data.get("tool_name", "?")
     call_id = data.get("tool_call_id", "")[:12]
+    tool_args = data.get("tool_args", "")
+    # 参数通常很短（如 {"user_id": 6}），但 LLM 生成的 JSON 可能很长（发帖全文）。
+    # 超过 200 字符截断 + 标记，完整值在 jsonl 结构化日志（tool_calls 全量）。
+    if len(tool_args) > 200:
+        tool_args = tool_args[:200] + f"…(truncated len={len(tool_args)}, full in jsonl)"
     _timestamps.setdefault(req_id, {})["tool"] = time_module.time()
     sid = _session_ids.get(req_id, "?")
     logger.info(
-        "[%s] [%s] [%s] tool=%s id=%s",
-        sid, req_id, events.TOOL_START, tool_name, call_id,
+        "[%s] [%s] [%s] tool=%s args=%s id=%s",
+        sid, req_id, events.TOOL_START, tool_name, tool_args, call_id,
     )
 
 
