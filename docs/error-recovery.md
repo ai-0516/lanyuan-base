@@ -24,7 +24,7 @@ ai_service.py
 
 | 层 | 做的事 | 代码位置 | 触发条件 |
 |----|--------|---------|---------|
-| L1 | 指数退避重试 | `streaming.py:retry_deepseek_chat()` | 429/529/timeout |
+| L1 | 指数退避重试 | `streaming.py:retry_deepseek_chat()` | 429/529/timeout；413（先应急压缩再重试，`compress_before_retry`） |
 | L2 | 降级为模拟回复 | `streaming.py:retry_deepseek_chat()` fallback 分支 | 重试耗尽 / 不可重试错误 |
 | L3 | 兜底异常捕获 | `agent.py` + `ai_service.py` try/except | 任意未捕获异常 |
 
@@ -41,7 +41,7 @@ class LLMStatus(str, Enum):
     RATE_LIMIT = "rate_limit"           # 429 → 退避重试 3 次
     OVERLOADED = "overloaded"           # 529/503 → 退避重试 3 次
     AUTH_FAILED = "auth_failed"         # 401/403 → 直接降级
-    PAYLOAD_TOO_LARGE = "payload_too_large"  # 413 → 需 #8 压缩后重试
+    PAYLOAD_TOO_LARGE = "payload_too_large"  # 413 → 压缩上下文后重试 1 次（#8）
     BAD_REQUEST = "bad_request"         # 400 → 直接降级
 
     # 传输层
@@ -77,7 +77,8 @@ RETRY_CONFIG = {
     LLMStatus.OVERLOADED:        {"max_retries": 3, "base_delay_ms": 500, "jitter": True},
     LLMStatus.TIMEOUT:           {"max_retries": 1, "base_delay_ms": 1000, "jitter": False},
     LLMStatus.NETWORK_ERROR:     {"max_retries": 1, "base_delay_ms": 1000, "jitter": False},
-    LLMStatus.PAYLOAD_TOO_LARGE: None,  # 需 #8 压缩后重试，当前直接降级
+    LLMStatus.PAYLOAD_TOO_LARGE: {"max_retries": 1, "base_delay_ms": 0, "jitter": False,
+                                   "compress_before_retry": True},  # 413 → 应急压缩后重试（#8）
     LLMStatus.AUTH_FAILED:       None,  # 不可重试
     LLMStatus.BAD_REQUEST:       None,  # 不可重试
     LLMStatus.SSE_DISCONNECTED:  {"max_retries": 1, ...},  # 可重试 1 次（buffer 防重复）
@@ -204,5 +205,6 @@ for attempt in range(_max_possible):
 
 - [2026-07-30 daily log](daily/2026-07-30.md)
 - [learn-claude-code s11](https://github.com/shareAI-lab/learn-claude-code/tree/main/s11_error_recovery)
-- Issue [#8 Context Compact](https://github.com/snxly/lanyuan-base/issues/8) — payload_too_large 恢复的前提
-- Issue [#9 Memory](https://github.com/snxly/lanyuan-base/issues/9) — 跨会话记忆（后续模块）
+- [context-compact.md](context-compact.md) — 上下文压缩管线（#8，PAYLOAD_TOO_LARGE 压缩重试的基础）
+- Issue [#8 Context Compact](https://github.com/ai-0516/lanyuan-base/issues/8) — 已实现，413 压缩重试闭环
+- Issue [#9 Memory](https://github.com/ai-0516/lanyuan-base/issues/9) — 跨会话记忆（后续模块）

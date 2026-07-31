@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.config import settings
-from app.harness import streaming
+from app.harness import context_compact, streaming
 from app.harness.errors import LLMStatus
 from app.harness.hooks import events
 
@@ -77,6 +77,13 @@ class AIAgent:
 
         for turn in range(_MAX_TURNS):
             events.emit(events.TURN_START, {"turn": turn, "req_id": correlation_id})
+            # 上下文压缩管线（s08）— 便宜的先跑，超阈值再 LLM 摘要
+            # mock 模式不调真 LLM，无超限风险，跳过（避免空 API 调用）
+            if use_real_llm:
+                messages[:] = context_compact.snip_message_compact(messages)
+                messages[:] = context_compact.tool_result_compact(messages)
+                if context_compact.estimate_tokens(messages) > context_compact.COMPACT_THRESHOLD:
+                    messages[:] = await context_compact.llm_compact(messages)
             # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
             turn_messages_sent = copy.deepcopy(messages)
             turn_trace: dict[str, Any] = {

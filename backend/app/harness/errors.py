@@ -75,7 +75,13 @@ RETRY_CONFIG: dict[LLMStatus, dict | None] = {
         "jitter": False,
         "description": "固定 1s 等待后重试 1 次",
     },
-    LLMStatus.PAYLOAD_TOO_LARGE: None,  # 需 #8 压缩后重试，当前直接降级
+    LLMStatus.PAYLOAD_TOO_LARGE: {
+        "max_retries": 1,
+        "base_delay_ms": 0,
+        "jitter": False,
+        "compress_before_retry": True,
+        "description": "413 — 应急压缩上下文后重试 1 次",
+    },
     # ── 不可重试（直接降级） ──
     LLMStatus.AUTH_FAILED: None,
     LLMStatus.BAD_REQUEST: None,

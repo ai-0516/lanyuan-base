@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     DEEPSEEK_MODEL: str = "deepseek-chat"
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
 
+    # 上下文压缩（#8）— 生产调优直接改环境变量，无需改代码
+    COMPACT_MAX_MESSAGES: int = 50            # L1: 消息数超过则裁剪中间
+    COMPACT_KEEP_HEAD: int = 3                # L1/L4: 头部保留条数
+    COMPACT_KEEP_RECENT_TOOL_RESULTS: int = 3 # L2: 保留最近 N 个 tool 结果
+    COMPACT_TOOL_RESULT_SNIP_LENGTH: int = 120  # L2: 旧 tool 结果超此长度才占位
+    COMPACT_THRESHOLD: int = 60_000           # L4: 字符数估算阈值（≈30K~50K token）
+    COMPACT_KEEP_TAIL: int = 5                # L4/reactive: 尾部保留条数（含最新 user 消息）
+    COMPACT_SUMMARY_INPUT_LIMIT: int = 80_000 # 发给摘要 LLM 的对话截断（字符）
+
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"

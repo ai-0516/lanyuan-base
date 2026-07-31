@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.config import settings
+from app.harness import context_compact
 from app.harness.errors import LLMStatus, RETRY_CONFIG, HTTP_STATUS_MAP, retry_delay
 
 logger = logging.getLogger(__name__)
@@ -326,6 +327,12 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
 
         retry_after = err.get("retry_after")
         delay = retry_delay(code, attempt, retry_after=retry_after)
+
+        # 压缩后重试：413 等场景重试前对 messages 做应急压缩
+        # llm_reactive_compact 摘要失败时内部强裁剪兜底，不会抛异常
+        if config.get("compress_before_retry"):
+            messages[:] = await context_compact.llm_reactive_compact(messages)
+
         logger.warning(
             "LLM retry: code=%s attempt=%d/%d delay=%.1fs",
             code.value, attempt + 1, max_retries, delay,
