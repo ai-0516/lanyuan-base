@@ -23,6 +23,6 @@
 - [ ] tool_executor.execute 注入 db/user_id 的任务（待设计）
 - [ ] 部分 tool 返回仍包含 avatar 字段（如 `create_comment`），`_strip_avatar` 未覆盖所有路径 — 需排查并统一清理
 - [ ] 如何使用导出的 ATIF 文件（文档 + 示例）
-- [ ] 给 dev 和 dev-lead 配置不同的 GitHub 账户，避免 credentials 混淆
+- [x] 给 dev 和 dev-lead 配置不同的 GitHub 账户，避免 credentials 混淆 — ✅ 已落地（2026-07-31，org ai-0516 + machine user，见 [github-multi-identity.md](../github-multi-identity.md)）
 - [ ] SSE 事件类型统一定义（目前 ai.py 用白名单硬编码，streaming/agent 各有事件产出，需统一管理事件类型常量 + 黑白名单策略）
 - [x] #8 上下文压缩实现时：`PAYLOAD_TOO_LARGE`（errors.py）从 `None` 改为「压缩后重试」配置，并同步 `docs/error-recovery.md` — ✅ 已实现（2026-07-31，feat/8 分支）
