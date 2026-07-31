@@ -503,10 +503,12 @@ class TestProfile:
             assert sensitive not in user_pub, f"公开信息不应包含 {sensitive}"
 
     async def test_view_non_existent_user(self, client, headers_a):
-        """查看不存在的用户"""
+        """查看不存在的用户 — 查无此人是正常结果（code=0 + data=null），非错误（issue #19）"""
         resp = await client.get("/api/v1/users/99999", headers=headers_a)
+        assert resp.status_code == 200
         body = any_code_body(resp.json())
-        assert body["code"] != 0
+        assert body["code"] == 0
+        assert body["data"] is None
 
 
 # ── 7. AI ────────────────────────────────────────────────────────────

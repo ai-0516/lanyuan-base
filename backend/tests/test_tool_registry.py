@@ -205,16 +205,16 @@ class TestExecution:
         assert result == "操作失败: 资源不存在"
 
     @pytest.mark.asyncio
-    async def test_business_error_dict_returns_message(self):
-        """业务错误结构（有 code 无 data）→ 直接返回 message 文本
+    async def test_api_success_none_returns_null(self):
+        """查询无结果（api_success(None)）→ 正常链路返回 "null"
 
-        回归 issue #19：get_user_public 用户不存在时返回
-        {"code": 40401, "message": "用户不存在"}（正常 case，不抛异常），
-        LLM 收到「用户不存在」，tool:end status=ok。
+        回归 issue #19：get_user_public 查无此人返回 api_success(None)——
+        code=0 + data=null 是正常查询结果，不是业务失败。
+        LLM 收到 "null" = 查询成功但用户不存在。
         """
         async def _not_found(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
-            """查询不存在"""
-            return {"code": 40401, "message": "用户不存在"}
+            """查询用户"""
+            return {"code": 0, "data": None, "message": "ok"}
 
         r = ToolRegistry()
         td = ToolDef("not_found", "查询用户", _not_found)
@@ -223,7 +223,7 @@ class TestExecution:
         result = await r.execute("mock_db", 1, {
             "function": {"name": "not_found", "arguments": "{}"}
         })
-        assert result == "用户不存在"
+        assert result == "null"
 
     @pytest.mark.asyncio
     async def test_result_formatter(self):
