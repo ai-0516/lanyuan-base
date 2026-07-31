@@ -62,7 +62,8 @@ class TestRetryConfig:
         """可重试的错误码都有配置"""
         retryable = [LLMStatus.RATE_LIMIT, LLMStatus.OVERLOADED,
                      LLMStatus.TIMEOUT, LLMStatus.NETWORK_ERROR,
-                     LLMStatus.SSE_DISCONNECTED]
+                     LLMStatus.SSE_DISCONNECTED,
+                     LLMStatus.PAYLOAD_TOO_LARGE]
         for status in retryable:
             assert RETRY_CONFIG[status] is not None, f"{status} 应可重试"
             assert "max_retries" in RETRY_CONFIG[status]
@@ -71,11 +72,17 @@ class TestRetryConfig:
     def test_non_retryable_codes_have_none(self):
         """不可重试的错误码配置为 None"""
         non_retryable = [LLMStatus.AUTH_FAILED, LLMStatus.BAD_REQUEST,
-                         LLMStatus.PAYLOAD_TOO_LARGE,
                          LLMStatus.SSE_PARSE_ERROR,
                          LLMStatus.UNEXPECTED]
         for status in non_retryable:
             assert RETRY_CONFIG.get(status) is None, f"{status} 应不可重试"
+
+    def test_payload_too_large_has_compress_flag(self):
+        """PAYLOAD_TOO_LARGE 配置了压缩后重试标记"""
+        config = RETRY_CONFIG[LLMStatus.PAYLOAD_TOO_LARGE]
+        assert config is not None
+        assert config["compress_before_retry"] is True
+        assert config["max_retries"] == 1
 
 
 class TestRetryDelay:
@@ -277,5 +284,130 @@ class TestRetryDeepseekChat:
             assert events[1] == ("token", "AI 正在飞速思考中……")  # 重试提示
             assert events[2] == ("token", "complete")               # 重试缓存后 yield
             assert events[3] == ("done", "")
+        finally:
+            S.deepseek_chat = original
+
+
+# ═══════════════════════════════════════════════
+# streaming.py — PAYLOAD_TOO_LARGE 压缩重试（#8）
+# ═══════════════════════════════════════════════
+
+class TestPayloadTooLarge:
+    """413 → 压缩上下文 → 重试 1 次（联动 context_compact.reactive_compact）"""
+
+    def _build_long_messages(self, count: int = 10) -> list[dict]:
+        return [
+            {"role": "user", "content": f"message {i} " + "x" * 50}
+            for i in range(count)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_413_compress_retry_success(self):
+        """413 → reactive 压缩（摘要成功）→ 重试成功，messages 被压缩"""
+        from app.harness.streaming import retry_deepseek_chat
+
+        call_count = 0
+
+        async def _mock(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # 主调用 → 413
+                yield ("error", {"code": LLMStatus.PAYLOAD_TOO_LARGE, "message": "413"})
+                return
+            if call_count == 2:
+                # 摘要 LLM 调用 → 成功
+                yield ("token", "这是摘要内容")
+                yield ("done", "")
+                return
+            # 重试的主调用 → 成功
+            yield ("token", "ok")
+            yield ("done", "")
+
+        messages = self._build_long_messages(10)
+
+        import app.harness.streaming as S
+        original = S.deepseek_chat
+        S.deepseek_chat = _mock
+        try:
+            events = []
+            async for evt, dat in retry_deepseek_chat(messages):
+                events.append((evt, dat))
+
+            # 主调用 1 + 摘要 1 + 重试 1 = 3 次
+            assert call_count == 3, f"应有 3 次调用，实际 {call_count}"
+            # retrying 提示 + 重试成功（缓存后 yield）
+            assert len(events) == 3
+            assert events[0] == ("token", "AI 正在飞速思考中……")
+            assert events[1] == ("token", "ok")
+            assert events[2] == ("done", "")
+            # messages 被原地压缩：摘要消息 + 尾部 5 条（+system 无）
+            assert len(messages) == 1 + 5, f"压缩后应有 6 条，实际 {len(messages)}"
+            assert messages[0]["content"].startswith("[Reactive compact]")
+            assert "这是摘要内容" in messages[0]["content"]
+        finally:
+            S.deepseek_chat = original
+
+    @pytest.mark.asyncio
+    async def test_413_compress_retry_success_with_system(self):
+        """带 system 消息的 413 压缩重试：system 保留在第一条"""
+        from app.harness.streaming import retry_deepseek_chat
+
+        call_count = 0
+
+        async def _mock(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield ("error", {"code": LLMStatus.PAYLOAD_TOO_LARGE, "message": "413"})
+                return
+            if call_count == 2:
+                yield ("token", "摘要")
+                yield ("done", "")
+                return
+            yield ("token", "ok")
+            yield ("done", "")
+
+        messages = [{"role": "system", "content": "你是社区助手"}] + self._build_long_messages(10)
+
+        import app.harness.streaming as S
+        original = S.deepseek_chat
+        S.deepseek_chat = _mock
+        try:
+            async for _evt, _dat in retry_deepseek_chat(messages):
+                pass
+            assert messages[0]["role"] == "system", "system 必须保留"
+            assert messages[1]["content"].startswith("[Reactive compact]")
+        finally:
+            S.deepseek_chat = original
+
+    @pytest.mark.asyncio
+    async def test_413_retry_exhausted_fallback(self):
+        """413 重试后仍失败 → 降级 fallback"""
+        from app.harness.streaming import retry_deepseek_chat
+
+        call_count = 0
+
+        async def _always_413(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            yield ("error", {"code": LLMStatus.PAYLOAD_TOO_LARGE, "message": "413"})
+
+        messages = self._build_long_messages(10)
+
+        import app.harness.streaming as S
+        original = S.deepseek_chat
+        S.deepseek_chat = _always_413
+        try:
+            events = []
+            async for evt, dat in retry_deepseek_chat(messages):
+                events.append((evt, dat))
+
+            # 主调用1(413) + 摘要1(413→强裁剪兜底) + 重试1(413→耗尽) = 3 次
+            assert call_count == 3, f"应有 3 次调用，实际 {call_count}"
+            assert events[-1][0] == "fallback", "最后应为 fallback 降级"
+            assert "message" in events[-1][1]
+            # 强裁剪兜底确实发生（摘要失败时 system + 前3 + 尾部5）
+            assert len(messages) == 3 + 5, f"强裁剪后应有 8 条，实际 {len(messages)}"
         finally:
             S.deepseek_chat = original
