@@ -165,44 +165,27 @@ class TestExecution:
         assert "code" not in json.dumps(result)
 
     @pytest.mark.asyncio
-    async def test_http_exception_business_error(self):
-        """业务错误（HTTPException，如「用户不存在」）转成工具结果，不抛异常
+    async def test_http_exception_propagates(self):
+        """工具抛 HTTPException 不再捕获——冒泡给 agent.py 记录 error.log
 
-        回归 issue #19：此前抛给 agent.py 被当成系统异常记录 ERROR traceback，
-        LLM 也看不到具体原因。现在返回「操作失败: 用户不存在」，LLM 可读。
+        回归 issue #19 反馈：查询类工具（get_user_public/get_post）已改
+        api_success(None) 不抛业务异常；其余真异常（权限拒绝等）应冒泡
+        进 error.log 便于定位问题，而不是被吞成工具结果字符串。
         """
         from fastapi import HTTPException
 
         async def _business_fail(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
-            """业务查询失败"""
-            raise HTTPException(status_code=400, detail={"code": 40401, "message": "用户不存在"})
+            """业务失败"""
+            raise HTTPException(status_code=403, detail={"code": 40301, "message": "无权删除"})
 
         r = ToolRegistry()
-        td = ToolDef("business_fail", "业务查询", _business_fail)
+        td = ToolDef("business_fail", "业务失败", _business_fail)
         r.register(td)
 
-        result = await r.execute("mock_db", 1, {
-            "function": {"name": "business_fail", "arguments": "{}"}
-        })
-        assert result == "操作失败: 用户不存在"
-
-    @pytest.mark.asyncio
-    async def test_http_exception_string_detail(self):
-        """HTTPException 的 detail 为字符串时也能转换"""
-        from fastapi import HTTPException
-
-        async def _string_fail(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
-            """string detail"""
-            raise HTTPException(status_code=404, detail="资源不存在")
-
-        r = ToolRegistry()
-        td = ToolDef("string_fail", "string detail", _string_fail)
-        r.register(td)
-
-        result = await r.execute("mock_db", 1, {
-            "function": {"name": "string_fail", "arguments": "{}"}
-        })
-        assert result == "操作失败: 资源不存在"
+        with pytest.raises(HTTPException):
+            await r.execute("mock_db", 1, {
+                "function": {"name": "business_fail", "arguments": "{}"}
+            })
 
     @pytest.mark.asyncio
     async def test_api_success_none_returns_null(self):

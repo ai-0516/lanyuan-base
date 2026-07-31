@@ -67,12 +67,10 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
             user_id=user_id,
             meta={"session_id": session_id, "user_id": user_id, "user_message": message},
         ):
-            # LLM 返回的错误事件（非异常），记录下来便于排查。
-            # 注意：系统性错误（timeout/连接失败等）已由 streaming 层记 ERROR，
-            # 能到达这里的 error 都是 streaming 处理/重试后的最终错误，统一 WARNING 记录。
+            # LLM 返回的错误事件（非异常），记录 ERROR 级别便于 error.log 定位
             if event == "error":
-                logger.warning("Agent 返回错误: session_id=%s user_id=%s error=%s",
-                               session_id, user_id, data)
+                logger.error("Agent 返回错误: session_id=%s user_id=%s error=%s",
+                             session_id, user_id, data)
             yield (event, data)
     except Exception:
         logger.exception("stream_chat 异常: session_id=%s user_id=%s", session_id, user_id)
