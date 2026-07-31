@@ -16,7 +16,7 @@ from app.harness import context_compact
 from app.harness.context_compact import (
     LLMSummaryError,
     KEEP_HEAD,
-    REACTIVE_KEEP_TAIL,
+    KEEP_TAIL,
     TOOL_RESULT_PLACEHOLDER,
     TOOL_RESULT_SNIP_LENGTH,
 )
@@ -146,6 +146,9 @@ class TestMicroCompact:
         assert result[9]["content"].startswith("x")
         # 消息结构未被破坏（tool_call 前驱仍在原位）
         assert result[0]["role"] == "assistant" and result[0]["tool_calls"]
+        # 不原地修改传入列表（review 问题 2 回归：接口风格与其他函数一致）
+        assert messages[1]["content"].startswith("x"), "原列表不应被修改"
+        assert messages[3]["content"].startswith("x")
 
     def test_short_content_kept(self):
         """旧结果但内容短（≤120）不占位"""
@@ -166,8 +169,8 @@ class TestMicroCompact:
 class TestCompactHistory:
 
     @pytest.mark.asyncio
-    async def test_summary_replaces_history(self, monkeypatch):
-        """摘要成功 → [system, [Compacted] 摘要]"""
+    async def test_summary_keeps_recent_tail(self, monkeypatch):
+        """摘要成功 → system + [Compacted] 摘要 + 尾部最近消息（最新 user 消息保留）"""
         async def _fake_summarize(messages):
             return "用户想要发布一篇帖子，已确认标题内容"
 
@@ -176,11 +179,32 @@ class TestCompactHistory:
 
         result = await context_compact.compact_history(messages)
 
-        assert len(result) == 2
+        assert len(result) == 1 + 1 + KEEP_TAIL
         assert result[0] == messages[0], "system 保留"
         assert result[1]["role"] == "user"
         assert result[1]["content"].startswith("[Compacted]")
         assert "用户想要发布一篇帖子" in result[1]["content"]
+        # 最新 user 消息必须保留（review 问题 1 回归：L4 不能丢最新意图）
+        assert result[-1] == messages[-1]
+        assert result[-2] == messages[-2]
+
+    @pytest.mark.asyncio
+    async def test_summary_input_excludes_tail(self, monkeypatch):
+        """摘要 LLM 只收到更早的历史，尾部（含最新 user 消息）不参与摘要"""
+        captured: dict = {}
+
+        async def _fake_summarize(messages):
+            captured["msgs"] = messages
+            return "摘要"
+
+        monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
+        messages = [_system("sys")] + [_user(f"u{i}") for i in range(10)]
+
+        await context_compact.compact_history(messages)
+
+        assert len(captured["msgs"]) == len(messages) - 1 - KEEP_TAIL
+        assert captured["msgs"][-1]["content"] == "u4", "摘要输入截止到 head"
+        assert "u9" not in [m["content"] for m in captured["msgs"]], "最新消息不进摘要"
 
     @pytest.mark.asyncio
     async def test_summary_failure_skips(self, monkeypatch):
@@ -196,7 +220,7 @@ class TestCompactHistory:
 
     @pytest.mark.asyncio
     async def test_no_system_messages(self, monkeypatch):
-        """无 system 消息也能工作"""
+        """无 system 消息且消息数 ≤ 尾部阈值 → 无可压缩历史，原样返回"""
         async def _fake_summarize(messages):
             return "摘要"
 
@@ -204,8 +228,7 @@ class TestCompactHistory:
         messages = [_user(f"u{i}") for i in range(5)]
 
         result = await context_compact.compact_history(messages)
-        assert len(result) == 1
-        assert result[0]["content"].startswith("[Compacted]")
+        assert result == messages, "head 为空时应原样返回"
 
 
 # ═══════════════════════════════════════════════
@@ -225,7 +248,7 @@ class TestReactiveCompact:
 
         result = await context_compact.reactive_compact(messages)
 
-        assert len(result) == 1 + 1 + REACTIVE_KEEP_TAIL
+        assert len(result) == 1 + 1 + KEEP_TAIL
         assert result[0]["role"] == "system"
         assert result[1]["content"].startswith("[Reactive compact]")
         assert "前文摘要" in result[1]["content"]
@@ -261,7 +284,7 @@ class TestReactiveCompact:
 
         result = await context_compact.reactive_compact(messages)
 
-        assert len(result) == 1 + KEEP_HEAD + REACTIVE_KEEP_TAIL
+        assert len(result) == 1 + KEEP_HEAD + KEEP_TAIL
         assert result[0]["role"] == "system"
         assert result[1] == messages[1], "兜底保留头部前 3 条"
         assert result[-1] == messages[-1]

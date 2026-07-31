@@ -46,7 +46,9 @@ ai_service.py          ← 承上启下：数据准备 + 持久化（不变）
 
 ### L4: compact_history — LLM 摘要
 
-字符估算超阈值（60K，≈30K~50K token）→ 调 LLM 生成摘要，全部历史替换为单条摘要消息（保留 system）。
+字符估算超阈值（60K，≈30K~50K token）→ 调 LLM 摘要**更早的历史**，保留尾部最近消息（含最新 user 消息 + 配对保护），摘要消息插入其间（保留 system）。
+
+> **为什么不全量摘要**：交互式对话中用户本轮消息是 LLM 要回答的核心。参考 s08 是 subagent 一次性任务场景（全量摘要合理），我们若全量摘要会把最新意图丢进摘要里（可能损失 ID、具体操作等精确信息）。L4 与 reactive_compact 一致：保留尾部，只摘要更早部分。
 
 摘要 prompt 带硬约束：`CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.`（参考 CC 压缩 prompt 双端约束，防止摘要调用触发工具）。
 
@@ -92,14 +94,22 @@ DeepSeek 无官方 tokenizer（tiktoken 仅 OpenAI 模型）。用 `len(json.dum
 
 压缩只变换发送给 LLM 的 messages（内存），DB 始终保存完整历史。`ai_service` 持久化逻辑读取 `agent.get_log()`（turn_trace），与压缩后的 messages 无关。
 
+### 5.5 阈值进 settings（review 反馈）
+
+`MAX_MESSAGES` / `COMPACT_THRESHOLD` / `KEEP_TAIL` 等阈值全部收敛到 `config.py` 的 `COMPACT_*` 配置项（带默认值）。生产调优（如 DeepSeek 上下文 64K → 128K）改环境变量即可，不动代码。模块顶层常量从 settings 读取，测试仍引用常量名不受影响。
+
+### 5.6 压缩函数不原地修改入参（review 反馈）
+
+`micro_compact` 等所有压缩函数都返回新列表（无变化时返回原引用），不修改调用方的列表元素——接口风格统一，调用方 `messages[:] = fn(messages)` 语义清晰。
+
 ## 6. 测试
 
 | 文件 | 覆盖 |
 |------|------|
-| `tests/test_context_compact.py` | snip/micro/reactive 纯函数：裁剪、占位、配对不拆散、system 保留、摘要失败兜底（37 项） |
+| `tests/test_context_compact.py` | snip/micro/reactive 纯函数：裁剪、占位、配对不拆散、system 保留、L4 保留尾部（最新 user 消息）、摘要失败兜底、入参不被修改（38 项） |
 | `tests/test_harness_errors.py` | PTL 配置可重试 + 413 → 压缩 → 重试成功 / 重试耗尽 fallback |
 
-全量测试：`155 passed, 4 skipped`（含 #8 新增 33 项）。
+全量测试：`156 passed, 4 skipped`（含 #8 新增 34 项）。
 
 ## 7. 关联
 

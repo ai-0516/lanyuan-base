@@ -3,7 +3,7 @@
 多层压缩策略，便宜的先跑（0 API），贵的后跑（1 API）：
     L1 snip_compact      — 消息数超限 → 裁剪中间，保留头部(前3) + 尾部
     L2 micro_compact     — 保留最近 N 组工具结果，更早的占位
-    L4 compact_history   — token 估算超限 → LLM 摘要（1 次 API）
+    L4 compact_history   — token 估算超限 → 摘要更早的历史 + 保留尾部
     reactive_compact     — 413 应急：保留尾部 + 头部摘要，摘要失败强裁剪兜底
 
 设计约定：
@@ -11,22 +11,27 @@
 - 压缩管线由 AIAgent 每 turn 调 LLM 前调用；413 由 streaming 层触发 reactive
 - system 消息（数组第一条）始终保留，不参与裁剪计数
 - assistant(tool_calls) 与其后的 tool 结果消息配对，裁剪/占位不拆散
+- L4/reactive 保留尾部最近消息（含最新 user 消息），只摘要更早的部分——
+  交互式对话中用户本轮消息是 LLM 回答的核心，不能被摘要掉
+- 阈值来自 settings（生产调优改环境变量，不改代码）
 """
 
 import json
 import logging
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
-# ── 阈值常量 ─────────────────────────────────────
-MAX_MESSAGES = 50            # L1: 消息数超过则裁剪中间（保留头部 3 + 尾部 47）
-KEEP_HEAD = 3                # L1: 头部保留条数
-KEEP_RECENT_TOOL_RESULTS = 3 # L2: 保留最近 N 个 tool 结果
-TOOL_RESULT_SNIP_LENGTH = 120    # L2: 超过此长度的旧 tool 结果才占位
+# ── 阈值（settings 可配，生产调优无需改代码） ─────
+MAX_MESSAGES = settings.COMPACT_MAX_MESSAGES            # L1: 消息数超过则裁剪中间
+KEEP_HEAD = settings.COMPACT_KEEP_HEAD                  # L1/L4: 头部保留条数
+KEEP_RECENT_TOOL_RESULTS = settings.COMPACT_KEEP_RECENT_TOOL_RESULTS  # L2
+TOOL_RESULT_SNIP_LENGTH = settings.COMPACT_TOOL_RESULT_SNIP_LENGTH    # L2
 TOOL_RESULT_PLACEHOLDER = "[Earlier tool result compacted. Re-run if needed.]"
-COMPACT_THRESHOLD = 60_000   # L4: 字符数估算阈值（≈30K~50K token，DeepSeek 无官方 tokenizer）
-REACTIVE_KEEP_TAIL = 5       # reactive: 尾部保留条数
-SUMMARY_INPUT_LIMIT = 80_000  # 发给摘要 LLM 的对话截断（字符）
+COMPACT_THRESHOLD = settings.COMPACT_THRESHOLD          # L4: 字符估算阈值
+KEEP_TAIL = settings.COMPACT_KEEP_TAIL                  # L4/reactive: 尾部保留条数
+SUMMARY_INPUT_LIMIT = settings.COMPACT_SUMMARY_INPUT_LIMIT  # 摘要输入截断
 
 SUMMARY_PROMPT = (
     "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\n"
@@ -60,6 +65,20 @@ def _split_system(messages: list[dict]) -> tuple[list[dict], list[dict]]:
     if messages and messages[0].get("role") == "system":
         return [messages[0]], list(messages[1:])
     return [], list(messages)
+
+
+def _compute_tail_start(rest: list[dict], keep_tail: int) -> int:
+    """计算尾部起始下标（含配对保护）
+
+    tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始，
+    保证 assistant(tool_calls) 与其 tool 结果消息不拆散。
+    """
+    tail_start = max(0, len(rest) - keep_tail)
+    if (tail_start > 0 and tail_start < len(rest)
+            and _is_tool_result_message(rest[tail_start])
+            and _is_tool_call_message(rest[tail_start - 1])):
+        tail_start -= 1
+    return tail_start
 
 
 def estimate_tokens(messages: list[dict]) -> int:
@@ -113,18 +132,20 @@ def micro_compact(
 ) -> list[dict]:
     """保留最近 keep_recent 个 tool 结果，更早的大结果替换为占位符
 
-    只替换内容，不删除消息——tool 消息必须跟在对应 assistant(tool_calls) 后，
+    返回新列表（不原地修改传入的 messages，与其他压缩函数风格一致）。
+    只替换内容不删消息——tool 消息必须跟在对应 assistant(tool_calls) 后，
     占位不破坏 API 要求的配对结构。
     """
     tool_indices = [i for i, m in enumerate(messages) if _is_tool_result_message(m)]
     if len(tool_indices) <= keep_recent:
         return messages
 
+    result = list(messages)
     for i in tool_indices[:-keep_recent]:
-        msg = messages[i]
+        msg = result[i]
         if len(msg.get("content", "") or "") > TOOL_RESULT_SNIP_LENGTH:
-            msg["content"] = TOOL_RESULT_PLACEHOLDER
-    return messages
+            result[i] = {**msg, "content": TOOL_RESULT_PLACEHOLDER}
+    return result
 
 
 # ── L4: LLM 摘要 ─────────────────────────────────
@@ -157,39 +178,42 @@ async def _summarize(messages: list[dict]) -> str:
 
 
 async def compact_history(messages: list[dict]) -> list[dict]:
-    """L4: 全部历史替换为单条摘要（保留 system）
+    """L4: 摘要更早的历史 + 保留尾部最近消息（含最新 user 消息）
 
-    摘要失败时返回原 messages（跳过压缩），由 reactive_compact 兜底——
-    上游 LLM 主调用仍可能成功；若 413 则由 reactive 处理。
-    """
-    system, rest = _split_system(messages)
-    try:
-        summary = await _summarize(rest or messages)
-    except LLMSummaryError:
-        logger.exception("compact_history 摘要失败，跳过压缩")
-        return messages
-
-    compacted: list[dict] = [{"role": "user", "content": f"[Compacted]\n\n{summary}"}]
-    return system + compacted
-
-
-async def reactive_compact(messages: list[dict]) -> list[dict]:
-    """413 应急压缩：头部摘要 + 保留尾部 keep_tail 条（配对保护）
-
-    比 compact_history 温和：保留最近对话，只压缩更早的部分。
-    摘要失败 → 强裁剪兜底（头部仅保留前 3 条），保证 413 一定有压缩动作。
+    交互式对话中用户本轮消息是 LLM 回答的核心——保留尾部（配对保护），
+    只对更早的部分做摘要（与 reactive_compact 一致，避免丢最新意图）。
+    摘要失败时返回原 messages（跳过压缩，由 reactive_compact 兜底）。
     """
     system, rest = _split_system(messages)
     if not rest:
         return messages
 
-    tail_start = max(0, len(rest) - REACTIVE_KEEP_TAIL)
-    # 配对保护：tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始
-    if (tail_start > 0 and tail_start < len(rest)
-            and _is_tool_result_message(rest[tail_start])
-            and _is_tool_call_message(rest[tail_start - 1])):
-        tail_start -= 1
+    tail_start = _compute_tail_start(rest, KEEP_TAIL)
+    head, tail = rest[:tail_start], rest[tail_start:]
+    if not head:
+        return messages  # 没有可压缩的早期历史
 
+    try:
+        summary = await _summarize(head)
+    except LLMSummaryError:
+        logger.exception("compact_history 摘要失败，跳过压缩")
+        return messages
+
+    compacted: list[dict] = [{"role": "user", "content": f"[Compacted]\n\n{summary}"}]
+    return system + compacted + tail
+
+
+async def reactive_compact(messages: list[dict]) -> list[dict]:
+    """413 应急压缩：头部摘要 + 保留尾部 keep_tail 条（配对保护）
+
+    比 compact_history 语义更激进（413 已发生）：摘要失败 → 强裁剪兜底
+    （头部仅保留前 3 条），保证 413 一定有压缩动作。
+    """
+    system, rest = _split_system(messages)
+    if not rest:
+        return messages
+
+    tail_start = _compute_tail_start(rest, KEEP_TAIL)
     head, tail = rest[:tail_start], rest[tail_start:]
 
     try:
