@@ -66,7 +66,8 @@ async def get_post(
     """获取单个帖子的详细信息，包括全部评论和点赞者名单。"""
     result = await post_service.get_post_by_id(db, post_id, user_id)
     if not result:
-        return api_error(40401, "帖子不存在")
+        # 查无此帖是正常查询结果（code=0 + data=null），非业务失败（issue #19 同 get_user_public）
+        return api_success(None)
     return api_success(result)
 
 

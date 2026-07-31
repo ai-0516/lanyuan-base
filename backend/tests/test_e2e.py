@@ -222,6 +222,14 @@ class TestPosts:
         body = any_code_body(del_resp.json())
         assert body["code"] != 0
 
+    async def test_get_non_existent_post(self, client, headers_a):
+        """查看不存在的帖子 — 查无此帖是正常结果（code=0 + data=null），非错误（issue #19）"""
+        resp = await client.get("/api/v1/posts/99999", headers=headers_a)
+        assert resp.status_code == 200
+        body = any_code_body(resp.json())
+        assert body["code"] == 0
+        assert body["data"] is None
+
     async def test_post_with_images(self, client, headers_a):
         """发帖含图片URL"""
         resp = await client.post("/api/v1/posts",
