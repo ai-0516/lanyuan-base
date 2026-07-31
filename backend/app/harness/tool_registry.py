@@ -11,6 +11,7 @@ import logging
 import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
+from fastapi import HTTPException
 from fastapi.params import Depends as DependsClass
 from pydantic import BaseModel
 
@@ -207,7 +208,16 @@ class ToolDef:
             elif param.default is not inspect.Parameter.empty:
                 kwargs[param_name] = param.default
 
-        result = await self.fn(**kwargs)
+        try:
+            result = await self.fn(**kwargs)
+        except HTTPException as e:
+            # 业务错误（如「用户不存在」40401）→ 转成 LLM 可读的工具结果，不抛异常。
+            # 避免 agent.py 把业务失败当系统异常记录 ERROR traceback，
+            # 也让 LLM 能看到具体原因（如用户不存在）从而调整策略。
+            detail = e.detail
+            if isinstance(detail, dict):
+                return f"操作失败: {detail.get('message', detail)}"
+            return f"操作失败: {detail}"
 
         # Unwrap api_success wrapper
         if isinstance(result, dict) and "code" in result and "data" in result:
