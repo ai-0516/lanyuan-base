@@ -105,5 +105,5 @@ DeepSeek 无官方 tokenizer（tiktoken 仅 OpenAI 模型）。用 `len(json.dum
 
 - [learn-claude-code s08](https://github.com/shareAI-lab/learn-claude-code/tree/main/s08_context_compact)
 - [error-recovery.md](error-recovery.md) — PAYLOAD_TOO_LARGE 恢复策略更新
-- Issue [#15 Model Adapter](https://github.com/snxly/lanyuan-base/issues/15) — 压缩管线的配对识别未来基于内部统一格式（adapter 化的受益者）
-- Issue [#9 Memory](https://github.com/snxly/lanyuan-base/issues/9) — 跨会话记忆（压缩的长期补充）
+- Issue [#15 Model Adapter](../issues/15) — 压缩管线的配对识别未来基于内部统一格式（adapter 化的受益者）
+- Issue [#9 Memory](../issues/9) — 跨会话记忆（压缩的长期补充）
