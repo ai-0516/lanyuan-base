@@ -4,8 +4,8 @@ Context Compact Mock 触发验证脚本
 用于 Code Review 时验证上下文压缩管线的关键链路（PR #16）。
 用 unittest.mock 替换 httpx.AsyncClient.stream，通过请求体区分主调用与摘要调用。
 
-用法（PYTHONPATH 指向被 review 分支的 backend）：
-    uv run python scripts/review_context_compact.py
+用法：
+    uv run python scripts/review/context_compact/review.py
 
 验证场景：
 - 场景1: 413 → reactive_compact(摘要成功) → 重试 200 成功
@@ -22,7 +22,7 @@ import sys
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
 

@@ -4,8 +4,8 @@ L4 compact_history 最新用户消息保留验证
 回归验证 PR #16 review 问题：L4 全量摘要曾丢掉最新用户消息。
 修复后 L4 = system + [Compacted] 摘要 + 尾部 KEEP_TAIL 条（含最新 user 消息）。
 
-用法（PYTHONPATH 指向被 review 分支的 backend）：
-    uv run python scripts/verify_l4_keeps_latest.py
+用法：
+    uv run python scripts/review/context_compact/verify_l4_keeps_latest.py
 
 输出：
 - 模拟 agent.py 压缩管线（L1 → L2 → 阈值判断 → L4）
@@ -20,7 +20,7 @@ import sys
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 logging.basicConfig(level=logging.WARNING)
 
