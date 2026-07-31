@@ -1,19 +1,26 @@
-"""DeepSeek API 流式客户端 + 模拟回复
+"""DeepSeek API 流式客户端 + 模拟回复 + 重试包装
 
 职责：
 - 模拟回复（无 API Key 时的 fallback）
 - DeepSeek API 的 HTTP SSE 请求，支持工具调用
 - 逐 token 产出 (event, data) 元组
+- 错误分类为 LLMStatus，可重试的错误自动重试
+- 重大错误（SSE 解析失败、断流）记录详细日志到 critical-errors.log
 """
 
+import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 
 import httpx
 
 from app.config import settings
+from app.harness.errors import LLMStatus, RETRY_CONFIG, HTTP_STATUS_MAP, retry_delay
 
 logger = logging.getLogger(__name__)
+# 重大错误专用日志（SSE 解析失败、断流等需要人肉关注的问题）
+_critical_logger = logging.getLogger("app.harness.streaming.critical")
 
 MOCK_REPLY_TEMPLATE = (
     "收到您的消息：「{message}」\n\n"
@@ -52,6 +59,20 @@ def _merge_tool_call(
         accumulator[index]["function"]["arguments"] += tc["function"]["arguments"]
 
 
+def _critical_error(code: LLMStatus, details: dict):
+    """记录重大错误到 critical-errors.log
+
+    这类错误需要人肉关注排查，记录完整的上下文信息。
+    """
+    _critical_logger.error(
+        "code=%s ts=%s %s",
+        code.value,
+        datetime.now(timezone.utc).isoformat(),
+        json.dumps(details, ensure_ascii=False, default=str),
+    )
+    logger.error("LLM critical: code=%s details=%s", code.value, details)
+
+
 async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
     """调用 DeepSeek API（SSE 流式），支持工具调用
 
@@ -59,7 +80,7 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
     - ("token", content) — AI 回复文字
     - ("tool_call", tool_call_dict) — 模型请求调用工具
     - ("done", "") — 流正常结束（无工具调用时）
-    - ("error", msg) — 发生错误
+    - ("error", dict) — 发生错误，包含 code/message 等结构信息
     """
     try:
         request_body = {
@@ -87,26 +108,54 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                 },
                 json=request_body,
             ) as response:
+                # ── 非 200 响应 — 分类错误码 ──
                 if response.status_code != 200:
                     body = await response.aread()
                     body_text = body.decode("utf-8", errors="replace")[:2000]
-                    logger.error(
-                        "DeepSeek API error: status=%s body=%s",
-                        response.status_code, body_text,
+
+                    code = HTTP_STATUS_MAP.get(
+                        response.status_code, LLMStatus.UNEXPECTED
                     )
-                    yield ("error", f"DeepSeek API 返回错误: {response.status_code}")
+                    if code == LLMStatus.UNEXPECTED:
+                        logger.warning(
+                            "Unknown HTTP status code=%s mapped to UNEXPECTED",
+                            response.status_code,
+                        )
+
+                    # 认证失败等关键错误直接记 critical
+                    if code in (LLMStatus.AUTH_FAILED, LLMStatus.BAD_REQUEST):
+                        _critical_error(code, {
+                            "http_status": response.status_code,
+                            "body": body_text,
+                        })
+                    else:
+                        logger.error(
+                            "DeepSeek API error: status=%s code=%s body=%s",
+                            response.status_code, code.value, body_text,
+                        )
+
+                    yield ("error", {
+                        "code": code,
+                        "message": f"DeepSeek API 返回错误 ({code.value})",
+                        "http_status": response.status_code,
+                    })
                     return
 
+                # ── 200 响应 — 解析 SSE 流 ──
                 tool_call_accumulator: dict[int, dict] = {}
                 reasoning_content_parts: list[str] = []
                 token_count = 0
                 usage_data: dict | None = None
+                saw_done_signal = False  # 是否收到 [DONE]
+                error_chunk_count = 0
+                last_error_chunk = ""
 
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
                         continue
                     data_str = line[6:].strip()
                     if data_str == "[DONE]":
+                        saw_done_signal = True
                         break
                     try:
                         data = json.loads(data_str)
@@ -135,13 +184,38 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                                 )
 
                     except json.JSONDecodeError:
+                        error_chunk_count += 1
+                        last_error_chunk = data_str
                         continue
 
                     # 捕获 usage（通常在最后一个 chunk 中）
                     if data.get("usage"):
                         usage_data = data["usage"]
 
-        # 流结束 — 判断是工具调用还是纯文本
+        # ── SSE 流结束 — 检查是否异常断流 ──
+        if not saw_done_signal and token_count > 0 and not tool_call_accumulator:
+            # 收到了 token 但流非正常结束 — 断流
+            _critical_error(LLMStatus.SSE_DISCONNECTED, {
+                "tokens_before": token_count,
+                "has_tool_calls": bool(tool_call_accumulator),
+                "tool_call_count": len(tool_call_accumulator),
+            })
+            yield ("error", {
+                "code": LLMStatus.SSE_DISCONNECTED,
+                "message": "AI 回复流中断，请重试",
+                "tokens_before": token_count,
+            })
+            return
+
+        if error_chunk_count > 0:
+            _critical_error(LLMStatus.SSE_PARSE_ERROR, {
+                "error_chunk_count": error_chunk_count,
+                "last_chunk": last_error_chunk,
+                "tokens_before": token_count,
+            })
+            # 非 fatal — 继续处理已成功解析的数据
+
+        # ── 流结束 — 判断是工具调用还是纯文本 ──
         if reasoning_content_parts:
             yield ("reasoning", "".join(reasoning_content_parts))
 
@@ -164,6 +238,103 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
             if usage_data:
                 yield ("usage", usage_data)
 
-    except Exception as e:
-        logger.exception("LLM error")
-        yield ("error", f"AI 对话出错: {str(e)}")
+    except httpx.TimeoutException:
+        logger.error("LLM timeout: messages=%d timeout=60s", len(messages))
+        yield ("error", {
+            "code": LLMStatus.TIMEOUT,
+            "message": "AI 请求超时，请重试",
+        })
+
+    except httpx.ConnectError as e:
+        logger.error("LLM connection error: %s", str(e)[:200])
+        yield ("error", {
+            "code": LLMStatus.NETWORK_ERROR,
+            "message": "AI 服务暂时不可用，请重试",
+        })
+
+    except Exception:
+        logger.exception("LLM unexpected error")
+        yield ("error", {
+            "code": LLMStatus.UNEXPECTED,
+            "message": "AI 对话出错，请重试",
+        })
+
+
+async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
+    """带自动重试的 DeepSeek 流式调用
+
+    产出同 deepseek_chat，但：
+    - 可重试的错误（429/529/timeout）自动退避重试
+    - 不可重试的错误（401/SSE 断流等）立即 yield error
+    - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
+    - 重试等待期间 yield token 事件（俏皮文案），作为普通消息展示
+
+    **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
+    才缓存 token 并一次性 yield，以避免重复输出。
+
+    用法与 deepseek_chat 相同，直接替换即可。
+    """
+    # deepseek_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
+
+    # safelimit: 最多尝试 max_retries+1 次（attempt 0 为首次，1..max_retries 为重试）
+    # max_retries=3 → 共 4 次：attempt 0(首次) → 1(重试1) → 2(重试2) → 3(重试3→耗尽)
+    _max_possible = max(
+        (cfg["max_retries"] for cfg in RETRY_CONFIG.values() if cfg is not None),
+        default=0,
+    ) + 1
+
+    for attempt in range(_max_possible):
+        error_data = None
+        is_retry = attempt > 0
+        retry_buf: list[tuple] = []
+
+        async for event, data in deepseek_chat(messages, tools=tools):
+            if event == "error":
+                error_data = data
+                break
+            if is_retry:
+                retry_buf.append((event, data))
+            else:
+                yield (event, data)  # 首次尝试：直接流式
+
+        if error_data is None:
+            if is_retry and retry_buf:
+                for evt, dat in retry_buf:
+                    yield (evt, dat)
+            return
+
+        # ── 错误处理 ──
+        err: dict = error_data  # type: ignore[assignment]
+        code = err.get("code", LLMStatus.UNEXPECTED)
+        config = RETRY_CONFIG.get(code)
+
+        if config is None:
+            yield ("error", err)
+            return
+
+        max_retries = config.get("max_retries", 3)
+        if attempt >= max_retries:
+            logger.warning(
+                "LLM retry exhausted: code=%s attempts=%d/%d",
+                code.value, attempt, max_retries,
+            )
+            yield ("fallback", {
+                "message": "您好，AI 暂时无法回复您的消息，请稍后重试。",
+                "original_code": code,
+            })
+            return
+
+        retry_after = err.get("retry_after")
+        delay = retry_delay(code, attempt, retry_after=retry_after)
+        logger.warning(
+            "LLM retry: code=%s attempt=%d/%d delay=%.1fs",
+            code.value, attempt + 1, max_retries, delay,
+        )
+        yield ("token", "AI 正在飞速思考中……")
+        await asyncio.sleep(delay)
+
+    # safety exit (shouldn't reach here)
+    yield ("error", {
+        "code": LLMStatus.UNEXPECTED,
+        "message": "AI 服务内部错误，请重试",
+    })
