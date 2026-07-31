@@ -1,5 +1,5 @@
 """
-L4 compact_history 最新用户消息保留验证
+L4 llm_compact 最新用户消息保留验证
 
 回归验证 PR #16 review 问题：L4 全量摘要曾丢掉最新用户消息。
 修复后 L4 = system + [Compacted] 摘要 + 尾部 KEEP_TAIL 条（含最新 user 消息）。
@@ -54,8 +54,8 @@ async def main():
     print(f"初始消息数: {len(messages)}，字符数: {total}")
 
     # 模拟 agent.py 压缩管线
-    compacted = context_compact.snip_compact(messages)
-    compacted = context_compact.micro_compact(compacted)
+    compacted = context_compact.snip_message_compact(messages)
+    compacted = context_compact.tool_result_compact(compacted)
     print(f"L1+L2 后: {len(compacted)} 条，{len(json.dumps(compacted, ensure_ascii=False))} 字符")
 
     over_threshold = context_compact.estimate_tokens(compacted) > context_compact.COMPACT_THRESHOLD
@@ -79,7 +79,7 @@ async def main():
         instance.__aenter__.return_value = instance
         instance.stream = mock_stream
 
-        result = await context_compact.compact_history(compacted)
+        result = await context_compact.llm_compact(compacted)
 
     print(f"\nL4 压缩后消息数: {len(result)}")
     for m in result:

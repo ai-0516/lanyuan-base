@@ -8,10 +8,10 @@ Context Compact Mock 触发验证脚本
     uv run python scripts/review/context_compact/review.py
 
 验证场景：
-- 场景1: 413 → reactive_compact(摘要成功) → 重试 200 成功
-- 场景2: 413 → reactive_compact 摘要失败 → 强裁剪兜底 → 重试成功
+- 场景1: 413 → llm_reactive_compact(摘要成功) → 重试 200 成功
+- 场景2: 413 → llm_reactive_compact 摘要失败 → 强裁剪兜底 → 重试成功
 - 场景3: 413 → 压缩重试仍 413 → fallback 事件（original_code=PAYLOAD_TOO_LARGE）
-- 场景4: compact_history 摘要失败 → 返回原 messages（跳过压缩）
+- 场景4: llm_compact 摘要失败 → 返回原 messages（跳过压缩）
 """
 
 import asyncio
@@ -84,9 +84,9 @@ def _build_conv(rounds: int = 40, size: int = 200) -> list[dict]:
 
 
 async def trigger_413_retry_success():
-    """场景 1: 第一次 413 → reactive_compact(摘要成功) → 重试 200 → 正常 token"""
+    """场景 1: 第一次 413 → llm_reactive_compact(摘要成功) → 重试 200 → 正常 token"""
     print(f"\n{'='*64}")
-    print("▶ 场景1: 413 → reactive_compact(摘要成功) → 重试 200 成功")
+    print("▶ 场景1: 413 → llm_reactive_compact(摘要成功) → 重试 200 成功")
     print(f"{'='*64}")
 
     from app.harness.streaming import retry_deepseek_chat
@@ -137,9 +137,9 @@ async def trigger_413_retry_success():
 
 
 async def trigger_413_summary_fail_fallback():
-    """场景 2: 413 → reactive_compact 摘要失败 → 强裁剪兜底 → 重试 200"""
+    """场景 2: 413 → llm_reactive_compact 摘要失败 → 强裁剪兜底 → 重试 200"""
     print(f"\n{'='*64}")
-    print("▶ 场景2: 413 → reactive_compact 摘要失败 → 强裁剪兜底 → 重试成功")
+    print("▶ 场景2: 413 → llm_reactive_compact 摘要失败 → 强裁剪兜底 → 重试成功")
     print(f"{'='*64}")
 
     from app.harness.streaming import retry_deepseek_chat
@@ -225,12 +225,12 @@ async def trigger_413_retry_exhausted():
 
 
 async def trigger_l4_summary_fail_skip():
-    """场景 4: L4 compact_history 摘要失败 → 跳过压缩，原 messages 继续"""
+    """场景 4: L4 llm_compact 摘要失败 → 跳过压缩，原 messages 继续"""
     print(f"\n{'='*64}")
-    print("▶ 场景4: compact_history 摘要失败 → 跳过压缩（返回原 messages）")
+    print("▶ 场景4: llm_compact 摘要失败 → 跳过压缩（返回原 messages）")
     print(f"{'='*64}")
 
-    from app.harness.context_compact import compact_history
+    from app.harness.context_compact import llm_compact
 
     def summary_handler():
         return _MockResponse(status_code=500, body='{"error":"summary fail"}')
@@ -250,7 +250,7 @@ async def trigger_l4_summary_fail_skip():
         instance.__aenter__.return_value = instance
         instance.stream = mock_stream
 
-        result = await compact_history(messages)
+        result = await llm_compact(messages)
         after = json.dumps(result, ensure_ascii=False)
 
         ok = after == before
@@ -270,7 +270,7 @@ async def main():
         "场景1 413→压缩→重试成功": await trigger_413_retry_success(),
         "场景2 摘要失败→强裁剪兜底→重试成功": await trigger_413_summary_fail_fallback(),
         "场景3 压缩重试仍413→RETRY_EXHAUSTED": await trigger_413_retry_exhausted(),
-        "场景4 compact_history摘要失败→跳过": await trigger_l4_summary_fail_skip(),
+        "场景4 llm_compact摘要失败→跳过": await trigger_l4_summary_fail_skip(),
     }
 
     print(f"\n\n{'='*64}")
