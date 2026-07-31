@@ -217,12 +217,10 @@ Page({
   },
 
   /** 新开一条 AI 气泡（多轮调用的新一轮回复）
-   *  最后一个气泡为空（onSend 预创建但首轮无 token）→ 复用，避免多余空气泡
+   *  不检查最后气泡是否为空——若该轮 LLM 无文字输出，保留空气泡以暴露问题
    */
   startNewAiBubble() {
     const messages = [...this.data.messages];
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) return;
     messages.push({
       role: 'assistant',
       content: '',
