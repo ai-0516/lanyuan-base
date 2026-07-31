@@ -22,7 +22,7 @@ git worktree add ~/.hermes/profiles/dev-lead/workspace/lanyuan-base main
 - **PRD**: `docs/PRD.md` — 完整产品需求、用户故事、验收条件、数据模型
 - **设计稿**: `docs/design/` — 全部 v3-*.html 原型页面
 - **设计语言**: `docs/design/design-system.html` — CSS 变量、组件样式参考
-- **仓库**: `git@github.com:snxly/lanyuan-base.git` (main branch)
+- **仓库**: `git@github.com:ai-0516/lanyuan-base.git` (main branch)
 
 ## 已确定的技术决策
 | 层级 | 技术 |
