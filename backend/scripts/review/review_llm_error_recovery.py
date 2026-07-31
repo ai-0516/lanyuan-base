@@ -21,7 +21,7 @@ import sys
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
 _critical_handler = logging.FileHandler("/tmp/llm_review_critical.log", mode="w")
@@ -181,10 +181,10 @@ async def main():
     print(f"{'─' * 64}")
     all_results["401"], _ = await trigger_error(401, '{"error":"unauthorized"}')
 
-    # ── 3. 413 PAYLOAD_TOO_LARGE — 配置了重试但无压缩 ──
+    # ── 3. 413 PAYLOAD_TOO_LARGE — 压缩后重试（#16 后） ──
     _reset_log()
     print(f"\n{'─' * 64}")
-    print("▶ 3/7  413 PAYLOAD_TOO_LARGE（max_retries=1 但无压缩，无效重试）")
+    print("▶ 3/7  413 PAYLOAD_TOO_LARGE（压缩重试 1 次后 fallback；mock 摘要也返回 413 → 强裁剪兜底）")
     print(f"{'─' * 64}")
     all_results["413"], c3 = await trigger_error(413, '{"error":"too large"}')
 
@@ -249,7 +249,8 @@ async def main():
     checks = [
         ("429 → fallback（重试 3 次后降级）", _has_fallback(all_results["429"]) and c1 >= 4),
         ("401 → AUTH_FAILED（不重试）", _has_error(all_results["401"], "auth_failed")),
-        ("413 → BAD_REQUEST（不可重试，直接降级）", _has_error(all_results["413"], "payload_too_large")),
+        ("413 → 压缩重试 1 次后 fallback（original_code=payload_too_large）",
+         _has_fallback(all_results["413"]) and c3 >= 2),
         ("529 → fallback（重试 3 次后降级）", _has_fallback(all_results["529"]) and c4 >= 4),
         ("400 → BAD_REQUEST（不重试）", _has_error(all_results["400"], "bad_request")),
         ("SSE 断流 → critical 日志已记录", True),
