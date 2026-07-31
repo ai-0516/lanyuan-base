@@ -1,11 +1,11 @@
 """
 message:start 边界事件触发验证（PR #23）
 
-验证多轮调用时 message:start 的触发行为：
-1. 正常两轮（首轮有文字+tool_call，第二轮有文字）
-2. 首轮纯 tool_call 无文字，第二轮有文字
-3. 单轮回复（无 message:start 回归）
-4. fallback 多轮：turn=0 正常文字，turn=1 触发 fallback 降级 —— 检查 message:start 是否发出
+验证每条 AI 回复的 message:start 边界触发行为（统一协议，用户方案）：
+1. 正常两轮（首轮有文字+tool_call，第二轮有文字）→ 每轮各 1 次
+2. 首轮纯 tool_call 无文字，第二轮有文字 → 仅第二轮 1 次
+3. 单轮回复 → 1 次（含 turn=0，前端据此创建气泡）
+4. fallback 多轮：turn=0 正常文字，turn=1 触发 fallback 降级 → 2 次
 
 用法：
     uv run python scripts/review/multi_message_display/review.py
@@ -75,7 +75,10 @@ async def main():
             yield ("tool_call", {"id": "call_1", "function": {"name": "dummy", "arguments": "{}"}})
 
     starts, tokens = await run_agent(multi_turn, "场景1: 两轮（首轮文字+tool_call）")
-    results["场景1"] = len(starts) == 1 and len(tokens) == 2 and starts[0] < tokens[1][0]
+    results["场景1"] = (
+        len(starts) == 2 and len(tokens) == 2
+        and starts[0] < tokens[0][0] and starts[1] < tokens[1][0]
+    )
 
     # 场景 2: 首轮纯 tool_call
     async def tool_only_first(messages, **kw):
@@ -94,7 +97,7 @@ async def main():
         yield ("done", "")
 
     starts, tokens = await run_agent(single_turn, "场景3: 单轮")
-    results["场景3"] = len(starts) == 0
+    results["场景3"] = len(starts) == 1 and len(tokens) == 1 and starts[0] < tokens[0][0]
 
     # 场景 4: turn=0 正常文字，turn=1 fallback
     async def fallback_second(messages, **kw):
@@ -105,7 +108,10 @@ async def main():
             yield ("tool_call", {"id": "call_1", "function": {"name": "dummy", "arguments": "{}"}})
 
     starts, tokens = await run_agent(fallback_second, "场景4: 第二轮 fallback 降级")
-    results["场景4"] = len(starts) == 1 and len(tokens) == 2 and starts[0] < tokens[1][0]
+    results["场景4"] = (
+        len(starts) == 2 and len(tokens) == 2
+        and starts[0] < tokens[0][0] and starts[1] < tokens[1][0]
+    )
 
     print(f"\n\n{'='*64}")
     print("  验证汇总")
