@@ -117,6 +117,10 @@ class AIAgent:
 
             async for event, data in source(messages, **kw):
                 if event == "token":
+                    # 多轮调用：新一轮 LLM 回复开始前发边界事件，前端据此新开气泡
+                    # （turn=0 的首条回复复用 onSend 预创建的气泡，不发）
+                    if not token_count and turn > 0:
+                        yield ("message:start", "")
                     assert isinstance(data, str)
                     full_reply += data
                     token_count += 1

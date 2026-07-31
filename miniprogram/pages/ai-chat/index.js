@@ -167,6 +167,13 @@ Page({
             currentEvent = '';
             continue;
           }
+          // message:start 事件：多轮调用的新一轮 AI 回复开始，
+          // 结束当前气泡、新开一个（issue #22：多轮多条 message 不拼成一条）
+          if (currentEvent === 'message:start') {
+            this.startNewAiBubble();
+            currentEvent = '';
+            continue;
+          }
           // error 事件：显示后端错误文案（如「Agent 循环超过上限」），
           // 不能硬编码固定文案——_MAX_TURNS 超限等场景后端有具体提示
           if (currentEvent === 'error') {
@@ -207,6 +214,23 @@ Page({
       this.setData({ messages });
       this.scrollToBottom();
     }
+  },
+
+  /** 新开一条 AI 气泡（多轮调用的新一轮回复）
+   *  最后一个气泡为空（onSend 预创建但首轮无 token）→ 复用，避免多余空气泡
+   */
+  startNewAiBubble() {
+    const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) return;
+    messages.push({
+      role: 'assistant',
+      content: '',
+      nodes: [],
+      time: this.formatTime(Date.now()),
+    });
+    this.setData({ messages });
+    this.scrollToBottom();
   },
 
   /** 处理流式错误
