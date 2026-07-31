@@ -224,5 +224,5 @@ Hermes ATIF 用 `tool_call_id` 去重统计工具调用次数（重试不计入�
 ## 关联文档
 
 - [ATIF 概述](docs/atif.md)
-- [工作流定义](../issues/1)
-- [结构化轨迹导出 Issue](../issues/2)
+- [工作流定义](https://github.com/ai-0516/lanyuan-base/issues/1)
+- [结构化轨迹导出 Issue](https://github.com/ai-0516/lanyuan-base/issues/2)

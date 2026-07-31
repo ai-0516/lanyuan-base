@@ -206,5 +206,5 @@ for attempt in range(_max_possible):
 - [2026-07-30 daily log](daily/2026-07-30.md)
 - [learn-claude-code s11](https://github.com/shareAI-lab/learn-claude-code/tree/main/s11_error_recovery)
 - [context-compact.md](context-compact.md) — 上下文压缩管线（#8，PAYLOAD_TOO_LARGE 压缩重试的基础）
-- Issue [#8 Context Compact](../issues/8) — 已实现，413 压缩重试闭环
-- Issue [#9 Memory](../issues/9) — 跨会话记忆（后续模块）
+- Issue [#8 Context Compact](https://github.com/ai-0516/lanyuan-base/issues/8) — 已实现，413 压缩重试闭环
+- Issue [#9 Memory](https://github.com/ai-0516/lanyuan-base/issues/9) — 跨会话记忆（后续模块）
