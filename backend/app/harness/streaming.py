@@ -329,9 +329,9 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
         delay = retry_delay(code, attempt, retry_after=retry_after)
 
         # 压缩后重试：413 等场景重试前对 messages 做应急压缩
-        # reactive_compact 摘要失败时内部强裁剪兜底，不会抛异常
+        # llm_reactive_compact 摘要失败时内部强裁剪兜底，不会抛异常
         if config.get("compress_before_retry"):
-            messages[:] = await context_compact.reactive_compact(messages)
+            messages[:] = await context_compact.llm_reactive_compact(messages)
 
         logger.warning(
             "LLM retry: code=%s attempt=%d/%d delay=%.1fs",

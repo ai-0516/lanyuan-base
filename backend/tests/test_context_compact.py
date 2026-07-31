@@ -1,10 +1,10 @@
 """上下文压缩管线单元测试
 
 测试目标：
-- snip_compact: 消息数超限裁剪中间、配对不拆散、system 保留
-- micro_compact: 旧 tool 结果占位、最近 N 个保留
-- compact_history: LLM 摘要、摘要失败跳过
-- reactive_compact: 保留尾部 + 摘要、摘要失败强裁剪兜底
+- snip_message_compact: 消息数超限裁剪中间、配对不拆散、system 保留
+- tool_result_compact: 旧 tool 结果占位、最近 N 个保留
+- llm_compact: LLM 摘要、摘要失败跳过
+- llm_reactive_compact: 保留尾部 + 摘要、摘要失败强裁剪兜底
 - estimate_tokens: 字符近似估算
 """
 
@@ -51,7 +51,7 @@ def _long_tool_result(call_id: str) -> dict:
 
 
 # ═══════════════════════════════════════════════
-# snip_compact — L1
+# snip_message_compact — L1
 # ═══════════════════════════════════════════════
 
 class TestSnipCompact:
@@ -59,12 +59,12 @@ class TestSnipCompact:
     def test_under_threshold_unchanged(self):
         """消息数 ≤ 阈值不裁剪"""
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(20)]
-        assert context_compact.snip_compact(messages) == messages
+        assert context_compact.snip_message_compact(messages) == messages
 
     def test_trims_middle_keeps_head_tail(self):
         """超阈值 → 裁剪中间，保留头部+尾部，插入占位符"""
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(60)]
-        result = context_compact.snip_compact(messages)
+        result = context_compact.snip_message_compact(messages)
 
         assert result[0] == messages[0], "system 必须保留在第一条"
         assert result[1] == messages[1], "头部消息保留"
@@ -86,7 +86,7 @@ class TestSnipCompact:
         rest[3] = _tool_result("call_head", "head result")
         messages = [_system("sys")] + rest
 
-        result = context_compact.snip_compact(messages)
+        result = context_compact.snip_message_compact(messages)
 
         # rest[2]/rest[3] 配对必须都在结果里
         contents = [json.dumps(m, ensure_ascii=False) for m in result]
@@ -101,7 +101,7 @@ class TestSnipCompact:
         rest[10] = _tool_result("call_tail", "tail result")
         messages = [_system("sys")] + rest
 
-        result = context_compact.snip_compact(messages)
+        result = context_compact.snip_message_compact(messages)
 
         contents = [json.dumps(m, ensure_ascii=False) for m in result]
         assert any("tail result" in c for c in contents)
@@ -109,13 +109,13 @@ class TestSnipCompact:
 
     def test_empty_and_system_only(self):
         """空数组 / 只有 system 不崩溃"""
-        assert context_compact.snip_compact([]) == []
+        assert context_compact.snip_message_compact([]) == []
         only_system = [_system("sys")]
-        assert context_compact.snip_compact(only_system) == only_system
+        assert context_compact.snip_message_compact(only_system) == only_system
 
 
 # ═══════════════════════════════════════════════
-# micro_compact — L2
+# tool_result_compact — L2
 # ═══════════════════════════════════════════════
 
 class TestMicroCompact:
@@ -127,7 +127,7 @@ class TestMicroCompact:
             _tool_call_msg("c1"), _long_tool_result("c1"),
             _tool_call_msg("c2"), _long_tool_result("c2"),
         ]
-        assert context_compact.micro_compact(messages) == messages
+        assert context_compact.tool_result_compact(messages) == messages
 
     def test_old_results_placeholder_recent_kept(self):
         """超过 3 个 → 更早的大结果占位，最近 3 个保留"""
@@ -136,7 +136,7 @@ class TestMicroCompact:
             messages.append(_tool_call_msg(f"c{i}"))
             messages.append(_long_tool_result(f"c{i}"))
 
-        result = context_compact.micro_compact(messages)
+        result = context_compact.tool_result_compact(messages)
 
         # 前 2 组占位（索引 1、3），后 3 组保留（索引 5、7、9）
         assert result[1]["content"] == TOOL_RESULT_PLACEHOLDER
@@ -157,13 +157,13 @@ class TestMicroCompact:
             messages.append(_tool_call_msg(f"c{i}"))
             messages.append(_tool_result(f"c{i}", "short"))
 
-        result = context_compact.micro_compact(messages)
+        result = context_compact.tool_result_compact(messages)
         assert result[1]["content"] == "short"
         assert result[3]["content"] == "short"
 
 
 # ═══════════════════════════════════════════════
-# compact_history — L4
+# llm_compact — L4
 # ═══════════════════════════════════════════════
 
 class TestCompactHistory:
@@ -177,7 +177,7 @@ class TestCompactHistory:
         monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(10)]
 
-        result = await context_compact.compact_history(messages)
+        result = await context_compact.llm_compact(messages)
 
         assert len(result) == 1 + 1 + KEEP_TAIL
         assert result[0] == messages[0], "system 保留"
@@ -200,7 +200,7 @@ class TestCompactHistory:
         monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(10)]
 
-        await context_compact.compact_history(messages)
+        await context_compact.llm_compact(messages)
 
         assert len(captured["msgs"]) == len(messages) - 1 - KEEP_TAIL
         assert captured["msgs"][-1]["content"] == "u4", "摘要输入截止到 head"
@@ -215,7 +215,7 @@ class TestCompactHistory:
         monkeypatch.setattr(context_compact, "_summarize", _fail)
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(10)]
 
-        result = await context_compact.compact_history(messages)
+        result = await context_compact.llm_compact(messages)
         assert result == messages
 
     @pytest.mark.asyncio
@@ -227,12 +227,12 @@ class TestCompactHistory:
         monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
         messages = [_user(f"u{i}") for i in range(5)]
 
-        result = await context_compact.compact_history(messages)
+        result = await context_compact.llm_compact(messages)
         assert result == messages, "head 为空时应原样返回"
 
 
 # ═══════════════════════════════════════════════
-# reactive_compact — 413 应急
+# llm_reactive_compact — 413 应急
 # ═══════════════════════════════════════════════
 
 class TestReactiveCompact:
@@ -246,7 +246,7 @@ class TestReactiveCompact:
         monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(20)]
 
-        result = await context_compact.reactive_compact(messages)
+        result = await context_compact.llm_reactive_compact(messages)
 
         assert len(result) == 1 + 1 + KEEP_TAIL
         assert result[0]["role"] == "system"
@@ -267,7 +267,7 @@ class TestReactiveCompact:
         messages[16] = _tool_result("call_t", "tail result")
         messages[15] = _tool_call_msg("call_t")
 
-        result = await context_compact.reactive_compact(messages)
+        result = await context_compact.llm_reactive_compact(messages)
 
         contents = [json.dumps(m, ensure_ascii=False) for m in result]
         assert any("tail result" in c for c in contents)
@@ -282,7 +282,7 @@ class TestReactiveCompact:
         monkeypatch.setattr(context_compact, "_summarize", _fail)
         messages = [_system("sys")] + [_user(f"u{i}") for i in range(20)]
 
-        result = await context_compact.reactive_compact(messages)
+        result = await context_compact.llm_reactive_compact(messages)
 
         assert len(result) == 1 + KEEP_HEAD + KEEP_TAIL
         assert result[0]["role"] == "system"

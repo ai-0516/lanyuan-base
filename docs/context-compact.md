@@ -15,11 +15,11 @@
 ```
 ai_service.py          ← 承上启下：数据准备 + 持久化（不变）
   └── agent.py (AIAgent.run)
-        ├── context_compact.snip_compact()    ← L1: 裁剪中间消息（0 API）
-        ├── context_compact.micro_compact()   ← L2: 旧工具结果占位（0 API）
-        ├── compact_history()                 ← L4: token 超阈值 → LLM 摘要（1 API）
+        ├── context_compact.snip_message_compact()    ← L1: 裁剪中间消息（0 API）
+        ├── context_compact.tool_result_compact()   ← L2: 旧工具结果占位（0 API）
+        ├── llm_compact()                 ← L4: token 超阈值 → LLM 摘要（1 API）
         └── streaming.retry_deepseek_chat()
-              └── reactive_compact()          ← 413 → 应急压缩 → 重试（1 API）
+              └── llm_reactive_compact()          ← 413 → 应急压缩 → 重试（1 API）
 ```
 
 **分层边界**（与 #10 错误恢复一致）：
@@ -32,29 +32,29 @@ ai_service.py          ← 承上启下：数据准备 + 持久化（不变）
 
 核心原则：**便宜的先跑，贵的后跑**。执行顺序照 CC 源码（budget → snip → micro → auto）。
 
-### L1: snip_compact — 裁剪中间消息
+### L1: snip_message_compact — 裁剪中间消息
 
 消息数 > 50 → 保留头部 3 条 + 尾部 47 条，中间替换为占位符 `[snipped N messages from conversation middle]`。
 
 **配对保护**（OpenAI 格式）：`assistant(tool_calls)` 与其后的 `role=tool` 结果消息是 API 强制配对，裁剪边界若落在配对中间则整体移动边界。
 
-### L2: micro_compact — 旧工具结果占位
+### L2: tool_result_compact — 旧工具结果占位
 
 保留最近 3 个 `role=tool` 结果，更早的（内容 > 120 字符）替换为 `[Earlier tool result compacted. Re-run if needed.]`。
 
 只替换内容不删消息——占位不破坏 API 要求的配对结构。
 
-### L4: compact_history — LLM 摘要
+### L4: llm_compact — LLM 摘要
 
 字符估算超阈值（60K，≈30K~50K token）→ 调 LLM 摘要**更早的历史**，保留尾部最近消息（含最新 user 消息 + 配对保护），摘要消息插入其间（保留 system）。
 
-> **为什么不全量摘要**：交互式对话中用户本轮消息是 LLM 要回答的核心。参考 s08 是 subagent 一次性任务场景（全量摘要合理），我们若全量摘要会把最新意图丢进摘要里（可能损失 ID、具体操作等精确信息）。L4 与 reactive_compact 一致：保留尾部，只摘要更早部分。
+> **为什么不全量摘要**：交互式对话中用户本轮消息是 LLM 要回答的核心。参考 s08 是 subagent 一次性任务场景（全量摘要合理），我们若全量摘要会把最新意图丢进摘要里（可能损失 ID、具体操作等精确信息）。L4 与 llm_reactive_compact 一致：保留尾部，只摘要更早部分。
 
 摘要 prompt 带硬约束：`CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.`（参考 CC 压缩 prompt 双端约束，防止摘要调用触发工具）。
 
 **摘要失败容错**：跳过压缩返回原消息（上游主调用可能仍成功；若 413 由 reactive 兜底）。
 
-### 应急: reactive_compact — 413 处理
+### 应急: llm_reactive_compact — 413 处理
 
 主调用返回 413 → 保留尾部 5 条（配对保护）+ 头部 LLM 摘要 → 重试 1 次。
 
@@ -67,7 +67,7 @@ RETRY_CONFIG[LLMStatus.PAYLOAD_TOO_LARGE] = {
     "max_retries": 1,
     "base_delay_ms": 0,
     "jitter": False,
-    "compress_before_retry": True,   # 重试前对 messages 做 reactive_compact
+    "compress_before_retry": True,   # 重试前对 messages 做 llm_reactive_compact
 }
 ```
 
@@ -100,7 +100,7 @@ DeepSeek 无官方 tokenizer（tiktoken 仅 OpenAI 模型）。用 `len(json.dum
 
 ### 5.6 压缩函数不原地修改入参（review 反馈）
 
-`micro_compact` 等所有压缩函数都返回新列表（无变化时返回原引用），不修改调用方的列表元素——接口风格统一，调用方 `messages[:] = fn(messages)` 语义清晰。
+`tool_result_compact` 等所有压缩函数都返回新列表（无变化时返回原引用），不修改调用方的列表元素——接口风格统一，调用方 `messages[:] = fn(messages)` 语义清晰。
 
 ## 6. 测试
 

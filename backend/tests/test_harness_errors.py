@@ -293,7 +293,7 @@ class TestRetryDeepseekChat:
 # ═══════════════════════════════════════════════
 
 class TestPayloadTooLarge:
-    """413 → 压缩上下文 → 重试 1 次（联动 context_compact.reactive_compact）"""
+    """413 → 压缩上下文 → 重试 1 次（联动 context_compact.llm_reactive_compact）"""
 
     def _build_long_messages(self, count: int = 10) -> list[dict]:
         return [
