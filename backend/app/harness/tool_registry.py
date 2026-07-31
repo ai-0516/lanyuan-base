@@ -223,6 +223,11 @@ class ToolDef:
         if isinstance(result, dict) and "code" in result and "data" in result:
             result = result["data"]
 
+        # 业务错误结构（如 {"code": 40401, "message": "用户不存在"}，无 data）→ 直接返回 message
+        # 「用户不存在」等查询类工具的正常 case 走这里，LLM 收到友好文本、status=ok
+        if isinstance(result, dict) and "code" in result and "message" in result:
+            return result["message"]
+
         # 递归移除 avatar 字段（base64 头像数据，LLM 不需要）
         _strip_avatar(result)
 

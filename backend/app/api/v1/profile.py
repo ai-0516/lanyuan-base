@@ -58,7 +58,9 @@ async def get_user_public(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        return api_error(40401, "用户不存在")
+        # 用户不存在是查询的正常 case：返回业务结构而非抛异常。
+        # ToolDef.execute 会把该结构转成「用户不存在」文本（LLM 可读，status=ok）
+        return {"code": 40401, "message": "用户不存在"}
 
     return api_success(
         UserPublic(
