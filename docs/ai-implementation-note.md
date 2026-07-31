@@ -65,12 +65,13 @@ event: {type}\ndata: {json_payload}\n\n
 
 | 事件 | data 格式 | 触发时机 | 前端处理 |
 |------|-----------|----------|----------|
-| `token` | 字符串 `"暖"` | DeepSeek 返回内容 delta | 追加到最后一个 AI 气泡 |
-| `status` | 字符串 `"正在查询..."` | 中间状态（工具调用） | 显示加载动画（当前未实现） |
+| `message:start` | 空字符串 `""` | **每条 AI 回复**（有 token 的轮次，含 turn=0）的首个 token 前；fallback 降级回复同样发 | 创建新 AI 气泡（#22 统一协议：气泡完全由该事件驱动） |
+| `token` | 字符串 `"暖"` | DeepSeek 返回内容 delta | 追加到当前 AI 气泡（打字机效果） |
 | `done` | 空字符串 `""` | 流结束 | 恢复输入框，停止 loading |
-| `error` | 字符串 `"错误描述"` | DeepSeek 返回错误 | 显示「AI 回复被中断，请重试」 |
+| `error` | 字符串 `"错误描述"` | LLM/服务错误（如 Agent 循环超上限） | 显示后端错误文案（无气泡则新建） |
+| `cmd_new_session` | 会话 id | 用户发送 `/new` | 重载会话（initSession） |
 
-**注意**：当前 MVP 阶段未启用工具调用，`status` 事件不会被触发。
+**协议语义（#22）**：`message:start` = 新气泡。纯 tool_call 轮次无 token → 不发 → 前端不建气泡（无文字可显示）；前端不预创建气泡、后端无 turn 特判。
 
 ---
 
@@ -80,8 +81,8 @@ event: {type}\ndata: {json_payload}\n\n
 
 - 触发条件：`DEEPSEEK_API_KEY` 为空
 - 行为：构造固定格式的模拟回复，包含用户原文
-- 数据流：`save_user_msg → yield token(mock) → yield done → save_assistant_msg → commit`
-- 返回事件数：2（token + done）
+- 数据流：`save_user_msg → yield message:start → yield token(mock) → yield done → save_assistant_msg → commit`
+- 返回事件数：3（message:start + token + done）
 
 ### 模式 B：DeepSeek 真实模式
 
@@ -92,7 +93,7 @@ event: {type}\ndata: {json_payload}\n\n
   [{role: "system", content: "你是兰园社区助手..."}, ...历史20条..., {role: "user", content: message}]
   ```
 - System Prompt 内容：*"你是兰园社区助手，帮助小区业主解答供暖、停车等小区生活问题。请用温暖亲切的语气回复。"*
-- 数据流：`save_user_msg → http_stream → 逐 token yield → yield done → save_assistant_msg → commit`
+- 数据流：`save_user_msg → http_stream → 逐 token yield（首 token 前发 message:start）→ yield done → save_assistant_msg → commit`
 
 ### 错误处理
 

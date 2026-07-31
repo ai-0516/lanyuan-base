@@ -52,7 +52,7 @@ async def chat(
             async for event, content in ai_service.stream_chat(
                 db, user_id, data.session_id, data.message
             ):
-                if event in ("token", "done", "error", "cmd_new_session"):
+                if event in ("token", "done", "error", "cmd_new_session", "message:start"):
                     yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
         except Exception:
             logger.exception("SSE 流异常: user_id=%s session_id=%s", user_id, data.session_id)

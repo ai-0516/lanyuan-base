@@ -117,6 +117,10 @@ class AIAgent:
 
             async for event, data in source(messages, **kw):
                 if event == "token":
+                    # 每条 AI 回复以 message:start 为界（#22）：每轮首个 token 前
+                    # 发边界事件，前端据此创建气泡；纯 tool_call 轮无 token 不发
+                    if not token_count:
+                        yield ("message:start", "")
                     assert isinstance(data, str)
                     full_reply += data
                     token_count += 1
@@ -155,6 +159,8 @@ class AIAgent:
                     token_count = len(full_reply)
                     has_error = False
                     has_tool_call = False
+                    # 降级回复也是一条独立 message：统一发 message:start 边界
+                    yield ("message:start", "")
                     yield ("token", full_reply)
                     yield ("done", "")
                     break
