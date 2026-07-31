@@ -30,6 +30,16 @@ logger = logging.getLogger(__name__)
 _MAX_TURNS = 20
 
 
+def _needs_message_start(turn: int) -> bool:
+    """多轮调用：turn>0 的轮次是新一轮 LLM 回复，需发 message:start 边界（#22）
+
+    turn=0 的首条回复复用前端 onSend 预创建的气泡，不发；
+    turn>0 的轮次（正常 token 或 fallback 降级）在回复前发边界事件，
+    前端据此结束当前气泡、新开一条。
+    """
+    return turn > 0
+
+
 class AIAgent:
     """AI 对话 Agent — 纯 LLM 循环
 
@@ -118,8 +128,7 @@ class AIAgent:
             async for event, data in source(messages, **kw):
                 if event == "token":
                     # 多轮调用：新一轮 LLM 回复开始前发边界事件，前端据此新开气泡
-                    # （turn=0 的首条回复复用 onSend 预创建的气泡，不发）
-                    if not token_count and turn > 0:
+                    if not token_count and _needs_message_start(turn):
                         yield ("message:start", "")
                     assert isinstance(data, str)
                     full_reply += data
@@ -159,6 +168,10 @@ class AIAgent:
                     token_count = len(full_reply)
                     has_error = False
                     has_tool_call = False
+                    # 降级回复也是一条独立 message：turn>0 时同样发边界事件，
+                    # 否则 fallback 文案会拼进上一轮气泡（issue #22 在 fallback 路径复现）
+                    if _needs_message_start(turn):
+                        yield ("message:start", "")
                     yield ("token", full_reply)
                     yield ("done", "")
                     break

@@ -100,3 +100,30 @@ class TestMultiTurnEventStream:
         assert [e for e, _ in events if e == "message:start"] == []
         assert ("token", "你好") in events
         assert ("done", "") in events
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_second_turn_emits_message_start(self):
+        """第二轮 fallback 降级：message:start 在降级文案前（#22 fallback 路径）"""
+        fallback_msg = "您好，AI 暂时无法回复您的消息，请稍后重试。"
+
+        async def fallback_second_turn(messages, **kw):
+            # 第二轮 LLM 调用失败 → fallback 降级回复
+            if any(m.get("role") == "tool" for m in messages):
+                yield ("fallback", {"message": fallback_msg})
+            else:
+                yield ("token", "第一轮：我来查一下")
+                yield ("tool_call", {"id": "call_1", "function": {"name": "dummy", "arguments": "{}"}})
+
+        events = await self._run(fallback_second_turn)
+
+        tokens = [d for e, d in events if e == "token"]
+        start_idx = [i for i, (e, _) in enumerate(events) if e == "message:start"]
+
+        # 两轮文字都完整产出（fallback 文案是独立 message）
+        assert tokens == ["第一轮：我来查一下", fallback_msg]
+        # 恰好一个 message:start，位于降级文案 token 之前
+        assert len(start_idx) == 1
+        assert start_idx[0] < next(
+            i for i, (e, data) in enumerate(events)
+            if e == "token" and data == fallback_msg
+        )
