@@ -14,6 +14,7 @@
 | [07-30](2026-07-30.md) | Error Recovery — 三层容错 | LLMStatus 错误码、指数退避、降级兜底 |
 | | 独立产出： | [error-recovery.md](../error-recovery.md) |
 | [07-31](2026-07-31.md) | Context Compact 四层压缩 + Review 流程改进 | L4 保留尾部、review 脚本入库、worktree 策略 |
+| | 追加： | Issue #19 业务错误语义演进（api_success(None)）、Issue #22 message:start 边界（fallback 路径） |
 
 ---
 
