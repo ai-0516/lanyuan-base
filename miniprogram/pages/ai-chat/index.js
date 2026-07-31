@@ -54,17 +54,8 @@ Page({
 
   /** 新会话：自动发送 Hi，但只显示 AI 回复 */
   silentGreeting(sessionId) {
-    // 添加空 AI 气泡（打字机效果）
-    this.setData({
-      isLoading: true,
-      messages: [...this.data.messages, {
-        role: 'assistant',
-        content: '',
-        nodes: [],
-        time: this.formatTime(Date.now()),
-      }],
-    });
-    this.scrollToBottom();
+    // AI 气泡由 message:start 事件创建（#22），这里只置 loading 状态
+    this.setData({ isLoading: true });
     this.streamChat(sessionId, 'Hi');
   },
 
@@ -82,7 +73,7 @@ Page({
     const { inputValue, sessionId, isLoading } = this.data;
     if (!inputValue.trim() || isLoading || !sessionId) return;
 
-    // 1. 添加用户消息到列表
+    // 1. 添加用户消息到列表（AI 气泡由 message:start 事件创建，#22）
     const userMsg = {
       role: 'user',
       content: inputValue.trim(),
@@ -96,19 +87,7 @@ Page({
     });
     this.scrollToBottom();
 
-    // 2. 添加空的 AI 气泡用于打字机效果
-    const aiMsg = {
-      role: 'assistant',
-      content: '',
-      nodes: [],
-      time: this.formatTime(Date.now()),
-    };
-    this.setData({
-      messages: [...this.data.messages, aiMsg],
-    });
-    this.scrollToBottom();
-
-    // 3. 发起 SSE 流式请求
+    // 2. 发起 SSE 流式请求
     this.streamChat(sessionId, userMsg.content);
   },
 
@@ -216,8 +195,8 @@ Page({
     }
   },
 
-  /** 新开一条 AI 气泡（多轮调用的新一轮回复）
-   *  不检查最后气泡是否为空——若该轮 LLM 无文字输出，保留空气泡以暴露问题
+  /** 新开一条 AI 气泡（message:start 事件驱动，#22）
+   *  纯 tool_call 轮次无 token 不发 message:start，前端不建气泡（无文字可显示）
    */
   startNewAiBubble() {
     const messages = [...this.data.messages];

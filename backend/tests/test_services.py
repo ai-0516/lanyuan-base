@@ -771,11 +771,12 @@ class TestAIStreamChat:
                 events.append((event, content))
             await db.commit()
 
-        # token → done
-        assert len(events) == 2
-        assert events[0][0] == "token"
-        assert "暖气温控" in str(events[0][1])
-        assert events[1][0] == "done"
+        # message:start → token → done（#22：每条回复以 message:start 为界）
+        assert len(events) == 3
+        assert events[0][0] == "message:start"
+        assert events[1][0] == "token"
+        assert "暖气温控" in str(events[1][1])
+        assert events[2][0] == "done"
 
     async def test_saves_assistant_reply(self):
         """AI 回复存入 messages 表"""

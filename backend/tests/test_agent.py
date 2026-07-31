@@ -1,13 +1,13 @@
 """
 AIAgent 多轮调用事件流测试
 
-核心场景（issue #22）：多轮调用（agent loop 多轮）时，每条 LLM 回复之间
-必须有 message:start 边界事件，前端才能把多条回复显示为独立气泡，
-而不是拼成一条。
+核心场景（issue #22）：每条 AI 回复以 message:start 为边界事件，
+前端据此创建气泡，多轮回复不会拼成一条。
 
 协议约定：
-- turn=0 的首条回复不发 message:start（前端 onSend 已预创建气泡）
-- turn>0 的轮次，在首个 token 前发 message:start
+- 每轮 LLM 回复（有 token 的轮次）在首个 token 前发 message:start，含 turn=0
+- 纯 tool_call 轮次无 token → 不发（前端不建气泡，无文字可显示）
+- fallback 降级回复同样发 message:start（它也是一条独立 message）
 """
 
 import pytest
@@ -42,8 +42,8 @@ class TestMultiTurnEventStream:
             S.mock_chat = original
 
     @pytest.mark.asyncio
-    async def test_multi_turn_emits_message_start_between_replies(self):
-        """两轮回复：message:start 恰好一次，位于第二轮首个 token 之前"""
+    async def test_multi_turn_emits_message_start_per_reply(self):
+        """两轮回复：每轮首个 token 前各发一次 message:start"""
         async def multi_turn(messages, **kw):
             # messages 已回填 tool 结果（含 role=tool）→ 第二轮
             if any(m.get("role") == "tool" for m in messages):
@@ -56,21 +56,20 @@ class TestMultiTurnEventStream:
         events = await self._run(multi_turn)
 
         tokens = [d for e, d in events if e == "token"]
-        start_idx = [i for i, (e, _) in enumerate(events) if e == "message:start"]
+        starts = [i for i, (e, _) in enumerate(events) if e == "message:start"]
 
         # 两轮文字都完整产出
         assert tokens == ["第一轮：我来查一下", "第二轮：查到了"]
-        # 恰好一个 message:start
-        assert len(start_idx) == 1
-        # message:start 位于第二个 token 之前
-        second_token_idx = next(
-            i for i, (e, _) in enumerate(events) if e == "token" and i > 0
+        # 两条回复 → 两个 message:start，各位于对应轮次的首个 token 之前
+        assert len(starts) == 2
+        assert starts[0] < next(i for i, (e, _) in enumerate(events) if e == "token")
+        assert starts[1] < next(
+            i for i, (e, _) in enumerate(events) if e == "token" and i > starts[1]
         )
-        assert start_idx[0] < second_token_idx
 
     @pytest.mark.asyncio
     async def test_no_message_start_when_first_turn_has_no_token(self):
-        """首轮纯 tool_call（无文字）：message:start 在第二轮首个 token 前"""
+        """首轮纯 tool_call（无 token）：不发 message:start，第二轮 token 前发"""
         async def tool_only_first(messages, **kw):
             # messages 已回填 tool 结果（含 role=tool）→ 第二轮
             if any(m.get("role") == "tool" for m in messages):
@@ -82,28 +81,31 @@ class TestMultiTurnEventStream:
         events = await self._run(tool_only_first)
 
         tokens = [d for e, d in events if e == "token"]
-        start_idx = [i for i, (e, _) in enumerate(events) if e == "message:start"]
+        starts = [i for i, (e, _) in enumerate(events) if e == "message:start"]
 
         assert tokens == ["第二轮：查到了"]
-        assert len(start_idx) == 1
-        assert start_idx[0] < next(i for i, (e, _) in enumerate(events) if e == "token")
+        # 首轮无 token 不发；仅第二轮 token 前发一次
+        assert len(starts) == 1
+        assert starts[0] < next(i for i, (e, _) in enumerate(events) if e == "token")
 
     @pytest.mark.asyncio
-    async def test_single_turn_emits_no_message_start(self):
-        """单轮回复（无工具调用）：不产生 message:start（回归保护）"""
+    async def test_single_turn_emits_message_start(self):
+        """单轮回复（无工具调用）：首个 token 前发一次 message:start"""
         async def single_turn(messages, **kw):
             yield ("token", "你好")
             yield ("done", "")
 
         events = await self._run(single_turn)
 
-        assert [e for e, _ in events if e == "message:start"] == []
+        starts = [i for i, (e, _) in enumerate(events) if e == "message:start"]
+        assert len(starts) == 1
+        assert starts[0] < next(i for i, (e, _) in enumerate(events) if e == "token")
         assert ("token", "你好") in events
         assert ("done", "") in events
 
     @pytest.mark.asyncio
-    async def test_fallback_on_second_turn_emits_message_start(self):
-        """第二轮 fallback 降级：message:start 在降级文案前（#22 fallback 路径）"""
+    async def test_fallback_emits_message_start(self):
+        """fallback 降级回复：统一发 message:start（#22 fallback 路径）"""
         fallback_msg = "您好，AI 暂时无法回复您的消息，请稍后重试。"
 
         async def fallback_second_turn(messages, **kw):
@@ -117,13 +119,14 @@ class TestMultiTurnEventStream:
         events = await self._run(fallback_second_turn)
 
         tokens = [d for e, d in events if e == "token"]
-        start_idx = [i for i, (e, _) in enumerate(events) if e == "message:start"]
+        starts = [i for i, (e, _) in enumerate(events) if e == "message:start"]
 
         # 两轮文字都完整产出（fallback 文案是独立 message）
         assert tokens == ["第一轮：我来查一下", fallback_msg]
-        # 恰好一个 message:start，位于降级文案 token 之前
-        assert len(start_idx) == 1
-        assert start_idx[0] < next(
+        # 两条回复（正常 + fallback）→ 两个 message:start，各在对应 token 前
+        assert len(starts) == 2
+        assert starts[0] < next(i for i, (e, _) in enumerate(events) if e == "token")
+        assert starts[1] < next(
             i for i, (e, data) in enumerate(events)
             if e == "token" and data == fallback_msg
         )
