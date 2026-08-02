@@ -16,7 +16,7 @@
 | [07-31](2026-07-31.md) | Context Compact 四层压缩 + Review 流程改进 | L4 保留尾部、review 脚本入库、worktree 策略 |
 | | 追加： | Issue #19 业务错误语义演进（api_success(None)）、Issue #22 message:start 边界（fallback 路径） |
 | [08-01](2026-08-01.md) | 飞书群聊 Code & Review 流程自动化 | group_msg 权限、单聊模式（REQUIRE_MENTION=true）、bot 间 @ 通知、daily 分 dev/dev-lead 两部分 |
-| [08-02](2026-08-02.md) | 后端 Bug 修复：#27 统一错误格式 + #28 Like 外键约束 | FastAPI 0.141 RequestValidationError 重构、SQLite PRAGMA FK、迁移双方言 |
+| [08-02](2026-08-02.md) | 统一错误格式 + Like 外键约束（#27/#28） | Starlette HTTPException 精确键查找、RequestValidationError 0.141+ 非 HTTPException 子类、SQLite PRAGMA FK、迁移双方言、review 脚本入库 |
 
 ---
 
