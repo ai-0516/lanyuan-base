@@ -9,7 +9,6 @@
 """
 
 import pytest
-from sqlalchemy import select
 
 from app.core.database import async_session_factory, init_db
 from app.harness.memory import (
@@ -19,7 +18,6 @@ from app.harness.memory import (
 )
 from app.harness import context
 from app.models.user import User
-from app.models.user_memory import UserMemory
 
 
 async def _clear_db():
@@ -286,3 +284,84 @@ class TestContextInjection:
         # SYSTEM_PROMPT 含记忆说明文字，但不含实际索引/相关记忆段
         assert "你的记忆索引：" not in messages[0]["content"]
         assert "与当前对话相关的记忆：" not in messages[0]["content"]
+
+
+# ═══════════════════════════════════════════
+#  memory_select._llm_select（LLM 选相关记忆）
+# ═══════════════════════════════════════════
+
+class _FakeMemory:
+    """最小记忆对象：仅承载 name/type/description（_llm_select 只用这三个字段拼 catalog）"""
+
+    def __init__(self, name: str, type: str = "user", description: str = ""):
+        self.name = name
+        self.type = type
+        self.description = description
+
+
+class TestLlmSelect:
+    """_llm_select：LLM 返回索引 → 映射；越界/非法 → 过滤；异常 → None 触发降级"""
+
+    async def _run_select(self, monkeypatch, llm_tokens: list, memories: list):
+        """mock streaming.deepseek_chat 为 token 流，执行 _llm_select"""
+        from app.harness import memory_select
+
+        async def fake_deepseek_chat(messages):
+            for tok in llm_tokens:
+                yield ("token", tok)
+            yield ("done", "")
+
+        monkeypatch.setattr(
+            "app.harness.streaming.deepseek_chat", fake_deepseek_chat
+        )
+        return await memory_select._llm_select("用户消息", memories)
+
+    async def test_llm_select_success_maps_indices(self, monkeypatch):
+        """LLM 返回 [0, 3] → 正确映射到对应记忆"""
+        memories = [
+            _FakeMemory(f"mem-{i}", description=f"desc-{i}") for i in range(5)
+        ]
+        selected = await self._run_select(monkeypatch, ["[0, 3]"], memories)
+        assert [m.name for m in selected] == ["mem-0", "mem-3"]
+
+    async def test_llm_select_out_of_range_filtered(self, monkeypatch):
+        """LLM 返回越界/负数索引 → 过滤，只保留合法索引"""
+        memories = [
+            _FakeMemory(f"mem-{i}", description=f"desc-{i}") for i in range(3)
+        ]
+        # 99 越界、-1 负数、2 合法
+        selected = await self._run_select(monkeypatch, ["[99, -1, 2]"], memories)
+        assert [m.name for m in selected] == ["mem-2"]
+
+    async def test_llm_select_empty_array(self, monkeypatch):
+        """LLM 返回空数组 → 空列表（不选任何记忆）"""
+        memories = [
+            _FakeMemory("mem-0", description="desc-0"),
+            _FakeMemory("mem-1", description="desc-1"),
+        ]
+        selected = await self._run_select(monkeypatch, ["[]"], memories)
+        assert selected == []
+
+    async def test_llm_select_markdown_code_block(self, monkeypatch):
+        """LLM 输出带 markdown 代码块 → 正则提取 JSON 数组"""
+        memories = [
+            _FakeMemory(f"mem-{i}", description=f"desc-{i}") for i in range(4)
+        ]
+        selected = await self._run_select(
+            monkeypatch, ["```json\n[1, 2]\n```"], memories
+        )
+        assert [m.name for m in selected] == ["mem-1", "mem-2"]
+
+    async def test_llm_select_error_returns_none(self, monkeypatch):
+        """LLM 调用抛错 → 返回 None（触发关键词降级）"""
+        from app.harness import memory_select
+
+        async def fake_deepseek_chat_error(messages):
+            yield ("error", "boom")
+
+        monkeypatch.setattr(
+            "app.harness.streaming.deepseek_chat", fake_deepseek_chat_error
+        )
+        memories = [_FakeMemory("mem-0", description="desc-0")]
+        result = await memory_select._llm_select("用户消息", memories)
+        assert result is None

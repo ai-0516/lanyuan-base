@@ -24,7 +24,10 @@ async def _clear_db():
     from sqlalchemy import text
     try:
         async with async_session_factory() as session:
-            for t in ["user_memories", "messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
+            for t in [
+                "user_memories", "messages", "conversations", "notifications",
+                "likes", "comments", "posts", "users",
+            ]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
     except Exception:

@@ -37,6 +37,9 @@ VALID_TYPES = (MEMORY_TYPE_USER, MEMORY_TYPE_REFERENCE)
 # 上限常量（默认值，可被 config 覆盖）
 MAX_PER_USER = settings.MEMORY_MAX_PER_USER
 
+# 单条 body 长度上限（防止 LLM 写入超长内容，撑爆后续 consolidate 的 prompt）
+BODY_MAX_LEN = 2000
+
 
 class MemoryLimitError(Exception):
     """记忆条数超过上限"""
@@ -260,7 +263,7 @@ class MySQLMemoryProvider(MemoryProvider):
                     name=name[:100],
                     type=str(item.get("type", "user")),
                     description=desc[:255],
-                    body=body,
+                    body=body[:BODY_MAX_LEN],
                 )
                 added += 1
             except MemoryLimitError:
@@ -298,9 +301,8 @@ class MySQLMemoryProvider(MemoryProvider):
             logger.warning("合并返回空，保持原样: user_id=%s", user_id)
             return len(memories)
 
-        # 全删重写
-        await db.execute(delete(UserMemory).where(UserMemory.user_id == user_id))
-        count = 0
+        # 预解析：先过滤非法项，避免「非空但全部无效」时全删重写丢数据
+        valid: list[dict] = []
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -309,12 +311,26 @@ class MySQLMemoryProvider(MemoryProvider):
             body = str(item.get("body", "")).strip()
             if not name or not desc or not body:
                 continue
+            valid.append({
+                "name": name[:100],
+                "type": str(item.get("type", "user")),
+                "description": desc[:255],
+                "body": body[:BODY_MAX_LEN],
+            })
+        if not valid:
+            logger.warning("合并结果全部无效，保持原样: user_id=%s", user_id)
+            return len(memories)
+
+        # 全删重写
+        await db.execute(delete(UserMemory).where(UserMemory.user_id == user_id))
+        count = 0
+        for item in valid:
             db.add(UserMemory(
                 user_id=user_id,
-                name=name[:100],
-                type=str(item.get("type", "user")),
-                description=desc[:255],
-                body=body,
+                name=item["name"],
+                type=item["type"],
+                description=item["description"],
+                body=item["body"],
             ))
             count += 1
         logger.info("记忆合并完成: user_id=%s %s→%s 条", user_id, len(memories), count)
