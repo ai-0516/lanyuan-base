@@ -83,7 +83,6 @@ async def _create_post(client, headers) -> int:
 async def verify_error_format():
     print("\n## 场景 1：统一错误响应格式（#27）")
     from httpx import ASGITransport, AsyncClient
-    from app.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -137,10 +136,8 @@ async def verify_error_format():
 async def verify_like_fk():
     print("\n## 场景 2：Like 外键约束（#28）")
     from httpx import ASGITransport, AsyncClient
-    from app.main import app
     from sqlalchemy import text as sa_text
     from app.core.database import async_session_factory
-    from app.services import post_service
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
