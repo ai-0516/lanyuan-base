@@ -1,13 +1,19 @@
 """相关记忆选择 — 新会话/每轮开始时按需加载
 
-用户消息 → LLM 选相关（side-query，基于记忆索引 name+description）
-→ 加载选中的完整记忆注入上下文。LLM 失败时降级为关键词匹配。
+用户消息 → 关键词优先（零 LLM 调用，首 token 延时最低）
+→ 关键词无命中时 LLM 兜底（side-query，基于记忆索引 name+description）
+→ 加载选中的完整记忆注入上下文。
+
+方案 b（2026-08-02 用户拍板）：关键词优先、LLM 兜底——成本在其次，
+首 token 延时优先。日常消息关键词命中即返回，不调 LLM；
+只有语义相关但无共同关键词（如「周末去哪玩」vs 记忆「爱好爬山」）才付 LLM 成本。
 
 设计：
 - 只在用户消息非空且记忆非空时调用（省调用）
-- LLM 选择失败不影响主流程：降级关键词，关键词也无命中则返回空
-- 与 provider.search 的关系：search 是 provider 的关键词能力，
-  本模块是 harness 层的智能选择（LLM 优先 + 关键词兜底）
+- 关键词命中 → 直接用（最多 _MAX_SELECT 条），LLM 完全不参与
+- 关键词无命中 → LLM 选相关；LLM 失败不影响主流程，返回空
+- 与 provider.search 的关系：search 是 provider 的关键词打分能力，
+  本模块是 harness 层的顺序策略（关键词优先 + LLM 兜底）
 """
 
 import json
@@ -29,7 +35,10 @@ async def select_relevant(
     user_message: str,
     provider: MemoryProvider,
 ) -> list:
-    """返回与当前用户消息相关的完整记忆列表（最多 _MAX_SELECT 条）"""
+    """返回与当前用户消息相关的完整记忆列表（最多 _MAX_SELECT 条）。
+
+    关键词优先：有命中直接返回（零 LLM 调用）；无命中才走 LLM 兜底。
+    """
     if not user_message or not user_message.strip():
         return []
 
@@ -38,16 +47,18 @@ async def select_relevant(
     if not memories:
         return []
 
-    # 2. LLM 选相关
+    # 2. 关键词优先（零 LLM 调用，首 token 延时最低）
+    keywords = _extract_keywords(user_message)
+    if keywords:
+        hits = await provider.search(db, user_id, keywords, limit=_MAX_SELECT)
+        if hits:
+            return hits[:_MAX_SELECT]
+
+    # 3. LLM 兜底（关键词无命中 → 语义召回；失败返回 None → 空）
     selected = await _llm_select(user_message, memories)
     if selected is not None:
         return selected[:_MAX_SELECT]
-
-    # 3. 降级：关键词匹配
-    keywords = _extract_keywords(user_message)
-    if not keywords:
-        return []
-    return await provider.search(db, user_id, keywords, limit=_MAX_SELECT)
+    return []
 
 
 async def _llm_select(user_message: str, memories: list) -> list | None:
@@ -94,8 +105,15 @@ async def _llm_select(user_message: str, memories: list) -> list | None:
 
 
 def _extract_keywords(user_message: str) -> list[str]:
-    """提取中文关键词（2~6 字的连续片段）+ 英文单词"""
+    """提取关键词：英文单词 + 中文 2 字滑窗。
+
+    2 字是中文最小语义单元（火锅/爬山/喜欢），子串命中记忆的 body/name 概率
+    远高于整段贪婪截断；噪声词（如「我喜」）在 search 打分里 score=0 被过滤。
+    """
     words = re.findall(r"[a-zA-Z]{2,}", user_message)
-    cn_parts = re.findall(r"[\u4e00-\u9fff]{2,6}", user_message)
-    keywords = list(dict.fromkeys([w.lower() for w in words] + cn_parts))
-    return keywords[:10]
+    cn_segments = re.findall(r"[\u4e00-\u9fff]+", user_message)
+    bigrams = []
+    for seg in cn_segments:
+        bigrams.extend(seg[i : i + 2] for i in range(len(seg) - 1))
+    keywords = list(dict.fromkeys([w.lower() for w in words] + bigrams))
+    return keywords[:20]

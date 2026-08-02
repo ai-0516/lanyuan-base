@@ -365,3 +365,155 @@ class TestLlmSelect:
         memories = [_FakeMemory("mem-0", description="desc-0")]
         result = await memory_select._llm_select("用户消息", memories)
         assert result is None
+
+
+# ═══════════════════════════════════════════
+#  memory_select.select_relevant（方案 b：关键词优先 + LLM 兜底）
+# ═══════════════════════════════════════════
+
+class TestSelectRelevant:
+    """select_relevant：关键词命中→零 LLM 调用；无命中→LLM 兜底；失败→空"""
+
+    async def _add_memory(self, provider, uid, name, body, description=""):
+        async with async_session_factory() as db:
+            mem = await provider.add(
+                db, uid, name=name, type="user",
+                description=description or name, body=body,
+            )
+            await db.commit()
+            return mem
+
+    async def test_keyword_hit_no_llm(self, monkeypatch):
+        """关键词命中 → 直接返回，LLM 完全不参与（方案 b 核心）"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+        await self._add_memory(provider, uid, "food", "用户爱吃麻辣火锅")
+
+        calls = {"n": 0}
+
+        async def fake_llm(msg, mems):
+            calls["n"] += 1
+            return []
+
+        monkeypatch.setattr("app.harness.memory_select._llm_select", fake_llm)
+
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "我想吃火锅", provider)
+
+        assert calls["n"] == 0
+        assert len(result) == 1
+        assert "火锅" in result[0].body
+
+    async def test_chinese_bigram_hit(self, monkeypatch):
+        """中文 2 字滑窗命中（「爬山」），零 LLM 调用"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+        await self._add_memory(provider, uid, "hobby", "爱好：周末爬山")
+
+        calls = {"n": 0}
+
+        async def fake_llm(msg, mems):
+            calls["n"] += 1
+            return []
+
+        monkeypatch.setattr("app.harness.memory_select._llm_select", fake_llm)
+
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "周末去爬山怎么样", provider)
+
+        assert calls["n"] == 0
+        assert any("爬山" in (m.body or "") for m in result)
+
+    async def test_keyword_miss_llm_fallback(self, monkeypatch):
+        """关键词无命中 → LLM 兜底召回（语义相关但无共同词）"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+        await self._add_memory(provider, uid, "hobby", "爱好：周末爬山")
+
+        async def fake_llm(msg, mems):
+            return [mems[0]]
+
+        monkeypatch.setattr("app.harness.memory_select._llm_select", fake_llm)
+
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "今天天气怎么样", provider)
+
+        assert len(result) == 1
+        assert result[0].name == "hobby"
+
+    async def test_keyword_miss_llm_fail_returns_empty(self, monkeypatch):
+        """关键词无命中 + LLM 失败（None）→ 空列表，不影响主流程"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+        await self._add_memory(provider, uid, "hobby", "爱好：周末爬山")
+
+        async def fake_llm(msg, mems):
+            return None
+
+        monkeypatch.setattr("app.harness.memory_select._llm_select", fake_llm)
+
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "今天天气怎么样", provider)
+
+        assert result == []
+
+    async def test_empty_message_returns_empty(self):
+        """空白消息 → 空列表（不查库不调 LLM）"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "   ", provider)
+        assert result == []
+
+    async def test_no_memories_no_llm(self, monkeypatch):
+        """无记忆 → 空列表，LLM 不参与"""
+        from app.harness import memory_select
+
+        uid = await _create_user()
+        provider = get_provider()
+
+        calls = {"n": 0}
+
+        async def fake_llm(msg, mems):
+            calls["n"] += 1
+            return []
+
+        monkeypatch.setattr("app.harness.memory_select._llm_select", fake_llm)
+
+        async with async_session_factory() as db:
+            result = await memory_select.select_relevant(db, uid, "hello world", provider)
+
+        assert result == []
+        assert calls["n"] == 0
+
+
+class TestExtractKeywords:
+    """_extract_keywords：英文单词 + 中文 2 字滑窗"""
+
+    def test_english_words(self):
+        from app.harness.memory_select import _extract_keywords
+
+        assert _extract_keywords("I love hiking") == ["love", "hiking"]
+
+    def test_chinese_bigrams(self):
+        from app.harness.memory_select import _extract_keywords
+
+        kws = _extract_keywords("我想吃火锅")
+        assert "火锅" in kws
+
+    def test_dedup_and_cap(self):
+        from app.harness.memory_select import _extract_keywords
+
+        kws = _extract_keywords("吃火锅 吃火锅 吃火锅")
+        assert len(kws) <= 20
+        assert kws == list(dict.fromkeys(kws))
