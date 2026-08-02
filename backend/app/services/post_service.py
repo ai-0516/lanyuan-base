@@ -256,8 +256,18 @@ async def delete_post(db: AsyncSession, post_id: int, user_id: int) -> bool:
 
 async def like_post(
     db: AsyncSession, post_id: int, user_id: int
-) -> tuple[bool, int]:
-    """点赞。如果已点赞则无操作。返回 (是否新点赞, 点赞数)"""
+) -> tuple[bool | None, int]:
+    """点赞。如果已点赞则无操作。返回 (是否新点赞, 点赞数)。
+
+    帖子不存在时返回 (None, 0)——业务失败不等同系统异常（issue #19 语义），
+    避免走到数据库层由 FK 约束抛 IntegrityError（#28）。
+    """
+    # 先校验帖子存在，再插入点赞
+    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    post = post_result.scalar_one_or_none()
+    if not post:
+        return None, 0
+
     result = await db.execute(
         select(Like).where(Like.post_id == post_id, Like.user_id == user_id)
     )
@@ -268,9 +278,7 @@ async def like_post(
     db.add(Like(post_id=post_id, user_id=user_id))
 
     # 给帖子作者发通知
-    post_result = await db.execute(select(Post).where(Post.id == post_id))
-    post = post_result.scalar_one_or_none()
-    if post and post.user_id != user_id:
+    if post.user_id != user_id:
         notif = Notification(
             user_id=post.user_id,
             type="like",

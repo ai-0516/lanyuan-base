@@ -1,5 +1,6 @@
 """SQLAlchemy 异步数据库引擎和会话管理"""
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -20,6 +21,15 @@ engine = create_async_engine(
     connect_args=_connect_args,
     **_sqlite_pool,
 )
+
+# SQLite 默认不强制外键约束，必须显式开启 PRAGMA（MySQL 天然支持 FK）
+if "sqlite" in settings.DATABASE_URL:
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 async_session_factory = async_sessionmaker(
     engine,

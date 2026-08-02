@@ -339,3 +339,54 @@ async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     assert "nickname" in user
 
 
+# ═══════════════════════════════════════════
+#  统一错误响应格式（#27）
+# ═══════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_unauthorized_unified_format(client: AsyncClient):
+    """未登录 401 响应为统一 {code, message} 格式，而非 {detail: ...}（#27）
+
+    无 token 时走 HTTPBearer 默认 401（detail 为字符串 "Not authenticated"），
+    统一后为 code=40100；带无效 token 的 40101/40102 同理均为顶层 code。
+    """
+    response = await client.get("/api/v1/posts")
+    assert response.status_code == 401
+    data = response.json()
+    assert "detail" not in data
+    assert data["code"] == 40100
+    assert data["message"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_404_route_unified_format(client: AsyncClient):
+    """路由不存在 404 响应为统一 {code, message} 格式（#27）"""
+    response = await client.get("/api/v1/this-route-does-not-exist")
+    assert response.status_code == 404
+    data = response.json()
+    assert "detail" not in data
+    assert data["code"] == 40400
+    assert data["message"] == "Not Found"
+
+
+@pytest.mark.asyncio
+async def test_422_validation_unified_format(client: AsyncClient, auth_headers: dict):
+    """请求校验失败 422 响应为统一格式（#27）"""
+    response = await client.post("/api/v1/posts", json={}, headers=auth_headers)
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" not in data
+    assert data["code"] == 42200
+    assert data["message"] == "Field required"
+
+
+@pytest.mark.asyncio
+async def test_like_nonexistent_post_business_error(client: AsyncClient, auth_headers: dict):
+    """点赞不存在的帖子返回业务错误 40401，而非 500（#28）"""
+    response = await client.post("/api/v1/posts/99999/like", headers=auth_headers)
+    assert response.status_code == 400
+    data = response.json()
+    assert data["code"] == 40401
+    assert data["message"] == "帖子不存在"
+
+

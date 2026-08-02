@@ -365,11 +365,11 @@ class TestLikes:
         assert len(resp.json()["data"]["items"][0]["likers"]) == 2
 
     async def test_like_non_existent_post(self, client, headers_a):
-        """点赞不存在的帖子 — 无 FK 约束，实际会成功"""
+        """点赞不存在的帖子 — 服务层校验返回业务错误 40401，不再产生孤立点赞（#28）"""
         resp = await client.post("/api/v1/posts/99999/like", headers=headers_a)
-        assert resp.json()["code"] == 0
-        assert resp.json()["data"]["liked"] is True
-        # 这是设计问题：缺少 FK 约束导致孤立点赞
+        assert resp.status_code == 400
+        assert resp.json()["code"] == 40401
+        assert resp.json()["message"] == "帖子不存在"
 
     async def test_like_your_own_post_no_notification(self, client, headers_a, post_id):
         """给自己的帖子点赞不产生通知"""
