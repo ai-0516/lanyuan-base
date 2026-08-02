@@ -94,6 +94,8 @@ async def like_post(
 ):
     """点赞帖子。如果已经点过赞则无操作，不会重复点赞。"""
     liked, like_count = await post_service.like_post(db, post_id, user_id)
+    if liked is None:
+        return api_error(40401, "帖子不存在")
     return api_success({"liked": liked, "likeCount": like_count})
 
 

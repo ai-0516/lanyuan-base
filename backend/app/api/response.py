@@ -32,6 +32,20 @@ def unauthorized(message: str = "未登录或 Token 已过期"):
     )
 
 
+async def validation_exception_handler(request, exc):
+    """422 请求参数校验失败 → 统一格式。
+
+    FastAPI 0.141+ 的 RequestValidationError 不再是 HTTPException 子类
+    （无 detail/status_code），不能复用 api_exception_handler（#27）。
+    """
+    errors = getattr(exc, "errors", lambda: [])()
+    message = errors[0].get("msg", "请求参数错误") if errors else "请求参数错误"
+    return JSONResponse(
+        status_code=422,
+        content={"code": 42200, "message": message},
+    )
+
+
 async def api_exception_handler(request, exc):
     """FastAPI 异常处理器，将异常转为统一格式"""
     status_code = getattr(exc, "status_code", 500)
@@ -42,10 +56,11 @@ async def api_exception_handler(request, exc):
                 status_code=status_code,
                 content=detail,
             )
-        # 兼容旧的 detail 字符串格式
+        # 兼容旧的 detail 字符串格式；无 detail（如 404）给默认文案
+        message = str(detail) if detail else "Not Found"
         return JSONResponse(
             status_code=status_code,
-            content={"code": status_code * 100, "message": str(detail)},
+            content={"code": status_code * 100, "message": message},
         )
     # 非 HTTPException（如 Pydantic ValidationError、SQL 错误等）
     logger.exception("未捕获的异常: %s %s", request.method, request.url.path)

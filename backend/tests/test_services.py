@@ -4,10 +4,13 @@
 """
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import async_session_factory, init_db
 from app.models.user import User
 from app.models.comment import Comment
+from app.models.like import Like
+from app.models.post import Post
 from app.schemas.post import PostCreate
 from app.schemas.comment import CommentCreate
 from app.services import post_service, comment_service
@@ -326,6 +329,45 @@ class TestPostServiceLike:
             _, count = await post_service.like_post(db, pid, uid3)
             await db.commit()
         assert count == 3
+
+    async def test_like_nonexistent_post_returns_none(self):
+        """点赞不存在的帖子返回 (None, 0)，不插入脏数据（#28）"""
+        uid = await _create_user("A", "a")
+        async with async_session_factory() as db:
+            liked, count = await post_service.like_post(db, 99999, uid)
+            await db.commit()
+        assert liked is None
+        assert count == 0
+
+    async def test_like_foreign_key_rejects_orphan(self):
+        """DB 层拒绝插入引用不存在帖子的点赞记录（绕过服务层的直接写入，#28）"""
+        uid = await _create_user("A", "a")
+        async with async_session_factory() as db:
+            db.add(Like(post_id=99999, user_id=uid))
+            with pytest.raises(IntegrityError):
+                await db.flush()
+            await db.rollback()
+
+    async def test_like_cascade_delete_with_post(self):
+        """删除帖子后点赞记录由 DB 外键级联删除（#28 验收标准）"""
+        uid1 = await _create_user("A", "a")
+        uid2 = await _create_user("B", "b")
+        pid = await _create_post(uid1, "级联删除")
+
+        async with async_session_factory() as db:
+            await post_service.like_post(db, pid, uid2)
+            await db.commit()
+
+        # 直接删除帖子（绕过服务层的手动级联），验证 DB 层 CASCADE 生效
+        async with async_session_factory() as db:
+            result = await db.execute(select(Post).where(Post.id == pid))
+            post = result.scalar_one()
+            await db.delete(post)
+            await db.commit()
+
+        async with async_session_factory() as db:
+            result = await db.execute(select(Like).where(Like.post_id == pid))
+            assert result.scalar_one_or_none() is None
 
 
 # ═══════════════════════════════════════════
