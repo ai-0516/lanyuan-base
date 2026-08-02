@@ -105,7 +105,7 @@ class TestBuiltinHooks:
 
     def test_handler_counts(self):
         total = (
-            len(events._handlers.get("agent:start", []))   # log + jsonl + stats = 3
+            len(events._handlers.get("agent:start", []))   # log + jsonl + stats + memory_extract = 4
             + len(events._handlers.get("turn:start", []))   # log + jsonl = 2
             + len(events._handlers.get("turn:end", []))     # log + jsonl = 2
             + len(events._handlers.get("llm:start", []))    # log + jsonl = 2
@@ -113,6 +113,6 @@ class TestBuiltinHooks:
             + len(events._handlers.get("llm:error", []))    # log + jsonl = 2
             + len(events._handlers.get("tool:start", []))   # log + jsonl = 2
             + len(events._handlers.get("tool:end", []))     # log + jsonl + large_tool = 3
-            + len(events._handlers.get("agent:end", []))    # log + jsonl + stats = 3
+            + len(events._handlers.get("agent:end", []))    # log + jsonl + stats + memory_extract = 4
         )
-        assert total == 22
+        assert total == 24

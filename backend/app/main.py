@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.core.database import init_db, close_db
 from app.logger import setup_logging
-from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload
+from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
 from app.api.response import api_exception_handler, api_success, validation_exception_handler
 
 
@@ -45,6 +45,7 @@ app.include_router(comments.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
+app.include_router(memory.router, prefix="/api/v1")
 app.include_router(upload.router, prefix="/api/v1")
 
 

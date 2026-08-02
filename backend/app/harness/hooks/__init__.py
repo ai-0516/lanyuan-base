@@ -10,3 +10,4 @@ from . import jsonl  # noqa: F401 — JSONL 日志
 from . import log  # noqa: F401 — 终端日志
 from . import stats  # noqa: F401 — Token 统计
 from . import large_tool  # noqa: F401 — 大结果监控
+from . import memory_extract  # noqa: F401 — 跨会话记忆抽取（#9）

@@ -174,3 +174,20 @@ harness/
 - 检查 messages 数组中 System Prompt 是否仍在第一位置
 - 考虑在用户消息后面追加一条 system 风格的消息强调工具调用
 - 或考虑 Agent Loop 层面做 fallback：如果 LLM 纯文本回复但用户意图明显需要工具，重试
+
+### 2026-08-02: 跨会话记忆（Issue #9，s09）
+
+**参考**：learn-claude-code s09_memory（文件系统存储 + MEMORY.md 索引 + 每轮结束 LLM 提取 + 数量阈值合并）。调研 Hermes 三层记忆系统（内置 MEMORY.md/USER.md 冻结快照 + 外部 provider 插件 + session_search）后，结合社区助手场景落地：
+
+**架构决策**：
+- **Provider 抽象层**：`MemoryProvider` ABC 定义「写入/读取/抽取」三组操作，`MySQLMemoryProvider` 首个实现；未来可加云 API provider，`get_provider()` 全局切换（对齐 Hermes 的 MemoryProvider 插件模式，但极简化）
+- **提取**：`agent:end` 事件 → 后台 consumer 异步调 LLM 判断 → 写入；不阻塞 SSE 流，失败只记日志（hook 是纯辅助）
+- **选相关**：LLM side-query 从索引中选相关（比 s09 更全），失败降级关键词
+- **注入**：索引（name+type+description）常驻 SYSTEM_PROMPT，相关记忆 body 按需注入；与 s09 不同放 SYSTEM 而非 user turn（避免破坏 role 交替）
+- **合并**：每用户 30 条上限，写入超限被动触发 LLM 合并（低频）；记忆带时间戳供新旧覆盖判断
+- **类型**：2 类（user/reference），feedback 类以后可能演进为 skill
+
+**与 Hermes 的对照**：
+- 我们的「索引常驻 SYSTEM」≈ Hermes 第一级 memory（冻结快照省缓存）的简化版——社区助手无长会话缓存红利，故不搞冻结快照，每轮实时组装
+- 我们的「相关记忆按需注入」≈ Hermes 外部 provider 的 `prefetch()`（每 turn 前召回）
+- 不引入 session_end 事件：Web 长连接无明确会话结束信号，合并用「写入超限触发」替代

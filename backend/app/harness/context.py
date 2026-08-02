@@ -3,11 +3,13 @@
 职责：
 - 从数据库读取最近 N 条消息
 - 组装 DeepSeek API 的 messages 数组（含 System Prompt）
+- 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆按需注入
 """
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.conversation import Message
 
 # System Prompt — 决定 AI 的角色和行为
@@ -18,13 +20,17 @@ SYSTEM_PROMPT = (
     "- 帖子管理：查看帖子列表、查看帖子详情、发布帖子、删除帖子\n"
     "- 互动：点赞、取消点赞、查看评论、添加评论、删除评论、回复评论\n"
     "- 通知：查看未读通知、查看未读通知数量、标记所有通知为已读\n"
-    "- 用户资料：查看自己的资料、更新个人资料、查看其他用户公开信息\n\n"
+    "- 用户资料：查看自己的资料、更新个人资料、查看其他用户公开信息\n"
+    "- 记忆：查看自己的记忆、添加记忆、删除记忆\n\n"
     "你不能回答供暖、停车、物业等小区生活类问题——你只负责操作工具，"
     "不懂这些领域的专业知识。如果用户问这类问题，请如实告诉用户你不了解，"
     "建议联系物业。\n\n"
     "当用户需要执行操作时，你必须调用对应的工具来真正执行，"
     "不能只回复一段「已发布」「已点赞」之类的话而不调工具。"
-    "记住：用户看不到操作结果，只有你调用了工具才能真正生效。"
+    "记住：用户看不到操作结果，只有你调用了工具才能真正生效。\n\n"
+    "跨会话记忆：用户的偏好和关注事项会保存在记忆中。"
+    "系统会在下文中注入记忆索引（<memory_index>）和相关记忆（<relevant_memories>）。"
+    "新会话中若用户提及之前的事，应结合记忆中的内容回答。"
 )
 
 
@@ -45,18 +51,55 @@ async def get_recent_messages(
     return list(result.scalars().all())
 
 
+def build_memory_index(memories: list) -> str:
+    """生成记忆索引文本（常驻 SYSTEM PROMPT）
+
+    每行一条：类型 + 名称 + 一句话描述，供模型了解用户有哪些记忆。
+    """
+    if not memories:
+        return ""
+    lines = []
+    for m in memories[: settings.MEMORY_INDEX_LIMIT]:
+        lines.append(f"- [{m.type}] {m.name}: {m.description}")
+    return "你的记忆索引：\n" + "\n".join(lines)
+
+
+def build_relevant_section(memories: list) -> str:
+    """生成相关记忆完整内容（按需注入）"""
+    if not memories:
+        return ""
+    parts = []
+    for m in memories:
+        parts.append(f"[{m.type}] {m.name}：{m.body}")
+    return "与当前对话相关的记忆：\n" + "\n\n".join(parts)
+
+
 def build_deepseek_messages(
     history: list[Message],
     user_message: str,
+    memory_index: str = "",
+    relevant_memories: list | None = None,
 ) -> list[dict]:
     """组装 DeepSeek 请求的 messages 数组
 
     System Prompt 在最前，历史消息在中间。
     用户消息在上一步已写入 DB，因此已包含在 history 中。
     user_message 参数保留用于未来扩展。
+
+    记忆（#9）：
+    - memory_index: 记忆索引文本，拼接进 SYSTEM PROMPT（常驻）
+    - relevant_memories: 与当前对话相关的完整记忆列表，拼接进 SYSTEM PROMPT（按需）
     """
     import json
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    system_content = SYSTEM_PROMPT
+    if memory_index:
+        system_content += "\n\n" + memory_index
+    relevant = build_relevant_section(relevant_memories or [])
+    if relevant:
+        system_content += "\n\n" + relevant
+
+    messages: list[dict] = [{"role": "system", "content": system_content}]
     for m in history:
         entry: dict = {"role": m.role}
         if m.role == "tool":
