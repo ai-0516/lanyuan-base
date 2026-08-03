@@ -410,6 +410,12 @@ class TestContextInjection:
         assert "不要告诉用户「我可以帮你记住」" in context.SYSTEM_PROMPT
         assert "不要主动询问「要不要记住」" in context.SYSTEM_PROMPT
 
+    async def test_system_prompt_guides_memory_add(self):
+        """2026-08-03：SYSTEM_PROMPT 引导 LLM 主动调用 memory_add（learn-claude-code + hermes 写法）"""
+        assert "memory_add" in context.SYSTEM_PROMPT  # 工具名
+        assert "明确表达长期偏好" in context.SYSTEM_PROMPT  # 正面触发
+        assert "一周后就失效的信息不属于记忆" in context.SYSTEM_PROMPT  # 负面边界
+
 
 # ═══════════════════════════════════════════
 #  memory_impl._llm_select（LLM 选相关记忆）
