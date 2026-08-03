@@ -42,6 +42,8 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     if message.strip() == "/new":
         # session 结束（2026-08-03 粒度设计）：emit session:end，hook 异步抽取
         # 该 session 的完整对话为跨会话记忆。事件驱动，不阻塞 /new 响应。
+        logger.info("发起 session:end: user=%s session=%s，触发跨会话记忆抽取",
+                    user_id, session_id)
         events.emit(events.SESSION_END, {
             "req_id": secrets.token_hex(4),
             "user_id": user_id,
