@@ -17,6 +17,7 @@
 | | 追加： | Issue #19 业务错误语义演进（api_success(None)）、Issue #22 message:start 边界（fallback 路径） |
 | [08-01](2026-08-01.md) | 飞书群聊 Code & Review 流程自动化 | group_msg 权限、单聊模式（REQUIRE_MENTION=true）、bot 间 @ 通知、daily 分 dev/dev-lead 两部分 |
 | [08-02](2026-08-02.md) | 统一错误格式 + Like 外键约束（#27/#28）+ 跨会话记忆（#9） | Starlette HTTPException 精确键查找、RequestValidationError 0.141+ 非 HTTPException 子类、SQLite PRAGMA FK、迁移双方言、review 脚本入库、MemoryProvider 抽象层（写入/读取/抽取）、agent:end 异步提取 |
+| [08-03](2026-08-03.md) | PR #33 二轮 review：记忆系统 15 条意见 | memory_service 分层、AGENT_END 补 meta + try/finally 防泄漏、relevant 拼 user 消息保缓存命中、DBMemoryProvider 改名、consolidate LLM 失败降级 |
 
 ---
 
