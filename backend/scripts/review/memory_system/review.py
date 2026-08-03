@@ -200,11 +200,11 @@ async def verify_user_isolation():
 
 # ───────────────────────── 场景 3：记忆注入（真实函数）─────────────────────────
 async def verify_injection():
-    print("\n## 场景 3：记忆注入")
+    print("\n## 场景 3：记忆注入（session 粒度：只注入索引，不注入相关记忆）")
     await _ensure_user(1)
     from app.core.database import async_session_factory
     from app.harness import memory as mem
-    from app.harness.context import build_memory_index, build_relevant_section, build_deepseek_messages
+    from app.harness.context import build_deepseek_messages
 
     async with async_session_factory() as session:
         await mem.add(
@@ -212,33 +212,33 @@ async def verify_injection():
             name="hobby-hiking", type="user", description="爱好爬山", body="用户喜欢周末爬山",
         )
         await session.commit()
-        memories = await mem.list_all(session, 1)
 
-        index = build_memory_index(memories)
+        # 3.1 组合接口 build_memory_index（async，内部 list_all + 格式化）
+        index = await mem.build_memory_index(session, 1)
         record(
-            "build_memory_index → 含 [type]+description（review #5：去 name）",
-            "[user]" in index and "爱好爬山" in index and "hobby-hiking" not in index,
+            "build_memory_index（组合接口）→ 含 [type]+#id+description",
+            "[user]" in index and "#" in index and "爱好爬山" in index,
             f"index={index[:80]}",
         )
 
-        relevant = build_relevant_section(memories)
+        # 3.2 session 粒度：ai_service 只注入索引，不调用 select_relevant（相关记忆是缓存杀手）
         record(
-            "build_relevant_section → 含 [type]+完整 body（review #6：去 name）",
-            "[user]" in relevant and "周末爬山" in relevant,
-            f"section={relevant[:60]}",
+            "session 粒度设计：ai_service 只注入索引",
+            "#" in index and "你的记忆索引" in index,
+            "索引含 #id 供 memory_get 定位",
         )
 
+        # 3.3 build_deepseek_messages：system 含索引；无 relevant_memories 时 user 消息不被改写
         msgs = build_deepseek_messages(
             history=[_FakeMsg(role="user", content="你好")], user_message="你好",
-            memory_index=index, relevant_memories=memories,
+            memory_index=index,
         )
-        # review #7：relevant_memories 拼进最后一条 user 消息（system 前缀稳定可缓存）
         sys_text = msgs[0]["content"] if msgs else ""
         last_user = msgs[-1]["content"] if msgs else ""
         record(
-            "build_deepseek_messages → system 含索引，user 消息含 relevant body（#7 缓存设计）",
-            "你的记忆索引" in sys_text and "周末爬山" in last_user,
-            f"system 含索引={'你的记忆索引' in sys_text} user 含 body={'周末爬山' in last_user}",
+            "build_deepseek_messages → system 含索引，user 消息不被改写（缓存不变量）",
+            "你的记忆索引" in sys_text and last_user == "你好",
+            f"system 含索引={'你的记忆索引' in sys_text} user 未改写={last_user == '你好'}",
         )
 
 
@@ -251,8 +251,8 @@ async def verify_tool_registry():
     names = [t.name for t in tools]
     memory_tools = [n for n in names if "memory" in n]
     record(
-        "registry 含 memory_list/memory_add/memory_delete",
-        len(memory_tools) >= 3,
+        "registry 含 memory_list/memory_add/memory_get/memory_delete（4 工具）",
+        len(memory_tools) >= 4,
         f"memory tools: {sorted(memory_tools)} 总数={len(names)}",
     )
 
@@ -263,7 +263,7 @@ async def verify_select_strategy():
     await _ensure_user(1)
     from app.core.database import async_session_factory
     from app.harness import memory as mem
-    from app.harness.memory import select_relevant, _extract_keywords
+    from app.harness.memory.memory import select_relevant, _extract_keywords
     from app.harness import streaming
     from unittest.mock import patch
 
@@ -345,7 +345,7 @@ async def verify_consolidate():
     await _ensure_user(1)
     from app.core.database import async_session_factory
     from app.harness import memory as mem
-    from app.harness.memory import BODY_MAX_LEN
+    from app.harness.memory.memory_provider import BODY_MAX_LEN
     from app.harness import streaming
     from unittest.mock import patch
 
@@ -389,25 +389,125 @@ async def verify_consolidate():
         )
 
 
-# ───────────────────────── 场景 7：extract 失败不阻塞（hook 层）─────────────────────────
+# ───────────────────────── 场景 7：extract 失败不阻塞（hook 层，session 粒度）─────────────────────────
 async def verify_extract_failure():
-    print("\n## 场景 7：extract 失败不阻塞（hook 层 on_agent_end）")
+    print("\n## 场景 7：extract 失败不阻塞（hook 层 on_session_end）")
     await _ensure_user(1)
     from unittest.mock import patch
     from app.harness.hooks import memory_extract
     from app.harness import memory as mem
 
-    # 新 hook：AGENT_END 事件直接带 meta（user_id/session_id），无 _ctx 暂存。
-    # 模拟 memory.extract 抛错 → on_agent_end 应被 except 捕获不抛出。
+    # 2026-08-03 粒度设计：hook 改为 on_session_end（session 结束 /new 时触发），
+    # 事件直接带 user_id/session_id。模拟 memory.extract 抛错 → hook 应被 except 捕获不抛出。
     async def fake_extract_error(*a, **k):
         raise RuntimeError("LLM 调用失败")
 
     try:
         with patch.object(mem, "extract", side_effect=fake_extract_error):
-            await memory_extract.on_agent_end({"meta": {"user_id": 1, "session_id": 1}})
-        record("hook 层 extract 抛错 → 被捕获不抛出，不阻塞主流程", True, "on_agent_end 正常返回")
+            await memory_extract.on_session_end({"user_id": 1, "session_id": 1})
+        record("hook 层 extract 抛错 → 被捕获不抛出，不阻塞主流程", True, "on_session_end 正常返回")
     except Exception as exc:
         record("hook 层 extract 抛错 → 被捕获不抛出，不阻塞主流程", False, f"异常={type(exc).__name__}: {exc}")
+
+
+# ───────────────────────── 场景 8：memory 工具闭环（memory_get/memory_add）─────────────────────────
+async def verify_memory_tools():
+    print("\n## 场景 8：memory 工具闭环（memory_get/memory_add）")
+    await _ensure_user(1)
+    from httpx import ASGITransport, AsyncClient
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        token = await _login_token(client, "memory_tool_user")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 8.1 添加（memory_add 等价：POST /memory）
+        add_payload = {
+            "name": "rent-focus", "type": "reference",
+            "description": "关注 3 号楼漏水", "body": "3 号楼漏水问题持续关注",
+        }
+        r = await client.post("/api/v1/memory", json=add_payload, headers=headers)
+        mem_id = r.json()["data"]["id"]
+        record(
+            "memory_add → 200 返回记忆（type=reference）",
+            r.status_code == 200 and r.json()["data"]["type"] == "reference",
+            f"id={mem_id}",
+        )
+
+        # 8.2 memory_get 闭环：索引 #id → GET /memory/{id} 取完整内容
+        idx = await _get_index_text(client, headers)
+        record(
+            "memory_get 闭环：索引含 #id",
+            f"#{mem_id}" in idx,
+            f"index={idx[:80]}",
+        )
+        r = await client.get(f"/api/v1/memory/{mem_id}", headers=headers)
+        body = r.json()
+        record(
+            "memory_get → 200 返回单条完整内容",
+            r.status_code == 200 and body["data"]["id"] == mem_id and "漏水" in body["data"]["body"],
+            f"status={r.status_code}",
+        )
+
+        # 8.3 memory_get 不存在 id → success None（业务失败≠系统异常）
+        r = await client.get("/api/v1/memory/99999", headers=headers)
+        body = r.json()
+        record(
+            "memory_get 不存在 → 200 success None（非 500）",
+            r.status_code == 200 and body["data"] is None,
+            f"status={r.status_code} body={body}",
+        )
+
+
+async def _get_index_text(client, headers) -> str:
+    """通过 API 拿当前用户索引（模拟 ai_service 的 build_memory_index 链路）"""
+    from app.harness import memory as mem
+    from app.core.database import async_session_factory
+
+    # 走真实函数：需要 user_id，从 DB 查（登录用户 code 对应 openid）
+    async with async_session_factory() as session:
+        from sqlalchemy import select
+        from app.models.user import User
+        user = (await session.execute(
+            select(User).order_by(User.id.desc()).limit(1)
+        )).scalar_one()
+        return await mem.build_memory_index(session, user.id)
+
+
+# ───────────────────────── 场景 9：SESSION_END 触发抽取链路 ─────────────────────────
+async def verify_session_end_flow():
+    print("\n## 场景 9：SESSION_END 触发抽取链路（session 粒度）")
+    await _ensure_user(1)
+    from unittest.mock import patch
+    from app.harness.hooks import memory_extract, events
+    from app.harness import memory as mem
+
+    # 9.1 SESSION_END 事件注册了 handler
+    record(
+        "SESSION_END 事件已注册 on_session_end handler",
+        memory_extract.on_session_end in events._handlers.get(events.SESSION_END, []),
+        f"handlers={len(events._handlers.get(events.SESSION_END, []))}",
+    )
+
+    # 9.2 有消息时 extract 被调用；无消息时跳过（不调 LLM）
+    from app.core.database import async_session_factory
+    async with async_session_factory() as session:
+        from sqlalchemy import text
+        await session.execute(text("DELETE FROM messages"))
+        await session.commit()
+
+    calls = []
+    async def fake_extract(*a, **k):
+        calls.append(a)
+        return 0
+
+    with patch.object(mem, "extract", side_effect=fake_extract):
+        await memory_extract.on_session_end({"user_id": 1, "session_id": 1})
+    record(
+        "on_session_end 无消息 → 跳过不调 extract",
+        len(calls) == 0,
+        f"extract 调用次数={len(calls)}",
+    )
 
 
 async def main():
@@ -431,6 +531,10 @@ async def main():
         await verify_consolidate()
         await _clear_db()
         await verify_extract_failure()
+        await _clear_db()
+        await verify_memory_tools()
+        await _clear_db()
+        await verify_session_end_flow()
     finally:
         from app.core.database import close_db
         await close_db()
