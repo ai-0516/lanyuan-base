@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     COMPACT_KEEP_TAIL: int = 5                # L4/reactive: 尾部保留条数（含最新 user 消息）
     COMPACT_SUMMARY_INPUT_LIMIT: int = 80_000 # 发给摘要 LLM 的对话截断（字符）
 
+    # 跨会话记忆（#9）
+    MEMORY_MAX_PER_USER: int = 30             # 每用户记忆条数上限，超限触发 LLM 合并
+    MEMORY_INDEX_LIMIT: int = 30              # 注入 system prompt 的索引条数上限
+
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"

@@ -24,7 +24,10 @@ async def _clear_db():
     from sqlalchemy import text
     try:
         async with async_session_factory() as session:
-            for t in ["messages", "conversations", "notifications", "likes", "comments", "posts", "users"]:
+            for t in [
+                "user_memories", "messages", "conversations", "notifications",
+                "likes", "comments", "posts", "users",
+            ]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
     except Exception:
@@ -323,6 +326,21 @@ async def test_ai_chat(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
+    """2026-08-03 粒度设计：/new 命令返回 cmd_new_session 事件"""
+    session_resp = await client.post("/api/v1/ai/session", headers=auth_headers)
+    session_id = session_resp.json()["data"]["session_id"]
+
+    chat_resp = await client.post(
+        "/api/v1/ai/chat",
+        json={"session_id": session_id, "message": "/new"},
+        headers=auth_headers,
+    )
+    assert chat_resp.status_code == 200
+    assert "event: cmd_new_session" in chat_resp.text
+
+
+@pytest.mark.asyncio
 async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     """测试查看用户公开信息"""
     # 获取自己
@@ -388,5 +406,119 @@ async def test_like_nonexistent_post_business_error(client: AsyncClient, auth_he
     data = response.json()
     assert data["code"] == 40401
     assert data["message"] == "帖子不存在"
+
+
+# ═══════════════════════════════════════════
+#  跨会话记忆 API（#9）
+# ═══════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_memory_crud(client: AsyncClient, auth_headers: dict):
+    """记忆增删查"""
+    # 初始为空
+    resp = await client.get("/api/v1/memory", headers=auth_headers)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"] == []
+
+    # 添加
+    resp = await client.post(
+        "/api/v1/memory",
+        json={
+            "name": "user-name",
+            "type": "user",
+            "description": "用户名字",
+            "body": "我叫张三",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    mem = resp.json()["data"]
+    assert mem["name"] == "user-name"
+    mem_id = mem["id"]
+
+    # 列表包含
+    resp = await client.get("/api/v1/memory", headers=auth_headers)
+    assert len(resp.json()["data"]) == 1
+
+    # 按 id 获取单条（2026-08-03：memory_get 工具）
+    resp = await client.get(f"/api/v1/memory/{mem_id}", headers=auth_headers)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"]["body"] == "我叫张三"
+
+    # 不存在 id → 正常返回 null（业务失败≠系统异常）
+    resp = await client.get("/api/v1/memory/999999", headers=auth_headers)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"] is None
+
+    # 删除
+    resp = await client.delete(f"/api/v1/memory/{mem_id}", headers=auth_headers)
+    assert resp.json()["data"]["deleted"] is True
+
+    # 删除后为空
+    resp = await client.get("/api/v1/memory", headers=auth_headers)
+    assert resp.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_memory_add_invalid_type(client: AsyncClient, auth_headers: dict):
+    """非法 type 返回业务错误 40011"""
+    resp = await client.post(
+        "/api/v1/memory",
+        json={
+            "name": "x",
+            "type": "feedback",
+            "description": "d",
+            "body": "b",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == 40011
+
+
+@pytest.mark.asyncio
+async def test_memory_user_isolation_api(client: AsyncClient, auth_headers: dict):
+    """API 层用户隔离：B 看不到 A 的记忆"""
+    # A 添加记忆
+    await client.post(
+        "/api/v1/memory",
+        json={"name": "a-secret", "type": "user",
+              "description": "A的秘密", "body": "AAA"},
+        headers=auth_headers,
+    )
+    # B 登录（不同 code）
+    login_b = await client.post("/api/v1/auth/login", json={"code": "test_user_002"})
+    headers_b = {"Authorization": f"Bearer {login_b.json()['data']['token']}"}
+
+    resp = await client.get("/api/v1/memory", headers=headers_b)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_memory_delete_other_users_memory(client: AsyncClient, auth_headers: dict):
+    """B 不能删除 A 的记忆（返回 deleted=false）"""
+    resp = await client.post(
+        "/api/v1/memory",
+        json={"name": "a-mem", "type": "user",
+              "description": "A的", "body": "AAA"},
+        headers=auth_headers,
+    )
+    mem_id = resp.json()["data"]["id"]
+
+    login_b = await client.post("/api/v1/auth/login", json={"code": "test_user_003"})
+    headers_b = {"Authorization": f"Bearer {login_b.json()['data']['token']}"}
+
+    resp = await client.delete(f"/api/v1/memory/{mem_id}", headers=headers_b)
+    assert resp.json()["data"]["deleted"] is False
+
+
+@pytest.mark.asyncio
+async def test_memory_delete_nonexistent_success(client: AsyncClient, auth_headers: dict):
+    """review #8/#12：删除不存在的记忆 id → 成功（code=0），deleted=false"""
+    resp = await client.delete("/api/v1/memory/999999", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"]["deleted"] is False
 
 

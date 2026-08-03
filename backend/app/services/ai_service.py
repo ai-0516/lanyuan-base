@@ -6,9 +6,11 @@
 """
 
 import logging
+import secrets
 
-from app.harness import context, session
+from app.harness import context, memory, session
 from app.harness.agent import AIAgent
+from app.harness.hooks import events
 from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -38,6 +40,15 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 0. 处理 /new 命令 ──
     if message.strip() == "/new":
+        # session 结束（2026-08-03 粒度设计）：emit session:end，hook 异步抽取
+        # 该 session 的完整对话为跨会话记忆。事件驱动，不阻塞 /new 响应。
+        logger.info("发起 session:end: user=%s session=%s，触发跨会话记忆抽取",
+                    user_id, session_id)
+        events.emit(events.SESSION_END, {
+            "req_id": secrets.token_hex(4),
+            "user_id": user_id,
+            "session_id": session_id,
+        })
         new_conv = await session.create_new(db, user_id)
         await db.commit()
         yield ("cmd_new_session", new_conv.id)
@@ -55,7 +66,16 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 3. 构建上下文 ──
     history = await context.get_recent_messages(db, session_id)
-    deepseek_messages = context.build_deepseek_messages(history, message)
+    # 跨会话记忆（2026-08-03 粒度设计）：只注入记忆索引（全部记忆 description），
+    # 不注入相关记忆（select_relevant 是动态选择，每轮结果可能不同，是缓存杀手）。
+    # 索引是静态的：记忆只在 session 结束（/new）时抽取，session 内不变 →
+    # 每轮 build_memory_index 字节相同 → system 前缀缓存命中。
+    memory_index = await memory.build_memory_index(db, user_id)
+    deepseek_messages = context.build_deepseek_messages(
+        history,
+        message,
+        memory_index=memory_index,
+    )
 
     # ── 4. Agent Loop（含工具调用） ──
     agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
