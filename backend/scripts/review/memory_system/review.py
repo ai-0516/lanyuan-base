@@ -72,6 +72,32 @@ async def _login_token(client, code) -> str:
     return resp.json()["data"]["token"]
 
 
+async def _ensure_user(user_id: int = 1):
+    """确保 users 表存在该用户（重构后 user_memories.user_id 有 FK→users.id，
+    直接 DB 操作前必须先造用户，否则 FK 约束失败）"""
+    from app.core.database import async_session_factory
+    from app.models.user import User
+    from sqlalchemy import select
+
+    async with async_session_factory() as session:
+        exists = (await session.execute(
+            select(User.id).where(User.id == user_id)
+        )).scalar_one_or_none()
+        if not exists:
+            session.add(User(id=user_id, openid=f"review_user_{user_id}", nickname=f"用户{user_id}"))
+            await session.commit()
+
+
+class _FakeMsg:
+    """build_deepseek_messages 用最小消息对象（history 参数需要 role/content）"""
+
+    def __init__(self, role: str, content: str):
+        self.role = role
+        self.content = content
+        self.tool_call_id = None
+        self.tool_calls = None
+
+
 # ───────────────────────── 场景 1：记忆 CRUD API ─────────────────────────
 async def verify_crud_api():
     print("\n## 场景 1：记忆 CRUD API")
@@ -175,42 +201,44 @@ async def verify_user_isolation():
 # ───────────────────────── 场景 3：记忆注入（真实函数）─────────────────────────
 async def verify_injection():
     print("\n## 场景 3：记忆注入")
+    await _ensure_user(1)
     from app.core.database import async_session_factory
-    from app.harness.memory import get_provider
+    from app.harness import memory as mem
     from app.harness.context import build_memory_index, build_relevant_section, build_deepseek_messages
 
     async with async_session_factory() as session:
-        provider = get_provider()
-        await provider.add(
+        await mem.add(
             session, 1,
             name="hobby-hiking", type="user", description="爱好爬山", body="用户喜欢周末爬山",
         )
         await session.commit()
-        memories = await provider.list_all(session, 1)
+        memories = await mem.list_all(session, 1)
 
         index = build_memory_index(memories)
         record(
-            "build_memory_index → 含 name+type+description",
-            "hobby-hiking" in index and "爱好爬山" in index and "user" in index,
+            "build_memory_index → 含 [type]+description（review #5：去 name）",
+            "[user]" in index and "爱好爬山" in index and "hobby-hiking" not in index,
             f"index={index[:80]}",
         )
 
         relevant = build_relevant_section(memories)
         record(
-            "build_relevant_section → 含完整 body",
-            "周末爬山" in relevant,
+            "build_relevant_section → 含 [type]+完整 body（review #6：去 name）",
+            "[user]" in relevant and "周末爬山" in relevant,
             f"section={relevant[:60]}",
         )
 
         msgs = build_deepseek_messages(
-            history=[], user_message="你好",
+            history=[_FakeMsg(role="user", content="你好")], user_message="你好",
             memory_index=index, relevant_memories=memories,
         )
+        # review #7：relevant_memories 拼进最后一条 user 消息（system 前缀稳定可缓存）
         sys_text = msgs[0]["content"] if msgs else ""
+        last_user = msgs[-1]["content"] if msgs else ""
         record(
-            "build_deepseek_messages → system 含索引和 body",
-            "hobby-hiking" in sys_text and "周末爬山" in sys_text,
-            f"system 前80字: {sys_text[:80]}",
+            "build_deepseek_messages → system 含索引，user 消息含 relevant body（#7 缓存设计）",
+            "你的记忆索引" in sys_text and "周末爬山" in last_user,
+            f"system 含索引={'你的记忆索引' in sys_text} user 含 body={'周末爬山' in last_user}",
         )
 
 
@@ -232,15 +260,15 @@ async def verify_tool_registry():
 # ───────────────────────── 场景 5：memory_select 策略（方案 b）─────────────────────────
 async def verify_select_strategy():
     print("\n## 场景 5：memory_select 策略（关键词优先 + LLM 兜底）")
+    await _ensure_user(1)
     from app.core.database import async_session_factory
-    from app.harness.memory import get_provider
-    from app.harness.memory_select import select_relevant, _extract_keywords
+    from app.harness import memory as mem
+    from app.harness.memory import select_relevant, _extract_keywords
     from app.harness import streaming
     from unittest.mock import patch
 
     async with async_session_factory() as session:
-        provider = get_provider()
-        await provider.add(
+        await mem.add(
             session, 1,
             name="hobby-hiking", type="user", description="爱好爬山", body="用户喜欢周末爬山",
         )
@@ -248,7 +276,7 @@ async def verify_select_strategy():
 
         # 5.1 关键词命中 → 零 LLM 调用
         with patch.object(streaming, "deepseek_chat") as mock_llm:
-            hits = await select_relevant(session, 1, "我想去爬山", provider)
+            hits = await select_relevant(session, 1, "我想去爬山")
             record(
                 "关键词命中（「爬山」）→ 返回命中，零 LLM 调用",
                 len(hits) >= 1 and not mock_llm.called,
@@ -260,7 +288,7 @@ async def verify_select_strategy():
             yield ("token", "[0]")
 
         with patch.object(streaming, "deepseek_chat", side_effect=fake_llm):
-            hits = await select_relevant(session, 1, "今天天气不错，去哪里散心好", provider)
+            hits = await select_relevant(session, 1, "今天天气不错，去哪里散心好")
             record(
                 "关键词无命中 → LLM 兜底被调用并正确返回",
                 len(hits) == 1 and hits[0].name == "hobby-hiking",
@@ -272,7 +300,7 @@ async def verify_select_strategy():
             yield ("error", "llm down")
 
         with patch.object(streaming, "deepseek_chat", side_effect=fake_llm_error):
-            hits = await select_relevant(session, 1, "今天天气不错，去哪里散心好", provider)
+            hits = await select_relevant(session, 1, "今天天气不错，去哪里散心好")
             record(
                 "LLM 内部抛错 → 返回 []，不阻塞",
                 hits == [],
@@ -289,14 +317,14 @@ async def verify_select_strategy():
         await session.execute(delete(UserMemory).where(UserMemory.user_id == 1))
         await session.commit()
         with patch.object(streaming, "deepseek_chat", side_effect=fake_llm2):
-            hits = await select_relevant(session, 1, "随便聊聊", provider)
+            hits = await select_relevant(session, 1, "随便聊聊")
         record(
             "无记忆短路 → 直接返回 []，不调 LLM",
             hits == [],
             f"hits={hits}",
         )
         # 恢复数据（供后续场景使用）
-        await provider.add(
+        await mem.add(
             session, 1,
             name="hobby-hiking", type="user", description="爱好爬山", body="用户喜欢周末爬山",
         )
@@ -314,15 +342,16 @@ async def verify_select_strategy():
 # ───────────────────────── 场景 6：consolidate 保护 ─────────────────────────
 async def verify_consolidate():
     print("\n## 场景 6：consolidate 保护（全删重写防丢数据）")
+    await _ensure_user(1)
     from app.core.database import async_session_factory
-    from app.harness.memory import get_provider, BODY_MAX_LEN
+    from app.harness import memory as mem
+    from app.harness.memory import BODY_MAX_LEN
     from app.harness import streaming
     from unittest.mock import patch
 
     async with async_session_factory() as session:
-        provider = get_provider()
         for i in range(3):
-            await provider.add(
+            await mem.add(
                 session, 1,
                 name=f"mem-{i}", type="user", description=f"记忆 {i}", body=f"内容 {i}",
             )
@@ -333,8 +362,8 @@ async def verify_consolidate():
             yield ("token", '[{"name": "", "description": "", "body": ""}]')
 
         with patch.object(streaming, "deepseek_chat", side_effect=fake_llm_invalid):
-            count = await provider.consolidate(session, 1)
-        memories = await provider.list_all(session, 1)
+            count = await mem.consolidate(session, 1)
+        memories = await mem.list_all(session, 1)
         record(
             "LLM 返回全部无效 → 原 3 条完整保留",
             count == 3 and len(memories) == 3,
@@ -349,9 +378,9 @@ async def verify_consolidate():
             yield ("token", long_json)
 
         with patch.object(streaming, "deepseek_chat", side_effect=fake_llm_long):
-            count = await provider.consolidate(session, 1)
+            count = await mem.consolidate(session, 1)
         await session.commit()
-        long_mem = await provider.search(session, 1, ["long"], limit=1)
+        long_mem = await mem.search(session, 1, ["long"], limit=1)
         body_len = len(long_mem[0].body) if long_mem else -1
         record(
             "consolidate 路径 body 截断至 BODY_MAX_LEN(2000)",
@@ -363,21 +392,19 @@ async def verify_consolidate():
 # ───────────────────────── 场景 7：extract 失败不阻塞（hook 层）─────────────────────────
 async def verify_extract_failure():
     print("\n## 场景 7：extract 失败不阻塞（hook 层 on_agent_end）")
+    await _ensure_user(1)
     from unittest.mock import patch
     from app.harness.hooks import memory_extract
+    from app.harness import memory as mem
 
-    # on_agent_start 记录 ctx → on_agent_end 消费时 provider.extract 抛错 → 应被 except 捕获不抛出
-    await memory_extract.on_agent_start({"req_id": "r1", "meta": {"user_id": 1, "session_id": 1}})
-
+    # 新 hook：AGENT_END 事件直接带 meta（user_id/session_id），无 _ctx 暂存。
+    # 模拟 memory.extract 抛错 → on_agent_end 应被 except 捕获不抛出。
     async def fake_extract_error(*a, **k):
         raise RuntimeError("LLM 调用失败")
 
     try:
-        with patch.object(memory_extract, "get_provider") as mock_get:
-            provider = mock_get.return_value
-            provider.extract = fake_extract_error
-            # on_agent_end 内部 try/except 捕获，不抛出
-            await memory_extract.on_agent_end({"req_id": "r1"})
+        with patch.object(mem, "extract", side_effect=fake_extract_error):
+            await memory_extract.on_agent_end({"meta": {"user_id": 1, "session_id": 1}})
         record("hook 层 extract 抛错 → 被捕获不抛出，不阻塞主流程", True, "on_agent_end 正常返回")
     except Exception as exc:
         record("hook 层 extract 抛错 → 被捕获不抛出，不阻塞主流程", False, f"异常={type(exc).__name__}: {exc}")
