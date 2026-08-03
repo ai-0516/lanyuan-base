@@ -15,10 +15,8 @@ import pytest
 
 from app.core.database import async_session_factory, init_db
 from app.harness import memory
-from app.harness.memory import (
-    DBMemoryProvider,
-    MemoryLimitError,
-)
+from app.harness.memory_db import DBMemoryProvider
+from app.harness.memory_provider import MemoryLimitError
 from app.harness import context
 from app.models.user import User
 
@@ -89,7 +87,7 @@ class TestMemoryAdd:
         provider = DBMemoryProvider()
 
         # 写入接近上限（临时降低上限）
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 3)
 
         async def _fake_llm(prompt: str) -> str:
             return (
@@ -124,7 +122,7 @@ class TestMemoryAdd:
         """合并后仍满 → 抛 MemoryLimitError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 2)
+        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 2)
 
         async def _fake_llm(prompt: str) -> str:
             return "[]"  # 合并为空，没腾出空间
@@ -148,7 +146,7 @@ class TestMemoryAdd:
         """review #11：consolidate 的 LLM 失败 → 降级保持原样，不抛 RuntimeError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 3)
 
         async def _fake_llm_error(prompt: str) -> str:
             raise RuntimeError("记忆 LLM 调用失败: boom")
@@ -299,8 +297,8 @@ class TestForeignKey:
 # ═══════════════════════════════════════════
 
 class TestContextInjection:
-    async def test_build_memory_index(self):
-        """索引文本生成（review #5：去 name，保留 [type]）"""
+    async def test_build_memory_description(self):
+        """索引文本生成（#9 改名 build_memory_description，review #5：去 name，保留 [type]）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
@@ -309,16 +307,16 @@ class TestContextInjection:
             await db.commit()
             memories = await provider.list_all(db, uid)
 
-        index = context.build_memory_index(memories)
+        index = memory.build_memory_description(memories)
         assert "[user]" in index
         assert "用户名字" in index
         assert "user-name" not in index  # name 已去掉
 
-    async def test_build_memory_index_empty(self):
-        assert context.build_memory_index([]) == ""
+    async def test_build_memory_description_empty(self):
+        assert memory.build_memory_description([]) == ""
 
-    async def test_build_relevant_section(self):
-        """相关记忆完整内容（review #6：去 name，保留 [type]）"""
+    async def test_build_memory_body(self):
+        """相关记忆完整内容（#9 改名 build_memory_body，review #6：去 name，保留 [type]）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
@@ -326,13 +324,13 @@ class TestContextInjection:
                                      description="用户名字", body="我叫张三，住3号楼")
             await db.commit()
 
-        section = context.build_relevant_section([mem])
+        section = memory.build_memory_body([mem])
         assert "我叫张三，住3号楼" in section
         assert "[user]" in section
         assert "user-name" not in section  # name 已去掉
 
     async def test_build_deepseek_messages_with_memory(self):
-        """review #7：相关记忆拼进最后一条 user 消息（system 前缀保持稳定）"""
+        """review #7 终版：相关记忆拼进 system（记忆不变则字节不变，前缀缓存命中）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
@@ -341,7 +339,7 @@ class TestContextInjection:
             await db.commit()
             memories = await provider.list_all(db, uid)
 
-        index = context.build_memory_index(memories)
+        index = memory.build_memory_description(memories)
         # 模拟一条历史 user 消息（真实场景 history 含刚保存的用户消息）
         from types import SimpleNamespace
         fake_msg = SimpleNamespace(
@@ -353,12 +351,16 @@ class TestContextInjection:
             "你好", memory_index=index, relevant_memories=[mem],
         )
         assert messages[0]["role"] == "system"
-        # system 只含索引，不含相关记忆完整内容
-        assert "我叫张三" not in messages[0]["content"]
+        # 相关记忆拼进 system：system 含索引 + 相关记忆完整内容
         assert "你的记忆索引：" in messages[0]["content"]
-        # 相关记忆在最后一条 user 消息
-        last_user = [m for m in messages if m["role"] == "user"][-1]
-        assert "我叫张三" in last_user["content"]
+        assert "我叫张三" in messages[0]["content"]
+        # 历史 user 消息保持原始内容（不被改写——前缀缓存命中的前提）
+        assert messages[1]["content"] == "你好"
+        # 同一记忆集合 → system 字节稳定（跨轮缓存命中）
+        messages2 = context.build_deepseek_messages(
+            [fake_msg], "你好", memory_index=index, relevant_memories=[mem],
+        )
+        assert messages[0]["content"] == messages2[0]["content"]
 
     async def test_build_deepseek_messages_no_memory(self):
         """无记忆时 system 不含实际记忆内容"""

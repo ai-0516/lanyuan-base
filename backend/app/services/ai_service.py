@@ -55,9 +55,9 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 3. 构建上下文 ──
     history = await context.get_recent_messages(db, session_id)
-    # 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆拼进最后一条 user 消息
+    # 跨会话记忆（#9）：索引 + 相关记忆拼进 SYSTEM（记忆不变则字节不变，前缀缓存命中）
     memories = await memory.list_all(db, user_id)
-    memory_index = context.build_memory_index(memories)
+    memory_index = memory.build_memory_description(memories)
     relevant = await memory.select_relevant(db, user_id, message)
     deepseek_messages = context.build_deepseek_messages(
         history,
