@@ -88,6 +88,15 @@ async def consolidate(db: AsyncSession, user_id: int) -> int:
 #  记忆文本格式化（#9：build_memory_index/relevant 归入 memory harness）
 # ═══════════════════════════════════════════
 
+async def build_memory_index(db: AsyncSession, user_id: int) -> str:
+    """构建记忆索引文本（SYSTEM PROMPT 用）：取全部记忆并格式化为索引。
+
+    组合接口：调用方无需先 list_all 再 build_memory_description。
+    """
+    memories = await list_all(db, user_id)
+    return build_memory_description(memories)
+
+
 def build_memory_description(memories: list) -> str:
     """生成记忆索引文本（常驻 SYSTEM PROMPT，review #5 改名）
 

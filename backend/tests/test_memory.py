@@ -298,6 +298,20 @@ class TestForeignKey:
 # ═══════════════════════════════════════════
 
 class TestContextInjection:
+    async def test_build_memory_index(self):
+        """组合接口：取全部记忆并格式化（ai_service 一行调用）"""
+        uid = await _create_user()
+        provider = DBMemoryProvider()
+        async with async_session_factory() as db:
+            await provider.add(db, uid, name="user-name", type="user",
+                               description="用户名字", body="张三")
+            await db.commit()
+
+            index = await memory.build_memory_index(db, uid)
+        assert "[user]" in index
+        assert "用户名字" in index
+        assert "user-name" not in index  # name 已去掉
+
     async def test_build_memory_description(self):
         """索引文本生成（#9 改名 build_memory_description，review #5：去 name，保留 [type]）"""
         uid = await _create_user()
