@@ -3,7 +3,13 @@
 职责：
 - 从数据库读取最近 N 条消息
 - 组装 DeepSeek API 的 messages 数组（含 System Prompt）
-- 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆按需注入
+- 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆拼进最后一条 user 消息
+
+缓存命中设计（review #7）：
+- DeepSeek context caching 按消息序列前缀匹配，system prompt 任何变化都会让整段缓存失效
+- 因此：memory_index 常驻 SYSTEM（记忆不变则文本不变，天然可缓存）；
+  relevant_memories 拼进「最后一条 user 消息」——历史序列不变、仅最后一条变化，
+  前缀缓存仍命中。
 """
 
 from sqlalchemy import select
@@ -28,9 +34,10 @@ SYSTEM_PROMPT = (
     "当用户需要执行操作时，你必须调用对应的工具来真正执行，"
     "不能只回复一段「已发布」「已点赞」之类的话而不调工具。"
     "记住：用户看不到操作结果，只有你调用了工具才能真正生效。\n\n"
-    "跨会话记忆：用户的偏好和关注事项会保存在记忆中。"
-    "系统会在下文中注入记忆索引（<memory_index>）和相关记忆（<relevant_memories>）。"
+    "跨会话记忆：用户的偏好和关注事项会自动保存在记忆中，"
     "新会话中若用户提及之前的事，应结合记忆中的内容回答。"
+    "记忆是后台能力——不要主动向用户提及记忆机制，"
+    "不要告诉用户「我可以帮你记住」，也不要主动询问「要不要记住」。"
 )
 
 
@@ -54,23 +61,27 @@ async def get_recent_messages(
 def build_memory_index(memories: list) -> str:
     """生成记忆索引文本（常驻 SYSTEM PROMPT）
 
-    每行一条：类型 + 名称 + 一句话描述，供模型了解用户有哪些记忆。
+    每行一条：类型 + 一句话描述（review #5：name 是 kebab-case 短标识，
+    对 LLM 无语义增益，去掉），供模型了解用户有哪些记忆。
     """
     if not memories:
         return ""
     lines = []
     for m in memories[: settings.MEMORY_INDEX_LIMIT]:
-        lines.append(f"- [{m.type}] {m.name}: {m.description}")
+        lines.append(f"- [{m.type}] {m.description}")
     return "你的记忆索引：\n" + "\n".join(lines)
 
 
 def build_relevant_section(memories: list) -> str:
-    """生成相关记忆完整内容（按需注入）"""
+    """生成相关记忆完整内容（拼进最后一条 user 消息）
+
+    review #6：保留 [type]、去掉 name（body 已是完整内容）。
+    """
     if not memories:
         return ""
     parts = []
     for m in memories:
-        parts.append(f"[{m.type}] {m.name}：{m.body}")
+        parts.append(f"[{m.type}] {m.body}")
     return "与当前对话相关的记忆：\n" + "\n\n".join(parts)
 
 
@@ -87,17 +98,15 @@ def build_deepseek_messages(
     user_message 参数保留用于未来扩展。
 
     记忆（#9）：
-    - memory_index: 记忆索引文本，拼接进 SYSTEM PROMPT（常驻）
-    - relevant_memories: 与当前对话相关的完整记忆列表，拼接进 SYSTEM PROMPT（按需）
+    - memory_index: 记忆索引文本，拼接进 SYSTEM PROMPT（常驻、稳定、可缓存）
+    - relevant_memories: 与当前对话相关的完整记忆列表，
+      拼接进「最后一条 user 消息」（历史序列不变，前缀缓存仍命中，review #7）
     """
     import json
 
     system_content = SYSTEM_PROMPT
     if memory_index:
         system_content += "\n\n" + memory_index
-    relevant = build_relevant_section(relevant_memories or [])
-    if relevant:
-        system_content += "\n\n" + relevant
 
     messages: list[dict] = [{"role": "system", "content": system_content}]
     for m in history:
@@ -111,4 +120,12 @@ def build_deepseek_messages(
         else:
             entry["content"] = m.content
         messages.append(entry)
+
+    # 相关记忆拼进最后一条 user 消息（不影响 system 前缀的缓存）
+    relevant = build_relevant_section(relevant_memories or [])
+    if relevant:
+        for entry in reversed(messages):
+            if entry["role"] == "user" and isinstance(entry.get("content"), str):
+                entry["content"] = entry["content"] + "\n\n" + relevant
+                break
     return messages

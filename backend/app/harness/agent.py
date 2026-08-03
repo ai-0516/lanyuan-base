@@ -75,189 +75,218 @@ class AIAgent:
         # agent:start — 整个 Agent 循环开始
         events.emit(events.AGENT_START, {"meta": meta, "req_id": correlation_id})
 
-        for turn in range(_MAX_TURNS):
-            events.emit(events.TURN_START, {"turn": turn, "req_id": correlation_id})
-            # 上下文压缩管线（s08）— 便宜的先跑，超阈值再 LLM 摘要
-            # mock 模式不调真 LLM，无超限风险，跳过（避免空 API 调用）
-            if use_real_llm:
-                messages[:] = context_compact.snip_message_compact(messages)
-                messages[:] = context_compact.tool_result_compact(messages)
-                if context_compact.estimate_tokens(messages) > context_compact.COMPACT_THRESHOLD:
-                    messages[:] = await context_compact.llm_compact(messages)
-            # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
-            turn_messages_sent = copy.deepcopy(messages)
-            turn_trace: dict[str, Any] = {
-                "messages_sent": turn_messages_sent,
-                "tools_sent": (copy.deepcopy(self.tools) if use_real_llm else None),
-            }
+        # AGENT_END 收敛出口（review #4）：
+        # - 统一携带 meta（user_id/session_id），hook 无需自行暂存身份
+        # - 只发一次；finally 兜底保证任何路径（正常结束/超限/生成器被中断）都会 emit，
+        #   避免 hook 侧 _ctx 永不 pop 的内存泄漏
+        agent_end_sent = False
 
-            kw = {}
-            if self.tools and use_real_llm:
-                kw["tools"] = self.tools
-
-            # llm:start — 即将调用 LLM
-            events.emit(events.LLM_START, {
-                "turn": turn, "messages_sent": turn_messages_sent,
-                "tools_sent": turn_trace["tools_sent"], "req_id": correlation_id,
+        def _emit_agent_end(total_turns: int, error: str | None) -> None:
+            nonlocal agent_end_sent
+            if agent_end_sent:
+                return
+            agent_end_sent = True
+            events.emit(events.AGENT_END, {
+                "total_turns": total_turns,
+                "error": error,
+                "req_id": correlation_id,
+                "meta": meta,
             })
 
-            tool_calls = []
-            full_reply = ""
-            token_count = 0
-            has_tool_call = False
-            has_error = False
-            error_msg = ""
-            error_code: str | None = None
-            usage_data = None
-            self._reasoning_content = ""  # 每轮重置
-            used_fallback = False  # 本轮是否降级为模拟回复
+        try:
+            for turn in range(_MAX_TURNS):
+                events.emit(events.TURN_START, {"turn": turn, "req_id": correlation_id})
+                # 上下文压缩管线（s08）— 便宜的先跑，超阈值再 LLM 摘要
+                # mock 模式不调真 LLM，无超限风险，跳过（避免空 API 调用）
+                if use_real_llm:
+                    messages[:] = context_compact.snip_message_compact(messages)
+                    messages[:] = context_compact.tool_result_compact(messages)
+                    if context_compact.estimate_tokens(messages) > context_compact.COMPACT_THRESHOLD:
+                        messages[:] = await context_compact.llm_compact(messages)
+                # 记录本轮发送的 messages（深拷贝，避免后续被回填污染）
+                turn_messages_sent = copy.deepcopy(messages)
+                turn_trace: dict[str, Any] = {
+                    "messages_sent": turn_messages_sent,
+                    "tools_sent": (copy.deepcopy(self.tools) if use_real_llm else None),
+                }
 
-            # ── 选择 LLM 源 ──
-            source = streaming.retry_deepseek_chat if use_real_llm else streaming.mock_chat
+                kw = {}
+                if self.tools and use_real_llm:
+                    kw["tools"] = self.tools
 
-            async for event, data in source(messages, **kw):
-                if event == "token":
-                    # 每条 AI 回复以 message:start 为界（#22）：每轮首个 token 前
-                    # 发边界事件，前端据此创建气泡；纯 tool_call 轮无 token 不发
-                    if not token_count:
+                # llm:start — 即将调用 LLM
+                events.emit(events.LLM_START, {
+                    "turn": turn, "messages_sent": turn_messages_sent,
+                    "tools_sent": turn_trace["tools_sent"], "req_id": correlation_id,
+                })
+
+                tool_calls = []
+                full_reply = ""
+                token_count = 0
+                has_tool_call = False
+                has_error = False
+                error_msg = ""
+                error_code: str | None = None
+                usage_data = None
+                self._reasoning_content = ""  # 每轮重置
+                used_fallback = False  # 本轮是否降级为模拟回复
+
+                # ── 选择 LLM 源 ──
+                source = streaming.retry_deepseek_chat if use_real_llm else streaming.mock_chat
+
+                async for event, data in source(messages, **kw):
+                    if event == "token":
+                        # 每条 AI 回复以 message:start 为界（#22）：每轮首个 token 前
+                        # 发边界事件，前端据此创建气泡；纯 tool_call 轮无 token 不发
+                        if not token_count:
+                            yield ("message:start", "")
+                        assert isinstance(data, str)
+                        full_reply += data
+                        token_count += 1
+                    elif event == "reasoning":
+                        assert isinstance(data, str)
+                        self._reasoning_content = data
+                    elif event == "reasoning_token":
+                        pass
+                    elif event == "tool_call":
+                        tool_calls.append(data)
+                        has_tool_call = True
+                    elif event == "usage":
+                        usage_data = data
+                    elif event == "error":
+                        # 结构化错误数据
+                        if isinstance(data, dict):
+                            code = data.get("code", LLMStatus.UNEXPECTED)
+                            error_code = code.value if isinstance(code, LLMStatus) else str(code)
+                            error_msg = data.get("message", str(data))
+                        else:
+                            error_code = LLMStatus.UNEXPECTED.value
+                            error_msg = str(data)
+
+                        has_error = True
+
+                        events.emit(events.LLM_ERROR, {
+                            "turn": turn,
+                            "error": error_msg,
+                            "error_code": error_code,
+                            "req_id": correlation_id,
+                        })
+
+                    elif event == "fallback":
+                        used_fallback = True
+                        full_reply = data["message"]
+                        token_count = len(full_reply)
+                        has_error = False
+                        has_tool_call = False
+                        # 降级回复也是一条独立 message：统一发 message:start 边界
                         yield ("message:start", "")
-                    assert isinstance(data, str)
-                    full_reply += data
-                    token_count += 1
-                elif event == "reasoning":
-                    assert isinstance(data, str)
-                    self._reasoning_content = data
-                elif event == "reasoning_token":
-                    pass
-                elif event == "tool_call":
-                    tool_calls.append(data)
-                    has_tool_call = True
-                elif event == "usage":
-                    usage_data = data
-                elif event == "error":
-                    # 结构化错误数据
-                    if isinstance(data, dict):
-                        code = data.get("code", LLMStatus.UNEXPECTED)
-                        error_code = code.value if isinstance(code, LLMStatus) else str(code)
-                        error_msg = data.get("message", str(data))
-                    else:
-                        error_code = LLMStatus.UNEXPECTED.value
-                        error_msg = str(data)
+                        yield ("token", full_reply)
+                        yield ("done", "")
+                        break
 
-                    has_error = True
+                    yield (event, data)
 
-                    events.emit(events.LLM_ERROR, {
-                        "turn": turn,
-                        "error": error_msg,
-                        "error_code": error_code,
-                        "req_id": correlation_id,
+                # ── finish_reason ──
+                if used_fallback:
+                    turn_trace["finish_reason"] = "fallback"
+                elif has_error:
+                    turn_trace["finish_reason"] = "error"
+                elif has_tool_call:
+                    turn_trace["finish_reason"] = "tool_calls"
+                else:
+                    turn_trace["finish_reason"] = "stop"
+
+                turn_trace["tokens"] = token_count
+                turn_trace["content"] = full_reply
+                turn_trace["tool_calls"] = [] if used_fallback else copy.deepcopy(tool_calls)
+                turn_trace["tool_results"] = []
+
+                # llm:end — LLM 调用完成
+                llm_end_data: events.LlmEndData = {
+                    "turn": turn,
+                    "finish_reason": turn_trace["finish_reason"],
+                    "tokens": token_count,
+                    "content": full_reply,
+                    "tool_calls": [] if used_fallback else copy.deepcopy(tool_calls),
+                    "tool_calls_count": 0 if used_fallback else len(tool_calls),
+                    "req_id": correlation_id,
+                }
+                if usage_data:
+                    llm_end_data["usage"] = usage_data
+                if has_error and error_msg:
+                    llm_end_data["error"] = error_msg
+                    llm_end_data["error_code"] = error_code
+                events.emit(events.LLM_END, llm_end_data)
+
+                # 无工具调用 → 结束
+                if not tool_calls:
+                    turn_trace["tool_results"] = []
+                    self._turns.append(turn_trace)
+                    if has_error:
+                        yield ("done", {"finish_reason": "error", "error": error_msg})
+                    events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
+                    _emit_agent_end(turn + 1, None)
+                    return
+
+                # 有工具调用 → 执行 → 回填 → 继续
+                for tc in tool_calls:
+                    tool_name = tc.get("function", {}).get("name", "?")
+                    tool_call_id = tc.get("id", "")
+                    events.emit(events.TOOL_START, {
+                        "tool_name": tool_name, "tool_call_id": tool_call_id,
+                        "tool_args": tc.get("function", {}).get("arguments", ""),
+                        "turn": turn, "req_id": correlation_id,
+                    })
+                    try:
+                        if self.tool_executor:
+                            result = await self.tool_executor(db, user_id, tc)
+                        else:
+                            result = f"未配置工具执行器，无法执行: {tool_name}"
+                        tool_status = "ok"
+                    except Exception as e:
+                        logger.exception("工具 %s 执行异常", tool_name)
+                        result = str(e)
+                        tool_status = "error"
+                    events.emit(events.TOOL_END, {
+                        "tool_name": tool_name, "tool_call_id": tool_call_id,
+                        "result": result, "status": tool_status,
+                        "turn": turn, "req_id": correlation_id,
                     })
 
-                elif event == "fallback":
-                    used_fallback = True
-                    full_reply = data["message"]
-                    token_count = len(full_reply)
-                    has_error = False
-                    has_tool_call = False
-                    # 降级回复也是一条独立 message：统一发 message:start 边界
-                    yield ("message:start", "")
-                    yield ("token", full_reply)
-                    yield ("done", "")
-                    break
+                    # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
+                    msg: dict = {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [tc],
+                    }
+                    if self._reasoning_content:
+                        msg["reasoning_content"] = self._reasoning_content
+                    messages.append(msg)
+                    # 回填 tool 结果
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": result,
+                    })
+                    turn_trace["tool_results"].append({
+                        "tool": tool_name,
+                        "tool_call_id": tc.get("id", ""),
+                        "result": result,
+                    })
 
-                yield (event, data)
-
-            # ── finish_reason ──
-            if used_fallback:
-                turn_trace["finish_reason"] = "fallback"
-            elif has_error:
-                turn_trace["finish_reason"] = "error"
-            elif has_tool_call:
-                turn_trace["finish_reason"] = "tool_calls"
-            else:
-                turn_trace["finish_reason"] = "stop"
-
-            turn_trace["tokens"] = token_count
-            turn_trace["content"] = full_reply
-            turn_trace["tool_calls"] = [] if used_fallback else copy.deepcopy(tool_calls)
-            turn_trace["tool_results"] = []
-
-            # llm:end — LLM 调用完成
-            llm_end_data: events.LlmEndData = {
-                "turn": turn,
-                "finish_reason": turn_trace["finish_reason"],
-                "tokens": token_count,
-                "content": full_reply,
-                "tool_calls": [] if used_fallback else copy.deepcopy(tool_calls),
-                "tool_calls_count": 0 if used_fallback else len(tool_calls),
-                "req_id": correlation_id,
-            }
-            if usage_data:
-                llm_end_data["usage"] = usage_data
-            if has_error and error_msg:
-                llm_end_data["error"] = error_msg
-                llm_end_data["error_code"] = error_code
-            events.emit(events.LLM_END, llm_end_data)
-
-            # 无工具调用 → 结束
-            if not tool_calls:
-                turn_trace["tool_results"] = []
                 self._turns.append(turn_trace)
-                if has_error:
-                    yield ("done", {"finish_reason": "error", "error": error_msg})
                 events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
-                events.emit(events.AGENT_END, {"total_turns": turn + 1, "error": None, "req_id": correlation_id})
-                return
 
-            # 有工具调用 → 执行 → 回填 → 继续
-            for tc in tool_calls:
-                tool_name = tc.get("function", {}).get("name", "?")
-                tool_call_id = tc.get("id", "")
-                events.emit(events.TOOL_START, {
-                    "tool_name": tool_name, "tool_call_id": tool_call_id,
-                    "tool_args": tc.get("function", {}).get("arguments", ""),
-                    "turn": turn, "req_id": correlation_id,
-                })
-                try:
-                    if self.tool_executor:
-                        result = await self.tool_executor(db, user_id, tc)
-                    else:
-                        result = f"未配置工具执行器，无法执行: {tool_name}"
-                    tool_status = "ok"
-                except Exception as e:
-                    logger.exception("工具 %s 执行异常", tool_name)
-                    result = str(e)
-                    tool_status = "error"
-                events.emit(events.TOOL_END, {
-                    "tool_name": tool_name, "tool_call_id": tool_call_id,
-                    "result": result, "status": tool_status,
-                    "turn": turn, "req_id": correlation_id,
-                })
+            error = f"Agent 循环超过 {_MAX_TURNS} 次上限"
+            yield ("error", error)
+            _emit_agent_end(_MAX_TURNS, error)
 
-                # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
-                msg: dict = {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [tc],
-                }
-                if self._reasoning_content:
-                    msg["reasoning_content"] = self._reasoning_content
-                messages.append(msg)
-                # 回填 tool 结果
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": result,
-                })
-                turn_trace["tool_results"].append({
-                    "tool": tool_name,
-                    "tool_call_id": tc.get("id", ""),
-                    "result": result,
-                })
-
-            self._turns.append(turn_trace)
-            events.emit(events.TURN_END, {"turn": turn, "req_id": correlation_id})
-
-        error = f"Agent 循环超过 {_MAX_TURNS} 次上限"
-        yield ("error", error)
-        events.emit(events.AGENT_END, {"total_turns": _MAX_TURNS, "error": error, "req_id": correlation_id})
+        except Exception:
+            # 兜底：任何未捕获异常（LLM 流中断、生成器被提前关闭等）
+            # 也保证 AGENT_END 发出，hook 状态不会泄漏（review #4）
+            logger.exception("Agent 循环异常")
+            _emit_agent_end(len(self._turns) + 1, "Agent 循环异常")
+            raise
+        finally:
+            # 生成器被消费者提前关闭（SSE 断开）时同样兜底
+            _emit_agent_end(len(self._turns) + 1, "Agent 循环被中断")

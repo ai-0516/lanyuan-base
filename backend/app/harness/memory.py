@@ -1,26 +1,24 @@
-"""跨会话记忆 — provider 抽象层（#9）
+"""跨会话记忆 harness（#9）— provider 抽象 + 模块级对外接口
 
-MemoryProvider 定义三个基本操作：
-- 写入: add / delete
-- 读取: list（索引）/ search（按需召回）
-- 抽取: extract（从对话中提取值得记住的信息）
-
-MySQLMemoryProvider 是第一个实现（数据存数据库）。
-未来可加其他 provider（如调用云 API 做云端存储/读取/抽取）。
+对外提供模块级函数（add/delete/list_all/search/extract/consolidate/select_relevant），
+调用方不接触 MemoryProvider 类型与 get_provider——具体 provider 是内部实现细节。
 
 设计原则：
 - provider 只做存储/读取/抽取，不关心会话、SSE、事件
 - 用户隔离：所有操作按 user_id 过滤，用户 A 看不到用户 B 的记忆
 - 上限：每用户 MEMORY_MAX_PER_USER 条，写入超限时先触发 LLM 合并再写入
 - 时间戳：created_at / updated_at 供合并时判断新旧覆盖
+- 相关记忆选择（方案 b，2026-08-02 用户拍板）：关键词优先（零 LLM 调用）、
+  LLM 兜底（语义召回）——成本在其次，首 token 延时优先
 """
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
-from sqlalchemy import delete, select, func
+from sqlalchemy import delete as _sql_delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -39,6 +37,9 @@ MAX_PER_USER = settings.MEMORY_MAX_PER_USER
 
 # 单条 body 长度上限（防止 LLM 写入超长内容，撑爆后续 consolidate 的 prompt）
 BODY_MAX_LEN = 2000
+
+# 相关记忆选择：最多注入几条完整记忆
+_MAX_SELECT = 5
 
 
 class MemoryLimitError(Exception):
@@ -69,7 +70,11 @@ class MemoryProvider(ABC):
 
     @abstractmethod
     async def delete(self, db: AsyncSession, user_id: int, memory_id: int) -> bool:
-        """删除一条记忆（仅限本人）。返回是否删除成功。"""
+        """删除一条记忆（仅限本人）。
+
+        幂等语义：不抛异常即成功——id 不存在（或非本人）目标状态已达成，
+        返回 bool 仅表示是否实际删除（供前端/LLM 可选展示），不算失败。
+        """
 
     @abstractmethod
     async def list_all(self, db: AsyncSession, user_id: int) -> list[UserMemory]:
@@ -99,14 +104,14 @@ class MemoryProvider(ABC):
         """合并去重该用户全部记忆（LLM 低频操作），返回合并后的条数。"""
 
 
-class MySQLMemoryProvider(MemoryProvider):
+class DBMemoryProvider(MemoryProvider):
     """数据库版 provider（首个实现）
 
-    抽取和合并依赖 LLM（复用 streaming.deepseek_chat），
-    存储介质为 MySQL（开发环境 SQLite）。
+    抽取/合并/选择依赖 LLM（复用 streaming.deepseek_chat），
+    存储介质为数据库（开发 SQLite / 生产 MySQL），不绑定具体 DBMS。
     """
 
-    name = "mysql"
+    name = "db"
 
     # ── 写入 ─────────────────────────────────────────
 
@@ -147,7 +152,7 @@ class MySQLMemoryProvider(MemoryProvider):
 
     async def delete(self, db: AsyncSession, user_id: int, memory_id: int) -> bool:
         result = await db.execute(
-            delete(UserMemory).where(
+            _sql_delete(UserMemory).where(
                 UserMemory.id == memory_id,
                 UserMemory.user_id == user_id,
             )
@@ -295,7 +300,13 @@ class MySQLMemoryProvider(MemoryProvider):
             f"记忆清单：\n{catalog}"
         )
 
-        text = await self._call_llm(prompt)
+        # LLM 失败降级：合并是「满了才触发」的辅助操作，失败保持原样即可，
+        # 不能把错误抛给调用方（否则 add 超限路径直接 500，见 review #11）
+        try:
+            text = await self._call_llm(prompt)
+        except Exception:
+            logger.warning("合并 LLM 调用失败，保持原样: user_id=%s", user_id)
+            return len(memories)
         items = self._parse_json_array(text)
         if not items:
             logger.warning("合并返回空，保持原样: user_id=%s", user_id)
@@ -322,7 +333,7 @@ class MySQLMemoryProvider(MemoryProvider):
             return len(memories)
 
         # 全删重写
-        await db.execute(delete(UserMemory).where(UserMemory.user_id == user_id))
+        await db.execute(_sql_delete(UserMemory).where(UserMemory.user_id == user_id))
         count = 0
         for item in valid:
             db.add(UserMemory(
@@ -368,7 +379,6 @@ class MySQLMemoryProvider(MemoryProvider):
             return json.loads(text)
         except json.JSONDecodeError:
             pass
-        import re
         match = re.search(r"\[.*\]", text, re.DOTALL)
         if not match:
             return []
@@ -379,13 +389,155 @@ class MySQLMemoryProvider(MemoryProvider):
             return []
 
 
-# 全局 provider 实例（当前只有一个 DB provider）
+# ═══════════════════════════════════════════
+#  对外模块级接口（代理给 provider，provider 是内部细节）
+# ═══════════════════════════════════════════
+
 _provider: MemoryProvider | None = None
 
 
-def get_provider() -> MemoryProvider:
-    """获取当前激活的 memory provider（默认 MySQL）"""
+def _get_provider() -> MemoryProvider:
+    """获取当前激活的 memory provider（内部使用，外部一律走模块级函数）"""
     global _provider
     if _provider is None:
-        _provider = MySQLMemoryProvider()
+        _provider = DBMemoryProvider()
     return _provider
+
+
+async def add(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    name: str,
+    type: str,
+    description: str,
+    body: str,
+) -> UserMemory:
+    """写入一条记忆（超限先合并，仍满抛 MemoryLimitError）。"""
+    return await _get_provider().add(
+        db, user_id, name=name, type=type, description=description, body=body,
+    )
+
+
+async def delete(db: AsyncSession, user_id: int, memory_id: int) -> bool:
+    """删除一条记忆（仅限本人）。幂等：id 不存在也视为成功，返回是否实际删除。"""
+    return await _get_provider().delete(db, user_id, memory_id)
+
+
+async def list_all(db: AsyncSession, user_id: int) -> list[UserMemory]:
+    """读取该用户全部记忆（按 updated_at 倒序，供索引注入）。"""
+    return await _get_provider().list_all(db, user_id)
+
+
+async def search(
+    db: AsyncSession,
+    user_id: int,
+    keywords: list[str],
+    limit: int = 5,
+) -> list[UserMemory]:
+    """关键词召回：匹配 name / description / body，返回完整记忆。"""
+    return await _get_provider().search(db, user_id, keywords, limit=limit)
+
+
+async def extract(db: AsyncSession, user_id: int, messages: list[dict]) -> int:
+    """从对话消息中抽取值得记住的新记忆并写入，返回新增条数。"""
+    return await _get_provider().extract(db, user_id, messages)
+
+
+async def consolidate(db: AsyncSession, user_id: int) -> int:
+    """合并去重该用户全部记忆（LLM 低频操作），返回合并后的条数。"""
+    return await _get_provider().consolidate(db, user_id)
+
+
+# ═══════════════════════════════════════════
+#  相关记忆选择（方案 b：关键词优先 + LLM 兜底）
+# ═══════════════════════════════════════════
+
+async def select_relevant(
+    db: AsyncSession,
+    user_id: int,
+    user_message: str,
+) -> list[UserMemory]:
+    """返回与当前用户消息相关的完整记忆列表（最多 _MAX_SELECT 条）。
+
+    关键词优先：有命中直接返回（零 LLM 调用）；无命中才走 LLM 兜底。
+    关键词无命中时 LLM 失败不影响主流程，返回空。
+    """
+    if not user_message or not user_message.strip():
+        return []
+
+    # 1. 拿索引（name + description）
+    memories = await list_all(db, user_id)
+    if not memories:
+        return []
+
+    # 2. 关键词优先（零 LLM 调用，首 token 延时最低）
+    keywords = _extract_keywords(user_message)
+    if keywords:
+        hits = await search(db, user_id, keywords, limit=_MAX_SELECT)
+        if hits:
+            return hits[:_MAX_SELECT]
+
+    # 3. LLM 兜底（关键词无命中 → 语义召回；失败返回 None → 空）
+    selected = await _llm_select(user_message, memories)
+    if selected is not None:
+        return selected[:_MAX_SELECT]
+    return []
+
+
+async def _llm_select(user_message: str, memories: list) -> list | None:
+    """LLM side-query：从索引中选相关记忆。失败返回 None（触发降级）。"""
+    catalog_lines = []
+    for i, m in enumerate(memories):
+        catalog_lines.append(f"{i}: [{m.type}] {m.name} — {m.description}")
+    catalog = "\n".join(catalog_lines)
+
+    prompt = (
+        "根据用户当前消息，从下面的记忆索引中选出相关的记忆编号。\n"
+        "规则：只选明显相关的；没有相关就返回空数组 []；最多选 5 个。\n"
+        "只输出 JSON 数组，如 [0, 3]。\n\n"
+        f"记忆索引：\n{catalog}\n\n"
+        f"用户消息：{user_message[:1000]}"
+    )
+
+    try:
+        from app.harness import streaming  # 函数内 import，避免循环依赖
+
+        parts: list[str] = []
+        async for event, data in streaming.deepseek_chat(
+            [{"role": "user", "content": prompt}]
+        ):
+            if event == "token":
+                assert isinstance(data, str)
+                parts.append(data)
+            elif event == "error":
+                raise RuntimeError(f"记忆选择调用失败: {data}")
+
+        text = "".join(parts).strip()
+        match = re.search(r"\[.*?\]", text, re.DOTALL)
+        if not match:
+            return []
+        indices = json.loads(match.group())
+        selected = []
+        for idx in indices:
+            if isinstance(idx, int) and 0 <= idx < len(memories):
+                selected.append(memories[idx])
+        return selected
+    except Exception:
+        logger.exception("LLM 选相关记忆失败，降级关键词")
+        return None
+
+
+def _extract_keywords(user_message: str) -> list[str]:
+    """提取关键词：英文单词 + 中文 2 字滑窗。
+
+    2 字是中文最小语义单元（火锅/爬山/喜欢），子串命中记忆的 body/name 概率
+    远高于整段贪婪截断；噪声词（如「我喜」）在 search 打分里 score=0 被过滤。
+    """
+    words = re.findall(r"[a-zA-Z]{2,}", user_message)
+    cn_segments = re.findall(r"[\u4e00-\u9fff]+", user_message)
+    bigrams = []
+    for seg in cn_segments:
+        bigrams.extend(seg[i : i + 2] for i in range(len(seg) - 1))
+    keywords = list(dict.fromkeys([w.lower() for w in words] + bigrams))
+    return keywords[:20]
