@@ -326,6 +326,21 @@ async def test_ai_chat(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
+    """2026-08-03 粒度设计：/new 命令返回 cmd_new_session 事件"""
+    session_resp = await client.post("/api/v1/ai/session", headers=auth_headers)
+    session_id = session_resp.json()["data"]["session_id"]
+
+    chat_resp = await client.post(
+        "/api/v1/ai/chat",
+        json={"session_id": session_id, "message": "/new"},
+        headers=auth_headers,
+    )
+    assert chat_resp.status_code == 200
+    assert "event: cmd_new_session" in chat_resp.text
+
+
+@pytest.mark.asyncio
 async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     """测试查看用户公开信息"""
     # 获取自己
@@ -424,6 +439,16 @@ async def test_memory_crud(client: AsyncClient, auth_headers: dict):
     # 列表包含
     resp = await client.get("/api/v1/memory", headers=auth_headers)
     assert len(resp.json()["data"]) == 1
+
+    # 按 id 获取单条（2026-08-03：memory_get 工具）
+    resp = await client.get(f"/api/v1/memory/{mem_id}", headers=auth_headers)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"]["body"] == "我叫张三"
+
+    # 不存在 id → 正常返回 null（业务失败≠系统异常）
+    resp = await client.get("/api/v1/memory/999999", headers=auth_headers)
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"] is None
 
     # 删除
     resp = await client.delete(f"/api/v1/memory/{mem_id}", headers=auth_headers)

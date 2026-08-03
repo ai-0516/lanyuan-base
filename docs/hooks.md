@@ -44,6 +44,8 @@
 | `TOOL_END` | `ToolEndData` | 每个工具执行后，追加结果到本轮 | jsonl |
 | `TURN_END` | `TurnEndData` | 每轮结束时，保存本轮到 entry | jsonl |
 | `AGENT_END` | `AgentEndData` | 循环结束，写入文件 | jsonl + stats |
+| `LLM_ERROR` | `LlmErrorData` | LLM 调用发生错误（API 错误、超时等） | log + jsonl |
+| `SESSION_END` | `SessionEndData` | 会话结束（前端 /new 开启新对话，2026-08-03 新增） | memory_extract（跨会话记忆抽取，粒度=session） |
 
 ### AgentStartData
 
@@ -109,6 +111,14 @@ class ToolEndData(TypedDict):
 class AgentEndData(TypedDict):
     total_turns: int
     error: str | None  # 正常退出为 None，超限时为错误信息
+```
+
+### SessionEndData
+
+```python
+class SessionEndData(TypedDict):
+    user_id: int
+    session_id: int    # 已结束的会话 id（hook 从 DB 读该会话全部消息做抽取）
 ```
 
 ## 文件结构

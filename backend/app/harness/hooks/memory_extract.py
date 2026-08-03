@@ -1,54 +1,50 @@
 """
-记忆抽取钩子 — agent:end 异步提取
+跨会话记忆抽取钩子 — session:end 触发
 
-每轮 agent 结束后，后台 consumer 异步调用 memory.extract()，
-把用户对话中值得跨会话记住的信息写入记忆库。
+session 结束（前端 /new 开启新对话）时，后台 consumer 异步调用 memory.extract()，
+把该 session 的完整对话中值得记住的信息写入记忆库。
 
-设计：
-- AGENT_END 事件直接携带 meta（user_id/session_id，agent.py 统一 emit，
-  review #4），hook 无需自行暂存身份
-- 只抽取当前会话的消息（按 conversation_id 过滤），避免跨用户串味
-- 提取失败只记日志，不影响主流程（hook 是纯辅助）
+设计（2026-08-03 粒度设计，替代原每轮 agent:end 抽取）：
+- **粒度 = session**：抽取只在 session 边界发生，不在每轮对话后做。
+  理由：① session 内多轮对话的连续性由消息历史天然保证，记忆只解决
+  「跨 session」的部分；② 每轮抽取会导致记忆频繁变化 → system 字节变化
+  → 前缀缓存全断；③ 每轮抽取碎片化（只看到单轮消息），session 结束
+  用完整对话抽取质量更高、频率更低
+- 事件驱动：ai_service /new 处 emit SESSION_END（携带 user_id/session_id），
+  本 hook 消费。事件直接携带身份，hook 无需自行暂存
+- 从 DB 读该 session 全部消息（session 结束时消息均已落库，不需要
+  LLM_START 快照——上一版 #1 的快照机制随之移除）
+- 抽取失败只记日志，不影响主流程（hook 是纯辅助）
 """
 
 import logging
 
-from sqlalchemy import select
-
 from app.core.database import async_session_factory
-from app.harness import memory
+from app.harness import context, memory
 from app.harness.hooks import events
 from app.harness.hooks.events import on
-from app.models.conversation import Message
 
 logger = logging.getLogger("app.harness.hooks.memory_extract")
 
 
-@on(events.AGENT_END)
-async def on_agent_end(data: dict):
-    meta = data.get("meta", {}) or {}
-    user_id = meta.get("user_id")
-    session_id = meta.get("session_id")
+@on(events.SESSION_END)
+async def on_session_end(data: dict):
+    user_id = data.get("user_id")
+    session_id = data.get("session_id")
     if user_id is None or session_id is None:
         return
 
     try:
         async with async_session_factory() as db:
-            # 读取当前会话最近消息（作为抽取输入）
-            stmt = (
-                select(Message)
-                .where(Message.conversation_id == session_id)
-                .order_by(Message.created_at.desc(), Message.id.desc())
-                .limit(20)
-            )
-            result = await db.execute(stmt)
-            rows: list[Message] = list(result.scalars().all())
-            rows.reverse()  # 正序
-
-            messages = []
-            for m in rows:
-                if m.role == "user" and isinstance(m.content, str) and m.content.strip():
-                    messages.append({"role": "user", "content": m.content})
+            # 读该 session 全部消息（时间正序），转为 OpenAI 格式供 extract
+            history = await context.get_recent_messages(db, session_id)
+            messages = [
+                {"role": m.role, "content": m.content}
+                for m in history
+                if m.content
+            ]
+            if not messages:
+                return
 
             added = await memory.extract(db, user_id, messages)
             if added:

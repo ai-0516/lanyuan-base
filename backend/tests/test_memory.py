@@ -15,10 +15,9 @@ import pytest
 
 from app.core.database import async_session_factory, init_db
 from app.harness import memory
-from app.harness.memory import (
-    DBMemoryProvider,
-    MemoryLimitError,
-)
+from app.harness.memory import memory as memory_impl
+from app.harness.memory.memory_provider import MemoryLimitError
+from app.harness.memory.memory_provider_db import DBMemoryProvider
 from app.harness import context
 from app.models.user import User
 
@@ -84,19 +83,19 @@ class TestMemoryAdd:
         assert mem.type == "user"
 
     async def test_add_exceeds_limit_triggers_consolidate(self, monkeypatch):
-        """超限触发合并（mock LLM 返回合并结果）"""
+        """超限触发合并（mock LLM 返回合并结果）——编排在 harness 层"""
         uid = await _create_user()
         provider = DBMemoryProvider()
 
-        # 写入接近上限（临时降低上限）
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 3)
+        # 写入接近上限（临时降低上限；add 超限判断在 memory.py 层）
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 3)
 
         async def _fake_llm(prompt: str) -> str:
             return (
                 '[{"name": "merged", "type": "user", '
                 '"description": "合并后", "body": "合并内容"}]'
             )
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm)
 
         async with async_session_factory() as db:
             for i in range(3):
@@ -106,8 +105,8 @@ class TestMemoryAdd:
                 )
             await db.flush()
 
-            # 第 4 条触发合并（3 条 → 1 条）后再写入
-            mem = await provider.add(
+            # 第 4 条触发合并（3 条 → 1 条）后再写入（走模块级 add，编排层）
+            mem = await memory.add(
                 db, uid, name="new", type="user",
                 description="新", body="新内容",
             )
@@ -124,11 +123,11 @@ class TestMemoryAdd:
         """合并后仍满 → 抛 MemoryLimitError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 2)
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 2)
 
         async def _fake_llm(prompt: str) -> str:
             return "[]"  # 合并为空，没腾出空间
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm)
 
         async with async_session_factory() as db:
             for i in range(2):
@@ -138,7 +137,7 @@ class TestMemoryAdd:
                 )
             await db.flush()
             with pytest.raises(MemoryLimitError):
-                await provider.add(
+                await memory.add(
                     db, uid, name="new", type="user",
                     description="新", body="新内容",
                 )
@@ -148,11 +147,11 @@ class TestMemoryAdd:
         """review #11：consolidate 的 LLM 失败 → 降级保持原样，不抛 RuntimeError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 3)
 
         async def _fake_llm_error(prompt: str) -> str:
             raise RuntimeError("记忆 LLM 调用失败: boom")
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm_error)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm_error)
 
         # 先写入 3 条并 commit（作为存量记忆）
         async with async_session_factory() as db:
@@ -167,7 +166,7 @@ class TestMemoryAdd:
         # 因仍满 → MemoryLimitError（业务错误），原数据不丢
         async with async_session_factory() as db:
             with pytest.raises(MemoryLimitError):
-                await provider.add(
+                await memory.add(
                     db, uid, name="new", type="user",
                     description="新", body="新内容",
                 )
@@ -214,6 +213,24 @@ class TestMemoryListSearch:
             mems_b = await provider.list_all(db, uid_b)
         assert len(mems_a) == 1 and mems_a[0].name == "a-mem"
         assert len(mems_b) == 1 and mems_b[0].name == "b-mem"
+
+    async def test_get_by_id_own(self):
+        """按 id 获取单条（仅限本人，2026-08-03：memory_get 工具）"""
+        uid_a = await _create_user("A", "a")
+        uid_b = await _create_user("B", "b")
+        provider = DBMemoryProvider()
+        async with async_session_factory() as db:
+            mem = await provider.add(db, uid_a, name="a-mem", type="user",
+                                     description="A的记忆", body="AAA")
+            await db.commit()
+
+        async with async_session_factory() as db:
+            got = await provider.get(db, uid_a, mem.id)
+            assert got is not None and got.body == "AAA"
+            # 用户隔离：B 查 A 的记忆 → None
+            assert await provider.get(db, uid_b, mem.id) is None
+            # 不存在 id → None
+            assert await provider.get(db, uid_a, 999999) is None
 
     async def test_delete_only_own(self):
         """只能删除自己的记忆"""
@@ -300,25 +317,40 @@ class TestForeignKey:
 
 class TestContextInjection:
     async def test_build_memory_index(self):
-        """索引文本生成（review #5：去 name，保留 [type]）"""
+        """组合接口：取全部记忆并格式化（ai_service 一行调用）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
             await provider.add(db, uid, name="user-name", type="user",
                                description="用户名字", body="张三")
             await db.commit()
-            memories = await provider.list_all(db, uid)
 
-        index = context.build_memory_index(memories)
+            index = await memory.build_memory_index(db, uid)
         assert "[user]" in index
         assert "用户名字" in index
         assert "user-name" not in index  # name 已去掉
 
-    async def test_build_memory_index_empty(self):
-        assert context.build_memory_index([]) == ""
+    async def test_build_memory_description(self):
+        """索引文本生成（#9 改名 build_memory_description，review #5：去 name，保留 [type]+#id）"""
+        uid = await _create_user()
+        provider = DBMemoryProvider()
+        async with async_session_factory() as db:
+            mem = await provider.add(db, uid, name="user-name", type="user",
+                                     description="用户名字", body="张三")
+            await db.commit()
+            memories = await provider.list_all(db, uid)
 
-    async def test_build_relevant_section(self):
-        """相关记忆完整内容（review #6：去 name，保留 [type]）"""
+        index = memory.build_memory_description(memories)
+        assert "[user]" in index
+        assert f"#{mem.id}" in index  # 2026-08-03：索引带 id，供 LLM 调 memory_get 定位
+        assert "用户名字" in index
+        assert "user-name" not in index  # name 已去掉
+
+    async def test_build_memory_description_empty(self):
+        assert memory.build_memory_description([]) == ""
+
+    async def test_build_memory_body(self):
+        """相关记忆完整内容（#9 改名 build_memory_body，review #6：去 name，保留 [type]）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
@@ -326,22 +358,22 @@ class TestContextInjection:
                                      description="用户名字", body="我叫张三，住3号楼")
             await db.commit()
 
-        section = context.build_relevant_section([mem])
+        section = memory.build_memory_body([mem])
         assert "我叫张三，住3号楼" in section
         assert "[user]" in section
         assert "user-name" not in section  # name 已去掉
 
     async def test_build_deepseek_messages_with_memory(self):
-        """review #7：相关记忆拼进最后一条 user 消息（system 前缀保持稳定）"""
+        """2026-08-03 粒度设计：只注入记忆索引（不注入相关记忆），system 字节稳定"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
-            mem = await provider.add(db, uid, name="user-name", type="user",
-                                     description="用户名字", body="我叫张三")
+            await provider.add(db, uid, name="user-name", type="user",
+                               description="用户名字", body="我叫张三")
             await db.commit()
             memories = await provider.list_all(db, uid)
 
-        index = context.build_memory_index(memories)
+        index = memory.build_memory_description(memories)
         # 模拟一条历史 user 消息（真实场景 history 含刚保存的用户消息）
         from types import SimpleNamespace
         fake_msg = SimpleNamespace(
@@ -350,15 +382,20 @@ class TestContextInjection:
         )
         messages = context.build_deepseek_messages(
             [fake_msg],
-            "你好", memory_index=index, relevant_memories=[mem],
+            "你好", memory_index=index,
         )
         assert messages[0]["role"] == "system"
-        # system 只含索引，不含相关记忆完整内容
-        assert "我叫张三" not in messages[0]["content"]
+        # 只注入索引：system 含索引（description），不含相关记忆完整内容
         assert "你的记忆索引：" in messages[0]["content"]
-        # 相关记忆在最后一条 user 消息
-        last_user = [m for m in messages if m["role"] == "user"][-1]
-        assert "我叫张三" in last_user["content"]
+        assert "用户名字" in messages[0]["content"]
+        assert "我叫张三" not in messages[0]["content"]  # body 不注入
+        # 历史 user 消息保持原始内容（不被改写——前缀缓存命中的前提）
+        assert messages[1]["content"] == "你好"
+        # 同一记忆集合 → system 字节稳定（跨轮缓存命中）
+        messages2 = context.build_deepseek_messages(
+            [fake_msg], "你好", memory_index=index,
+        )
+        assert messages[0]["content"] == messages2[0]["content"]
 
     async def test_build_deepseek_messages_no_memory(self):
         """无记忆时 system 不含实际记忆内容"""
@@ -373,9 +410,15 @@ class TestContextInjection:
         assert "不要告诉用户「我可以帮你记住」" in context.SYSTEM_PROMPT
         assert "不要主动询问「要不要记住」" in context.SYSTEM_PROMPT
 
+    async def test_system_prompt_guides_memory_add(self):
+        """2026-08-03：SYSTEM_PROMPT 引导 LLM 主动调用 memory_add（learn-claude-code + hermes 写法）"""
+        assert "memory_add" in context.SYSTEM_PROMPT  # 工具名
+        assert "明确表达长期偏好" in context.SYSTEM_PROMPT  # 正面触发
+        assert "一周后就失效的信息不属于记忆" in context.SYSTEM_PROMPT  # 负面边界
+
 
 # ═══════════════════════════════════════════
-#  memory._llm_select（LLM 选相关记忆）
+#  memory_impl._llm_select（LLM 选相关记忆）
 # ═══════════════════════════════════════════
 
 class _FakeMemory:
@@ -400,7 +443,7 @@ class TestLlmSelect:
         monkeypatch.setattr(
             "app.harness.streaming.deepseek_chat", fake_deepseek_chat
         )
-        return await memory._llm_select("用户消息", memories)
+        return await memory_impl._llm_select("用户消息", memories)
 
     async def test_llm_select_success_maps_indices(self, monkeypatch):
         """LLM 返回 [0, 3] → 正确映射到对应记忆"""
@@ -447,7 +490,7 @@ class TestLlmSelect:
             "app.harness.streaming.deepseek_chat", fake_deepseek_chat_error
         )
         memories = [_FakeMemory("mem-0", description="desc-0")]
-        result = await memory._llm_select("用户消息", memories)
+        result = await memory_impl._llm_select("用户消息", memories)
         assert result is None
 
 
@@ -478,7 +521,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "我想吃火锅")
@@ -498,7 +541,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "周末去爬山怎么样")
@@ -514,7 +557,7 @@ class TestSelectRelevant:
         async def fake_llm(msg, mems):
             return [mems[0]]
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "今天天气怎么样")
@@ -530,7 +573,7 @@ class TestSelectRelevant:
         async def fake_llm(msg, mems):
             return None
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "今天天气怎么样")
@@ -554,7 +597,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "hello world")
@@ -567,14 +610,14 @@ class TestExtractKeywords:
     """_extract_keywords：英文单词 + 中文 2 字滑窗"""
 
     def test_english_words(self):
-        assert memory._extract_keywords("I love hiking") == ["love", "hiking"]
+        assert memory_impl._extract_keywords("I love hiking") == ["love", "hiking"]
 
     def test_chinese_bigrams(self):
-        kws = memory._extract_keywords("我想吃火锅")
+        kws = memory_impl._extract_keywords("我想吃火锅")
         assert "火锅" in kws
 
     def test_dedup_and_cap(self):
-        kws = memory._extract_keywords("吃火锅 吃火锅 吃火锅")
+        kws = memory_impl._extract_keywords("吃火锅 吃火锅 吃火锅")
         assert len(kws) <= 20
         assert kws == list(dict.fromkeys(kws))
 
