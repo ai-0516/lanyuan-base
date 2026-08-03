@@ -21,6 +21,7 @@ from .memory import (
     search,
     select_relevant,
 )
+from .memory_provider import VALID_TYPES, MemoryLimitError
 
 __all__ = [
     "add",
@@ -32,4 +33,6 @@ __all__ = [
     "select_relevant",
     "build_memory_description",
     "build_memory_body",
+    "VALID_TYPES",
+    "MemoryLimitError",
 ]
