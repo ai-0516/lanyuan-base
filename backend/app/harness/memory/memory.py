@@ -151,19 +151,19 @@ async def extract(db: AsyncSession, user_id: int, messages: list[dict]) -> int:
         body = str(item.get("body", "")).strip()
         if not name or not desc or not body:
             continue
-        # 超限跳过：抽取是被动批量追加，满了直接跳过该条，
-        # 不触发模块级 add 的合并编排（合并只服务主动写入路径）
-        if await _provider.count(db, user_id) >= MAX_PER_USER:
+        # 调用本模块的 add：超限判断/合并编排已在 add 内（超限→合并→仍满抛
+        # MemoryLimitError），extract 捕获后跳过该条即可，无需重复 count
+        try:
+            await add(
+                db, user_id,
+                name=name[:100],
+                type=str(item.get("type", "user")),
+                description=desc[:255],
+                body=body[:BODY_MAX_LEN],
+            )
+            added += 1
+        except MemoryLimitError:
             logger.warning("记忆超限，抽取跳过: user_id=%s name=%s", user_id, name)
-            continue
-        await _provider.add(
-            db, user_id,
-            name=name[:100],
-            type=str(item.get("type", "user")),
-            description=desc[:255],
-            body=body[:BODY_MAX_LEN],
-        )
-        added += 1
     return added
 
 
