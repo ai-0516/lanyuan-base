@@ -345,12 +345,12 @@ class TestContextInjection:
         assert "user-name" not in section  # name 已去掉
 
     async def test_build_deepseek_messages_with_memory(self):
-        """review #7 终版：相关记忆拼进 system（记忆不变则字节不变，前缀缓存命中）"""
+        """2026-08-03 粒度设计：只注入记忆索引（不注入相关记忆），system 字节稳定"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
-            mem = await provider.add(db, uid, name="user-name", type="user",
-                                     description="用户名字", body="我叫张三")
+            await provider.add(db, uid, name="user-name", type="user",
+                               description="用户名字", body="我叫张三")
             await db.commit()
             memories = await provider.list_all(db, uid)
 
@@ -363,17 +363,18 @@ class TestContextInjection:
         )
         messages = context.build_deepseek_messages(
             [fake_msg],
-            "你好", memory_index=index, relevant_memories=[mem],
+            "你好", memory_index=index,
         )
         assert messages[0]["role"] == "system"
-        # 相关记忆拼进 system：system 含索引 + 相关记忆完整内容
+        # 只注入索引：system 含索引（description），不含相关记忆完整内容
         assert "你的记忆索引：" in messages[0]["content"]
-        assert "我叫张三" in messages[0]["content"]
+        assert "用户名字" in messages[0]["content"]
+        assert "我叫张三" not in messages[0]["content"]  # body 不注入
         # 历史 user 消息保持原始内容（不被改写——前缀缓存命中的前提）
         assert messages[1]["content"] == "你好"
         # 同一记忆集合 → system 字节稳定（跨轮缓存命中）
         messages2 = context.build_deepseek_messages(
-            [fake_msg], "你好", memory_index=index, relevant_memories=[mem],
+            [fake_msg], "你好", memory_index=index,
         )
         assert messages[0]["content"] == messages2[0]["content"]
 

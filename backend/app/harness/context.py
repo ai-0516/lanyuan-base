@@ -3,16 +3,15 @@
 职责：
 - 从数据库读取最近 N 条消息
 - 组装 DeepSeek API 的 messages 数组（含 System Prompt）
-- 跨会话记忆（#9）：记忆文本由 memory harness 生成（build_memory_description /
-  build_memory_body），本模块负责拼接进 SYSTEM PROMPT
+- 跨会话记忆（2026-08-03 粒度设计）：只注入记忆索引（memory harness 的
+  build_memory_index 生成），本模块负责拼接进 SYSTEM PROMPT
 
-缓存命中设计（review #7 终版，对齐 Hermes 不变量）：
+缓存命中设计（对齐 Hermes 不变量）：
 - Hermes 硬不变量：「不改变过去的上下文，新内容只追加在末尾」——
   system prompt 在对话生命周期内 byte-stable；每轮变化的工具结果作为新消息追加。
-- 因此：memory_index（build_memory_description）与相关记忆（build_memory_body）
-  都拼进 SYSTEM PROMPT，且**只随记忆内容变化**（记忆不变则字节不变，前缀缓存命中）；
-  历史 user 消息从 DB 读出原始内容，绝不改写——这是「拼 user 消息」方案的致命缺陷
-  （历史消息两轮间字节不一致，前缀缓存从第一条历史就断，见 review #7 讨论）。
+- 因此：memory_index（全部记忆 description）拼进 SYSTEM PROMPT，只随记忆内容
+  变化（记忆只在 session 结束 /new 时抽取，session 内不变 → 字节不变 → 前缀缓存命中）；
+  历史 user 消息从 DB 读出原始内容，绝不改写。
 """
 
 from sqlalchemy import select
@@ -64,7 +63,6 @@ def build_deepseek_messages(
     history: list[Message],
     user_message: str,
     memory_index: str = "",
-    relevant_memories: list | None = None,
 ) -> list[dict]:
     """组装 DeepSeek 请求的 messages 数组
 
@@ -72,21 +70,16 @@ def build_deepseek_messages(
     用户消息在上一步已写入 DB，因此已包含在 history 中。
     user_message 参数保留用于未来扩展。
 
-    记忆（#9）：
-    - memory_index: 记忆索引文本（build_memory_description 生成），拼接进 SYSTEM PROMPT
-    - relevant_memories: 与当前对话相关的完整记忆列表（build_memory_body 生成），
-      同样拼接进 SYSTEM PROMPT（review #7：记忆不变则 system 字节不变，前缀缓存命中）
+    记忆（2026-08-03 粒度设计）：只注入记忆索引（build_memory_index 生成，
+    全部记忆的 description）——静态内容，记忆不变则 system 字节不变，
+    前缀缓存命中。不再注入相关记忆（select_relevant 是动态选择，每轮结果
+    可能不同，是缓存杀手）。
     """
     import json
-
-    from app.harness import memory as memory_harness
 
     system_content = SYSTEM_PROMPT
     if memory_index:
         system_content += "\n\n" + memory_index
-    relevant = memory_harness.build_memory_body(relevant_memories or [])
-    if relevant:
-        system_content += "\n\n" + relevant
 
     messages: list[dict] = [{"role": "system", "content": system_content}]
     for m in history:

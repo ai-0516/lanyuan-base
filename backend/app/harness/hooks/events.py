@@ -25,6 +25,7 @@ LLM_END = "llm:end"
 LLM_ERROR = "llm:error"  # LLM 调用发生错误（API 错误、超时等）
 TOOL_START = "tool:start"
 TOOL_END = "tool:end"
+SESSION_END = "session:end"  # session 结束（/new 开启新对话）— 触发跨会话记忆抽取（2026-08-03 粒度设计）
 
 
 # ── 事件数据类型 ──
@@ -90,6 +91,16 @@ class AgentEndData(EventBase):
     error: str | None
     # 身份信息（review #4）：AGENT_END 事件直接携带，hook 无需自行暂存
     meta: NotRequired[dict]
+
+
+class SessionEndData(EventBase):
+    """session 结束（/new 开启新对话）— 触发跨会话记忆抽取
+
+    2026-08-03 粒度设计：抽取以 session 为粒度，不在每轮 agent:end 做。
+    事件直接携带身份（user_id/session_id），hook 无需自行暂存。
+    """
+    user_id: int
+    session_id: int
 
 
 # ── 实现 ──

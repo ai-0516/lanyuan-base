@@ -326,6 +326,21 @@ async def test_ai_chat(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
+    """2026-08-03 粒度设计：/new 命令返回 cmd_new_session 事件"""
+    session_resp = await client.post("/api/v1/ai/session", headers=auth_headers)
+    session_id = session_resp.json()["data"]["session_id"]
+
+    chat_resp = await client.post(
+        "/api/v1/ai/chat",
+        json={"session_id": session_id, "message": "/new"},
+        headers=auth_headers,
+    )
+    assert chat_resp.status_code == 200
+    assert "event: cmd_new_session" in chat_resp.text
+
+
+@pytest.mark.asyncio
 async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     """测试查看用户公开信息"""
     # 获取自己
