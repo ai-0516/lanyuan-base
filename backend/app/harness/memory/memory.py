@@ -19,11 +19,11 @@ import re
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.harness.memory_db import DBMemoryProvider
-from app.harness.memory_provider import (
+from .memory_provider import (
     MemoryProvider,
 )
-from app.models.user_memory import UserMemory
+from .memory_provider_db import DBMemoryProvider
+from ...models.user_memory import UserMemory
 
 logger = logging.getLogger(__name__)
 

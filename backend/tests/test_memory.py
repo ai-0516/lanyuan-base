@@ -15,8 +15,9 @@ import pytest
 
 from app.core.database import async_session_factory, init_db
 from app.harness import memory
-from app.harness.memory_db import DBMemoryProvider
-from app.harness.memory_provider import MemoryLimitError
+from app.harness.memory import memory as memory_impl
+from app.harness.memory.memory_provider import MemoryLimitError
+from app.harness.memory.memory_provider_db import DBMemoryProvider
 from app.harness import context
 from app.models.user import User
 
@@ -87,7 +88,7 @@ class TestMemoryAdd:
         provider = DBMemoryProvider()
 
         # 写入接近上限（临时降低上限）
-        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 3)
 
         async def _fake_llm(prompt: str) -> str:
             return (
@@ -122,7 +123,7 @@ class TestMemoryAdd:
         """合并后仍满 → 抛 MemoryLimitError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 2)
+        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 2)
 
         async def _fake_llm(prompt: str) -> str:
             return "[]"  # 合并为空，没腾出空间
@@ -146,7 +147,7 @@ class TestMemoryAdd:
         """review #11：consolidate 的 LLM 失败 → 降级保持原样，不抛 RuntimeError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory_db.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 3)
 
         async def _fake_llm_error(prompt: str) -> str:
             raise RuntimeError("记忆 LLM 调用失败: boom")
@@ -377,7 +378,7 @@ class TestContextInjection:
 
 
 # ═══════════════════════════════════════════
-#  memory._llm_select（LLM 选相关记忆）
+#  memory_impl._llm_select（LLM 选相关记忆）
 # ═══════════════════════════════════════════
 
 class _FakeMemory:
@@ -402,7 +403,7 @@ class TestLlmSelect:
         monkeypatch.setattr(
             "app.harness.streaming.deepseek_chat", fake_deepseek_chat
         )
-        return await memory._llm_select("用户消息", memories)
+        return await memory_impl._llm_select("用户消息", memories)
 
     async def test_llm_select_success_maps_indices(self, monkeypatch):
         """LLM 返回 [0, 3] → 正确映射到对应记忆"""
@@ -449,7 +450,7 @@ class TestLlmSelect:
             "app.harness.streaming.deepseek_chat", fake_deepseek_chat_error
         )
         memories = [_FakeMemory("mem-0", description="desc-0")]
-        result = await memory._llm_select("用户消息", memories)
+        result = await memory_impl._llm_select("用户消息", memories)
         assert result is None
 
 
@@ -480,7 +481,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "我想吃火锅")
@@ -500,7 +501,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "周末去爬山怎么样")
@@ -516,7 +517,7 @@ class TestSelectRelevant:
         async def fake_llm(msg, mems):
             return [mems[0]]
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "今天天气怎么样")
@@ -532,7 +533,7 @@ class TestSelectRelevant:
         async def fake_llm(msg, mems):
             return None
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "今天天气怎么样")
@@ -556,7 +557,7 @@ class TestSelectRelevant:
             calls["n"] += 1
             return []
 
-        monkeypatch.setattr("app.harness.memory._llm_select", fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._llm_select", fake_llm)
 
         async with async_session_factory() as db:
             result = await memory.select_relevant(db, uid, "hello world")
@@ -569,14 +570,14 @@ class TestExtractKeywords:
     """_extract_keywords：英文单词 + 中文 2 字滑窗"""
 
     def test_english_words(self):
-        assert memory._extract_keywords("I love hiking") == ["love", "hiking"]
+        assert memory_impl._extract_keywords("I love hiking") == ["love", "hiking"]
 
     def test_chinese_bigrams(self):
-        kws = memory._extract_keywords("我想吃火锅")
+        kws = memory_impl._extract_keywords("我想吃火锅")
         assert "火锅" in kws
 
     def test_dedup_and_cap(self):
-        kws = memory._extract_keywords("吃火锅 吃火锅 吃火锅")
+        kws = memory_impl._extract_keywords("吃火锅 吃火锅 吃火锅")
         assert len(kws) <= 20
         assert kws == list(dict.fromkeys(kws))
 

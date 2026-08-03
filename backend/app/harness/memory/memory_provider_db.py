@@ -11,7 +11,7 @@ import logging
 from sqlalchemy import delete as _sql_delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.harness.memory_provider import (
+from .memory_provider import (
     BODY_MAX_LEN,
     MAX_PER_USER,
     MEMORY_TYPE_USER,
@@ -20,7 +20,7 @@ from app.harness.memory_provider import (
     MemoryProvider,
     _parse_json_array,
 )
-from app.models.user_memory import UserMemory
+from ...models.user_memory import UserMemory
 
 logger = logging.getLogger(__name__)
 

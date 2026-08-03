@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.user_memory import UserMemory
+from ...models.user_memory import UserMemory
 
 # 记忆类型（社区助手场景只需两类）
 MEMORY_TYPE_USER = "user"          # 用户偏好、身份（"我叫张三"、"喜欢简洁回复"）

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.memory_provider import VALID_TYPES, MemoryLimitError
+from app.harness.memory.memory_provider import VALID_TYPES, MemoryLimitError
 from app.harness.tool_registry import tool
 from app.services import memory_service
 
