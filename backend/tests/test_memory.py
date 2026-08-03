@@ -83,19 +83,19 @@ class TestMemoryAdd:
         assert mem.type == "user"
 
     async def test_add_exceeds_limit_triggers_consolidate(self, monkeypatch):
-        """超限触发合并（mock LLM 返回合并结果）"""
+        """超限触发合并（mock LLM 返回合并结果）——编排在 harness 层"""
         uid = await _create_user()
         provider = DBMemoryProvider()
 
-        # 写入接近上限（临时降低上限）
-        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 3)
+        # 写入接近上限（临时降低上限；add 超限判断在 memory.py 层）
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 3)
 
         async def _fake_llm(prompt: str) -> str:
             return (
                 '[{"name": "merged", "type": "user", '
                 '"description": "合并后", "body": "合并内容"}]'
             )
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm)
 
         async with async_session_factory() as db:
             for i in range(3):
@@ -105,8 +105,8 @@ class TestMemoryAdd:
                 )
             await db.flush()
 
-            # 第 4 条触发合并（3 条 → 1 条）后再写入
-            mem = await provider.add(
+            # 第 4 条触发合并（3 条 → 1 条）后再写入（走模块级 add，编排层）
+            mem = await memory.add(
                 db, uid, name="new", type="user",
                 description="新", body="新内容",
             )
@@ -123,11 +123,11 @@ class TestMemoryAdd:
         """合并后仍满 → 抛 MemoryLimitError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 2)
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 2)
 
         async def _fake_llm(prompt: str) -> str:
             return "[]"  # 合并为空，没腾出空间
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm)
 
         async with async_session_factory() as db:
             for i in range(2):
@@ -137,7 +137,7 @@ class TestMemoryAdd:
                 )
             await db.flush()
             with pytest.raises(MemoryLimitError):
-                await provider.add(
+                await memory.add(
                     db, uid, name="new", type="user",
                     description="新", body="新内容",
                 )
@@ -147,11 +147,11 @@ class TestMemoryAdd:
         """review #11：consolidate 的 LLM 失败 → 降级保持原样，不抛 RuntimeError"""
         uid = await _create_user()
         provider = DBMemoryProvider()
-        monkeypatch.setattr("app.harness.memory.memory_provider_db.MAX_PER_USER", 3)
+        monkeypatch.setattr("app.harness.memory.memory.MAX_PER_USER", 3)
 
         async def _fake_llm_error(prompt: str) -> str:
             raise RuntimeError("记忆 LLM 调用失败: boom")
-        monkeypatch.setattr(provider, "_call_llm", _fake_llm_error)
+        monkeypatch.setattr("app.harness.memory.memory._call_llm", _fake_llm_error)
 
         # 先写入 3 条并 commit（作为存量记忆）
         async with async_session_factory() as db:
@@ -166,7 +166,7 @@ class TestMemoryAdd:
         # 因仍满 → MemoryLimitError（业务错误），原数据不丢
         async with async_session_factory() as db:
             with pytest.raises(MemoryLimitError):
-                await provider.add(
+                await memory.add(
                     db, uid, name="new", type="user",
                     description="新", body="新内容",
                 )

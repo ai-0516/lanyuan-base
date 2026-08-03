@@ -1,14 +1,15 @@
 """跨会话记忆 — provider 抽象层（#9）
 
-MemoryProvider 定义三个基本操作：
-- 写入: add / delete
-- 读取: list（索引）/ search（按需召回）
-- 抽取: extract（从对话中提取值得记住的信息）
+MemoryProvider 定义纯存储操作（不涉及 LLM 判断）：
+- 写入: add / delete / replace_all
+- 读取: list（索引）/ search（按需召回）/ get（单条）/ count
 
-设计原则：
-- provider 只做存储/读取/抽取，不关心会话、SSE、事件
+设计原则（2026-08-03 讨论确定）：
+- provider 只负责存储与读取，**不做任何 LLM 驱动的智能动作**——
+  抽取（extract）和合并（consolidate）是 LLM 动作，实现在 memory.py 编排层
+  （memory harness），它们调用 provider 的存储接口完成保存
 - 用户隔离：所有操作按 user_id 过滤，用户 A 看不到用户 B 的记忆
-- 上限：每用户 MEMORY_MAX_PER_USER 条，写入超限时先触发 LLM 合并再写入
+- 上限：每用户 MEMORY_MAX_PER_USER 条，超限合并逻辑在 memory.py 层编排
 - 时间戳：created_at / updated_at 供合并时判断新旧覆盖
 """
 
@@ -38,7 +39,7 @@ class MemoryLimitError(Exception):
 
 
 class MemoryProvider(ABC):
-    """记忆 provider 抽象层"""
+    """记忆 provider 抽象层 — 纯存储接口（2026-08-03 讨论确定）"""
 
     name: str = "base"
 
@@ -53,11 +54,7 @@ class MemoryProvider(ABC):
         description: str,
         body: str,
     ) -> UserMemory:
-        """写入一条记忆。
-
-        若该用户记忆条数已达上限，先触发 LLM 合并（consolidate）腾出空间，
-        合并后仍无法写入则抛 MemoryLimitError。
-        """
+        """写入一条记忆（纯插入，不做超限合并——合并由 memory.py 层编排）。"""
 
     @abstractmethod
     async def delete(self, db: AsyncSession, user_id: int, memory_id: int) -> bool:
@@ -86,26 +83,30 @@ class MemoryProvider(ABC):
         """按 id 获取单条记忆（仅限本人）。不存在返回 None。"""
 
     @abstractmethod
-    async def extract(
+    async def count(self, db: AsyncSession, user_id: int) -> int:
+        """统计该用户记忆条数（超限判断用）。"""
+
+    @abstractmethod
+    async def replace_all(
         self,
         db: AsyncSession,
         user_id: int,
-        messages: list[dict],
+        items: list[dict[str, Any]],
     ) -> int:
-        """从对话消息中抽取值得记住的新记忆并写入，返回新增条数。"""
+        """全删重写该用户全部记忆（consolidate 合并结果落库用）。
 
-    @abstractmethod
-    async def consolidate(self, db: AsyncSession, user_id: int) -> int:
-        """合并去重该用户全部记忆（LLM 低频操作），返回合并后的条数。"""
+        原子性由调用方事务保证；返回写入条数。
+        """
 
 
 def _parse_json_array(text: str) -> list[Any]:
     """从 LLM 输出中解析 JSON 数组（容忍 markdown 代码块包裹）
 
-    放在 provider 模块供各 provider 复用（抽取/合并的输出解析）。
+    放在 provider 模块供 memory.py 编排层复用（抽取/合并的输出解析）。
     """
     import json
     import logging
+    import re
 
     logger = logging.getLogger(__name__)
 
@@ -115,7 +116,6 @@ def _parse_json_array(text: str) -> list[Any]:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    import re
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
         return []
