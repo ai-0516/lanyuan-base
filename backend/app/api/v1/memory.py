@@ -81,6 +81,20 @@ async def add_memory(
     return api_success(_to_dict(mem))
 
 
+@router.get("/{memory_id}")
+@tool(name="memory_get")
+async def get_memory(
+    memory_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """获取一条跨会话记忆的完整内容（按 id，仅限本人）。索引中形如 #12 的编号即 id。"""
+    mem = await memory_service.get_memory(db, user_id, memory_id)
+    if mem is None:
+        return api_success(None)  # 查无此条 = 正常结果（业务失败≠系统异常）
+    return api_success(_to_dict(mem))
+
+
 @router.delete("/{memory_id}")
 @tool(name="memory_delete")
 async def delete_memory(

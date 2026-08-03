@@ -214,6 +214,24 @@ class TestMemoryListSearch:
         assert len(mems_a) == 1 and mems_a[0].name == "a-mem"
         assert len(mems_b) == 1 and mems_b[0].name == "b-mem"
 
+    async def test_get_by_id_own(self):
+        """按 id 获取单条（仅限本人，2026-08-03：memory_get 工具）"""
+        uid_a = await _create_user("A", "a")
+        uid_b = await _create_user("B", "b")
+        provider = DBMemoryProvider()
+        async with async_session_factory() as db:
+            mem = await provider.add(db, uid_a, name="a-mem", type="user",
+                                     description="A的记忆", body="AAA")
+            await db.commit()
+
+        async with async_session_factory() as db:
+            got = await provider.get(db, uid_a, mem.id)
+            assert got is not None and got.body == "AAA"
+            # 用户隔离：B 查 A 的记忆 → None
+            assert await provider.get(db, uid_b, mem.id) is None
+            # 不存在 id → None
+            assert await provider.get(db, uid_a, 999999) is None
+
     async def test_delete_only_own(self):
         """只能删除自己的记忆"""
         uid_a = await _create_user("A", "a")
@@ -313,17 +331,18 @@ class TestContextInjection:
         assert "user-name" not in index  # name 已去掉
 
     async def test_build_memory_description(self):
-        """索引文本生成（#9 改名 build_memory_description，review #5：去 name，保留 [type]）"""
+        """索引文本生成（#9 改名 build_memory_description，review #5：去 name，保留 [type]+#id）"""
         uid = await _create_user()
         provider = DBMemoryProvider()
         async with async_session_factory() as db:
-            await provider.add(db, uid, name="user-name", type="user",
-                               description="用户名字", body="张三")
+            mem = await provider.add(db, uid, name="user-name", type="user",
+                                     description="用户名字", body="张三")
             await db.commit()
             memories = await provider.list_all(db, uid)
 
         index = memory.build_memory_description(memories)
         assert "[user]" in index
+        assert f"#{mem.id}" in index  # 2026-08-03：索引带 id，供 LLM 调 memory_get 定位
         assert "用户名字" in index
         assert "user-name" not in index  # name 已去掉
 

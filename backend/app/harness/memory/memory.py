@@ -74,6 +74,11 @@ async def search(
     return await _provider.search(db, user_id, keywords, limit=limit)
 
 
+async def get(db: AsyncSession, user_id: int, memory_id: int) -> UserMemory | None:
+    """按 id 获取单条记忆（仅限本人）。不存在返回 None。"""
+    return await _provider.get(db, user_id, memory_id)
+
+
 async def extract(db: AsyncSession, user_id: int, messages: list[dict]) -> int:
     """从对话消息中抽取值得记住的新记忆并写入，返回新增条数。"""
     return await _provider.extract(db, user_id, messages)
@@ -100,14 +105,15 @@ async def build_memory_index(db: AsyncSession, user_id: int) -> str:
 def build_memory_description(memories: list) -> str:
     """生成记忆索引文本（常驻 SYSTEM PROMPT，review #5 改名）
 
-    每行一条：类型 + 一句话描述（name 是 kebab-case 短标识，对 LLM 无语义增益，去掉）。
+    每行一条：类型 + 编号（#id，供 LLM 调 memory_get 定位单条）+ 一句话描述。
+    name 是 kebab-case 短标识，对 LLM 无语义增益，去掉。
     缓存设计（review #7）：记忆不变则文本不变，作为 system 稳定前缀的一部分，天然可缓存。
     """
     if not memories:
         return ""
     lines = []
     for m in memories[: settings.MEMORY_INDEX_LIMIT]:
-        lines.append(f"- [{m.type}] {m.description}")
+        lines.append(f"- [{m.type}] #{m.id} {m.description}")
     return "你的记忆索引：\n" + "\n".join(lines)
 
 

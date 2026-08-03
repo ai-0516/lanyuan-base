@@ -22,6 +22,11 @@ async def list_memories(db: AsyncSession, user_id: int) -> list[UserMemory]:
     return await memory_harness.list_all(db, user_id)
 
 
+async def get_memory(db: AsyncSession, user_id: int, memory_id: int) -> UserMemory | None:
+    """按 id 获取单条记忆（仅限本人）。不存在返回 None。"""
+    return await memory_harness.get(db, user_id, memory_id)
+
+
 async def add_memory(
     db: AsyncSession,
     user_id: int,

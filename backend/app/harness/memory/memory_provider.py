@@ -82,6 +82,10 @@ class MemoryProvider(ABC):
         """关键词召回：匹配 name / description / body，返回完整记忆。"""
 
     @abstractmethod
+    async def get(self, db: AsyncSession, user_id: int, memory_id: int) -> UserMemory | None:
+        """按 id 获取单条记忆（仅限本人）。不存在返回 None。"""
+
+    @abstractmethod
     async def extract(
         self,
         db: AsyncSession,

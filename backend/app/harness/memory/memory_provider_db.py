@@ -127,6 +127,15 @@ class DBMemoryProvider(MemoryProvider):
         scored.sort(key=lambda x: x[0], reverse=True)
         return [m for _, m in scored[:limit]]
 
+    async def get(self, db: AsyncSession, user_id: int, memory_id: int) -> UserMemory | None:
+        """按 id 获取单条记忆（仅限本人）。不存在返回 None。"""
+        stmt = select(UserMemory).where(
+            UserMemory.id == memory_id,
+            UserMemory.user_id == user_id,
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     # ── 抽取 / 合并 ──────────────────────────────────
 
     async def extract(
