@@ -44,12 +44,15 @@ async def on_session_end(data: dict):
                 if m.content
             ]
             if not messages:
+                logger.debug("session:end 无消息可抽取: user=%s session=%s",
+                             user_id, session_id)
                 return
 
+            # 抽取结果日志由 memory.extract 内部记（单一真源），
+            # 这里只记事件链路 + 异常
             added = await memory.extract(db, user_id, messages)
-            if added:
-                logger.info("记忆抽取完成: user_id=%s session=%s 新增=%s 条",
-                            user_id, session_id, added)
+            logger.info("session:end 抽取完成: user=%s session=%s 新增=%s 条",
+                        user_id, session_id, added)
             await db.commit()
     except Exception:
         logger.exception("记忆抽取异常: user_id=%s session=%s", user_id, session_id)

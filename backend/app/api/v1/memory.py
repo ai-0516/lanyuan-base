@@ -75,8 +75,12 @@ async def add_memory(
             body=data.body.strip(),
         )
         await db.commit()
+        logger.info("记忆写入: user=%s id=%s name=%s type=%s",
+                    user_id, mem.id, mem.name, mem.type)
     except MemoryLimitError as e:
         await db.rollback()
+        logger.warning("记忆写入失败（超限）: user=%s name=%s err=%s",
+                       user_id, data.name, e)
         return api_error(40012, str(e))
     return api_success(_to_dict(mem))
 
@@ -92,6 +96,7 @@ async def get_memory(
     mem = await memory_service.get_memory(db, user_id, memory_id)
     if mem is None:
         return api_success(None)  # 查无此条 = 正常结果（业务失败≠系统异常）
+    logger.info("记忆读取: user=%s id=%s name=%s", user_id, memory_id, mem.name)
     return api_success(_to_dict(mem))
 
 
@@ -105,4 +110,5 @@ async def delete_memory(
     """删除一条跨会话记忆（仅限本人）。幂等：id 不存在也视为成功。"""
     deleted = await memory_service.delete_memory(db, user_id, memory_id)
     await db.commit()
+    logger.info("记忆删除: user=%s id=%s deleted=%s", user_id, memory_id, deleted)
     return api_success({"deleted": deleted})

@@ -63,6 +63,7 @@ async def add(
     count = await _provider.count(db, user_id)
     if count >= MAX_PER_USER:
         before = count
+        logger.info("记忆超限触发合并: user=%s count=%s 上限=%s", user_id, before, MAX_PER_USER)
         await consolidate(db, user_id)
         count = await _provider.count(db, user_id)
         if count >= MAX_PER_USER:
@@ -164,6 +165,8 @@ async def extract(db: AsyncSession, user_id: int, messages: list[dict]) -> int:
             added += 1
         except MemoryLimitError:
             logger.warning("记忆超限，抽取跳过: user_id=%s name=%s", user_id, name)
+    if added:
+        logger.info("记忆抽取: user=%s 新增=%s 条", user_id, added)
     return added
 
 
