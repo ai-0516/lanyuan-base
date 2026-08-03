@@ -7,9 +7,8 @@
 
 import logging
 
-from app.harness import context, memory_select, session
+from app.harness import context, memory, session
 from app.harness.agent import AIAgent
-from app.harness.memory import get_provider
 from app.harness.tools import TOOLS, execute_tool
 from app.schemas.ai import MessageItem, SessionResponse
 
@@ -56,11 +55,10 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 3. 构建上下文 ──
     history = await context.get_recent_messages(db, session_id)
-    # 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆按需注入
-    provider = get_provider()
-    memories = await provider.list_all(db, user_id)
+    # 跨会话记忆（#9）：索引常驻 SYSTEM + 相关记忆拼进最后一条 user 消息
+    memories = await memory.list_all(db, user_id)
     memory_index = context.build_memory_index(memories)
-    relevant = await memory_select.select_relevant(db, user_id, message, provider)
+    relevant = await memory.select_relevant(db, user_id, message)
     deepseek_messages = context.build_deepseek_messages(
         history,
         message,

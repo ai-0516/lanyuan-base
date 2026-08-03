@@ -488,3 +488,12 @@ async def test_memory_delete_other_users_memory(client: AsyncClient, auth_header
     assert resp.json()["data"]["deleted"] is False
 
 
+@pytest.mark.asyncio
+async def test_memory_delete_nonexistent_success(client: AsyncClient, auth_headers: dict):
+    """review #8/#12：删除不存在的记忆 id → 成功（code=0），deleted=false"""
+    resp = await client.delete("/api/v1/memory/999999", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["code"] == 0
+    assert resp.json()["data"]["deleted"] is False
+
+

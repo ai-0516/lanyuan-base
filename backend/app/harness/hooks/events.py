@@ -88,6 +88,8 @@ class ToolEndData(EventBase):
 class AgentEndData(EventBase):
     total_turns: int
     error: str | None
+    # 身份信息（review #4）：AGENT_END 事件直接携带，hook 无需自行暂存
+    meta: NotRequired[dict]
 
 
 # ── 实现 ──
