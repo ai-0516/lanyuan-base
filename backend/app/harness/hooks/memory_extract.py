@@ -32,7 +32,10 @@ async def on_session_end(data: dict):
     user_id = data.get("user_id")
     session_id = data.get("session_id")
     if user_id is None or session_id is None:
+        logger.warning("session:end 事件缺少身份信息: %s", data)
         return
+
+    logger.info("收到 session:end 事件: user=%s session=%s，开始抽取", user_id, session_id)
 
     try:
         async with async_session_factory() as db:
