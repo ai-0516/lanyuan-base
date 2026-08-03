@@ -118,3 +118,117 @@ class TestBuiltinHooks:
             + len(events._handlers.get("session:end", []))  # memory_extract = 1（2026-08-03 粒度设计）
         )
         assert total == 23
+
+
+# ═══════════════════════════════════════════
+#  SESSION_END → memory_extract 正向链路（端到端）
+# ═══════════════════════════════════════════
+
+class TestSessionEndExtractE2E:
+    """emit SESSION_END → hook 消费 → DB 读消息 → LLM 抽取 → 记忆落库"""
+
+    async def _setup_user_and_session(self) -> tuple[int, int]:
+        """建用户 + 会话 + 写入 2 条消息（user + assistant）"""
+        from app.core.database import async_session_factory
+        from app.models.conversation import Conversation, Message
+        from app.models.user import User
+
+        async with async_session_factory() as db:
+            user = User(openid="e2e-openid", nickname="e2e用户", avatar="")
+            db.add(user)
+            await db.flush()
+            conv = Conversation(user_id=user.id, title="e2e测试")
+            db.add(conv)
+            await db.flush()
+            db.add_all([
+                Message(conversation_id=conv.id, role="user",
+                        content="我叫张三，喜欢简洁的回复"),
+                Message(conversation_id=conv.id, role="assistant",
+                        content="好的，已了解。"),
+            ])
+            await db.commit()
+            return user.id, conv.id
+
+    async def test_session_end_extract_writes_memory(self, monkeypatch):
+        """正向链路：SESSION_END → extract → 记忆写入 user_memories"""
+        import json as _json
+
+        from app.core.database import async_session_factory
+        from app.harness.hooks.memory_extract import on_session_end
+        from app.harness.memory import memory as memory_harness
+        from app.models.user_memory import UserMemory
+
+        uid, conv_id = await self._setup_user_and_session()
+
+        # mock LLM：返回一条记忆
+        async def fake_call_llm(prompt):
+            return _json.dumps([{
+                "name": "user-name",
+                "type": "user",
+                "description": "用户名字",
+                "body": "我叫张三",
+            }])
+
+        monkeypatch.setattr(memory_harness, "_call_llm", fake_call_llm)
+
+        # 直接调用 hook（等价于 emit(SESSION_END, data) 的消费路径）
+        await on_session_end({"user_id": uid, "session_id": conv_id})
+
+        # 断言记忆已写入
+        async with async_session_factory() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(UserMemory).where(UserMemory.user_id == uid)
+            )
+            mems = list(result.scalars().all())
+
+        assert len(mems) == 1
+        assert mems[0].name == "user-name"
+        assert mems[0].type == "user"
+        assert "张三" in mems[0].body
+
+    async def test_session_end_no_messages_skips(self, monkeypatch):
+        """会话无消息 → hook 安全返回，不调 LLM 不写记忆"""
+        from app.core.database import async_session_factory
+        from app.harness.hooks.memory_extract import on_session_end
+        from app.harness.memory import memory as memory_harness
+        from app.models.conversation import Conversation
+        from app.models.user import User
+
+        async with async_session_factory() as db:
+            user = User(openid="e2e-empty", nickname="e2e空", avatar="")
+            db.add(user)
+            await db.flush()
+            conv = Conversation(user_id=user.id, title="空会话")
+            db.add(conv)
+            await db.commit()
+            uid, conv_id = user.id, conv.id
+
+        called = False
+
+        async def fake_call_llm(prompt):
+            nonlocal called
+            called = True
+            return "[]"
+
+        monkeypatch.setattr(memory_harness, "_call_llm", fake_call_llm)
+        await on_session_end({"user_id": uid, "session_id": conv_id})
+
+        assert called is False  # 无消息不触发 LLM
+
+    async def test_session_end_missing_ids_skips(self, monkeypatch):
+        """缺 user_id/session_id → 直接返回，不报错"""
+        from app.harness.hooks.memory_extract import on_session_end
+        from app.harness.memory import memory as memory_harness
+
+        called = False
+
+        async def fake_call_llm(prompt):
+            nonlocal called
+            called = True
+            return "[]"
+
+        monkeypatch.setattr(memory_harness, "_call_llm", fake_call_llm)
+        await on_session_end({})  # 空 data
+        await on_session_end({"user_id": 1})  # 缺 session_id
+        assert called is False
