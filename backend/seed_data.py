@@ -9,7 +9,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from app.core.database import async_session_factory, Base, engine
+from app.core.database import async_session_factory, Base, close_db, engine
 from app.core.security import create_access_token
 from app.models.user import User
 from app.models.post import Post
@@ -176,4 +176,9 @@ async def seed():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    async def _main():
+        await seed()
+        # 显式关闭连接池，避免退出后 aiomysql 连接析构时报 Event loop is closed
+        await close_db()
+
+    asyncio.run(_main())
