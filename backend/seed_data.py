@@ -176,4 +176,9 @@ async def seed():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    async def _main():
+        await seed()
+        # 显式关闭连接池，避免退出后 aiomysql 连接析构时报 Event loop is closed
+        await engine.dispose()
+
+    asyncio.run(_main())
