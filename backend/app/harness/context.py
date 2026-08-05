@@ -116,6 +116,8 @@ def _context_key(session_id: str, sections_digest: str) -> tuple:
 # session 粒度缓存：key=(session_id, sections_digest) → 组装结果。
 # 手动 LRU（OrderedDict）：lru_cache 的参数即 key，无法表达
 # 「组装输入（memory_index/workspace）参与组装但不参与 key」的冻结语义。
+# 并发安全：get_system_prompt 是同步函数（无 await），FastAPI 中同一事件循环
+# 单线程执行，OrderedDict 操作原子安全；非线程安全，勿在多线程中并发调用。
 _SESSION_PROMPT_CACHE: "OrderedDict[tuple, str]" = OrderedDict()
 _CACHE_MAXSIZE = 128
 
