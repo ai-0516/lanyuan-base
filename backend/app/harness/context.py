@@ -99,7 +99,7 @@ _SESSION_PROMPT_CACHE: "OrderedDict[str, str]" = OrderedDict()
 _CACHE_MAXSIZE = 128
 
 
-def get_system_prompt(context: dict | None = None) -> str:
+def get_system_prompt(context: dict = {}) -> str:
     """组装 System Prompt（session 粒度缓存）
 
     context 可含：
@@ -117,15 +117,14 @@ def get_system_prompt(context: dict | None = None) -> str:
     - PROMPT_SECTIONS 是模块级静态定义，改动随进程重启生效（无运行时热更新
       机制），因此不纳入缓存 key（2026-08-05 删 sections_digest，见 PR #39）。
     """
-    ctx = context or {}
-    session_id = ctx.get("session_id")
+    session_id = context.get("session_id")
     if not session_id:
-        return assemble_system_prompt(ctx)
+        return assemble_system_prompt(context)
     cached = _SESSION_PROMPT_CACHE.get(session_id)
     if cached is not None:
         _SESSION_PROMPT_CACHE.move_to_end(session_id)
         return cached
-    prompt = assemble_system_prompt(ctx)
+    prompt = assemble_system_prompt(context)
     _SESSION_PROMPT_CACHE[session_id] = prompt
     _SESSION_PROMPT_CACHE.move_to_end(session_id)
     if len(_SESSION_PROMPT_CACHE) > _CACHE_MAXSIZE:
