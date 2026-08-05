@@ -88,37 +88,31 @@ class TestAssembleSections:
 class TestGetSystemPromptCache:
     def test_same_session_byte_stable(self):
         """同 session → 返回同一对象（缓存命中，字节稳定 → 前缀缓存命中）"""
-        p1 = context.get_system_prompt({}, session_id="s1")
-        p2 = context.get_system_prompt({}, session_id="s1")
+        p1 = context.get_system_prompt({"session_id": "s1"})
+        p2 = context.get_system_prompt({"session_id": "s1"})
         assert p1 is p2
         assert p1 == p2
 
     def test_session_freeze_ignores_memory_change(self):
         """session 内 memory_index 变化 → 不重组装（冻结：key 不含 memory_index）"""
-        p1 = context.get_system_prompt(
-            {"memory_index": "你的记忆索引：\n- [user] #1 用户名字"},
-            session_id="s1",
-        )
-        p2 = context.get_system_prompt(
-            {"memory_index": "你的记忆索引：\n- [user] #2 新记忆"},
-            session_id="s1",
-        )
+        p1 = context.get_system_prompt({"memory_index": "你的记忆索引：\n- [user] #1 用户名字", "session_id": "s1"})
+        p2 = context.get_system_prompt({"memory_index": "你的记忆索引：\n- [user] #2 新记忆", "session_id": "s1"})
         assert p1 is p2  # 冻结：同 session 复用首次组装结果
         assert "用户名字" in p1  # 首次注入
         assert "新记忆" not in p1  # 后续变化被忽略（新记忆下个 session 生效）
 
     def test_different_sessions_assembled_independently(self):
         """不同 session → 各自组装，交替访问互不覆盖"""
-        a1 = context.get_system_prompt({"memory_index": "A的记忆"}, session_id="s1")
-        b1 = context.get_system_prompt({"memory_index": "B的记忆"}, session_id="s2")
-        c1 = context.get_system_prompt({}, session_id="s3")
+        a1 = context.get_system_prompt({"memory_index": "A的记忆", "session_id": "s1"})
+        b1 = context.get_system_prompt({"memory_index": "B的记忆", "session_id": "s2"})
+        c1 = context.get_system_prompt({"session_id": "s3"})
         assert "A的记忆" in a1 and "B的记忆" not in a1
         assert "B的记忆" in b1 and "A的记忆" not in b1
         assert "你的记忆索引：" not in c1
         # 交替访问后各自命中
-        assert context.get_system_prompt({"memory_index": "A的记忆"}, session_id="s1") is a1
-        assert context.get_system_prompt({"memory_index": "B的记忆"}, session_id="s2") is b1
-        assert context.get_system_prompt({}, session_id="s3") is c1
+        assert context.get_system_prompt({"memory_index": "A的记忆", "session_id": "s1"}) is a1
+        assert context.get_system_prompt({"memory_index": "B的记忆", "session_id": "s2"}) is b1
+        assert context.get_system_prompt({"session_id": "s3"}) is c1
 
     def test_no_session_id_assembles_fresh(self):
         """无 session_id → 不缓存，每次现组装（幂等：内容一致，非同一对象）"""
@@ -229,12 +223,12 @@ class TestSectionsChangeInvalidatesCache:
         """修改 PROMPT_SECTIONS → 缓存失效，get_system_prompt 返回新内容"""
         original = context.PROMPT_SECTIONS["identity"]
         try:
-            p1 = context.get_system_prompt({}, session_id="s1")
+            p1 = context.get_system_prompt({"session_id": "s1"})
             assert "你是兰园社区助手" in p1
 
             # 运行时修改 section（换角色/换场景热更新场景）
             context.PROMPT_SECTIONS["identity"] = "新角色：你是测试助手"
-            p2 = context.get_system_prompt({}, session_id="s1")
+            p2 = context.get_system_prompt({"session_id": "s1"})
 
             assert "新角色：你是测试助手" in p2  # 修复前：仍返回旧内容（bug）
             assert "你是兰园社区助手" not in p2
@@ -242,7 +236,7 @@ class TestSectionsChangeInvalidatesCache:
             context.PROMPT_SECTIONS["identity"] = original
 
         # 恢复后回到旧内容（缓存随摘要自动失效）
-        p3 = context.get_system_prompt({}, session_id="s1")
+        p3 = context.get_system_prompt({"session_id": "s1"})
         assert "你是兰园社区助手" in p3
         assert "新角色" not in p3
 
@@ -250,16 +244,10 @@ class TestSectionsChangeInvalidatesCache:
         """section 变化后，不同 session 仍各自独立命中（互不串扰）"""
         original = context.PROMPT_SECTIONS["identity"]
         try:
-            a1 = context.get_system_prompt(
-                {"memory_index": "你的记忆索引：\n- [user] #1 A的记忆"},
-                session_id="s1",
-            )
+            a1 = context.get_system_prompt({"memory_index": "你的记忆索引：\n- [user] #1 A的记忆", "session_id": "s1"})
 
             context.PROMPT_SECTIONS["identity"] = "新角色：你是测试助手"
-            a2 = context.get_system_prompt(
-                {"memory_index": "你的记忆索引：\n- [user] #1 A的记忆"},
-                session_id="s1",
-            )
+            a2 = context.get_system_prompt({"memory_index": "你的记忆索引：\n- [user] #1 A的记忆", "session_id": "s1"})
 
             assert "A的记忆" in a2
             assert "新角色" in a2
@@ -270,17 +258,17 @@ class TestSectionsChangeInvalidatesCache:
         """session 冻结 memory 变化，但 PROMPT_SECTIONS 热更新仍使缓存失效（两维度独立）"""
         original = context.PROMPT_SECTIONS["identity"]
         try:
-            p1 = context.get_system_prompt({}, session_id="s1")
+            p1 = context.get_system_prompt({"session_id": "s1"})
             assert "你是兰园社区助手" in p1
 
             # 同 session 内改 section → digest 变 → key 变 → 重组装
             context.PROMPT_SECTIONS["identity"] = "新角色：你是测试助手"
-            p2 = context.get_system_prompt({}, session_id="s1")
+            p2 = context.get_system_prompt({"session_id": "s1"})
 
             assert "新角色：你是测试助手" in p2
             assert "你是兰园社区助手" not in p2
         finally:
             context.PROMPT_SECTIONS["identity"] = original
         # 恢复后命中原缓存（同 session + 原 digest）
-        p3 = context.get_system_prompt({}, session_id="s1")
+        p3 = context.get_system_prompt({"session_id": "s1"})
         assert "你是兰园社区助手" in p3

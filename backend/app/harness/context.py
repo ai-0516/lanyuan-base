@@ -122,30 +122,35 @@ _SESSION_PROMPT_CACHE: "OrderedDict[tuple, str]" = OrderedDict()
 _CACHE_MAXSIZE = 128
 
 
-def get_system_prompt(context: dict | None = None, session_id: str = "") -> str:
+def get_system_prompt(context: dict | None = None) -> str:
     """组装 System Prompt（session 粒度缓存）
 
-    缓存语义（2026-08-05 snxly review 定）：缓存只在传入 session_id 时启用，
-    key = (session_id, sections_digest)。
-    - session 内首次组装后**冻结**：memory_index / workspace 只参与首次组装，
-      之后 session 内其变化（如 LLM 主动 memory_add 使记忆索引变化）不使缓存
-      失效——新记忆下个 session 生效。这是有意的：保持 system 字节稳定，
-      前缀缓存持续命中，token 成本优先。
+    context 可含：
+    - session_id：会话标识。有 → 按 (session_id, sections_digest) 缓存冻结；
+      **无 → 不缓存**，每次按当前 context 现组装——没有会话上下文就没有
+      「生命周期内字节稳定」可言，缓存无意义。
+    - memory_index / workspace：组装输入，只参与首次组装，不参与缓存 key。
+
+    缓存语义（2026-08-05 snxly review 定）：
+    - session 内首次组装后**冻结**：memory_index / workspace 变化
+      （如 LLM 主动 memory_add 使记忆索引变化）不使缓存失效——新记忆
+      下个 session 生效。这是有意的：保持 system 字节稳定，前缀缓存
+      持续命中，token 成本优先。
     - PROMPT_SECTIONS 变化（换项目/换场景热更新）→ sections_digest 变 →
       缓存失效重组装（对齐 #11「增删 section 不改主逻辑」目标）。
     - 缓存按 (session_id, sections_digest) LRU（maxsize=128），多会话交替
       各自命中，互不覆盖。
-    - **无 session_id → 不缓存**，每次按当前 context 现组装（幂等，内容一致）：
-      避免无 session 的调用共享一个 'default' 缓存造成隐蔽串扰。
     """
+    ctx = context or {}
+    session_id = ctx.get("session_id")
     if not session_id:
-        return assemble_system_prompt(context or {})
+        return assemble_system_prompt(ctx)
     key = _context_key(session_id, json.dumps(PROMPT_SECTIONS, sort_keys=True, ensure_ascii=False))
     cached = _SESSION_PROMPT_CACHE.get(key)
     if cached is not None:
         _SESSION_PROMPT_CACHE.move_to_end(key)
         return cached
-    prompt = assemble_system_prompt(context or {})
+    prompt = assemble_system_prompt(ctx)
     _SESSION_PROMPT_CACHE[key] = prompt
     _SESSION_PROMPT_CACHE.move_to_end(key)
     if len(_SESSION_PROMPT_CACHE) > _CACHE_MAXSIZE:
@@ -154,8 +159,8 @@ def get_system_prompt(context: dict | None = None, session_id: str = "") -> str:
 
 
 # 兼容常量：默认 context（无记忆、无 workspace）的组装结果。
-# 真实请求走 get_system_prompt(context)；此常量供测试与旧引用使用。
-SYSTEM_PROMPT = get_system_prompt({})
+# 直接走纯组装函数，不经缓存——常量是「默认角色」的静态快照，与缓存无关。
+SYSTEM_PROMPT = assemble_system_prompt({})
 
 
 async def get_recent_messages(
@@ -197,11 +202,14 @@ def build_deepseek_messages(
       这是有意的：保持 system 字节稳定 → 前缀缓存命中，token 成本优先。
 
     workspace：可选，换场景时传入当前对话上下文信息（社区对话默认空）。
-    session_id：会话标识，决定 system prompt 缓存粒度（同 session 冻结复用）。
+    session_id：会话标识，并入 context 决定 system prompt 缓存粒度（同 session 冻结复用）。
     """
     system_content = get_system_prompt(
-        {"memory_index": memory_index, "workspace": workspace},
-        session_id=session_id,
+        {
+            "session_id": session_id,
+            "memory_index": memory_index,
+            "workspace": workspace,
+        }
     )
 
     messages: list[dict] = [{"role": "system", "content": system_content}]
