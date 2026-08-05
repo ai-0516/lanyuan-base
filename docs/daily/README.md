@@ -19,6 +19,7 @@
 | [08-02](2026-08-02.md) | 统一错误格式 + Like 外键约束（#27/#28）+ 跨会话记忆（#9） | Starlette HTTPException 精确键查找、RequestValidationError 0.141+ 非 HTTPException 子类、SQLite PRAGMA FK、迁移双方言、review 脚本入库、MemoryProvider 抽象层（写入/读取/抽取）、agent:end 异步提取 |
 | [08-03](2026-08-03.md) | PR #33 二轮 review：记忆系统 15 条意见 | memory_service 分层、AGENT_END 补 meta + try/finally 防泄漏、relevant 拼 user 消息保缓存命中、DBMemoryProvider 改名、consolidate LLM 失败降级 |
 | [08-04](2026-08-04.md) | dev-server 部署 + seed_data.py 修复（#37） | systemd 常驻、sftp 绕过 banner、engine.dispose() 消除退出噪音 |
+| [08-05](2026-08-05.md) | System Prompt 运行时组装（#11） | PROMPT_SECTIONS 拆分、确定性缓存（json.dumps + lru_cache）、workspace 按需注入 |
 
 ---
 
