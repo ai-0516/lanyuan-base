@@ -10,22 +10,22 @@ Section 设计（issue #11）：
 - tools        始终加载    可用功能列表 + 使用说明
 - memory       始终加载说明；调用方传 memory_index 时追加索引段（#9 跨会话记忆）
 - compression  始终加载    #8 上下文压缩策略说明 + 占位符解读
-- workspace    按需注入    调用方传非空才加载（社区对话场景默认无此信息，换场景时启用）
 
-换项目/换场景时：增删 PROMPT_SECTIONS + _SECTION_ORDER 即可，不改主逻辑。
+换项目/换场景时：增删 PROMPT_SECTIONS 即可（section 顺序 = dict 定义顺序，Python 3.7+ 插入序），不改主逻辑。
 
-缓存设计（对齐 Hermes 不变量）：
+缓存设计（对齐 Hermes 不变量 + 2026-08-05 snxly review 定 session 粒度）：
 - Hermes 硬不变量：「不改变过去的上下文，新内容只追加在末尾」——
-  system prompt 在对话生命周期内 byte-stable；每轮变化的工具结果作为新消息追加。
-- 因此：组装结果按 context（memory_index / workspace）确定性缓存
-  （json.dumps sort_keys 做 key，对齐参考实现 s10 的 deterministic cache，
-  不用 Python hash()——进程随机化且嵌套 dict 不可 hash）。
-  context 不变 → 字节不变 → API 前缀缓存命中；记忆/会话状态变化 → 缓存失效重组装。
+  system prompt 在对话（session）生命周期内 byte-stable；每轮变化的工具结果作为新消息追加。
+- 缓存 key = session_id：session 内首次组装后冻结，memory_index 只参与首次组装，
+  之后 session 内变化（如 LLM 主动 memory_add）不使缓存失效，
+  新记忆下个 session 生效（保持前缀缓存命中，token 成本优先）。
+- PROMPT_SECTIONS 是模块级静态定义，改动随进程重启生效（无运行时热更新机制），
+  不纳入缓存 key（2026-08-05 删 sections_digest，见 PR #39 comment）。
 - 历史 user 消息从 DB 读出原始内容，绝不改写。
 """
 
 import json
-from functools import lru_cache
+from collections import OrderedDict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,26 +70,18 @@ PROMPT_SECTIONS = {
         "如果用户询问较早对话的具体细节而摘要中缺失，"
         "请重新执行相关工具获取最新数据，不要凭空编造。"
     ),
-    "workspace": "当前对话上下文：{workspace}",
 }
-
-# Section 组装顺序（稳定序 → 字节稳定 → 前缀缓存命中）
-_SECTION_ORDER = ("identity", "tools", "memory", "compression", "workspace")
 
 
 def assemble_system_prompt(context: dict) -> str:
     """按真实状态选择并拼接 sections（参考实现 s10：同 context → 同输出）
 
+    - section 顺序 = PROMPT_SECTIONS 定义顺序（dict 插入序，Python 3.7+ 规范）
     - 始终加载：identity / tools / memory（说明）/ compression
-    - 按需加载：memory_index 非空 → 追加索引段；workspace 非空 → 追加上下文段
+    - 按需加载：memory_index 非空 → 追加索引段
     """
     parts: list[str] = []
-    for name in _SECTION_ORDER:
-        if name == "workspace":
-            ws = context.get("workspace", "")
-            if ws:
-                parts.append(PROMPT_SECTIONS["workspace"].format(workspace=ws))
-            continue
+    for name in PROMPT_SECTIONS:
         parts.append(PROMPT_SECTIONS[name])
         if name == "memory":
             memory_index = context.get("memory_index", "")
@@ -98,33 +90,55 @@ def assemble_system_prompt(context: dict) -> str:
     return "\n\n".join(parts)
 
 
-def _context_key(context: dict) -> str:
-    """确定性序列化做缓存 key（对齐参考实现：json.dumps，非 Python hash）"""
-    return json.dumps(context, sort_keys=True, ensure_ascii=False, default=str)
+# session 粒度缓存：key=session_id → 组装结果。
+# 手动 LRU（OrderedDict）：lru_cache 的参数即 key，无法表达
+# 「组装输入（memory_index）参与组装但不参与 key」的冻结语义。
+# 并发安全：get_system_prompt 是同步函数（无 await），FastAPI 中同一事件循环
+# 单线程执行，OrderedDict 操作原子安全；非线程安全，勿在多线程中并发调用。
+_SESSION_PROMPT_CACHE: "OrderedDict[str, str]" = OrderedDict()
+_CACHE_MAXSIZE = 128
 
 
-@lru_cache(maxsize=128)
-def _assemble_cached(context_key: str, sections_digest: str) -> str:
-    return assemble_system_prompt(json.loads(context_key))
+def get_system_prompt(context: dict = {}) -> str:
+    """组装 System Prompt（session 粒度缓存）
 
+    context 可含：
+    - session_id：会话标识。有 → 按 session_id 缓存冻结；
+      **无 → 不缓存**，每次按当前 context 现组装——没有会话上下文就没有
+      「生命周期内字节稳定」可言，缓存无意义。
+    - memory_index：组装输入，只参与首次组装，不参与缓存 key。
 
-def get_system_prompt(context: dict | None = None) -> str:
-    """组装 System Prompt（带缓存）
-
-    缓存语义：context 不变 + section 不变 → 返回相同字符串（字节稳定，前缀缓存命中）；
-    context 变化（记忆/会话/workspace 状态变化）或 PROMPT_SECTIONS 变化
-    （换项目/换场景热更新）→ 重组装。
-    lru_cache 按 (context_key, sections_digest) 缓存：sections_digest 是
-    PROMPT_SECTIONS 的确定性摘要，运行时修改 section 内容自动使缓存失效
-    （对齐 #11「增删 section 不改主逻辑」目标）。
+    缓存语义（2026-08-05 snxly review 定）：
+    - session 内首次组装后**冻结**：memory_index 变化
+      （如 LLM 主动 memory_add 使记忆索引变化）不使缓存失效——新记忆
+      下个 session 生效。这是有意的：保持 system 字节稳定，前缀缓存
+      持续命中，token 成本优先。
+    - 缓存按 session_id LRU（maxsize=128），多会话交替各自命中，互不覆盖。
+    - PROMPT_SECTIONS 是模块级静态定义，改动随进程重启生效（无运行时热更新
+      机制），因此不纳入缓存 key（2026-08-05 删 sections_digest，见 PR #39）。
     """
-    sections_digest = json.dumps(PROMPT_SECTIONS, sort_keys=True, ensure_ascii=False)
-    return _assemble_cached(_context_key(context or {}), sections_digest)
+    session_id = context.get("session_id")
+    if not session_id:
+        # 无会话上下文 → 没有「生命周期内字节稳定」可言，缓存无意义，每次现组装。
+        # 生产路径（ai_service）总是传 session_id，此分支是接口兜底语义。
+        # 不用固定默认值（如 "default"）：无 session 调用会共享缓存互相串扰；
+        # 也不用随机 key 模拟 miss：隐晦，不如直白分支（2026-08-05 讨论定）。
+        return assemble_system_prompt(context)
+    cached = _SESSION_PROMPT_CACHE.get(session_id)
+    if cached is not None:
+        _SESSION_PROMPT_CACHE.move_to_end(session_id)
+        return cached
+    prompt = assemble_system_prompt(context)
+    _SESSION_PROMPT_CACHE[session_id] = prompt
+    _SESSION_PROMPT_CACHE.move_to_end(session_id)
+    if len(_SESSION_PROMPT_CACHE) > _CACHE_MAXSIZE:
+        _SESSION_PROMPT_CACHE.popitem(last=False)
+    return prompt
 
 
-# 兼容常量：默认 context（无记忆、无 workspace）的组装结果。
-# 真实请求走 get_system_prompt(context)；此常量供测试与旧引用使用。
-SYSTEM_PROMPT = get_system_prompt({})
+# 兼容常量：默认 context（无记忆）的组装结果。
+# 直接走纯组装函数，不经缓存——常量是「默认角色」的静态快照，与缓存无关。
+SYSTEM_PROMPT = assemble_system_prompt({})
 
 
 async def get_recent_messages(
@@ -148,7 +162,7 @@ def build_deepseek_messages(
     history: list[Message],
     user_message: str,
     memory_index: str = "",
-    workspace: str = "",
+    session_id: str = "",
 ) -> list[dict]:
     """组装 DeepSeek 请求的 messages 数组
 
@@ -156,13 +170,22 @@ def build_deepseek_messages(
     用户消息在上一步已写入 DB，因此已包含在 history 中。
     user_message 参数保留用于未来扩展。
 
-    记忆（2026-08-03 粒度设计）：只注入记忆索引（build_memory_index 生成，
-    全部记忆的 description）——静态内容，记忆不变则 system 字节不变，
-    前缀缓存命中。不再注入相关记忆（select_relevant 是动态选择，每轮结果
-    可能不同，是缓存杀手）。
-    workspace：可选，换场景时传入当前对话上下文信息（社区对话默认空）。
+    记忆（2026-08-03 粒度设计 + 2026-08-05 session 冻结）：
+    - 只注入记忆索引（build_memory_index 生成，全部记忆的 description）；
+      不注入相关记忆（select_relevant 是动态选择，每轮结果可能不同，是缓存杀手）。
+    - memory_index 在 session 首次组装 system prompt 时注入，之后**冻结**
+      （缓存 key 不含 memory_index）——LLM 主动 memory_add 后新记忆不立即
+      反映到当前 session 的 system prompt，下个 session 生效。
+      这是有意的：保持 system 字节稳定 → 前缀缓存命中，token 成本优先。
+
+    session_id：会话标识，并入 context 决定 system prompt 缓存粒度（同 session 冻结复用）。
     """
-    system_content = get_system_prompt({"memory_index": memory_index, "workspace": workspace})
+    system_content = get_system_prompt(
+        {
+            "session_id": session_id,
+            "memory_index": memory_index,
+        }
+    )
 
     messages: list[dict] = [{"role": "system", "content": system_content}]
     for m in history:
