@@ -1,11 +1,11 @@
 """System Prompt 运行时组装（#11）单元测试
 
 覆盖：
-- PROMPT_SECTIONS 拆分为独立 section（identity / tools / memory / compression / workspace）
-- 按需加载：memory_index / workspace 非空才注入，否则不注入
+- PROMPT_SECTIONS 拆分为独立 section（identity / tools / memory / compression）
+- 按需加载：memory_index 非空才注入，否则不注入
 - session 粒度缓存：同 session 冻结（memory_index 变化不重组装）；不同 session 各自组装
 - PROMPT_SECTIONS 热更新 → 缓存失效（sections_digest 并入 key）
-- build_deepseek_messages 的 workspace / session_id 参数路径
+- build_deepseek_messages 的 session_id 参数路径
 - SYSTEM_PROMPT 兼容常量（默认 context 组装结果）
 """
 
@@ -38,7 +38,6 @@ class TestAssembleSections:
         assert "你可以使用的功能" in prompt  # tools
         assert "跨会话记忆" in prompt  # memory 说明
         assert "上下文压缩" in prompt  # compression
-        assert "当前对话上下文" not in prompt  # workspace 默认不注入
 
     def test_sections_joined_in_stable_order(self):
         """section 按 _SECTION_ORDER 稳定序拼接（字节稳定前提）"""
@@ -57,14 +56,6 @@ class TestAssembleSections:
 
         prompt_no_memory = context.assemble_system_prompt({})
         assert "你的记忆索引：" not in prompt_no_memory
-
-    def test_workspace_injected_when_non_empty(self):
-        """workspace 非空 → 注入上下文段；空 → 不注入"""
-        prompt = context.assemble_system_prompt({"workspace": "管理后台数据维护"})
-        assert "当前对话上下文：管理后台数据维护" in prompt
-
-        prompt_no_ws = context.assemble_system_prompt({"workspace": ""})
-        assert "当前对话上下文" not in prompt_no_ws
 
     def test_sections_independent(self):
         """section 独立维护：单独修改一个 section 不影响组装逻辑"""
@@ -138,20 +129,6 @@ class TestBuildDeepseekMessages:
             tool_call_id=None,
             tool_calls=None,
         )
-
-    def test_workspace_param_injected(self):
-        """build_deepseek_messages 支持 workspace 可选参数"""
-        messages = context.build_deepseek_messages(
-            [self._fake_msg("user", "你好")],
-            "你好",
-            workspace="管理后台数据维护",
-        )
-        assert "当前对话上下文：管理后台数据维护" in messages[0]["content"]
-
-    def test_workspace_default_empty(self):
-        """默认不传 workspace → 不注入 workspace 段"""
-        messages = context.build_deepseek_messages([self._fake_msg("user", "你好")], "你好")
-        assert "当前对话上下文" not in messages[0]["content"]
 
     def test_memory_index_still_supported(self):
         """memory_index 关键字参数兼容（#9 既有调用路径）"""

@@ -10,7 +10,6 @@ Section 设计（issue #11）：
 - tools        始终加载    可用功能列表 + 使用说明
 - memory       始终加载说明；调用方传 memory_index 时追加索引段（#9 跨会话记忆）
 - compression  始终加载    #8 上下文压缩策略说明 + 占位符解读
-- workspace    按需注入    调用方传非空才加载（社区对话场景默认无此信息，换场景时启用）
 
 换项目/换场景时：增删 PROMPT_SECTIONS + _SECTION_ORDER 即可，不改主逻辑。
 
@@ -18,7 +17,7 @@ Section 设计（issue #11）：
 - Hermes 硬不变量：「不改变过去的上下文，新内容只追加在末尾」——
   system prompt 在对话（session）生命周期内 byte-stable；每轮变化的工具结果作为新消息追加。
 - 缓存 key = (session_id, sections_digest)：
-  - session 内首次组装后冻结：memory_index / workspace 只参与首次组装，
+  - session 内首次组装后冻结：memory_index 只参与首次组装，
     之后 session 内变化（如 LLM 主动 memory_add）不使缓存失效，
     新记忆下个 session 生效（保持前缀缓存命中，token 成本优先）。
   - sections_digest = json.dumps(PROMPT_SECTIONS, sort_keys=True)，
@@ -73,26 +72,20 @@ PROMPT_SECTIONS = {
         "如果用户询问较早对话的具体细节而摘要中缺失，"
         "请重新执行相关工具获取最新数据，不要凭空编造。"
     ),
-    "workspace": "当前对话上下文：{workspace}",
 }
 
 # Section 组装顺序（稳定序 → 字节稳定 → 前缀缓存命中）
-_SECTION_ORDER = ("identity", "tools", "memory", "compression", "workspace")
+_SECTION_ORDER = ("identity", "tools", "memory", "compression")
 
 
 def assemble_system_prompt(context: dict) -> str:
     """按真实状态选择并拼接 sections（参考实现 s10：同 context → 同输出）
 
     - 始终加载：identity / tools / memory（说明）/ compression
-    - 按需加载：memory_index 非空 → 追加索引段；workspace 非空 → 追加上下文段
+    - 按需加载：memory_index 非空 → 追加索引段
     """
     parts: list[str] = []
     for name in _SECTION_ORDER:
-        if name == "workspace":
-            ws = context.get("workspace", "")
-            if ws:
-                parts.append(PROMPT_SECTIONS["workspace"].format(workspace=ws))
-            continue
         parts.append(PROMPT_SECTIONS[name])
         if name == "memory":
             memory_index = context.get("memory_index", "")
@@ -107,7 +100,7 @@ def _context_key(session_id: str, sections_digest: str) -> tuple:
     - session_id：会话生命周期内不变 → session 内 system 字节稳定（前缀缓存命中）
     - sections_digest：PROMPT_SECTIONS 内容摘要，section 热更新（换项目/换场景）
       自动使缓存失效
-    - memory_index / workspace 不参与 key：它们是组装输入，但 session 内冻结——
+    - memory_index 不参与 key：它是组装输入，但 session 内冻结——
       首次组装后不再随其变化重组装（对齐 Hermes「不改变过去上下文」不变量）
     """
     return (session_id, sections_digest)
@@ -115,7 +108,7 @@ def _context_key(session_id: str, sections_digest: str) -> tuple:
 
 # session 粒度缓存：key=(session_id, sections_digest) → 组装结果。
 # 手动 LRU（OrderedDict）：lru_cache 的参数即 key，无法表达
-# 「组装输入（memory_index/workspace）参与组装但不参与 key」的冻结语义。
+# 「组装输入（memory_index）参与组装但不参与 key」的冻结语义。
 # 并发安全：get_system_prompt 是同步函数（无 await），FastAPI 中同一事件循环
 # 单线程执行，OrderedDict 操作原子安全；非线程安全，勿在多线程中并发调用。
 _SESSION_PROMPT_CACHE: "OrderedDict[tuple, str]" = OrderedDict()
@@ -129,10 +122,10 @@ def get_system_prompt(context: dict | None = None) -> str:
     - session_id：会话标识。有 → 按 (session_id, sections_digest) 缓存冻结；
       **无 → 不缓存**，每次按当前 context 现组装——没有会话上下文就没有
       「生命周期内字节稳定」可言，缓存无意义。
-    - memory_index / workspace：组装输入，只参与首次组装，不参与缓存 key。
+    - memory_index：组装输入，只参与首次组装，不参与缓存 key。
 
     缓存语义（2026-08-05 snxly review 定）：
-    - session 内首次组装后**冻结**：memory_index / workspace 变化
+    - session 内首次组装后**冻结**：memory_index 变化
       （如 LLM 主动 memory_add 使记忆索引变化）不使缓存失效——新记忆
       下个 session 生效。这是有意的：保持 system 字节稳定，前缀缓存
       持续命中，token 成本优先。
@@ -158,7 +151,7 @@ def get_system_prompt(context: dict | None = None) -> str:
     return prompt
 
 
-# 兼容常量：默认 context（无记忆、无 workspace）的组装结果。
+# 兼容常量：默认 context（无记忆）的组装结果。
 # 直接走纯组装函数，不经缓存——常量是「默认角色」的静态快照，与缓存无关。
 SYSTEM_PROMPT = assemble_system_prompt({})
 
@@ -184,7 +177,6 @@ def build_deepseek_messages(
     history: list[Message],
     user_message: str,
     memory_index: str = "",
-    workspace: str = "",
     session_id: str = "",
 ) -> list[dict]:
     """组装 DeepSeek 请求的 messages 数组
@@ -201,14 +193,12 @@ def build_deepseek_messages(
       反映到当前 session 的 system prompt，下个 session 生效。
       这是有意的：保持 system 字节稳定 → 前缀缓存命中，token 成本优先。
 
-    workspace：可选，换场景时传入当前对话上下文信息（社区对话默认空）。
     session_id：会话标识，并入 context 决定 system prompt 缓存粒度（同 session 冻结复用）。
     """
     system_content = get_system_prompt(
         {
             "session_id": session_id,
             "memory_index": memory_index,
-            "workspace": workspace,
         }
     )
 
