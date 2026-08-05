@@ -119,6 +119,10 @@ def get_system_prompt(context: dict = {}) -> str:
     """
     session_id = context.get("session_id")
     if not session_id:
+        # 无会话上下文 → 没有「生命周期内字节稳定」可言，缓存无意义，每次现组装。
+        # 生产路径（ai_service）总是传 session_id，此分支是接口兜底语义。
+        # 不用固定默认值（如 "default"）：无 session 调用会共享缓存互相串扰；
+        # 也不用随机 key 模拟 miss：隐晦，不如直白分支（2026-08-05 讨论定）。
         return assemble_system_prompt(context)
     cached = _SESSION_PROMPT_CACHE.get(session_id)
     if cached is not None:
