@@ -11,7 +11,7 @@ Section 设计（issue #11）：
 - memory       始终加载说明；调用方传 memory_index 时追加索引段（#9 跨会话记忆）
 - compression  始终加载    #8 上下文压缩策略说明 + 占位符解读
 
-换项目/换场景时：增删 PROMPT_SECTIONS + _SECTION_ORDER 即可，不改主逻辑。
+换项目/换场景时：增删 PROMPT_SECTIONS 即可（section 顺序 = dict 定义顺序，Python 3.7+ 插入序），不改主逻辑。
 
 缓存设计（对齐 Hermes 不变量 + 2026-08-05 snxly review 定 session 粒度）：
 - Hermes 硬不变量：「不改变过去的上下文，新内容只追加在末尾」——
@@ -72,18 +72,16 @@ PROMPT_SECTIONS = {
     ),
 }
 
-# Section 组装顺序（稳定序 → 字节稳定 → 前缀缓存命中）
-_SECTION_ORDER = ("identity", "tools", "memory", "compression")
-
 
 def assemble_system_prompt(context: dict) -> str:
     """按真实状态选择并拼接 sections（参考实现 s10：同 context → 同输出）
 
+    - section 顺序 = PROMPT_SECTIONS 定义顺序（dict 插入序，Python 3.7+ 规范）
     - 始终加载：identity / tools / memory（说明）/ compression
     - 按需加载：memory_index 非空 → 追加索引段
     """
     parts: list[str] = []
-    for name in _SECTION_ORDER:
+    for name in PROMPT_SECTIONS:
         parts.append(PROMPT_SECTIONS[name])
         if name == "memory":
             memory_index = context.get("memory_index", "")

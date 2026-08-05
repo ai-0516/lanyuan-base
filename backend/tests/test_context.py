@@ -39,7 +39,7 @@ class TestAssembleSections:
         assert "上下文压缩" in prompt  # compression
 
     def test_sections_joined_in_stable_order(self):
-        """section 按 _SECTION_ORDER 稳定序拼接（字节稳定前提）"""
+        """section 按 PROMPT_SECTIONS 定义顺序拼接（字节稳定前提）"""
         prompt = context.assemble_system_prompt({})
         idx_identity = prompt.index("你是兰园社区助手")
         idx_tools = prompt.index("你可以使用的功能")
