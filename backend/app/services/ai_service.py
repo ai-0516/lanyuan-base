@@ -27,8 +27,10 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
         title=conv.title or "",
         messages=[
             MessageItem(
-                id=m.id, role=m.role,
-                content=m.content, created_at=m.created_at,
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                created_at=m.created_at,
             )
             for m in recent
         ],
@@ -42,13 +44,15 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     if message.strip() == "/new":
         # session 结束（2026-08-03 粒度设计）：emit session:end，hook 异步抽取
         # 该 session 的完整对话为跨会话记忆。事件驱动，不阻塞 /new 响应。
-        logger.info("发起 session:end: user=%s session=%s，触发跨会话记忆抽取",
-                    user_id, session_id)
-        events.emit(events.SESSION_END, {
-            "req_id": secrets.token_hex(4),
-            "user_id": user_id,
-            "session_id": session_id,
-        })
+        logger.info("发起 session:end: user=%s session=%s，触发跨会话记忆抽取", user_id, session_id)
+        events.emit(
+            events.SESSION_END,
+            {
+                "req_id": secrets.token_hex(4),
+                "user_id": user_id,
+                "session_id": session_id,
+            },
+        )
         new_conv = await session.create_new(db, user_id)
         await db.commit()
         yield ("cmd_new_session", new_conv.id)
@@ -66,15 +70,17 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
     # ── 3. 构建上下文 ──
     history = await context.get_recent_messages(db, session_id)
-    # 跨会话记忆（2026-08-03 粒度设计）：只注入记忆索引（全部记忆 description），
-    # 不注入相关记忆（select_relevant 是动态选择，每轮结果可能不同，是缓存杀手）。
-    # 索引是静态的：记忆只在 session 结束（/new）时抽取，session 内不变 →
-    # 每轮 build_memory_index 字节相同 → system 前缀缓存命中。
+    # 跨会话记忆（2026-08-03 粒度设计 + 2026-08-05 session 冻结）：
+    # 只注入记忆索引（全部记忆 description），不注入相关记忆（动态选择是缓存杀手）。
+    # 索引在 session 首次组装 system prompt 时注入后冻结（缓存 key=session_id），
+    # 之后即使 LLM 主动 memory_add 使索引变化也不重组装——新记忆下个 session 生效，
+    # 保持 system 字节稳定 → 前缀缓存命中，token 成本优先。
     memory_index = await memory.build_memory_index(db, user_id)
     deepseek_messages = context.build_deepseek_messages(
         history,
         message,
         memory_index=memory_index,
+        session_id=str(session_id),
     )
 
     # ── 4. Agent Loop（含工具调用） ──
@@ -89,8 +95,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
         ):
             # LLM 返回的错误事件（非异常），记录 ERROR 级别便于 error.log 定位
             if event == "error":
-                logger.error("Agent 返回错误: session_id=%s user_id=%s error=%s",
-                             session_id, user_id, data)
+                logger.error("Agent 返回错误: session_id=%s user_id=%s error=%s", session_id, user_id, data)
             yield (event, data)
     except Exception:
         logger.exception("stream_chat 异常: session_id=%s user_id=%s", session_id, user_id)
@@ -109,13 +114,16 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                 if tc:
                     # 保存 assistant tool_call 消息（含真实 tool_calls 结构）
                     await session.save_tool_call_message(
-                        db, session_id, tc,
+                        db,
+                        session_id,
+                        tc,
                         content=turn.get("content") or None,
                     )
                     # 保存 tool 执行结果
                     for tr in turn.get("tool_results", []):
                         await session.save_tool_result_message(
-                            db, session_id,
+                            db,
+                            session_id,
                             tool_call_id=tr.get("tool_call_id", ""),
                             content=tr.get("result", ""),
                         )
@@ -123,7 +131,9 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                     # 纯文本回复
                     if turn.get("content"):
                         await session.save_assistant_message(
-                            db, session_id, turn["content"],
+                            db,
+                            session_id,
+                            turn["content"],
                         )
             await session.touch_conversation(db, session_id)
 
