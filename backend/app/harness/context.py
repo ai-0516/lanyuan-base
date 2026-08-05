@@ -104,18 +104,22 @@ def _context_key(context: dict) -> str:
 
 
 @lru_cache(maxsize=128)
-def _assemble_cached(context_key: str) -> str:
+def _assemble_cached(context_key: str, sections_digest: str) -> str:
     return assemble_system_prompt(json.loads(context_key))
 
 
 def get_system_prompt(context: dict | None = None) -> str:
     """组装 System Prompt（带缓存）
 
-    缓存语义：context 不变 → 返回相同字符串（字节稳定，前缀缓存命中）；
-    context 变化（记忆/会话/workspace 状态变化）→ 重组装。
-    lru_cache 按 context_key 缓存，多用户交替请求时各自命中，互不覆盖。
+    缓存语义：context 不变 + section 不变 → 返回相同字符串（字节稳定，前缀缓存命中）；
+    context 变化（记忆/会话/workspace 状态变化）或 PROMPT_SECTIONS 变化
+    （换项目/换场景热更新）→ 重组装。
+    lru_cache 按 (context_key, sections_digest) 缓存：sections_digest 是
+    PROMPT_SECTIONS 的确定性摘要，运行时修改 section 内容自动使缓存失效
+    （对齐 #11「增删 section 不改主逻辑」目标）。
     """
-    return _assemble_cached(_context_key(context or {}))
+    sections_digest = json.dumps(PROMPT_SECTIONS, sort_keys=True, ensure_ascii=False)
+    return _assemble_cached(_context_key(context or {}), sections_digest)
 
 
 # 兼容常量：默认 context（无记忆、无 workspace）的组装结果。

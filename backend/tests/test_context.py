@@ -160,3 +160,53 @@ def test_system_prompt_constant_is_default_assembly():
     assert "memory_add" in context.SYSTEM_PROMPT  # memory 说明 section
     assert "不要告诉用户「我可以帮你记住」" in context.SYSTEM_PROMPT
     assert "你的记忆索引：" not in context.SYSTEM_PROMPT  # 无记忆时不注入索引
+
+
+# ═══════════════════════════════════════════
+#  PROMPT_SECTIONS 运行时修改 → 缓存失效（review #39 严重问题修复）
+# ═══════════════════════════════════════════
+
+
+class TestSectionsChangeInvalidatesCache:
+    """PROMPT_SECTIONS 运行时修改必须使 get_system_prompt 缓存失效
+
+    复现 dev-lead 实测场景：改 section 后 get_system_prompt 仍返回旧内容
+    （原实现 lru_cache 只按 context 做 key，不感知 section 变化）。
+    修复：sections_digest 并入缓存 key。
+    """
+
+    def test_section_change_invalidates_cached_prompt(self):
+        """修改 PROMPT_SECTIONS → get_system_prompt 返回新内容（缓存失效）"""
+        original = context.PROMPT_SECTIONS["identity"]
+        try:
+            p1 = context.get_system_prompt({})
+            assert "你是兰园社区助手" in p1
+
+            # 运行时修改 section（换角色/换场景热更新场景）
+            context.PROMPT_SECTIONS["identity"] = "新角色：你是测试助手"
+            p2 = context.get_system_prompt({})
+
+            assert "新角色：你是测试助手" in p2  # 修复前：仍返回旧内容（bug）
+            assert "你是兰园社区助手" not in p2
+        finally:
+            context.PROMPT_SECTIONS["identity"] = original
+
+        # 恢复后回到旧内容（缓存随摘要自动失效）
+        p3 = context.get_system_prompt({})
+        assert "你是兰园社区助手" in p3
+        assert "新角色" not in p3
+
+    def test_section_change_keeps_context_distinction(self):
+        """section 变化后，不同 context 仍各自独立命中（互不串扰）"""
+        original = context.PROMPT_SECTIONS["identity"]
+        ctx_a = {"memory_index": "你的记忆索引：\n- [user] #1 A的记忆"}
+        try:
+            a1 = context.get_system_prompt(ctx_a)
+
+            context.PROMPT_SECTIONS["identity"] = "新角色：你是测试助手"
+            a2 = context.get_system_prompt(ctx_a)
+
+            assert "A的记忆" in a2
+            assert "新角色" in a2
+        finally:
+            context.PROMPT_SECTIONS["identity"] = original
