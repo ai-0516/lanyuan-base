@@ -3,13 +3,36 @@ const app = getApp();
 
 Page({
   data: {
-    messages: [],           // 消息列表 [{role, content, time}]
+    messages: [],           // 消息列表 [{id, role, content, nodes, time}]
     inputValue: '',         // 输入框内容
     canSend: false,         // 输入框是否有内容（WXML 不能调 trim()）
     isLoading: false,       // 是否正在加载 AI 回复
     sessionId: '',          // 当前会话 ID
     userAvatar: '',         // 用户头像
     lastMsgId: 'msg-end',   // 滚动定位锚点
+    hasMoreHistory: true,   // 是否还有更早历史（#48 下拉加载）
+    historyLoading: false,  // 历史加载防抖
+  },
+
+  /** 是否展示该消息（#48：tool 结果 + tool_call 消息不渲染）
+   *  tool 角色（压缩摘要等 AI 内部结果）不对用户展示；
+   *  assistant 的 tool_calls 消息 content 为空（纯工具调用轮次），无可显示文字
+   */
+  _shouldShow(msg) {
+    if (msg.role === 'tool') return false;
+    if (msg.role === 'assistant' && msg.tool_calls) return false;
+    return true;
+  },
+
+  /** 格式化消息为渲染结构（保留 id 供历史分页游标） */
+  _formatMessage(msg) {
+    return {
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      nodes: msg.role === 'assistant' ? app.towxml(msg.content || '', 'markdown', { theme: 'light' }) : [],
+      time: this.formatTime(msg.created_at),
+    };
   },
 
   onLoad() {
@@ -27,18 +50,14 @@ Page({
     try {
       const res = await request('POST', '/ai/session');
       const { session_id, messages } = res;
-      // 格式化历史消息（过滤 tool 角色，AI 内部结果不对用户展示）
+      // 格式化历史消息（过滤 tool 角色 + tool_call 消息，AI 内部过程不对用户展示）
       const formatted = (messages || [])
-        .filter(msg => msg.role !== 'tool')
-        .map(msg => ({
-        role: msg.role,
-        content: msg.content,
-        nodes: msg.role === 'assistant' ? app.towxml(msg.content || '', 'markdown', { theme: 'light' }) : [],
-        time: this.formatTime(msg.created_at),
-      }));
+        .filter(msg => this._shouldShow(msg))
+        .map(msg => this._formatMessage(msg));
       this.setData({
         sessionId: session_id,
         messages: formatted,
+        hasMoreHistory: true,
       });
       this.scrollToBottom();
 
@@ -49,6 +68,31 @@ Page({
     } catch (err) {
       console.error('获取 AI 会话失败', err);
       wx.showToast({ title: '会话创建失败', icon: 'none' });
+    }
+  },
+
+  /** 触顶加载更早历史（#48，TECH_SPEC 8.5 方案 B：默认最新 + 下拉加载） */
+  async loadHistory() {
+    const { messages, historyLoading, hasMoreHistory } = this.data;
+    if (historyLoading || !hasMoreHistory || messages.length === 0) return;
+
+    this.setData({ historyLoading: true });
+    try {
+      const beforeId = messages[0].id;
+      const res = await request('GET', `/ai/messages?before_id=${beforeId}&limit=20`);
+      const { messages: older, has_more } = res;
+      // 后端返回 id 倒序（最新在前）→ 反转成时间正序，prepend 到列表头部
+      const formatted = (older || []).reverse()
+        .filter(msg => this._shouldShow(msg))
+        .map(msg => this._formatMessage(msg));
+      this.setData({
+        messages: [...formatted, ...messages],
+        hasMoreHistory: has_more,
+        historyLoading: false,
+      });
+    } catch (err) {
+      console.error('加载历史消息失败', err);
+      this.setData({ historyLoading: false });
     }
   },
 
@@ -139,13 +183,6 @@ Page({
         }
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6);
-          // cmd_new_session 事件：重载会话
-          if (currentEvent === 'cmd_new_session') {
-            this.setData({ isLoading: false });
-            this.initSession();
-            currentEvent = '';
-            continue;
-          }
           // message:start 事件：多轮调用的新一轮 AI 回复开始，
           // 结束当前气泡、新开一个（issue #22：多轮多条 message 不拼成一条）
           if (currentEvent === 'message:start') {
