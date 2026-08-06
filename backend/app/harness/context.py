@@ -25,7 +25,6 @@ Section 设计（issue #11）：
 """
 
 import json
-from collections import OrderedDict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,12 +90,13 @@ def assemble_system_prompt(context: dict) -> str:
 
 
 # session 粒度缓存：key=session_id → 组装结果。
-# 手动 LRU（OrderedDict）：lru_cache 的参数即 key，无法表达
-# 「组装输入（memory_index）参与组装但不参与 key」的冻结语义。
+# 普通 dict（2026-08-06 #46 简化）：删 LRU/maxsize——LRU 128 是多用户下颠簸
+# 源头（缓存条目 = 历史 session 总数，129 用户即触发淘汰 → 前缀缓存断裂）。
+# 正解 = rotation 时 invalidate_session_prompt 精确清理死数据（#45 已加）→
+# 条目 ≈ 活跃 session 数（业务有界），不需要通用淘汰。
 # 并发安全：get_system_prompt 是同步函数（无 await），FastAPI 中同一事件循环
-# 单线程执行，OrderedDict 操作原子安全；非线程安全，勿在多线程中并发调用。
-_SESSION_PROMPT_CACHE: "OrderedDict[str, str]" = OrderedDict()
-_CACHE_MAXSIZE = 128
+# 单线程执行，dict 操作原子安全；非线程安全，勿在多线程中并发调用。
+_SESSION_PROMPT_CACHE: dict[str, str] = {}
 
 
 def get_system_prompt(context: dict = {}) -> str:
@@ -113,7 +113,9 @@ def get_system_prompt(context: dict = {}) -> str:
       （如 LLM 主动 memory_add 使记忆索引变化）不使缓存失效——新记忆
       下个 session 生效。这是有意的：保持 system 字节稳定，前缀缓存
       持续命中，token 成本优先。
-    - 缓存按 session_id LRU（maxsize=128），多会话交替各自命中，互不覆盖。
+    - 缓存按 session_id 存普通 dict，多会话交替各自命中，互不覆盖。
+      无 LRU/maxsize（#46）：死数据在 rotation 时 invalidate_session_prompt
+      清理，条目 ≈ 活跃 session 数，业务有界。
     - PROMPT_SECTIONS 是模块级静态定义，改动随进程重启生效（无运行时热更新
       机制），因此不纳入缓存 key（2026-08-05 删 sections_digest，见 PR #39）。
     """
@@ -126,13 +128,9 @@ def get_system_prompt(context: dict = {}) -> str:
         return assemble_system_prompt(context)
     cached = _SESSION_PROMPT_CACHE.get(session_id)
     if cached is not None:
-        _SESSION_PROMPT_CACHE.move_to_end(session_id)
         return cached
     prompt = assemble_system_prompt(context)
     _SESSION_PROMPT_CACHE[session_id] = prompt
-    _SESSION_PROMPT_CACHE.move_to_end(session_id)
-    if len(_SESSION_PROMPT_CACHE) > _CACHE_MAXSIZE:
-        _SESSION_PROMPT_CACHE.popitem(last=False)
     return prompt
 
 

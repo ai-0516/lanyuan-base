@@ -112,6 +112,27 @@ class TestGetSystemPromptCache:
         assert p1 is not p2  # 无缓存：每次新组装
         assert context.SYSTEM_PROMPT == p1  # 常量 = 默认组装结果（内容一致）
 
+    def test_entries_never_evicted_without_invalidation(self):
+        """#46：普通 dict 无 LRU/maxsize——条目不自动淘汰，均保留"""
+        p1 = context.get_system_prompt({"memory_index": "m1", "session_id": "s1"})
+        p2 = context.get_system_prompt({"memory_index": "m2", "session_id": "s2"})
+        p3 = context.get_system_prompt({"memory_index": "m3", "session_id": "s3"})
+        # 三个条目全部保留（无淘汰），交替访问各自命中
+        assert context.get_system_prompt({"session_id": "s1"}) is p1
+        assert context.get_system_prompt({"session_id": "s2"}) is p2
+        assert context.get_system_prompt({"session_id": "s3"}) is p3
+
+    def test_invalidate_session_prompt_removes_entry(self):
+        """#46/#45：invalidate_session_prompt 精确清理指定 session 条目"""
+        context.get_system_prompt({"memory_index": "m1", "session_id": "s1"})
+        context.get_system_prompt({"memory_index": "m2", "session_id": "s2"})
+        context.invalidate_session_prompt("s1")
+        assert "s1" not in context._SESSION_PROMPT_CACHE
+        assert "s2" in context._SESSION_PROMPT_CACHE  # 其他条目不受影响
+        # 失效后重新组装（新对象）
+        p_new = context.get_system_prompt({"memory_index": "m1", "session_id": "s1"})
+        assert "m1" in p_new
+
 
 # ═══════════════════════════════════════════
 #  build_deepseek_messages — 集成入口
