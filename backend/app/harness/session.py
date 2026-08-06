@@ -38,6 +38,20 @@ async def create_new(db: AsyncSession, user_id: int) -> Conversation:
     return conv
 
 
+async def move_message(db: AsyncSession, message_id: int, target_conversation_id: int):
+    """迁移消息到另一个会话（#45 rotation tail 迁移：u_k 从 A 改属 B）
+
+    一条消息一个归属（消息扁平，TECH_SPEC 8.1）——迁移而非复制，
+    避免 UI 按时间混排时同一内容重复渲染。Message.tool_call_id 为
+    字符串无外键，改 conversation_id 不破坏任何关联。
+    """
+    await db.execute(
+        update(Message)
+        .where(Message.id == message_id)
+        .values(conversation_id=target_conversation_id)
+    )
+
+
 async def verify_ownership(db: AsyncSession, session_id: int, user_id: int) -> Conversation | None:
     """校验 session 是否属于指定用户"""
     result = await db.execute(

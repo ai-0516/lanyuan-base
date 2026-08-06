@@ -136,6 +136,16 @@ def get_system_prompt(context: dict = {}) -> str:
     return prompt
 
 
+def invalidate_session_prompt(session_id: int | str) -> None:
+    """清理指定 session 的 system prompt 缓存（#45 rotation 时删旧会话死数据）
+
+    压缩旋转后旧会话 A 已结束，其缓存条目不会再被命中（get_or_create
+    永远选最新会话），是死数据——精确删除而非 LRU 淘汰（TECH_SPEC 8.7：
+    条目 ≈ 活跃 session 数，业务有界）。
+    """
+    _SESSION_PROMPT_CACHE.pop(str(session_id), None)
+
+
 # 兼容常量：默认 context（无记忆）的组装结果。
 # 直接走纯组装函数，不经缓存——常量是「默认角色」的静态快照，与缓存无关。
 SYSTEM_PROMPT = assemble_system_prompt({})

@@ -327,7 +327,7 @@ async def test_ai_chat(client: AsyncClient, auth_headers: dict):
 
 @pytest.mark.asyncio
 async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
-    """2026-08-03 粒度设计：/new 命令返回 cmd_new_session 事件"""
+    """#41：/new 已移除——作为普通消息处理，不返回 cmd_new_session 事件"""
     session_resp = await client.post("/api/v1/ai/session", headers=auth_headers)
     session_id = session_resp.json()["data"]["session_id"]
 
@@ -337,7 +337,7 @@ async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
         headers=auth_headers,
     )
     assert chat_resp.status_code == 200
-    assert "event: cmd_new_session" in chat_resp.text
+    assert "event: cmd_new_session" not in chat_resp.text
 
 
 @pytest.mark.asyncio
