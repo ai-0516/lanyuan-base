@@ -20,6 +20,7 @@
 | [08-03](2026-08-03.md) | PR #33 二轮 review：记忆系统 15 条意见 | memory_service 分层、AGENT_END 补 meta + try/finally 防泄漏、relevant 拼 user 消息保缓存命中、DBMemoryProvider 改名、consolidate LLM 失败降级 |
 | [08-04](2026-08-04.md) | dev-server 部署 + seed_data.py 修复（#37） | systemd 常驻、sftp 绕过 banner、engine.dispose() 消除退出噪音 |
 | [08-05](2026-08-05.md) | System Prompt 运行时组装（#11） | PROMPT_SECTIONS 拆分、确定性缓存（json.dumps + lru_cache）、workspace 按需注入 |
+| [08-06](2026-08-06.md) | Session 管理设计调研与定案（#41）+ TECH_SPEC 第 8 章（#43） | 压缩旋转 rotation、摘要 tool 消息入库 + tail 迁移、/new 移除、search_history（LIKE 起步）、缓存去 LRU |
 
 ---
 

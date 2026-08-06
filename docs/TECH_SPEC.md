@@ -23,6 +23,16 @@
    - 7.6 开发流程
    - 7.7 Dockerfile (参考)
    - 7.8 依赖清单
+8. [Session 管理设计](#8-session-管理设计)
+   - 8.1 目标与核心原则
+   - 8.2 会话生命周期
+   - 8.3 压缩旋转 (rotation)
+   - 8.4 记忆抽取
+   - 8.5 UI 历史消息查询
+   - 8.6 Agent 搜索历史 (search_history)
+   - 8.7 System Prompt 缓存
+   - 8.8 数据模型影响
+   - 8.9 待实现确认项
 
 ---
 
@@ -489,11 +499,13 @@ Comment ──── Comment (self-ref: parent_comment_id)
 |------|------|------|------|
 | id | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 消息ID |
 | conversation_id | BIGINT UNSIGNED | FK → conversation.id, NOT NULL | 所属会话 |
-| role | ENUM('user','assistant') | NOT NULL | 角色 |
-| content | TEXT | NOT NULL | 消息内容 |
+| role | VARCHAR(20) | NOT NULL | 角色：`user` / `assistant` / `tool`（tool = AI 内部操作结果，如压缩摘要，前端不展示） |
+| content | TEXT | NULLABLE | 消息内容（tool_call 消息可为空；tool 消息为操作结果） |
+| tool_calls | TEXT | NULLABLE | assistant 消息的 tool_calls JSON（含 tool_call_id / 工具名 / 参数） |
+| tool_call_id | VARCHAR(100) | NULLABLE | tool 消息对应的 tool_call_id（与 assistant.tool_calls 配对） |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 发送时间 |
 
-索引：`(conversation_id, created_at)`（按会话获取消息历史）
+索引：`(conversation_id, created_at)`（按会话获取消息历史）、`(user_id, conversation_id, created_at)`（历史消息跨会话分页查询，见 8.5）
 
 ---
 
@@ -605,11 +617,12 @@ event: error      → 错误提示
 
 **AI 对话行为说明：**
 - 用户进入 AI Tab → 前端调用 `POST /ai/session` 获取当前会话
-  - 后端逻辑：查询最近一次 active 的 session → 有则返回历史消息，无则新建
-  - 返回 `{ session_id, messages: [...] }`，前端渲染历史消息
+  - 后端逻辑：查询该用户最近一条 conversation → 有则返回其消息历史，无则新建
+  - 返回 `{ session_id, messages: [...] }`，前端渲染历史消息（过滤 `role='tool'`，AI 内部结果不对用户展示）
+  - 会话为空（新用户首次进入）→ 前端自动发送 silent 'Hi' 让 AI 打招呼（不显示 Hi 气泡）
 - 用户发消息 → 前端调用 `POST /ai/chat { session_id, message }`，SSE 接收回复
-- 消息历史按 `(conversation_id, created_at)` 排序，最近 20 条作为 DeepSeek 上下文
-- 前端不必理解 session 创建逻辑，只需持有一个 `session_id` 即可
+- **不存在 `/new` 命令**（2026-08-06 移除）：session 的创建、轮换、结束全部由后端自动管理（见第 8 章），前端无需理解 session 生命周期，只持有 `session_id` 显示消息流
+- 消息历史按 `(conversation_id, created_at)` 排序；上下文由后端组装（见 8.3 压缩旋转）
 
 ### 4.7 图片上传
 
@@ -841,6 +854,107 @@ python-multipart>=0.0.0
 - 微信开发者工具 (最新稳定版)
 - 基础库版本 ≥ 3.0.0
 - 无需额外 npm 包（原生开发）
+
+---
+
+## 8. Session 管理设计
+
+> **来源**: [issue #41](https://github.com/ai-0516/lanyuan-base/issues/41)（2026-08-06 调研与讨论，Hermes session lifecycle 借鉴）| **状态**: 已定案，待实现
+
+### 8.1 目标与核心原则
+
+**用户完全对 session 无感**：session 的创建、轮换、结束全部由后端自动管理；前端只持有 `session_id` 渲染连续消息流。
+
+- **压缩是唯一允许「重建一切」的边界**：压缩意味着消息历史完全重写、无前缀缓存命中压力，此时可安全地建新 session、写摘要、抽记忆、刷新 system_prompt
+- **消息扁平**：一条消息一个归属（conversation_id），不建 lineage/parent 链（决策 2，2026-08-06）
+- **极简**：不预建不存在的规模（搜索 LIKE 起步、缓存无 LRU），规模机制按需升级（#42、分布式缓存）
+
+### 8.2 会话生命周期
+
+| 阶段 | 行为 |
+|------|------|
+| 获取会话 | `get_or_create`：查用户最近一条 conversation，无则新建 |
+| 新用户首次进入 | 新建会话 → messages 为空 → 前端 silent 'Hi' 自动打招呼（不显示 Hi 气泡） |
+| 结束会话 | **唯一路径 = 压缩旋转**（8.3）；`/new` 已移除（2026-08-06）【**待实现**：现状 main 仍保留 `/new` 路由（ai_service.py:43-58），实现 rotation 后移除】 |
+| 会话复用 | 用户始终落在最新会话；旧会话结束后不再被选中 |
+
+### 8.3 压缩旋转 (rotation)
+
+**触发**：ai_service 每轮检查上下文 token 超限（阈值实现时定，参考 Hermes ≈50% 窗口）→ **仅 llm 层压缩**（真正总结）触发 rotation；snip / tool_result 轻量层原地处理，不建新会话（避免碎片化）。
+
+**流程**（现有流程 = 先 `save_user_message` 到 A 再检查）：
+
+```
+1. 用户发 u_k → save_user_message 写入 A
+2. 编排层检查超限 → 超限则压缩：
+   a. 摘要输入 = A 除 u_k 外全部消息（llm 层总结，现有逻辑不变：
+      完整 A 输入、尾部 20 条信息重点保留）→ 压缩产物 = 摘要 + 保留尾部
+   b. 创建 B（conversation），u_k 从 A 迁移（UPDATE conversation_id，
+      删 A 写 B）→ B 第一条（tail 只有一条 = 触发压缩的那条消息）
+   c. assistant(tool_call: compress_context) + tool(摘要) 写入 B
+      （tool_call_id 配对，role 交替合法：user → assistant → tool → assistant）
+   d. emit SESSION_END(A)（u_k 迁移后 emit，保证 A 消息集 = 被压缩部分）
+      → 后台异步抽取记忆（8.4）
+   e. _SESSION_PROMPT_CACHE.pop(A_id)（清理死缓存，8.7）
+3. LLM 处理 u_k（context = B 全量消息）→ response 写 B
+4. 后续消息进 B；A 完整保留（UI 翻页可见、可搜索、原文兜底）
+```
+
+**要点**：
+- **摘要 = tool 消息**（`role='tool'` + `tool_call_id`）：前端已过滤 tool 消息（`role !== 'tool'`）→ 摘要天然不展示；tool_calls 记录压缩元信息（token 数等），可追溯
+- **tail = 1 条**（u_k）：语义 = 它触发了压缩与新 session 的创建；u_k 在 A、B 间只存在一份（迁移而非复制，避免 UI 混排重复渲染）
+- **A 完整保留**（除 u_k 迁移）：被压缩内容原文在库，UI 历史翻页可见、搜索可命中、作为摘要的兜底
+- **压缩失败安全网**：llm 压缩失败 → 不旋转（A 保持原样、缓存不删），当前轮继续用原上下文
+- **LLM 感知**：LLM 会看到 tool_call + 摘要（role 交替合法性要求 + 摘要本就要进上下文）；这是正常的历史模式，无误解风险（压缩确实发生，tool_call 记录的是事实）
+
+### 8.4 记忆抽取
+
+- **SESSION_END 事件 + memory_extract hook 保留**（观察者模式、异步、即发即忘、hook 纯辅助）
+- **触发点**：`/new`（已移除）→ **rotation 压缩边界**（8.3 步骤 d）
+- 抽取输入 = A 全部消息（u_k 已迁移，天然排除）
+- 异步时序：B 的 system_prompt 用抽取完成前的旧记忆，A 关键信息靠摘要（tool 消息）兜底；后台 consumer 毫秒级完成，跨轮次查询时记忆已就绪
+
+### 8.5 UI 历史消息查询
+
+- **方案 B**：默认显示最新消息 + 用户下拉加载历史（用户倾向，2026-08-06）
+- **API**：`GET /messages?before_id=X&limit=20` 游标分页（message id 游标，created_at 可能撞秒），跨 conversation 按时间直查 message 表（`WHERE user_id=? AND id<? ORDER BY id DESC`），前端完全不感知 session 边界
+- 前端渲染过滤 `role='tool'`；压缩边界处用户看到的是连续消息流（tail 在新会话、被压缩内容在旧会话，按时间衔接）
+
+### 8.6 Agent 搜索历史 (search_history)
+
+**工具签名**（决策 4，2026-08-06；Hermes session_search 简化版，参考 issue #41）：
+
+```
+search_history(query, limit=3, window=5, sort=relevance|newest|oldest)
+→ top N 命中消息（role 限 user/assistant，tool 不搜）
+→ 每条带 ±window 上下文窗口（可含 tool 消息，每条 4000 字符截断）
+→ 命中带 snippet + timestamp + messages_before/after
+```
+
+- **过滤**：`user_id` 归属过滤 + **排除当前 conversation**（其内容 agent 上下文已有；被压缩的旧 A 天然可搜——搜索的主要目标）
+- **排序**：默认 FTS 相关度（探索式回忆），`sort=newest/oldest` 可选（recency 场景）
+- **实现路径**：LIKE `%kw%` 起步（单用户量级可控）→ MySQL FULLTEXT + ngram parser 升级为 [followup issue #42](https://github.com/ai-0516/lanyuan-base/issues/42)
+- **注册**：tool_registry 注册，agent 主动调用；与 UI 历史查询（8.5）完全解耦
+- **免费红利**：摘要 = tool 消息 → 默认不搜（role 过滤），无需前缀 hack（Hermes 用 `[CONTEXT SUMMARY]` 排除）
+
+### 8.7 System Prompt 缓存
+
+- **session 粒度冻结缓存**：key = session_id，session 内首次组装后冻结（memory_index 变化不使缓存失效）→ system 字节稳定 → 前缀缓存命中 → token 成本（核心设计，2026-08-05 定）
+- **普通 dict，无 LRU / 无 maxsize**（2026-08-06 决策）：LRU 128 是多用户下颠簸源头（缓存条目 = 历史 session 总数）；正解 = rotation 时 `pop(A_id)` 精确清理死数据 → 条目 ≈ 活跃 session 数（业务有界）【**待实现**：现状 main 仍是 OrderedDict + LRU 128（context.py:98,134-135），实现 rotation 后改为普通 dict + pop(A_id)】
+- **压缩边界自动刷新**：B 是新 session_id → 缓存 miss → 首次组装自动用最新 memory_index（「压缩时更新 system_prompt」的诉求天然满足，无新增机制）
+
+### 8.8 数据模型影响
+
+- **零 schema 改动**：Message 已有 `role='tool'`（VARCHAR）、`tool_calls`、`tool_call_id`；conversation 不加字段（不建 lineage）
+- **一个 UPDATE 操作**：tail 迁移（u_k 改 conversation_id），`Message.tool_call_id` 为字符串无外键，迁移安全
+- 新增索引：`(user_id, conversation_id, created_at)`（历史消息跨会话分页，见 3.2 message 表）
+
+### 8.9 待实现确认项
+
+- [ ] 压缩触发阈值（token 上限 / 上下文占比，实现时定）
+- [ ] 前端 tool_call 消息（content 为空）渲染跳过逻辑确认（tool 消息已过滤，tool_call 需确认）
+- [ ] 搜索 LIKE 查询的上下文窗口实现（命中消息 ±N 条取法）
+- [ ] `GET /messages` 分页 API 设计细化（响应结构、limit 上限）
 
 ---
 
