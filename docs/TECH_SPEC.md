@@ -875,7 +875,7 @@ python-multipart>=0.0.0
 |------|------|
 | 获取会话 | `get_or_create`：查用户最近一条 conversation，无则新建 |
 | 新用户首次进入 | 新建会话 → messages 为空 → 前端 silent 'Hi' 自动打招呼（不显示 Hi 气泡） |
-| 结束会话 | **唯一路径 = 压缩旋转**（8.3）；`/new` 已移除（2026-08-06） |
+| 结束会话 | **唯一路径 = 压缩旋转**（8.3）；`/new` 已移除（2026-08-06）【**待实现**：现状 main 仍保留 `/new` 路由（ai_service.py:43-58），实现 rotation 后移除】 |
 | 会话复用 | 用户始终落在最新会话；旧会话结束后不再被选中 |
 
 ### 8.3 压缩旋转 (rotation)
@@ -940,7 +940,7 @@ search_history(query, limit=3, window=5, sort=relevance|newest|oldest)
 ### 8.7 System Prompt 缓存
 
 - **session 粒度冻结缓存**：key = session_id，session 内首次组装后冻结（memory_index 变化不使缓存失效）→ system 字节稳定 → 前缀缓存命中 → token 成本（核心设计，2026-08-05 定）
-- **普通 dict，无 LRU / 无 maxsize**（2026-08-06 决策）：LRU 128 是多用户下颠簸源头（缓存条目 = 历史 session 总数）；正解 = rotation 时 `pop(A_id)` 精确清理死数据 → 条目 ≈ 活跃 session 数（业务有界）
+- **普通 dict，无 LRU / 无 maxsize**（2026-08-06 决策）：LRU 128 是多用户下颠簸源头（缓存条目 = 历史 session 总数）；正解 = rotation 时 `pop(A_id)` 精确清理死数据 → 条目 ≈ 活跃 session 数（业务有界）【**待实现**：现状 main 仍是 OrderedDict + LRU 128（context.py:98,134-135），实现 rotation 后改为普通 dict + pop(A_id)】
 - **压缩边界自动刷新**：B 是新 session_id → 缓存 miss → 首次组装自动用最新 memory_index（「压缩时更新 system_prompt」的诉求天然满足，无新增机制）
 
 ### 8.8 数据模型影响

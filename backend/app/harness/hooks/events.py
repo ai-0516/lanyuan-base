@@ -25,7 +25,8 @@ LLM_END = "llm:end"
 LLM_ERROR = "llm:error"  # LLM 调用发生错误（API 错误、超时等）
 TOOL_START = "tool:start"
 TOOL_END = "tool:end"
-SESSION_END = "session:end"  # session 结束（/new 开启新对话）— 触发跨会话记忆抽取（2026-08-03 粒度设计）
+SESSION_END = "session:end"  # session 结束（压缩旋转边界触发，#41 设计，/new 已移除）
+# ── 触发跨会话记忆抽取（2026-08-03 粒度设计；8.4 触发点改 2026-08-06）──
 
 
 # ── 事件数据类型 ──
