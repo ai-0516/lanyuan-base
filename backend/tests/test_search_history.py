@@ -227,3 +227,53 @@ class TestSearchHistory:
         assert schema["name"] == "search_history"
         assert "query" in schema["parameters"]["properties"]
         assert "query" in schema["parameters"]["required"]
+
+    async def test_like_wildcard_escaped(self):
+        """LIKE 通配符转义：%/_ 按字面量匹配（review #51 建议 1）
+
+        修复前：搜 `%` 匹配所有消息（通配符语义）；修复后只匹配含字面量
+        `%` 的消息。
+        """
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            # 一条含字面 %，两条不含
+            await session_ops.save_user_message(db, conv.id, "折扣 50% 优惠")
+            await session_ops.save_user_message(db, conv.id, "折扣方案讨论")
+            await session_ops.save_user_message(db, conv.id, "降价促销活动")
+            await db.commit()
+            conv2 = Conversation(user_id=uid, title="")
+            db.add(conv2)
+            await db.commit()
+
+        # 搜字面 %：只命中「折扣 50% 优惠」，不返回全部
+        result = await _search(uid, "50%")
+        assert result["total"] == 1
+        assert "50% 优惠" in result["results"][0]["content"]
+
+        # 裸 % 作为唯一关键词：只命中含字面 % 的消息（1 条），
+        # 修复前通配符语义匹配全部（3 条）——断言 1 即可区分
+        result2 = await _search(uid, "%")
+        assert result2["total"] == 1
+        assert "50% 优惠" in result2["results"][0]["content"]
+
+    async def test_like_underscore_escaped(self):
+        """下划线按字面量匹配（通配符语义：_ 匹配任意单字符）"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            await session_ops.save_user_message(db, conv.id, "user_id 字段说明")
+            await session_ops.save_user_message(db, conv.id, "userXid 样式")
+            await db.commit()
+            conv2 = Conversation(user_id=uid, title="")
+            db.add(conv2)
+            await db.commit()
+
+        # 修复前：_ 是通配符，「user_id」会同时命中 userXid；修复后只命中字面 user_id
+        result = await _search(uid, "user_id")
+        assert result["total"] == 1
+        assert "字段说明" in result["results"][0]["content"]

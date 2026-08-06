@@ -50,6 +50,12 @@ async def search_history(
     if not keywords:
         return {"results": [], "total": 0}
 
+    # LIKE 通配符转义：`%`/`_` 按字面量匹配（review #51 建议 1）。
+    # SQLAlchemy 参数化绑定（无注入），但裸通配符会改变语义——搜 `%` 会
+    # 匹配所有消息。escape="\\" 使 `\` 后的字符按字面量处理。
+    def _escape_like(s: str) -> str:
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     # 当前活跃会话（用户最新）——其内容 agent 上下文已有，排除减少噪音
     latest = (await db.execute(
         select(Conversation)
@@ -71,7 +77,9 @@ async def search_history(
         )
     )
     for kw in keywords:
-        stmt = stmt.where(Message.content.like(f"%{kw}%"))
+        stmt = stmt.where(Message.content.like(
+            f"%{_escape_like(kw)}%", escape="\\",
+        ))
     if current_conv_id is not None:
         stmt = stmt.where(Message.conversation_id != current_conv_id)
     stmt = stmt.order_by(
