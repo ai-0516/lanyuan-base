@@ -340,6 +340,119 @@ async def test_ai_chat_new_command(client: AsyncClient, auth_headers: dict):
     assert "event: cmd_new_session" not in chat_resp.text
 
 
+# ═══════════════════════════════════════════
+#  GET /ai/messages — 历史消息分页（#48，TECH_SPEC 8.5）
+# ═══════════════════════════════════════════
+
+
+async def _seed_messages(uid: int, conv_count: int, per_conv: int) -> list[int]:
+    """给用户塞 conv_count 个会话 × per_conv 条 user 消息，返回会话 id 列表"""
+    from app.core.database import async_session_factory
+    from app.harness import session as session_ops
+    from app.models.conversation import Conversation
+
+    conv_ids = []
+    async with async_session_factory() as db:
+        for c in range(conv_count):
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            conv_ids.append(conv.id)
+            for i in range(per_conv):
+                await session_ops.save_user_message(db, conv.id, f"会话{c}消息{i}")
+        await db.commit()
+    return conv_ids
+
+
+async def _me_uid(client, auth_headers) -> int:
+    me = await client.get("/api/v1/user/me", headers=auth_headers)
+    return me.json()["data"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_messages_pagination_cross_conversation(client: AsyncClient, auth_headers: dict):
+    """分页返回历史消息（跨会话混排）+ 游标翻页 + has_more"""
+    uid = await _me_uid(client, auth_headers)
+    await _seed_messages(uid, conv_count=2, per_conv=15)  # 共 30 条
+
+    # 第一页：默认 limit=20，id 倒序（最新在前）
+    resp = await client.get("/api/v1/ai/messages", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    msgs = data["messages"]
+    assert len(msgs) == 20
+    assert data["has_more"] is True
+    ids = [m["id"] for m in msgs]
+    assert ids == sorted(ids, reverse=True)
+    # 跨会话混排：两个会话的消息都在（数量上验证，前端无感 session 边界）
+
+    # 第二页：before_id = 第一页最早的消息
+    before = msgs[-1]["id"]
+    resp2 = await client.get(f"/api/v1/ai/messages?before_id={before}", headers=auth_headers)
+    data2 = resp2.json()["data"]
+    assert len(data2["messages"]) == 10  # 30 - 20
+    assert data2["has_more"] is False
+    assert all(m["id"] < before for m in data2["messages"])
+
+
+@pytest.mark.asyncio
+async def test_messages_user_isolation(client: AsyncClient, auth_headers: dict):
+    """归属隔离：其他用户的消息不返回"""
+    uid = await _me_uid(client, auth_headers)
+    await _seed_messages(uid, conv_count=1, per_conv=5)
+
+    # 另一用户（test_user_002）的消息
+    other = await client.post("/api/v1/auth/login", json={"code": "test_user_002"})
+    other_uid = (await client.get("/api/v1/user/me", headers={
+        "Authorization": f"Bearer {other.json()['data']['token']}"
+    })).json()["data"]["id"]
+    await _seed_messages(other_uid, conv_count=1, per_conv=8)
+
+    resp = await client.get("/api/v1/ai/messages", headers=auth_headers)
+    msgs = resp.json()["data"]["messages"]
+    assert len(msgs) == 5  # 只有自己的 5 条
+
+
+@pytest.mark.asyncio
+async def test_messages_includes_tool_with_flag(client: AsyncClient, auth_headers: dict):
+    """tool 消息返回且带 tool_calls 字段（前端据此过滤 tool_call 渲染）"""
+    from app.core.database import async_session_factory
+    from app.harness import session as session_ops
+    from app.models.conversation import Conversation
+
+    uid = await _me_uid(client, auth_headers)
+    async with async_session_factory() as db:
+        conv = Conversation(user_id=uid, title="")
+        db.add(conv)
+        await db.flush()
+        await session_ops.save_user_message(db, conv.id, "普通问题")
+        await session_ops.save_tool_call_message(db, conv.id, [{
+            "id": "c1", "type": "function",
+            "function": {"name": "compress_context", "arguments": "{}"},
+        }], content=None)
+        await session_ops.save_tool_result_message(db, conv.id, tool_call_id="c1", content="【摘要】")
+        await db.commit()
+
+    resp = await client.get("/api/v1/ai/messages", headers=auth_headers)
+    msgs = resp.json()["data"]["messages"]
+    roles = [m["role"] for m in msgs]
+    assert set(roles) == {"user", "assistant", "tool"}  # tool 消息也返回
+    tool_call_msg = next(m for m in msgs if m["role"] == "assistant" and m["tool_calls"])
+    assert tool_call_msg["tool_calls"][0]["function"]["name"] == "compress_context"
+    tool_msg = next(m for m in msgs if m["role"] == "tool")
+    assert tool_msg["tool_call_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_messages_limit_cap(client: AsyncClient, auth_headers: dict):
+    """limit 上限 50"""
+    uid = await _me_uid(client, auth_headers)
+    await _seed_messages(uid, conv_count=1, per_conv=60)
+    resp = await client.get("/api/v1/ai/messages?limit=100", headers=auth_headers)
+    msgs = resp.json()["data"]["messages"]
+    assert len(msgs) == 50  # cap 50
+
+
 @pytest.mark.asyncio
 async def test_get_user_public(client: AsyncClient, auth_headers: dict):
     """测试查看用户公开信息"""

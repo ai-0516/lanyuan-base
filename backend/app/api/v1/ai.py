@@ -193,6 +193,48 @@ async def search_history(
     return {"results": results, "total": len(results)}
 
 
+@router.get("/messages")
+async def get_messages(
+    before_id: int | None = None,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """分页获取用户历史消息（TECH_SPEC 8.5 方案 B：默认最新 + 下拉加载）
+
+    游标分页（message id，created_at 可能撞秒不用它做游标），跨 conversation
+    按时间直查——前端完全不感知 session 边界（rotation 后旧会话消息同样返回）。
+    返回 id 倒序（最新在前），has_more 指示是否还有更早消息。
+    """
+    limit = max(1, min(limit, 50))
+    stmt = (
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(Conversation.user_id == user_id)
+    )
+    if before_id is not None:
+        stmt = stmt.where(Message.id < before_id)
+    stmt = stmt.order_by(Message.id.desc()).limit(limit + 1)  # 多取 1 判断 has_more
+    msgs = (await db.execute(stmt)).scalars().all()
+    has_more = len(msgs) > limit
+    msgs = msgs[:limit]
+
+    return api_success({
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "tool_calls": json.loads(m.tool_calls) if m.tool_calls else None,
+                "tool_call_id": m.tool_call_id,
+                "created_at": m.created_at.isoformat() if m.created_at else "",
+            }
+            for m in msgs
+        ],
+        "has_more": has_more,
+    })
+
+
 @router.post("/session")
 async def get_session(
     db: AsyncSession = Depends(get_db),
