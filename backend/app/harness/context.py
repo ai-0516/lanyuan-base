@@ -166,13 +166,55 @@ async def get_recent_messages(
     return list(result.scalars().all())
 
 
-def build_deepseek_messages(
+def orm_to_canonical(history: list[Message]) -> list[dict]:
+    """Message ORM → canonical dict（不含 system，纯历史消息）
+
+    DB(列) → canonical 映射：
+    - role=tool → toolResult（tool_name 按 tool_call_id 从 assistant tool_calls 匹配，匹配不到缺省）
+    - role=assistant + tool_calls 列 → assistant 的 toolCall blocks（arguments JSON 解析为对象）
+    - role=assistant 纯文本 → TextBlock 包装
+    """
+    result: list[dict] = []
+    tool_names: dict[str, str] = {}  # tool_call_id → tool_name（供 toolResult 匹配）
+    for m in history:
+        if m.role == "tool":
+            entry: dict = {
+                "role": "toolResult",
+                "tool_call_id": m.tool_call_id or "",
+                "content": m.content or "",
+            }
+            if m.tool_call_id in tool_names:
+                entry["tool_name"] = tool_names[m.tool_call_id]
+            result.append(entry)
+        elif m.role == "assistant" and m.tool_calls:
+            blocks: list[dict] = []
+            for tc in json.loads(m.tool_calls):
+                fn = tc.get("function", {})
+                tc_id = tc.get("id", "")
+                name = fn.get("name", "")
+                tool_names[tc_id] = name
+                raw_args = fn.get("arguments", "{}")
+                try:
+                    args_obj = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                except json.JSONDecodeError:
+                    args_obj = {"_raw": raw_args}
+                blocks.append({"type": "toolCall", "id": tc_id, "name": name, "arguments": args_obj})
+            result.append({"role": "assistant", "content": blocks})
+        elif m.role == "assistant":
+            # 纯文本 assistant → TextBlock 包装（canonical AssistantMessage 要求 block 列表）
+            result.append({"role": "assistant", "content": [{"type": "text", "text": m.content or ""}]})
+        else:
+            result.append({"role": m.role, "content": m.content})
+    return result
+
+
+def build_messages(
     history: list[Message],
     user_message: str,
     memory_index: str = "",
     session_id: str = "",
 ) -> list[dict]:
-    """组装 DeepSeek 请求的 messages 数组
+    """组装 LLM 请求的 messages 数组（canonical 格式，TECH_SPEC §4）
 
     System Prompt 在最前（按 section 运行时组装），历史消息在中间。
     用户消息在上一步已写入 DB，因此已包含在 history 中。
@@ -196,15 +238,5 @@ def build_deepseek_messages(
     )
 
     messages: list[dict] = [{"role": "system", "content": system_content}]
-    for m in history:
-        entry: dict = {"role": m.role}
-        if m.role == "tool":
-            entry["tool_call_id"] = m.tool_call_id
-            entry["content"] = m.content
-        elif m.role == "assistant" and m.tool_calls:
-            entry["content"] = m.content or None
-            entry["tool_calls"] = json.loads(m.tool_calls)
-        else:
-            entry["content"] = m.content
-        messages.append(entry)
+    messages.extend(orm_to_canonical(history))
     return messages

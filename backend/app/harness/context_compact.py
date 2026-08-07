@@ -22,6 +22,7 @@ import json
 import logging
 
 from app.config import settings
+from app.harness.adapters.messages import Message
 
 logger = logging.getLogger(__name__)
 
@@ -47,29 +48,29 @@ SUMMARY_PROMPT = (
 )
 
 
-# ── 消息格式判断（OpenAI/DeepSeek 兼容格式） ─────
+# ── 消息格式判断（canonical，TECH_SPEC §4——一次实现，各家通用） ─────
 
-def _is_tool_call_message(msg: dict) -> bool:
-    """assistant 消息且带非空 tool_calls → 工具调用消息"""
-    return (
-        msg.get("role") == "assistant"
-        and bool(msg.get("tool_calls"))
-    )
-
-
-def _is_tool_result_message(msg: dict) -> bool:
-    """role=tool 消息 → 工具结果消息"""
-    return msg.get("role") == "tool"
+def _is_tool_call_message(msg: Message) -> bool:
+    """assistant 消息且 content 含 toolCall block → 工具调用消息"""
+    if msg.get("role") != "assistant":
+        return False
+    content = msg.get("content")
+    return isinstance(content, list) and any(b.get("type") == "toolCall" for b in content)
 
 
-def _split_system(messages: list[dict]) -> tuple[list[dict], list[dict]]:
+def _is_tool_result_message(msg: Message) -> bool:
+    """toolResult 消息 → 工具结果消息"""
+    return msg.get("role") == "toolResult"
+
+
+def _split_system(messages: list[Message]) -> tuple[list[Message], list[Message]]:
     """分离数组头部的 system 消息，返回 (system 段, 其余消息)"""
     if messages and messages[0].get("role") == "system":
         return [messages[0]], list(messages[1:])
     return [], list(messages)
 
 
-def _compute_tail_start(rest: list[dict], keep_tail: int) -> int:
+def _compute_tail_start(rest: list[Message], keep_tail: int) -> int:
     """计算尾部起始下标（含配对保护）
 
     tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始，
@@ -83,7 +84,7 @@ def _compute_tail_start(rest: list[dict], keep_tail: int) -> int:
     return tail_start
 
 
-def estimate_tokens(messages: list[dict]) -> int:
+def estimate_tokens(messages: list[Message]) -> int:
     """字符数近似估算 token（DeepSeek 无官方 tokenizer，保守偏大）"""
     return len(json.dumps(messages, ensure_ascii=False, default=str))
 
@@ -91,9 +92,9 @@ def estimate_tokens(messages: list[dict]) -> int:
 # ── L1: 消息级别裁剪 ─────────────────────────────
 
 def snip_message_compact(
-    messages: list[dict],
+    messages: list[Message],
     max_messages: int = MAX_MESSAGES,
-) -> list[dict]:
+) -> list[Message]:
     """消息数超过 max_messages → 保留头部 keep_head + 尾部，中间占位
 
     配对保护：裁剪边界若落在 assistant(tool_calls) 与其 tool 结果之间，
@@ -129,9 +130,9 @@ def snip_message_compact(
 # ── L2: 工具结果内容占位 ─────────────────────────
 
 def tool_result_compact(
-    messages: list[dict],
+    messages: list[Message],
     keep_recent: int = KEEP_RECENT_TOOL_RESULTS,
-) -> list[dict]:
+) -> list[Message]:
     """保留最近 keep_recent 个 tool 结果，更早的大结果替换为占位符
 
     返回新列表（不原地修改传入的 messages，与其他压缩函数风格一致）。
@@ -156,7 +157,7 @@ class LLMSummaryError(Exception):
     """摘要 LLM 调用失败（上游负责容错）"""
 
 
-async def _summarize(messages: list[dict]) -> str:
+async def _summarize(messages: list[Message]) -> str:
     """调用 LLM 生成摘要（TEXT ONLY，禁止工具调用）
 
     摘要调用不需要 tools、不需要重试包装——失败时抛出 LLMSummaryError，
@@ -168,7 +169,7 @@ async def _summarize(messages: list[dict]) -> str:
     prompt = SUMMARY_PROMPT + conversation
 
     parts: list[str] = []
-    async for event, data in streaming.deepseek_chat(
+    async for event, data in streaming.llm_chat(
         [{"role": "user", "content": prompt}]
     ):
         if event == "token":
@@ -180,11 +181,11 @@ async def _summarize(messages: list[dict]) -> str:
 
 
 async def _compact_with_summary(
-    messages: list[dict],
+    messages: list[Message],
     marker: str,
     *,
     force_trim_on_failure: bool = False,
-) -> list[dict]:
+) -> list[Message]:
     """公共摘要压缩：保留尾部 KEEP_TAIL 条（含最新 user 消息），对更早历史做摘要
 
     参数:
@@ -214,11 +215,11 @@ async def _compact_with_summary(
                 head_end += 1
         return system + head[:head_end] + tail
 
-    compacted: list[dict] = [{"role": "user", "content": f"{marker}\n\n{summary}"}]
+    compacted: list[Message] = [{"role": "user", "content": f"{marker}\n\n{summary}"}]
     return system + compacted + tail
 
 
-async def llm_compact(messages: list[dict]) -> list[dict]:
+async def llm_compact(messages: list[Message]) -> list[Message]:
     """L4: token 估算超阈值 → 主动压缩（1 API）
 
     摘要更早的历史 + 保留尾部最近消息。摘要失败 → 跳过压缩返回原样，
@@ -227,7 +228,7 @@ async def llm_compact(messages: list[dict]) -> list[dict]:
     return await _compact_with_summary(messages, "[Compacted]")
 
 
-async def llm_reactive_compact(messages: list[dict]) -> list[dict]:
+async def llm_reactive_compact(messages: list[Message]) -> list[Message]:
     """413 应急压缩（1 API）
 
     与 llm_compact 的唯一区别：413 已经发生，必须有压缩动作——

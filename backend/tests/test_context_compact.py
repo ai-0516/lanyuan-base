@@ -22,7 +22,7 @@ from app.harness.context_compact import (
 )
 
 
-# ── 消息构造 helper（OpenAI/DeepSeek 兼容格式） ──
+# ── 消息构造 helper（canonical 格式，TECH_SPEC §4） ──
 
 def _system(text: str) -> dict:
     return {"role": "system", "content": text}
@@ -35,14 +35,12 @@ def _user(text: str) -> dict:
 def _tool_call_msg(call_id: str, name: str = "test_tool") -> dict:
     return {
         "role": "assistant",
-        "content": None,
-        "tool_calls": [{"id": call_id, "type": "function",
-                        "function": {"name": name, "arguments": "{}"}}],
+        "content": [{"type": "toolCall", "id": call_id, "name": name, "arguments": {}}],
     }
 
 
 def _tool_result(call_id: str, content: str) -> dict:
-    return {"role": "tool", "tool_call_id": call_id, "content": content}
+    return {"role": "toolResult", "tool_call_id": call_id, "content": content}
 
 
 def _long_tool_result(call_id: str) -> dict:

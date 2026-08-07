@@ -52,8 +52,8 @@ async def on_agent_start(data: dict):
         "ts": _ts(),
         "session_id": meta.get("session_id"),
         "user_message": meta.get("user_message"),
-        "model": settings.DEEPSEEK_MODEL,
-        "api_url": f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
+        "model": settings.LLM_MODEL,
+        "api_url": f"{settings.LLM_BASE_URL or 'https://api.deepseek.com/v1'}/chat/completions",
     })
 
 

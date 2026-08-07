@@ -40,7 +40,7 @@ async def log_agent_start(data: dict):
     _timestamps[req_id] = {"agent": time_module.time()}
 
     msg = meta.get("user_message", "")
-    model = settings.DEEPSEEK_MODEL
+    model = settings.LLM_MODEL
     logger.info(
         "[%s] [%s] [%s] model=%s 用户: %s",
         session_id, req_id, events.AGENT_START, model, _truncate(msg),

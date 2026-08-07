@@ -24,22 +24,12 @@ from app.schemas.ai import MessageItem, SessionResponse
 logger = logging.getLogger(__name__)
 
 
-def _to_openai_messages(history: list[Message]) -> list[dict]:
-    """Message ORM → OpenAI 兼容 dict（摘要输入用）
+def _to_canonical_messages(history: list[Message]) -> list[dict]:
+    """Message ORM → canonical dict（摘要/rotation 输入，TECH_SPEC §4）
 
-    丢弃 DB 内部字段（id / conversation_id / created_at），
-    并把 tool_calls 的 JSON 字符串解析为对象数组——只留 OpenAI
-    API 需要的 role/content/tool_call_id/tool_calls。
+    丢弃 DB 内部字段（id / conversation_id / created_at），复用 context.orm_to_canonical。
     """
-    result: list[dict] = []
-    for m in history:
-        entry: dict = {"role": m.role, "content": m.content}
-        if m.role == "tool" and m.tool_call_id:
-            entry["tool_call_id"] = m.tool_call_id
-        if m.role == "assistant" and m.tool_calls:
-            entry["tool_calls"] = json.loads(m.tool_calls)
-        result.append(entry)
-    return result
+    return context.orm_to_canonical(history)
 
 
 async def _get_last_total_tokens(db, session_id: int) -> int | None:
@@ -73,7 +63,7 @@ async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int |
     - system_prompt 缓存 pop(A)（死数据清理，TECH_SPEC 8.7）
     """
     history = await context.get_recent_messages(db, session_id)
-    messages = _to_openai_messages(history)
+    messages = _to_canonical_messages(history)
 
     # 超限判断：用该会话最近一次 LLM 调用的精确 total_tokens（llm_usage 表），
     # 不用字符估算（PR #49 review：LLM response 自带精确 usage 信息）
@@ -180,7 +170,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     # 之后即使 LLM 主动 memory_add 使索引变化也不重组装——新记忆下个 session 生效，
     # 保持 system 字节稳定 → 前缀缓存命中，token 成本优先。
     memory_index = await memory.build_memory_index(db, user_id)
-    deepseek_messages = context.build_deepseek_messages(
+    canonical_messages = context.build_messages(
         history,
         message,
         memory_index=memory_index,
@@ -192,7 +182,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     logger.info("Agent 启动: session_id=%s user_id=%s tools=%d", session_id, user_id, len(TOOLS))
     try:
         async for event, data in agent.run(
-            deepseek_messages,
+            canonical_messages,
             db=db,
             user_id=user_id,
             meta={"session_id": session_id, "user_id": user_id, "user_message": message},
