@@ -875,19 +875,18 @@ class TestAIStreamChat:
 
 
 class TestAICmdNew:
-    """AI 命令：/new 创建新会话"""
+    """#41：/new 已移除（2026-08-06）——作为普通消息处理，不再创建新会话"""
 
-    async def test_new_creates_new_session(self):
+    async def test_new_treated_as_normal_message(self):
+        """输入 /new 不再建新会话，走正常 stream 流程"""
         uid = await _create_user()
         sid = None
-        # 先创建一个会话
         async with async_session_factory() as db:
             from app.services.ai_service import get_or_create_session
             s = await get_or_create_session(db, uid)
             sid = s.session_id
             await db.commit()
 
-        # 发 /new 命令
         from app.services.ai_service import stream_chat
         async with async_session_factory() as db:
             events = []
@@ -895,15 +894,19 @@ class TestAICmdNew:
                 events.append((event, content))
             await db.commit()
 
-        assert len(events) == 2
-        assert events[0][0] == "cmd_new_session"
-        new_sid = events[0][1]
-        assert isinstance(new_sid, int)
-        assert new_sid != sid  # 新 session id 不同
-        assert events[1] == ("done", "")
+        # 无 cmd_new_session 事件，走正常流（message:start → token → done）
+        events_types = [e[0] for e in events]
+        assert "cmd_new_session" not in events_types
+        assert events_types[-1] == "done"
 
-    async def test_new_ignores_command_with_prefix(self):
-        """"/new" 作为前缀时不触发命令"""
+        # 会话未被替换（用户最新会话仍是原 sid）
+        async with async_session_factory() as db:
+            from app.harness import session as session_ops
+            conv = await session_ops.get_or_create(db, uid)
+        assert conv.id == sid
+
+    async def test_new_with_prefix_normal_flow(self):
+        """/new 作为前缀的普通消息走正常流程"""
         uid = await _create_user()
         async with async_session_factory() as db:
             from app.services.ai_service import get_or_create_session
@@ -918,6 +921,234 @@ class TestAICmdNew:
                 events.append((event, content))
             await db.commit()
 
-        # 不是纯 "/new"，走正常 stream 流程
         events_types = [e[0] for e in events]
         assert "cmd_new_session" not in events_types
+        assert events_types[-1] == "done"
+
+
+class TestRotation:
+    """#45 压缩旋转：超限 → 建新会话 + u_k 迁移 + 摘要 tool 入库（TECH_SPEC 8.3）"""
+
+    @pytest.fixture
+    def fake_summary(self, monkeypatch):
+        """mock 摘要 LLM（避免真 API 调用）"""
+        from app.harness import context_compact
+
+        async def _fake_summarize(messages):
+            return "【压缩摘要】历史对话要点"
+
+        monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
+        return _fake_summarize
+
+    @pytest.fixture
+    def captured_events(self, monkeypatch):
+        """捕获 events.emit 调用（验证 SESSION_END 发射）"""
+        import app.harness.hooks.events as events_mod
+        captured = []
+
+        def _fake_emit(name, data):
+            captured.append((name, dict(data)))
+
+        monkeypatch.setattr(events_mod, "emit", _fake_emit)
+        return captured
+
+    async def _seed_overflow_session(self, uid: int, rounds: int = 8) -> int:
+        """创建会话并塞入超过阈值的历史消息，返回 session_id"""
+        from app.harness import session as session_ops
+        from app.services.ai_service import get_or_create_session
+        async with async_session_factory() as db:
+            s = await get_or_create_session(db, uid)
+            sid = s.session_id
+            for i in range(rounds):
+                await session_ops.save_user_message(db, sid, f"历史问题 {i} " + "x" * 20)
+                await session_ops.save_assistant_message(db, sid, f"历史回答 {i} " + "y" * 20)
+            # 超限判断依据 = 最近一次 LLM 调用的精确 total_tokens（PR #49）：
+            # 插入一条超阈值的 usage 记录模拟「上次调用已超限」
+            from app.config import settings
+            from app.models.llm_usage import LlmUsage
+            db.add(LlmUsage(
+                req_id="seed-overflow",
+                session_id=sid,
+                user_id=uid,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD + 1000,
+            ))
+            await db.commit()
+        return sid
+
+    async def test_rotation_on_overflow(self, fake_summary, captured_events, monkeypatch):
+        """超限 → 建 B、u_k 迁移、tool_call + 摘要入库、SESSION_END emit、缓存清理"""
+        from app.harness.hooks import events
+        from app.models.conversation import Conversation, Message
+        from app.harness import context as context_mod
+
+        uid = await _create_user()
+        sid = await self._seed_overflow_session(uid)
+
+        # 先让 A 的 system prompt 进缓存（rotation 后应被清理）
+        context_mod.get_system_prompt({"session_id": str(sid)})
+        assert str(sid) in context_mod._SESSION_PROMPT_CACHE
+
+        # 记录缓存清理调用
+        invalidated = []
+        original_invalidate = context_mod.invalidate_session_prompt
+
+        def _track(session_id):
+            invalidated.append(session_id)
+            original_invalidate(session_id)
+
+        monkeypatch.setattr(context_mod, "invalidate_session_prompt", _track)
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "触发压缩的新问题"):
+                pass
+            await db.commit()
+
+        # 1. 新会话 B 存在且 ≠ A
+        async with async_session_factory() as db:
+            convs = (await db.execute(
+                select(Conversation).where(Conversation.user_id == uid)
+                .order_by(Conversation.id.asc())
+            )).scalars().all()
+            assert len(convs) == 2
+            b = convs[-1]
+            assert b.id != sid
+
+            # 2. u_k（触发压缩的消息）迁移到 B，作为第一条 user 消息
+            u_k = (await db.execute(
+                select(Message).where(Message.content == "触发压缩的新问题")
+            )).scalar_one()
+            assert u_k.conversation_id == b.id
+
+            # 3. B 的消息序列：u_k(user) → assistant(tool_call) → tool(摘要) → assistant(回复)
+            b_msgs = (await db.execute(
+                select(Message).where(Message.conversation_id == b.id)
+                .order_by(Message.id.asc())
+            )).scalars().all()
+            roles = [m.role for m in b_msgs]
+            assert roles == ["user", "assistant", "tool", "assistant"]
+            assert b_msgs[0].content == "触发压缩的新问题"
+            # tool_call 消息：assistant + tool_calls JSON
+            import json
+            tc = json.loads(b_msgs[1].tool_calls)
+            assert tc[0]["function"]["name"] == "compress_context"
+            # tool 消息：摘要 + tool_call_id 配对
+            assert b_msgs[2].tool_call_id == tc[0]["id"]
+            assert "压缩摘要" in b_msgs[2].content
+
+            # 4. A 完整保留（原历史消息数不变——u_k 迁移后 A 仍是 8+8 条历史）
+            a_msgs = (await db.execute(
+                select(Message).where(Message.conversation_id == sid)
+            )).scalars().all()
+            assert len(a_msgs) == 16
+
+        # 5. SESSION_END 事件 emit（session_id = A）
+        session_end = [d for name, d in captured_events if name == events.SESSION_END]
+        assert len(session_end) == 1
+        assert session_end[0]["session_id"] == sid
+        assert session_end[0]["user_id"] == uid
+
+        # 6. A 的 system prompt 缓存被清理
+        assert invalidated == [sid]
+        assert str(sid) not in context_mod._SESSION_PROMPT_CACHE
+
+    async def test_no_rotation_within_threshold(self):
+        """未超限 → 不建新会话，消息写入原会话"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            from app.services.ai_service import get_or_create_session
+            s = await get_or_create_session(db, uid)
+            sid = s.session_id
+            # 有 usage 记录但 total_tokens 未超限 → 不旋转（PR #49 精确判断）
+            from app.config import settings
+            from app.models.llm_usage import LlmUsage
+            db.add(LlmUsage(
+                req_id="seed-below",
+                session_id=sid,
+                user_id=uid,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD - 1,
+            ))
+            await db.commit()
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "你好"):
+                pass
+            await db.commit()
+
+        from app.models.conversation import Conversation
+        async with async_session_factory() as db:
+            convs = (await db.execute(
+                select(Conversation).where(Conversation.user_id == uid)
+            )).scalars().all()
+            assert len(convs) == 1
+            assert convs[0].id == sid
+
+    async def test_rotation_failure_keeps_session(self, captured_events, monkeypatch):
+        """摘要失败 → 不旋转：A 原样、无新会话、无 SESSION_END"""
+        from app.harness.hooks import events
+        from app.harness import context_compact
+
+        async def _fail_summarize(messages):
+            raise context_compact.LLMSummaryError("mock 摘要失败")
+
+        monkeypatch.setattr(context_compact, "_summarize", _fail_summarize)
+
+        uid = await _create_user()
+        sid = await self._seed_overflow_session(uid)
+
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "触发压缩的新问题"):
+                pass
+            await db.commit()
+
+        from app.models.conversation import Conversation, Message
+        async with async_session_factory() as db:
+            convs = (await db.execute(
+                select(Conversation).where(Conversation.user_id == uid)
+            )).scalars().all()
+            assert len(convs) == 1  # 不建新会话
+
+            # u_k 留在 A（未迁移）
+            u_k = (await db.execute(
+                select(Message).where(Message.content == "触发压缩的新问题")
+            )).scalar_one()
+            assert u_k.conversation_id == sid
+
+        # 无 SESSION_END 事件
+        session_end = [d for name, d in captured_events if name == events.SESSION_END]
+        assert session_end == []
+
+    async def test_stale_session_id_writes_to_latest(self, fake_summary):
+        """rotation 后前端持旧 session_id 发消息 → 写入最新会话（前端无感）"""
+        from app.models.conversation import Conversation, Message
+
+        uid = await _create_user()
+        sid = await self._seed_overflow_session(uid)
+
+        # 第一轮触发 rotation
+        from app.services.ai_service import stream_chat
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "触发压缩的新问题"):
+                pass
+            await db.commit()
+
+        # 第二轮：前端仍用旧 sid 发消息
+        async with async_session_factory() as db:
+            async for _ in stream_chat(db, uid, sid, "旋转后的新问题"):
+                pass
+            await db.commit()
+
+        # 新消息写入最新会话 B，而不是旧 A
+        async with async_session_factory() as db:
+            b = (await db.execute(
+                select(Conversation).where(Conversation.user_id == uid)
+                .order_by(Conversation.id.desc())
+            )).scalars().first()
+            msg = (await db.execute(
+                select(Message).where(Message.content == "旋转后的新问题")
+            )).scalar_one()
+            assert msg.conversation_id == b.id

@@ -3,18 +3,131 @@
 职责：
 - 编排 AIAgent 的完整调用流程（数据准备 → 执行 → 持久化）
 - AIAgent 只负责跟 LLM 交互，不接触 DB
+- 压缩旋转（rotation）：上下文超限时自动结束旧会话、创建新会话（TECH_SPEC 8.3）
 """
 
+import json
 import logging
 import secrets
 
-from app.harness import context, memory, session
+from sqlalchemy import select
+
+from app.config import settings
+from app.harness import context, context_compact, memory, session
 from app.harness.agent import AIAgent
 from app.harness.hooks import events
 from app.harness.tools import TOOLS, execute_tool
+from app.models.conversation import Message
+from app.models.llm_usage import LlmUsage
 from app.schemas.ai import MessageItem, SessionResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _to_openai_messages(history: list[Message]) -> list[dict]:
+    """Message ORM → OpenAI 兼容 dict（摘要输入用）
+
+    丢弃 DB 内部字段（id / conversation_id / created_at），
+    并把 tool_calls 的 JSON 字符串解析为对象数组——只留 OpenAI
+    API 需要的 role/content/tool_call_id/tool_calls。
+    """
+    result: list[dict] = []
+    for m in history:
+        entry: dict = {"role": m.role, "content": m.content}
+        if m.role == "tool" and m.tool_call_id:
+            entry["tool_call_id"] = m.tool_call_id
+        if m.role == "assistant" and m.tool_calls:
+            entry["tool_calls"] = json.loads(m.tool_calls)
+        result.append(entry)
+    return result
+
+
+async def _get_last_total_tokens(db, session_id: int) -> int | None:
+    """该会话最近一次 LLM 调用的精确 token 数（llm_usage 表）
+
+    超限判断依据（PR #49 review：不用字符估算，LLM response 带精确 usage）。
+    用 total_tokens（= prompt + completion）：本轮生成的 assistant 回复
+    会作为下轮 prompt 的一部分，total 比 prompt 更贴近「会话内容总量」。
+    返回 None = 会话尚无任何 LLM 调用（新会话首条消息），不可能超限。
+    """
+    result = await db.execute(
+        select(LlmUsage.total_tokens)
+        .where(LlmUsage.session_id == session_id)
+        .order_by(LlmUsage.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int | None:
+    """超限检测 + 压缩旋转（TECH_SPEC 8.3）
+
+    返回新 session_id（已旋转）或 None（未超限 / 摘要失败不旋转）。
+    调用时机：u_k 已保存到当前会话之后、构建上下文之前。
+
+    旋转动作：
+    - 摘要输入 = 当前会话除 u_k 外全部消息（llm 层压缩，现有逻辑不变）
+    - 创建 B，u_k 从 A 迁移（tail = 1 条，触发压缩的那条消息）
+    - assistant(tool_call: compress_context) + tool(摘要) 写入 B（role 交替合法）
+    - emit SESSION_END(A)（u_k 已迁移，A 消息集 = 被压缩部分）
+    - system_prompt 缓存 pop(A)（死数据清理，TECH_SPEC 8.7）
+    """
+    history = await context.get_recent_messages(db, session_id)
+    messages = _to_openai_messages(history)
+
+    # 超限判断：用该会话最近一次 LLM 调用的精确 total_tokens（llm_usage 表），
+    # 不用字符估算（PR #49 review：LLM response 自带精确 usage 信息）
+    last_total_tokens = await _get_last_total_tokens(db, session_id)
+    if last_total_tokens is None:
+        return None  # 新会话首条消息（尚无 LLM 调用），不可能超限
+    if last_total_tokens < settings.SESSION_ROTATION_THRESHOLD:
+        return None
+
+    # 摘要输入排除 u_k（它是 B 的起点，原样保留在新会话，避免重复总结）
+    summary_input = messages[:-1]
+    if not summary_input:
+        return None
+
+    try:
+        summary = await context_compact._summarize(summary_input)
+    except context_compact.LLMSummaryError:
+        logger.exception("rotation 摘要失败: user=%s session=%s，不旋转", user_id, session_id)
+        return None
+
+    new_conv = await session.create_new(db, user_id)
+    await session.move_message(db, u_k_id, new_conv.id)
+
+    tool_call_id = f"compress_{secrets.token_hex(8)}"
+    await session.save_tool_call_message(
+        db,
+        new_conv.id,
+        [{
+            "id": tool_call_id,
+            "type": "function",
+            "function": {"name": "compress_context",
+                         "arguments": json.dumps({"trigger": "context overflow"}, ensure_ascii=False)},
+        }],
+        content=None,
+    )
+    await session.save_tool_result_message(
+        db, new_conv.id, tool_call_id=tool_call_id, content=summary
+    )
+
+    events.emit(events.SESSION_END, {
+        "req_id": secrets.token_hex(4),
+        "user_id": user_id,
+        "session_id": session_id,
+    })
+    context.invalidate_session_prompt(session_id)
+    await db.commit()
+
+    summary_input_chars = len(json.dumps(summary_input, ensure_ascii=False, default=str))
+    logger.info(
+        "rotation: user=%s A=%s → B=%s 摘要输入=%d字符(%d条) → 摘要=%d字符",
+        user_id, session_id, new_conv.id,
+        summary_input_chars, len(summary_input), len(summary),
+    )
+    return new_conv.id
 
 
 async def get_or_create_session(db, user_id: int) -> SessionResponse:
@@ -40,33 +153,24 @@ async def get_or_create_session(db, user_id: int) -> SessionResponse:
 async def stream_chat(db, user_id: int, session_id: int, message: str):
     """发送消息，SSE 流式返回"""
 
-    # ── 0. 处理 /new 命令 ──
-    if message.strip() == "/new":
-        # session 结束（2026-08-03 粒度设计）：emit session:end，hook 异步抽取
-        # 该 session 的完整对话为跨会话记忆。事件驱动，不阻塞 /new 响应。
-        logger.info("发起 session:end: user=%s session=%s，触发跨会话记忆抽取", user_id, session_id)
-        events.emit(
-            events.SESSION_END,
-            {
-                "req_id": secrets.token_hex(4),
-                "user_id": user_id,
-                "session_id": session_id,
-            },
-        )
-        new_conv = await session.create_new(db, user_id)
-        await db.commit()
-        yield ("cmd_new_session", new_conv.id)
-        yield ("done", "")
-        return
-
-    # ── 1. 归属校验 ──
+    # ── 1. 归属校验（前端传入的 session_id 只做归属校验，TECH_SPEC 8.2）──
     conv = await session.verify_ownership(db, session_id, user_id)
     if conv is None:
         yield ("error", "会话不存在或无权限访问")
         return
 
+    # ── 1.5 实际会话 = 用户最新一条（rotation 后前端 session_id 可能已过期，
+    #      消息必须写入最新会话——前端无感，TECH_SPEC 8.1/8.3）──
+    active = await session.get_or_create(db, user_id)
+    session_id = active.id
+
     # ── 2. 保存用户消息 ──
-    await session.save_user_message(db, session_id, message)
+    msg = await session.save_user_message(db, session_id, message)
+
+    # ── 2.5 压缩旋转（TECH_SPEC 8.3）：超限 → 摘要 + 建新会话 + u_k 迁移 ──
+    new_id = await _maybe_rotate(db, user_id, session_id, msg.id)
+    if new_id is not None:
+        session_id = new_id
 
     # ── 3. 构建上下文 ──
     history = await context.get_recent_messages(db, session_id)
