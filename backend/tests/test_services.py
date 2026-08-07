@@ -930,12 +930,6 @@ class TestRotation:
     """#45 压缩旋转：超限 → 建新会话 + u_k 迁移 + 摘要 tool 入库（TECH_SPEC 8.3）"""
 
     @pytest.fixture
-    def low_threshold(self, monkeypatch):
-        """把超限阈值调低（默认 60_000 字符），便于触发 rotation"""
-        from app.harness import context_compact
-        monkeypatch.setattr(context_compact, "COMPACT_THRESHOLD", 50)
-
-    @pytest.fixture
     def fake_summary(self, monkeypatch):
         """mock 摘要 LLM（避免真 API 调用）"""
         from app.harness import context_compact
@@ -968,10 +962,21 @@ class TestRotation:
             for i in range(rounds):
                 await session_ops.save_user_message(db, sid, f"历史问题 {i} " + "x" * 20)
                 await session_ops.save_assistant_message(db, sid, f"历史回答 {i} " + "y" * 20)
+            # 超限判断依据 = 最近一次 LLM 调用的精确 total_tokens（PR #49）：
+            # 插入一条超阈值的 usage 记录模拟「上次调用已超限」
+            from app.config import settings
+            from app.models.llm_usage import LlmUsage
+            db.add(LlmUsage(
+                req_id="seed-overflow",
+                session_id=sid,
+                user_id=uid,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD + 1000,
+            ))
             await db.commit()
         return sid
 
-    async def test_rotation_on_overflow(self, low_threshold, fake_summary, captured_events, monkeypatch):
+    async def test_rotation_on_overflow(self, fake_summary, captured_events, monkeypatch):
         """超限 → 建 B、u_k 迁移、tool_call + 摘要入库、SESSION_END emit、缓存清理"""
         from app.harness.hooks import events
         from app.models.conversation import Conversation, Message
@@ -1055,6 +1060,16 @@ class TestRotation:
             from app.services.ai_service import get_or_create_session
             s = await get_or_create_session(db, uid)
             sid = s.session_id
+            # 有 usage 记录但 total_tokens 未超限 → 不旋转（PR #49 精确判断）
+            from app.config import settings
+            from app.models.llm_usage import LlmUsage
+            db.add(LlmUsage(
+                req_id="seed-below",
+                session_id=sid,
+                user_id=uid,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD - 1,
+            ))
             await db.commit()
 
         from app.services.ai_service import stream_chat
@@ -1071,7 +1086,7 @@ class TestRotation:
             assert len(convs) == 1
             assert convs[0].id == sid
 
-    async def test_rotation_failure_keeps_session(self, low_threshold, captured_events, monkeypatch):
+    async def test_rotation_failure_keeps_session(self, captured_events, monkeypatch):
         """摘要失败 → 不旋转：A 原样、无新会话、无 SESSION_END"""
         from app.harness.hooks import events
         from app.harness import context_compact
@@ -1107,7 +1122,7 @@ class TestRotation:
         session_end = [d for name, d in captured_events if name == events.SESSION_END]
         assert session_end == []
 
-    async def test_stale_session_id_writes_to_latest(self, low_threshold, fake_summary):
+    async def test_stale_session_id_writes_to_latest(self, fake_summary):
         """rotation 后前端持旧 session_id 发消息 → 写入最新会话（前端无感）"""
         from app.models.conversation import Conversation, Message
 
