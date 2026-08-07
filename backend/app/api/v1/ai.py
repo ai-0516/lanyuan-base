@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -45,7 +45,7 @@ async def search_history(
     对话细节时使用。返回命中的消息及其上下文窗口（最多 limit 条命中，
     每条带前后 window 条上下文）。"""
 
-    # 关键词拆词：空格分隔，全部命中才返回（LIKE 起步，FTS 升级见 #42）
+    # 关键词拆词：空格分隔，任一命中即返回（OR，PR #51 review——AND 容易什么都搜不到）
     keywords = [kw for kw in query.strip().split() if kw]
     if not keywords:
         return {"results": [], "total": 0}
@@ -66,7 +66,7 @@ async def search_history(
     current_conv_id = latest.id if latest else None
 
     # 命中消息：JOIN conversation 归属过滤 + role 限 user/assistant（tool 不搜，
-    # 压缩摘要 = tool 消息自动排除）+ LIKE 多关键词 AND
+    # 压缩摘要 = tool 消息自动排除）+ LIKE 多关键词 OR（任一命中，PR #51 review）
     stmt = (
         select(Message)
         .join(Conversation, Message.conversation_id == Conversation.id)
@@ -76,10 +76,11 @@ async def search_history(
             Message.content.isnot(None),
         )
     )
-    for kw in keywords:
-        stmt = stmt.where(Message.content.like(
-            f"%{_escape_like(kw)}%", escape="\\",
-        ))
+    if keywords:
+        stmt = stmt.where(or_(*[
+            Message.content.like(f"%{_escape_like(kw)}%", escape="\\")
+            for kw in keywords
+        ]))
     if current_conv_id is not None:
         stmt = stmt.where(Message.conversation_id != current_conv_id)
     stmt = stmt.order_by(
@@ -87,40 +88,52 @@ async def search_history(
     ).limit(limit)
     hits = (await db.execute(stmt)).scalars().all()
 
-    results = []
+    # 合并窗口重叠的命中（PR #51 review）：同一会话内相邻 hit 的 ±window
+    # 窗口会重叠 → 合并为一个连续片段，避免同一消息出现在多个 result 里。
+    # 片段边界 = [首条 hit.id - window, 末条 hit.id + window]，全局顺序保持。
+    segments: list[list] = []  # 每个元素 = 同一会话且窗口重叠的一组 hit
     for hit in hits:
-        # 上下文窗口：同会话内 ±window 条（按 id 近似时间序）
-        before = (await db.execute(
+        if (segments and segments[-1]
+                and hit.conversation_id == segments[-1][-1].conversation_id
+                and hit.id - segments[-1][-1].id <= 2 * window):
+            segments[-1].append(hit)
+        else:
+            segments.append([hit])
+
+    results = []
+    for seg in segments:
+        seg_min, seg_max = seg[0].id - window, seg[-1].id + window
+        anchor = seg[0]
+
+        # 片段上下文：合并后的连续消息区间（一条查询替代 N 条，顺带优化 N+1）
+        context_msgs = (await db.execute(
             select(Message)
-            .where(Message.conversation_id == hit.conversation_id, Message.id < hit.id)
-            .order_by(Message.id.desc()).limit(window)
-        )).scalars().all()
-        before = list(reversed(before))  # 倒序取最近 window 条 → 还原正序
-        after = (await db.execute(
-            select(Message)
-            .where(Message.conversation_id == hit.conversation_id, Message.id > hit.id)
-            .order_by(Message.id.asc()).limit(window)
+            .where(
+                Message.conversation_id == anchor.conversation_id,
+                Message.id >= seg_min,
+                Message.id <= seg_max,
+            )
+            .order_by(Message.id.asc())
         )).scalars().all()
 
-        # 命中消息前后还有多少条（提示可翻页，不限于窗口）
+        # 片段前后还有多少条（提示可翻页，不限于窗口）
         before_total = await db.scalar(
             select(func.count()).select_from(Message).where(
-                Message.conversation_id == hit.conversation_id, Message.id < hit.id
+                Message.conversation_id == anchor.conversation_id, Message.id < seg_min
             )
         )
         after_total = await db.scalar(
             select(func.count()).select_from(Message).where(
-                Message.conversation_id == hit.conversation_id, Message.id > hit.id
+                Message.conversation_id == anchor.conversation_id, Message.id > seg_max
             )
         )
 
-        context_msgs = list(before) + [hit] + list(after)
         results.append({
-            "message_id": hit.id,
-            "role": hit.role,
-            "content": _truncate(hit.content),
-            "created_at": hit.created_at.isoformat() if hit.created_at else "",
-            "conversation_id": hit.conversation_id,
+            "message_id": anchor.id,
+            "role": anchor.role,
+            "content": _truncate(anchor.content),
+            "created_at": anchor.created_at.isoformat() if anchor.created_at else "",
+            "conversation_id": anchor.conversation_id,
             "messages_before": before_total or 0,
             "messages_after": after_total or 0,
             "context_window": [

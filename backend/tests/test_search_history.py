@@ -68,12 +68,17 @@ async def _search(uid: int, query: str, **kwargs):
 class TestSearchHistory:
 
     async def test_hits_history_messages(self):
-        """命中历史消息（含旧会话内容）"""
+        """命中历史消息（含旧会话内容），连续命中合并为一个片段"""
         uid = await _create_user()
         await _seed_history(uid, conv_count=2, msgs_per_conv=3)
         result = await _search(uid, "压缩方案")
-        # 最新会话被排除 → 只搜到旧会话的 3 条 user 消息
-        assert result["total"] == 3
+        # 最新会话被排除 → 只搜到旧会话；旧会话 6 条连续命中 → 合并为 1 个片段
+        assert result["total"] == 1
+        # 片段上下文包含全部 6 条命中（3 user + 3 assistant，无重叠丢失）
+        window_msgs = result["results"][0]["context_window"]
+        assert len(window_msgs) == 6
+        contents = [m["content"] for m in window_msgs]
+        assert all("压缩方案" in c for c in contents)
 
     async def test_excludes_current_conversation(self):
         """当前活跃会话（用户最新）的消息被排除"""
@@ -148,15 +153,15 @@ class TestSearchHistory:
             await db.commit()
 
         r1 = await _search(uid1, "压缩方案")
-        # uid1 搜到自己旧会话的历史（最新会话被排除）
-        assert r1["total"] >= 2
+        # uid1 搜到自己旧会话的历史（最新会话被排除）；旧会话 4 条连续命中 → 1 片段
+        assert r1["total"] == 1
         assert all(h["conversation_id"] == conv_ids[0] for h in r1["results"])
         # uid2 搜不到 uid1 的内容（uid2 唯一会话是当前，被排除 → 空）
         r2 = await _search(uid2, "压缩方案")
         assert r2["total"] == 0
 
-    async def test_multi_keyword_and(self):
-        """多关键词空格分隔 → 全部命中才返回（AND）"""
+    async def test_multi_keyword_or(self):
+        """多关键词空格分隔 → 任一命中即返回（OR，PR #51 review）"""
         uid = await _create_user()
         async with async_session_factory() as db:
             conv = Conversation(user_id=uid, title="")
@@ -171,8 +176,27 @@ class TestSearchHistory:
             await db.commit()
 
         result = await _search(uid, "压缩 方案")
+        # 「压缩不好」只含「压缩」不含「方案」，OR 语义下也命中 → 2 条合并为 1 片段
         assert result["total"] == 1
-        assert "压缩方案很好" in result["results"][0]["content"]
+        window_contents = [m["content"] for m in result["results"][0]["context_window"]]
+        assert "压缩方案很好" in window_contents
+        assert "压缩不好" in window_contents
+
+    async def test_multi_keyword_no_match(self):
+        """多关键词 OR：所有词都不命中 → 空结果"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            await session_ops.save_user_message(db, conv.id, "完全无关的内容")
+            await db.commit()
+            conv2 = Conversation(user_id=uid, title="")
+            db.add(conv2)
+            await db.commit()
+
+        result = await _search(uid, "压缩 方案")
+        assert result == {"results": [], "total": 0}
 
     async def test_sort_oldest(self):
         """sort=oldest → 时间正序（最旧命中在前）"""
@@ -189,7 +213,8 @@ class TestSearchHistory:
             await db.commit()
 
         result = await _search(uid, "压缩方案", sort="oldest")
-        assert result["total"] == 2
+        # 2 条命中相邻 → 合并 1 片段；anchor = 最旧命中（第一轮）
+        assert result["total"] == 1
         assert "第一轮" in result["results"][0]["content"]
 
     async def test_limit_and_truncate(self):
@@ -207,7 +232,8 @@ class TestSearchHistory:
             await db.commit()
 
         result = await _search(uid, "压缩方案", limit=2)
-        assert result["total"] == 2
+        # limit=2 截断命中 → 2 条相邻 → 合并 1 片段
+        assert result["total"] == 1
         for hit in result["results"]:
             assert len(hit["content"]) <= 4001  # 4000 + 省略号
 
@@ -277,3 +303,23 @@ class TestSearchHistory:
         result = await _search(uid, "user_id")
         assert result["total"] == 1
         assert "字段说明" in result["results"][0]["content"]
+
+    async def test_cross_conversation_not_merged(self):
+        """不同会话的命中不合并：各会话独立成片段（PR #51 review 合并边界）"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            for _ in range(2):
+                conv = Conversation(user_id=uid, title="")
+                db.add(conv)
+                await db.flush()
+                await session_ops.save_user_message(db, conv.id, "压缩方案讨论")
+                await db.commit()
+            # 当前会话（第三个）被排除
+            conv3 = Conversation(user_id=uid, title="")
+            db.add(conv3)
+            await db.commit()
+
+        result = await _search(uid, "压缩方案")
+        # 2 个旧会话各 1 条命中 → 2 个独立片段（不跨会话合并）
+        assert result["total"] == 2
+        assert len({h["conversation_id"] for h in result["results"]}) == 2

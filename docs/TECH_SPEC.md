@@ -932,6 +932,8 @@ search_history(query, limit=3, window=5, sort=relevance|newest|oldest)
 ```
 
 - **过滤**：`user_id` 归属过滤 + **排除当前 conversation**（其内容 agent 上下文已有；被压缩的旧 A 天然可搜——搜索的主要目标）
+- **多关键词**：空格拆词，**任一命中即返回（OR）**（PR #51 review：AND 容易什么都搜不到）
+- **窗口合并**（PR #51 review）：同一会话内相邻命中（id 差 ≤ 2×window）的 ±window 窗口重叠 → 合并为一个连续片段（边界 = [首条 hit − window, 末条 hit + window]），避免同一消息在多个 result 重复；不同会话不合并
 - **排序**：默认 FTS 相关度（探索式回忆），`sort=newest/oldest` 可选（recency 场景）
 - **实现路径**：LIKE `%kw%` 起步（单用户量级可控）→ MySQL FULLTEXT + ngram parser 升级为 [followup issue #42](https://github.com/ai-0516/lanyuan-base/issues/42)
 - **注册**：tool_registry 注册，agent 主动调用；与 UI 历史查询（8.5）完全解耦
