@@ -962,7 +962,7 @@ class TestRotation:
             for i in range(rounds):
                 await session_ops.save_user_message(db, sid, f"历史问题 {i} " + "x" * 20)
                 await session_ops.save_assistant_message(db, sid, f"历史回答 {i} " + "y" * 20)
-            # 超限判断依据 = 最近一次 LLM 调用的精确 prompt_tokens（PR #49）：
+            # 超限判断依据 = 最近一次 LLM 调用的精确 total_tokens（PR #49）：
             # 插入一条超阈值的 usage 记录模拟「上次调用已超限」
             from app.config import settings
             from app.models.llm_usage import LlmUsage
@@ -970,8 +970,8 @@ class TestRotation:
                 req_id="seed-overflow",
                 session_id=sid,
                 user_id=uid,
-                prompt_tokens=settings.COMPACT_TOKEN_THRESHOLD + 1000,
-                total_tokens=settings.COMPACT_TOKEN_THRESHOLD + 1000,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD + 1000,
             ))
             await db.commit()
         return sid
@@ -1060,15 +1060,15 @@ class TestRotation:
             from app.services.ai_service import get_or_create_session
             s = await get_or_create_session(db, uid)
             sid = s.session_id
-            # 有 usage 记录但 prompt_tokens 未超限 → 不旋转（PR #49 精确判断）
+            # 有 usage 记录但 total_tokens 未超限 → 不旋转（PR #49 精确判断）
             from app.config import settings
             from app.models.llm_usage import LlmUsage
             db.add(LlmUsage(
                 req_id="seed-below",
                 session_id=sid,
                 user_id=uid,
-                prompt_tokens=settings.COMPACT_TOKEN_THRESHOLD - 1,
-                total_tokens=settings.COMPACT_TOKEN_THRESHOLD - 1,
+                prompt_tokens=settings.SESSION_ROTATION_THRESHOLD // 2,
+                total_tokens=settings.SESSION_ROTATION_THRESHOLD - 1,
             ))
             await db.commit()
 

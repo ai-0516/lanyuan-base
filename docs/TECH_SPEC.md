@@ -880,7 +880,7 @@ python-multipart>=0.0.0
 
 ### 8.3 压缩旋转 (rotation)
 
-**触发**：ai_service 每轮检查上下文超限（`COMPACT_TOKEN_THRESHOLD`，默认 40K token，用该会话最近一次 LLM 调用的精确 `prompt_tokens` 判断——PR #49 review：不用字符估算，LLM response 自带精确 usage）→ **仅 llm 层压缩**（真正总结）触发 rotation；snip / tool_result 轻量层原地处理，不建新会话（避免碎片化）。
+**触发**：ai_service 每轮检查上下文超限（`SESSION_ROTATION_THRESHOLD`，默认 40K token，用该会话最近一次 LLM 调用的精确 `total_tokens` 判断——PR #49 review：不用字符估算，LLM response 自带精确 usage；total = prompt + completion，本轮生成的 assistant 回复会作为下轮 prompt 的一部分，比 prompt 更贴近「会话内容总量」）→ **仅 llm 层压缩**（真正总结）触发 rotation；snip / tool_result 轻量层原地处理，不建新会话（避免碎片化）。
 
 **流程**（现有流程 = 先 `save_user_message` 到 A 再检查）：
 
@@ -951,7 +951,7 @@ search_history(query, limit=3, window=5, sort=relevance|newest|oldest)
 
 ### 8.9 待实现确认项
 
-- [x] 压缩触发阈值（token 上限 / 上下文占比，实现时定）→ 已定：`COMPACT_TOKEN_THRESHOLD=40K`，用 llm_usage 精确 prompt_tokens 判断（PR #49 review，见 8.3）
+- [x] 压缩触发阈值（token 上限 / 上下文占比，实现时定）→ 已定：`SESSION_ROTATION_THRESHOLD=40K`，用 llm_usage 精确 total_tokens 判断（PR #49 review，见 8.3；2026-08-07 由 COMPACT_TOKEN_THRESHOLD 改名）
 - [ ] 前端 tool_call 消息（content 为空）渲染跳过逻辑确认（tool 消息已过滤，tool_call 需确认）
 - [ ] 搜索 LIKE 查询的上下文窗口实现（命中消息 ±N 条取法）
 - [ ] `GET /messages` 分页 API 设计细化（响应结构、limit 上限）

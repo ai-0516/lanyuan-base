@@ -42,14 +42,16 @@ def _to_openai_messages(history: list[Message]) -> list[dict]:
     return result
 
 
-async def _get_last_prompt_tokens(db, session_id: int) -> int | None:
-    """该会话最近一次 LLM 调用的精确输入 token 数（llm_usage 表）
+async def _get_last_total_tokens(db, session_id: int) -> int | None:
+    """该会话最近一次 LLM 调用的精确 token 数（llm_usage 表）
 
     超限判断依据（PR #49 review：不用字符估算，LLM response 带精确 usage）。
+    用 total_tokens（= prompt + completion）：本轮生成的 assistant 回复
+    会作为下轮 prompt 的一部分，total 比 prompt 更贴近「会话内容总量」。
     返回 None = 会话尚无任何 LLM 调用（新会话首条消息），不可能超限。
     """
     result = await db.execute(
-        select(LlmUsage.prompt_tokens)
+        select(LlmUsage.total_tokens)
         .where(LlmUsage.session_id == session_id)
         .order_by(LlmUsage.id.desc())
         .limit(1)
@@ -73,12 +75,12 @@ async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int |
     history = await context.get_recent_messages(db, session_id)
     messages = _to_openai_messages(history)
 
-    # 超限判断：用该会话最近一次 LLM 调用的精确 prompt_tokens（llm_usage 表），
+    # 超限判断：用该会话最近一次 LLM 调用的精确 total_tokens（llm_usage 表），
     # 不用字符估算（PR #49 review：LLM response 自带精确 usage 信息）
-    last_prompt_tokens = await _get_last_prompt_tokens(db, session_id)
-    if last_prompt_tokens is None:
+    last_total_tokens = await _get_last_total_tokens(db, session_id)
+    if last_total_tokens is None:
         return None  # 新会话首条消息（尚无 LLM 调用），不可能超限
-    if last_prompt_tokens < settings.COMPACT_TOKEN_THRESHOLD:
+    if last_total_tokens < settings.SESSION_ROTATION_THRESHOLD:
         return None
 
     # 摘要输入排除 u_k（它是 B 的起点，原样保留在新会话，避免重复总结）
