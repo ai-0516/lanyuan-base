@@ -96,7 +96,9 @@ class AssistantMessage(TypedDict):
 class ToolResultMessage(TypedDict):
     role: Literal["toolResult"]
     tool_call_id: str
+    tool_name: NotRequired[str]   # agent 回填必带；DB 回读时按 tool_call_id 从 assistant tool_calls 匹配，匹配不到缺省
     content: str
+    is_error: NotRequired[bool]   # 默认 False；agent 回填时映射 tool_status == "error"
 
 
 Message = UserMessage | AssistantMessage | ToolResultMessage
@@ -108,8 +110,9 @@ Message = UserMessage | AssistantMessage | ToolResultMessage
 |---|---|
 | 工具参数用**对象** | Anthropic `input` 就是对象；to_openai 时 `json.dumps` 序列化即可。反方向（解析响应）Anthropic 给对象、OpenAI 给字符串，统一到对象 |
 | `toolResult` 独立 role | OpenAI 叫 `tool`、Anthropic 包在 `user` 里——canonical 独立，配对判断 `role == "toolResult"` 一句话 |
-| 不加 `tool_name` / `is_error` | 配对靠 `tool_call_id` 足够；DB 无这些列；现状无错误标志需求。将来需要再加 |
-| `thinking` block | DeepSeek 推理模型的 `reasoning_content`，agent 现状已回传该字段；canonical 化后放 assistant.content |
+| 保留 `tool_name`（可选） | 配对不需要它（`tool_call_id` 就够），但调试日志 / 压缩占位符显示有实际价值；agent 回填时信息在手边（`tc.function.name`）。NotRequired：DB 无此列，回读时按 `tool_call_id` 从 assistant 的 tool_calls JSON 匹配提取，匹配不到缺省——不改表结构（2026-08-07 review 定） |
+| 保留 `is_error`（默认 False） | agent.py 已有 `tool_status = "ok" \| "error"`（L245-249），回填时丢弃了错误语义。Anthropic `tool_result` 原生支持 `is_error`（工具失败模型可感知），to_anthropic 直接透传；OpenAI 侧无此字段（错误文本已在 content），转换忽略（2026-08-07 review 定） |
+| `thinking` block | DeepSeek 推理模型的 `reasoning_content`，agent 现状已回传该字段；canonical 化后放 assistant.content。**`block.type` 区分答复 vs 推理**：`{"type":"thinking"}`=推理、`{"type":"text"}`=答复——三种 block 可共存（先思考→调工具→给答复） |
 | user 的 `content` 允许 str | DB `content` 列就是 str，避免无谓包装 |
 
 ### 4.2 三格式对照（同一片段）
@@ -142,23 +145,46 @@ Message = UserMessage | AssistantMessage | ToolResultMessage
 
 ## 5. Adapter 层（协议转换）
 
-新增 `app/harness/adapters/openai.py` 与 `anthropic.py`，全部纯函数。
+### 5.1 LLMAdapter 抽象基类（2026-08-07 review 定）
 
-### 5.1 `to_openai(messages, system) -> list[dict]`
+新增 `app/harness/adapters/llm_adapter.py`——**上层只关心「canonical 与 LLM 协议互转」，不感知具体格式**：
 
-canonical → OpenAI 兼容请求体 messages（`/chat/completions`）：
+```python
+class LLMAdapter(ABC):
+    """协议适配器：canonical 与 LLM 协议互转，上层不感知具体格式"""
+    protocol: str  # "openai" | "anthropic"
 
-- `system` 参数（若传入）→ 第一条 `{"role": "system"}`（现有组装由 `context.py` 负责，签名设计为接收已含 system 的完整列表也可，实现时二选一，倾向**接收完整 canonical 列表**，转换函数保持纯粹）
+    @abstractmethod
+    def canonical2llm(self, messages: list[Message], tools: list[dict] | None) -> dict:
+        """canonical → 该协议请求体（messages + 可选 tools 转换）"""
+
+    @abstractmethod
+    def llm2canonical(self, sse_events: list[dict]) -> list[tuple[str, object]]:
+        """该协议 SSE 事件序列 → 统一事件（token/reasoning_token/tool_call/usage/done/error）"""
+
+
+class OpenAIAdapter(LLMAdapter): ...      # protocol="openai"，openai.py
+class AnthropicAdapter(LLMAdapter): ...   # protocol="anthropic"，anthropic.py
+```
+
+- `streaming.py` 不写 if/else：`resolve_provider()` 返回协议 → 查表拿 adapter 实例 → 调统一接口（§6.2）
+- HTTP 传输留在 streaming.py（重试 / mock / 错误分类都是**协议无关**的编排，不进 adapter）
+- 工具 schema 内部保持 OpenAI 形状（`{type:"function", function:{name, description, parameters}}`），由各子类的 `canonical2llm` 内部转换
+
+### 5.2 OpenAIAdapter — canonical → OpenAI 兼容格式（`/chat/completions`）
+
+`canonical2llm`：
+
 - `user`：`content` 字符串直传；若为 block 列表则取 text blocks 拼接
 - `assistant`：
   - `thinking` blocks → 顶层 `reasoning_content` 字段（DeepSeek 扩展，多块拼接）
   - `text` blocks → `content`（拼接字符串；无文本则为 `None`）
   - `toolCall` blocks → `tool_calls` 数组：`{"id", "type": "function", "function": {"name", "arguments": json.dumps(arguments, ensure_ascii=False)}}`
-- `toolResult` → `{"role": "tool", "tool_call_id", "content"}`
+- `toolResult` → `{"role": "tool", "tool_call_id", "content"}`（`is_error` 忽略——OpenAI 无此字段，错误文本已在 content）
 
-### 5.2 `to_anthropic(messages, system) -> list[dict]`
+### 5.3 AnthropicAdapter — canonical → Anthropic 格式（`/v1/messages`）
 
-canonical → Anthropic 请求体 messages（`/v1/messages`）：
+`canonical2llm`：
 
 - `system`（若在列表中）→ **提取到顶层 `system` 参数**（Anthropic 不走 messages 的 system role）
 - `user`（文本）→ `{"role": "user", "content": [{"type": "text", "text"}]}`
@@ -166,7 +192,8 @@ canonical → Anthropic 请求体 messages（`/v1/messages`）：
   - `text` → `{"type": "text", "text"}`
   - `thinking` → `{"type": "thinking", "thinking"}`（若端点不支持则实测后降级为 text 或丢弃，见 §10）
   - `toolCall` → `{"type": "tool_use", "id", "name", "input": arguments}`
-- `toolResult` → **包进独立 `user` 消息**：`{"role": "user", "content": [{"type": "tool_result", "tool_use_id", "content"}]}`
+- `toolResult` → **包进独立 `user` 消息**：`{"role": "user", "content": [{"type": "tool_result", "tool_use_id", "content", "is_error"?}]}`——`is_error` 为 True 时携带（Anthropic 原生字段）
+- tools 转换：`{"type":"function","function":{"name","description","parameters"}}` → `{"name","description","input_schema": parameters}`
 
 **Anthropic 硬约束**（必须遵守）：
 
@@ -174,22 +201,15 @@ canonical → Anthropic 请求体 messages（`/v1/messages`）：
 2. `tool_result` 必须紧跟其 `tool_use`（转换保持输入顺序即天然满足，前提是内存消息顺序正确——agent 回填保证）
 3. 相邻多条 toolResult → 相邻独立 user 消息合法（也可合并，实现选独立，简单）
 
-### 5.3 `to_anthropic_tools(tools) -> list[dict]`
-
-tools 定义转换（工具 schema 本身不改造，继续用 OpenAI 形状作为内部标准）：
-
-- `{"type": "function", "function": {"name", "description", "parameters"}}`
-- → `{"name", "description", "input_schema": parameters}`
-
-### 5.4 响应解析
+### 5.4 响应解析（`llm2canonical`）
 
 统一产出事件（与现状 `streaming.py` 完全一致）：`token` / `reasoning_token` / `reasoning` / `tool_call` / `usage` / `done` / `error`。
 
-#### openai 协议：`parse_openai_stream()`
+#### OpenAIAdapter.llm2canonical
 
 从现状 `deepseek_chat` 的 SSE 解析逻辑**原样抽出**（`choices[0].delta`、`reasoning_content`、`content`、`tool_calls` index 合并、`usage`、`[DONE]`），不改变行为。
 
-#### anthropic 协议：`parse_anthropic_stream()`
+#### AnthropicAdapter.llm2canonical
 
 SSE 事件流（`event:` 行 + `data:` JSON）：
 
@@ -203,6 +223,16 @@ SSE 事件流（`event:` 行 + `data:` JSON）：
 | `message_stop` | 流结束：有 tool_call → 不 yield `done`；纯文本 → yield `done` + `usage`（若拿到） |
 
 错误处理与现状对齐：非 200 响应按 `HTTP_STATUS_MAP` 分类（AUTH_FAILED / BAD_REQUEST / RATE_LIMIT / TIMEOUT / SSE_DISCONNECTED / SSE_PARSE_ERROR / UNEXPECTED），`x-api-key` 认证失败映射同 401。
+
+### 5.5 SDK 决策（2026-08-07 review 定）
+
+**不引入 openai / anthropic 官方 python SDK**，保持 httpx 手写。理由：
+
+- 手写 SSE 恰恰是因为需要 SDK 抽象不掉的精细控制：`reasoning_content`（DeepSeek 扩展）、tool_calls 跨 chunk 增量合并、错误体分类（HTTP_STATUS_MAP）、流中断检测（SSE_DISCONNECTED）
+- pi-ai 同场景也是自研传输层（只用官方 SDK 的类型定义，不用于网络请求）
+- 引入两个重量级依赖增加体积与维护成本；DeepSeek anthropic 端点用官方 anthropic SDK 还需覆盖 base_url，纯增加适配层
+
+adapter 子类已把协议细节封装，将来若真要换 SDK 只动对应子类。
 
 ## 6. 配置
 
@@ -236,7 +266,7 @@ def resolve_provider() -> dict:
 
 | 现状 | 改造后 |
 |---|---|
-| `deepseek_chat()` | `llm_chat()`：按 `resolve_provider().protocol` 路由到 openai 实现（现状逻辑）或 anthropic 实现（新写，`POST {base}/v1/messages`，headers `x-api-key` + `anthropic-version: 2023-06-01`，`stream: true`） |
+| `deepseek_chat()` | `llm_chat()`：`resolve_provider()` 拿 adapter 实例 → 调统一接口（OpenAIAdapter 走现状 HTTP + SSE 逻辑；AnthropicAdapter 走 `POST {base}/v1/messages`，headers `x-api-key` + `anthropic-version: 2023-06-01`，`stream: true`） |
 | `retry_deepseek_chat()` | `retry_llm_chat()`：重试包装逻辑不变，内部改调 `llm_chat` |
 | `mock_chat()` | 不变（无 key 时的降级路径，事件契约同） |
 | `_summarize` 的调用点（context_compact） | 改调 `retry_llm_chat` 或 `llm_chat`（摘要不需要重试包装，用 `llm_chat`） |
@@ -246,13 +276,14 @@ def resolve_provider() -> dict:
 | 文件 | 改动 |
 |---|---|
 | `app/config.py` | `DEEPSEEK_*` → `LLM_*` 四件套（§6.1） |
-| `app/harness/adapters/__init__.py` | 导出入口 |
+| `app/harness/adapters/__init__.py` | 导出入口 + adapter 实例查表（协议 → 实例） |
 | `app/harness/adapters/messages.py` | canonical TypedDict（§4.1） |
-| `app/harness/adapters/openai.py` | `to_openai` + `parse_openai_stream`（从 streaming.py 抽出，行为不变） |
-| `app/harness/adapters/anthropic.py` | `to_anthropic` + `to_anthropic_tools` + `parse_anthropic_stream`（新写） |
+| `app/harness/adapters/llm_adapter.py` | `LLMAdapter` 抽象基类（§5.1） |
+| `app/harness/adapters/openai.py` | `OpenAIAdapter`：`canonical2llm` + `llm2canonical`（从 streaming.py 抽出，行为不变） |
+| `app/harness/adapters/anthropic.py` | `AnthropicAdapter`：`canonical2llm` + `llm2canonical`（新写） |
 | `app/harness/adapters/providers.py` | `PROVIDER_PROTOCOLS` + `resolve_provider`（§6.2） |
-| `app/harness/streaming.py` | 按协议路由（§6.3）；SSE 解析代码移入 adapters |
-| `app/harness/agent.py` L257-270 | 回填 canonical：assistant 消息 content = `[{"type":"toolCall",...}]`（+thinking block 若 `self._reasoning_content`）；tool 结果 → `{"role":"toolResult","tool_call_id","content"}` |
+| `app/harness/streaming.py` | 按协议拿 adapter 实例路由（§6.3）；SSE 解析代码移入 adapters |
+| `app/harness/agent.py` L257-270 | 回填 canonical：assistant 消息 content = `[{"type":"toolCall","id","name","arguments"}]`（+thinking block 若 `self._reasoning_content`）；tool 结果 → `{"role":"toolResult","tool_call_id","tool_name","content","is_error": tool_status=="error"}` |
 | `app/harness/context_compact.py` | `_is_tool_call_message`：`role=="assistant"` 且 content 含 `toolCall` block；`_is_tool_result_message`：`role=="toolResult"`；占位符消息改 canonical（`{"role":"user","content":"[snipped N messages...]"}` → 保持 user + str 即兼容）；`_summarize` 改调 `llm_chat` |
 | `app/harness/context.py` | `build_deepseek_messages` → `build_messages`：ORM → canonical（system 文本拼接保持；tool 消息 → `toolResult`；assistant+tool_calls → toolCall blocks；`reasoning_content` 列无（在 agent 回填内存态），DB 读出不涉及） |
 | `app/services/ai_service.py` | `_to_openai_messages` → `_to_canonical_messages`（摘要/rotation 输入）；`_maybe_rotate` 的 `compress_context` 硬编码 → canonical 形状（toolCall block） |
@@ -264,11 +295,10 @@ def resolve_provider() -> dict:
 
 纯函数测试，无 HTTP（与现有模块级 mock 风格一致）：
 
-- **to_openai**：纯文本 / 带 thinking / 带 toolCall（含 arguments 对象 → JSON 字符串断言）/ 混合（text + toolCall 共存）
-- **to_anthropic**：纯文本 / thinking block / toolCall → `tool_use` / toolResult → `tool_result` 包独立 user 消息 / **相邻 toolResult 不合并** / system 提取到顶层
-- **to_anthropic_tools**：schema 转换断言
-- **parse_openai_stream**：文本流 / reasoning / tool_calls 多 chunk index 合并 / usage / `[DONE]`
-- **parse_anthropic_stream**：`text_delta` → token / `thinking_delta` → reasoning_token / `input_json_delta` 跨 chunk 拼装 → tool_call / `message_delta.stop_reason=tool_use` / usage 汇总
+- **OpenAIAdapter.canonical2llm**：纯文本 / 带 thinking（→ `reasoning_content`）/ 带 toolCall（arguments 对象 → JSON 字符串断言）/ 混合（text + toolCall 共存）/ toolResult → `role=tool`
+- **AnthropicAdapter.canonical2llm**：纯文本 / thinking block / toolCall → `tool_use` / toolResult → `tool_result` 包独立 user 消息 / **相邻 toolResult 不合并** / system 提取到顶层 / **`is_error=True` → 携带 `is_error`** / tools schema 转换
+- **OpenAIAdapter.llm2canonical**：文本流 / reasoning / tool_calls 多 chunk index 合并 / usage / `[DONE]`
+- **AnthropicAdapter.llm2canonical**：`text_delta` → token / `thinking_delta` → reasoning_token / `input_json_delta` 跨 chunk 拼装 → tool_call / `message_delta.stop_reason=tool_use` / usage 汇总
 
 ### 8.2 存量测试更新
 
