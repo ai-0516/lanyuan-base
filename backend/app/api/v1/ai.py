@@ -32,6 +32,53 @@ def _truncate(content: str | None, limit: int = _MAX_SNIPPET) -> str:
     return content[:limit] + "…" if len(content) > limit else content
 
 
+def _merge_overlapping_hits(
+    hits: list[Message], window: int
+) -> list[list[Message]]:
+    """把窗口重叠的命中合并为连续片段（PR #51 review）
+
+    为什么需要合并：每条命中会带 ±window 条的上下文窗口（context_window）。
+    同一会话内相邻的两条命中（消息 id 差 ≤ 2×window）的窗口必然重叠——
+    如果各自独立成 result，同一批消息会重复出现在多个 result 里（浪费
+    token，且 LLM 看到的内容互相矛盾）。合并后一个片段对应一个 result，
+    context_window 取整个区间，天然去重。
+
+    为什么不依赖 hits 的输入顺序：合并的判据是「同会话内 id 邻接」，与
+    hits 的排列顺序无关。当前实现靠 order_by(id) 保证有序，但未来升级为
+    FTS 相关度排序后 hit 就是无序的（#42）。这里先按会话分组、组内按 id
+    排序，合并结果与输入顺序解耦，两种排序下输出一致。
+
+    段序如何保持：片段按「段内首条 hit 在 hits 中的原始下标」升序排列，
+    保证输出顺序与用户请求的 sort（newest/oldest/relevance）一致。
+
+    返回：片段列表。每个片段 = 同一会话内窗口重叠的一组命中（组内按 id
+    升序，与 hits 原始顺序无关）；片段之间按 anchor 在 hits 中的下标升序。
+    """
+    # 按会话分组，同时记住每条 hit 在 hits 中的原始下标（最后排序用）
+    by_conv: dict[int, list[tuple[int, Message]]] = {}
+    for idx, hit in enumerate(hits):
+        by_conv.setdefault(hit.conversation_id, []).append((idx, hit))
+
+    # 组内按 id 排序 → 贪心合并：与当前片段末尾同会话且 id 差 ≤ 2×window
+    # 说明窗口重叠 → 归入同一片段；否则新开片段。
+    segments: list[tuple[int, list[Message]]] = []  # (anchor 原始下标, 片段内命中)
+    for conv_hits in by_conv.values():
+        conv_hits.sort(key=lambda t: t[1].id)
+        for idx, hit in conv_hits:
+            can_merge = bool(
+                segments  # 已有片段可比较
+                and segments[-1][1][-1].conversation_id == hit.conversation_id  # 同会话
+                and hit.id - segments[-1][1][-1].id <= 2 * window  # 窗口重叠
+            )
+            if can_merge:
+                segments[-1][1].append(hit)
+            else:
+                segments.append((idx, [hit]))
+
+    # 片段按 anchor 在 hits 中的原始下标升序 → 保持搜索结果顺序
+    return [seg for _, seg in sorted(segments, key=lambda t: t[0])]
+
+
 @tool
 async def search_history(
     query: str,
@@ -92,28 +139,12 @@ async def search_history(
     ).limit(limit)
     hits = (await db.execute(stmt)).scalars().all()
 
-    # 合并窗口重叠的命中（PR #51 review）：同一会话内相邻 hit 的 ±window
-    # 窗口会重叠 → 合并为一个连续片段，避免同一消息出现在多个 result 里。
-    # 不依赖 hits 的输入顺序（未来 FTS 相关度排序时 hit 无序）：
-    # 先按会话分组、组内按 id 排序再合并；片段按 anchor 在 hits 中的
-    # 原始位置排序，保持搜索结果顺序（newest/oldest/relevance 通用）。
-    by_conv: dict[int, list] = {}
-    for idx, hit in enumerate(hits):
-        by_conv.setdefault(hit.conversation_id, []).append((idx, hit))
-
-    segments: list[tuple[int, list]] = []  # (anchor 原始下标, 同会话重叠 hit 组)
-    for conv_hits in by_conv.values():
-        conv_hits.sort(key=lambda t: t[1].id)  # 组内按 id 排序，消除顺序假设
-        for idx, hit in conv_hits:
-            if (segments and segments[-1][1]
-                    and hit.conversation_id == segments[-1][1][-1].conversation_id
-                    and hit.id - segments[-1][1][-1].id <= 2 * window):
-                segments[-1][1].append(hit)
-            else:
-                segments.append((idx, [hit]))
+    # 合并窗口重叠的命中为连续片段（为什么合并、为什么分组排序，
+    # 见 _merge_overlapping_hits 的 docstring——PR #51 review）
+    segments = _merge_overlapping_hits(hits, window)
 
     results = []
-    for _, seg in sorted(segments, key=lambda t: t[0]):
+    for seg in segments:
         seg_min, seg_max = seg[0].id - window, seg[-1].id + window
         anchor = seg[0]
 
