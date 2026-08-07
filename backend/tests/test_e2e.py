@@ -52,6 +52,11 @@ def any_code_body(body: dict) -> dict:
 
 @pytest.fixture(autouse=True)
 async def setup_db():
+    # 事件系统全局 Queue/consumer 绑定 pytest-asyncio 的 function-scoped loop，
+    # 跨测试复用会在 Python 3.12 抛 "bound to a different event loop"——
+    # 每个测试前 reset（对齐 test_api.py）
+    from app.harness.hooks import events as hook_events
+    hook_events.reset()
     await _clear_db()
     await init_db()
     yield
