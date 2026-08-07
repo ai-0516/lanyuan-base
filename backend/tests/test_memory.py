@@ -363,7 +363,7 @@ class TestContextInjection:
         assert "[user]" in section
         assert "user-name" not in section  # name 已去掉
 
-    async def test_build_deepseek_messages_with_memory(self):
+    async def test_build_messages_with_memory(self):
         """2026-08-03 粒度设计：只注入记忆索引（不注入相关记忆），system 字节稳定"""
         uid = await _create_user()
         provider = DBMemoryProvider()
@@ -380,7 +380,7 @@ class TestContextInjection:
             role="user", content="你好",
             tool_call_id=None, tool_calls=None,
         )
-        messages = context.build_deepseek_messages(
+        messages = context.build_messages(
             [fake_msg],
             "你好", memory_index=index,
         )
@@ -392,14 +392,14 @@ class TestContextInjection:
         # 历史 user 消息保持原始内容（不被改写——前缀缓存命中的前提）
         assert messages[1]["content"] == "你好"
         # 同一记忆集合 → system 字节稳定（跨轮缓存命中）
-        messages2 = context.build_deepseek_messages(
+        messages2 = context.build_messages(
             [fake_msg], "你好", memory_index=index,
         )
         assert messages[0]["content"] == messages2[0]["content"]
 
-    async def test_build_deepseek_messages_no_memory(self):
+    async def test_build_messages_no_memory(self):
         """无记忆时 system 不含实际记忆内容"""
-        messages = context.build_deepseek_messages([], "你好")
+        messages = context.build_messages([], "你好")
         assert messages[0]["role"] == "system"
         # SYSTEM_PROMPT 含记忆说明文字，但不含实际索引/相关记忆段
         assert "你的记忆索引：" not in messages[0]["content"]
@@ -434,14 +434,14 @@ class TestLlmSelect:
     """_llm_select：LLM 返回索引 → 映射；越界/非法 → 过滤；异常 → None 触发降级"""
 
     async def _run_select(self, monkeypatch, llm_tokens: list, memories: list):
-        """mock streaming.deepseek_chat 为 token 流，执行 _llm_select"""
-        async def fake_deepseek_chat(messages):
+        """mock streaming.llm_chat 为 token 流，执行 _llm_select"""
+        async def fake_llm_chat(messages):
             for tok in llm_tokens:
                 yield ("token", tok)
             yield ("done", "")
 
         monkeypatch.setattr(
-            "app.harness.streaming.deepseek_chat", fake_deepseek_chat
+            "app.harness.streaming.llm_chat", fake_llm_chat
         )
         return await memory_impl._llm_select("用户消息", memories)
 
@@ -483,11 +483,11 @@ class TestLlmSelect:
 
     async def test_llm_select_error_returns_none(self, monkeypatch):
         """LLM 调用抛错 → 返回 None（触发关键词降级）"""
-        async def fake_deepseek_chat_error(messages):
+        async def fake_llm_chat_error(messages):
             yield ("error", "boom")
 
         monkeypatch.setattr(
-            "app.harness.streaming.deepseek_chat", fake_deepseek_chat_error
+            "app.harness.streaming.llm_chat", fake_llm_chat_error
         )
         memories = [_FakeMemory("mem-0", description="desc-0")]
         result = await memory_impl._llm_select("用户消息", memories)

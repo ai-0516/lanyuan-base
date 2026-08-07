@@ -4,7 +4,7 @@
 - PROMPT_SECTIONS 拆分为独立 section（identity / tools / memory / compression）
 - 按需加载：memory_index 非空才注入，否则不注入
 - session 粒度缓存：同 session 冻结（memory_index 变化不重组装）；不同 session 各自组装
-- build_deepseek_messages 的 session_id 参数路径
+- build_messages 的 session_id 参数路径
 - SYSTEM_PROMPT 兼容常量（默认 context 组装结果）
 """
 
@@ -135,11 +135,11 @@ class TestGetSystemPromptCache:
 
 
 # ═══════════════════════════════════════════
-#  build_deepseek_messages — 集成入口
+#  build_messages — 集成入口
 # ═══════════════════════════════════════════
 
 
-class TestBuildDeepseekMessages:
+class TestBuildMessages:
     def _fake_msg(self, role: str, content: str):
         from types import SimpleNamespace
 
@@ -153,7 +153,7 @@ class TestBuildDeepseekMessages:
     def test_memory_index_still_supported(self):
         """memory_index 关键字参数兼容（#9 既有调用路径）"""
         index = "你的记忆索引：\n- [user] #1 用户名字"
-        messages = context.build_deepseek_messages(
+        messages = context.build_messages(
             [self._fake_msg("user", "你好")],
             "你好",
             memory_index=index,
@@ -164,13 +164,13 @@ class TestBuildDeepseekMessages:
     def test_session_id_freezes_system_across_calls(self):
         """同 session_id 连续组装 → system 冻结（复用首次结果）；不同 session → 各自组装"""
         fake = self._fake_msg("user", "你好")
-        m1 = context.build_deepseek_messages(
+        m1 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引A",
             session_id="s1",
         )
-        m2 = context.build_deepseek_messages(
+        m2 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引B",
@@ -180,7 +180,7 @@ class TestBuildDeepseekMessages:
         assert "索引A" in m1[0]["content"]
         assert "索引B" not in m1[0]["content"]
 
-        m3 = context.build_deepseek_messages(
+        m3 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引C",

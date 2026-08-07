@@ -143,7 +143,7 @@ class TestMicroCompact:
         assert result[7]["content"].startswith("x")
         assert result[9]["content"].startswith("x")
         # 消息结构未被破坏（tool_call 前驱仍在原位）
-        assert result[0]["role"] == "assistant" and result[0]["tool_calls"]
+        assert result[0]["role"] == "assistant" and result[0]["content"]
         # 不原地修改传入列表（review 问题 2 回归：接口风格与其他函数一致）
         assert messages[1]["content"].startswith("x"), "原列表不应被修改"
         assert messages[3]["content"].startswith("x")
