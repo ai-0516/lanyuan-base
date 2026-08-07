@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     # LLM API（#15 Adapter）— DEEPSEEK_* 已于 2026-08-07 迁移，无兼容
     LLM_PROVIDER: str = "deepseek"      # deepseek | deepseek-anthropic | （未来）qwen/moonshot/zhipu/anthropic
     LLM_BASE_URL: str = ""              # 空 → 按 provider 默认值
-    LLM_MODEL: str = "deepseek-v4-flash"  # deepseek-v4-flash | deepseek-v4-pro（deepseek-chat/reasoner 已于 2026-07-24 退休）
+    LLM_MODEL: str = "deepseek-v4-flash"  # deepseek-v4-flash | deepseek-v4-pro
+    # （deepseek-chat/reasoner 已于 2026-07-24 退休）
     LLM_API_KEY: str = ""
 
     # 上下文压缩（#8）— 生产调优直接改环境变量，无需改代码

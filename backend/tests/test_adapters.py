@@ -6,8 +6,6 @@
 - llm2canonical 增量解析 + finalize: SSE 事件 → 统一事件
 """
 
-import json
-
 from app.harness.adapters.anthropic import AnthropicAdapter
 from app.harness.adapters.openai import OpenAIAdapter
 
@@ -247,9 +245,21 @@ class TestAnthropicLlm2Canonical:
         """一次完整的 tool_use 流（input_json_delta 跨 chunk 拼装）"""
         return [
             {"type": "message_start", "message": {"usage": {"input_tokens": 10, "output_tokens": 0}}},
-            {"type": "content_block_start", "index": 0, "content_block": {"type": "tool_use", "id": "toolu_1", "name": "get_weather"}},
-            {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": '{"city":'}},
-            {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": '"北京"}'}},
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "tool_use", "id": "toolu_1", "name": "get_weather"},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": '{"city":'},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": '"北京"}'},
+            },
             {"type": "content_block_stop", "index": 0},
             {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 8}},
             {"type": "message_stop"},

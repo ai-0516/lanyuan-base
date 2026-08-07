@@ -292,7 +292,7 @@ def resolve_provider() -> dict:
 | `app/harness/context_compact.py` | `_is_tool_call_message`：`role=="assistant"` 且 content 含 `toolCall` block；`_is_tool_result_message`：`role=="toolResult"`；占位符消息改 canonical（`{"role":"user","content":"[snipped N messages...]"}` → 保持 user + str 即兼容）；`_summarize` 改调 `llm_chat` |
 | `app/harness/context.py` | `build_deepseek_messages` → `build_messages`：ORM → canonical（system 文本拼接保持；tool 消息 → `toolResult`；assistant+tool_calls → toolCall blocks；`reasoning_content` 列无（在 agent 回填内存态），DB 读出不涉及） |
 | `app/services/ai_service.py` | `_to_openai_messages` → `_to_canonical_messages`（摘要/rotation 输入）；`_maybe_rotate` 的 `compress_context` 硬编码 → canonical 形状（toolCall block） |
-| `app/harness/session.py` | `save_tool_call_message` / `save_tool_result_message` 入参改 canonical（内部转 DB 列；`tool_calls` 列仍存 OpenAI 形状 JSON 保持旧数据兼容） |
+| `app/harness/session.py` | `save_tool_call_message` / `save_tool_result_message` 入参保持 **OpenAI 形状**（DB 边界，`tool_calls` 列即 OpenAI 形状 JSON 旧数据兼容；canonical 化仅发生在内存消息流，不跨界到 DB） |
 
 ## 8. 测试计划
 
