@@ -94,18 +94,26 @@ async def search_history(
 
     # 合并窗口重叠的命中（PR #51 review）：同一会话内相邻 hit 的 ±window
     # 窗口会重叠 → 合并为一个连续片段，避免同一消息出现在多个 result 里。
-    # 片段边界 = [首条 hit.id - window, 末条 hit.id + window]，全局顺序保持。
-    segments: list[list] = []  # 每个元素 = 同一会话且窗口重叠的一组 hit
-    for hit in hits:
-        if (segments and segments[-1]
-                and hit.conversation_id == segments[-1][-1].conversation_id
-                and hit.id - segments[-1][-1].id <= 2 * window):
-            segments[-1].append(hit)
-        else:
-            segments.append([hit])
+    # 不依赖 hits 的输入顺序（未来 FTS 相关度排序时 hit 无序）：
+    # 先按会话分组、组内按 id 排序再合并；片段按 anchor 在 hits 中的
+    # 原始位置排序，保持搜索结果顺序（newest/oldest/relevance 通用）。
+    by_conv: dict[int, list] = {}
+    for idx, hit in enumerate(hits):
+        by_conv.setdefault(hit.conversation_id, []).append((idx, hit))
+
+    segments: list[tuple[int, list]] = []  # (anchor 原始下标, 同会话重叠 hit 组)
+    for conv_hits in by_conv.values():
+        conv_hits.sort(key=lambda t: t[1].id)  # 组内按 id 排序，消除顺序假设
+        for idx, hit in conv_hits:
+            if (segments and segments[-1][1]
+                    and hit.conversation_id == segments[-1][1][-1].conversation_id
+                    and hit.id - segments[-1][1][-1].id <= 2 * window):
+                segments[-1][1].append(hit)
+            else:
+                segments.append((idx, [hit]))
 
     results = []
-    for seg in segments:
+    for _, seg in sorted(segments, key=lambda t: t[0]):
         seg_min, seg_max = seg[0].id - window, seg[-1].id + window
         anchor = seg[0]
 

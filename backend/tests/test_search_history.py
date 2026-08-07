@@ -323,3 +323,29 @@ class TestSearchHistory:
         # 2 个旧会话各 1 条命中 → 2 个独立片段（不跨会话合并）
         assert result["total"] == 2
         assert len({h["conversation_id"] for h in result["results"]}) == 2
+
+    async def test_merge_order_independent(self):
+        """合并不依赖 hit 输入顺序（PR #51 review：未来 FTS 相关度排序时无序）"""
+        uid = await _create_user()
+        async with async_session_factory() as db:
+            conv = Conversation(user_id=uid, title="")
+            db.add(conv)
+            await db.flush()
+            for i in range(10):
+                await session_ops.save_user_message(db, conv.id, f"压缩方案讨论 {i}")
+            await db.commit()
+            # 当前会话排除——建第二个会话放历史
+            conv2 = Conversation(user_id=uid, title="")
+            db.add(conv2)
+            await db.commit()
+
+        # sort=newest（id 降序）：命中 10 条连续 → 全部合并为 1 片段
+        result = await _search(uid, "压缩方案", sort="newest", limit=10)
+        assert result["total"] == 1
+        assert len(result["results"][0]["context_window"]) == 10
+
+        # sort=oldest（id 升序）：同样合并为 1 片段——合并逻辑不因
+        # 输入顺序（升/降）不同而产出不同结果
+        result2 = await _search(uid, "压缩方案", sort="oldest", limit=10)
+        assert result2["total"] == 1
+        assert len(result2["results"][0]["context_window"]) == 10
