@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     COMPACT_KEEP_HEAD: int = 3                # L1/L4: 头部保留条数
     COMPACT_KEEP_RECENT_TOOL_RESULTS: int = 3 # L2: 保留最近 N 个 tool 结果
     COMPACT_TOOL_RESULT_SNIP_LENGTH: int = 120  # L2: 旧 tool 结果超此长度才占位
-    COMPACT_THRESHOLD: int = 60_000           # L4: 字符数估算阈值（≈30K~50K token）
+    COMPACT_THRESHOLD: int = 60_000           # L4: 字符数估算阈值（agent 内 llm 层压缩用，≈30K~50K token）
+    COMPACT_TOKEN_THRESHOLD: int = 40_000     # rotation 超限阈值（token，用 llm_usage 精确值判断，见 TECH_SPEC 8.3）
     COMPACT_KEEP_TAIL: int = 5                # L4/reactive: 尾部保留条数（含最新 user 消息）
     COMPACT_SUMMARY_INPUT_LIMIT: int = 80_000 # 发给摘要 LLM 的对话截断（字符）
 
