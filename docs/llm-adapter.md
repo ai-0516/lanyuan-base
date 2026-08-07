@@ -177,7 +177,7 @@ class AnthropicAdapter(LLMAdapter): ...   # protocol="anthropic"，anthropic.py
 
 - `user`：`content` 字符串直传；若为 block 列表则取 text blocks 拼接
 - `assistant`：
-  - `thinking` blocks → 顶层 `reasoning_content` 字段（DeepSeek 扩展，多块拼接）
+  - `thinking` blocks → 顶层 `reasoning_content` 字段（DeepSeek 扩展，多块拼接）。**硬约束（DeepSeek V4）**：模型返回 `reasoning_content` 后，后续 turn 必须原样回传，否则 HTTP 400 `"reasoning_content must be passed back"`（Hermes #15700/#17212/#17825 三案教训）——canonical 的 thinking block 必须保留在内存历史中，`to_openai` 折叠回 `reasoning_content` 是**必须路径**，不可丢弃（agent.py L262-263 现状已实现，canonical 化后保持）
   - `text` blocks → `content`（拼接字符串；无文本则为 `None`）
   - `toolCall` blocks → `tool_calls` 数组：`{"id", "type": "function", "function": {"name", "arguments": json.dumps(arguments, ensure_ascii=False)}}`
 - `toolResult` → `{"role": "tool", "tool_call_id", "content"}`（`is_error` 忽略——OpenAI 无此字段，错误文本已在 content）
@@ -192,14 +192,14 @@ class AnthropicAdapter(LLMAdapter): ...   # protocol="anthropic"，anthropic.py
   - `text` → `{"type": "text", "text"}`
   - `thinking` → `{"type": "thinking", "thinking"}`（若端点不支持则实测后降级为 text 或丢弃，见 §10）
   - `toolCall` → `{"type": "tool_use", "id", "name", "input": arguments}`
-- `toolResult` → **包进独立 `user` 消息**：`{"role": "user", "content": [{"type": "tool_result", "tool_use_id", "content", "is_error"?}]}`——`is_error` 为 True 时携带（Anthropic 原生字段）
-- tools 转换：`{"type":"function","function":{"name","description","parameters"}}` → `{"name","description","input_schema": parameters}`
+- `toolResult` → **包进 `user` 消息的 `tool_result` block**：`{"role": "user", "content": [{"type": "tool_result", "tool_use_id", "content", "is_error"?}]}`——`is_error` 为 True 时携带（Anthropic 原生字段）；**content 为空时用 `"(no output)"` 占位**（Anthropic 拒绝空 content）。**连续多条 toolResult 合并到同一条 user 消息**（扩展其 tool_result 列表，Anthropic 合法且更精简，参考 Hermes `convert_messages_to_anthropic`）
+- tools 转换：`{"type":"function","function":{"name","description","parameters"}}` → `{"name","description","input_schema": parameters}`；**重复工具名去重**（Anthropic 拒绝重复 tool name，把硬失败转 warning，参考 Hermes `convert_tools_to_anthropic`）
 
 **Anthropic 硬约束**（必须遵守）：
 
-1. `tool_result` 只能出现在 `user` 消息里，且含 `tool_result` 的 user 消息**不能混入其他 block 类型** → 每个 toolResult 转成独立 user 消息，不与普通文本 user 合并
+1. `tool_result` 只能出现在 `user` 消息里，且含 `tool_result` 的 user 消息**不能混入其他 block 类型** → 纯文本 user 消息与 toolResult 消息互不合并
 2. `tool_result` 必须紧跟其 `tool_use`（转换保持输入顺序即天然满足，前提是内存消息顺序正确——agent 回填保证）
-3. 相邻多条 toolResult → 相邻独立 user 消息合法（也可合并，实现选独立，简单）
+3. 连续 toolResult 可合并（见上）；合并后其 tool_result 列表顺序 = 输入顺序
 
 ### 5.4 响应解析（`llm2canonical`）
 
@@ -241,7 +241,7 @@ adapter 子类已把协议细节封装，将来若真要换 SDK 只动对应子�
 ```python
 LLM_PROVIDER: str = "deepseek"      # deepseek | deepseek-anthropic | （未来）qwen/moonshot/zhipu/anthropic
 LLM_BASE_URL: str = ""              # 空 → 按 provider 默认值
-LLM_MODEL: str = "deepseek-chat"    # deepseek-chat | deepseek-reasoner（pro/flash 由部署方配置）
+LLM_MODEL: str = "deepseek-v4-flash"    # deepseek-v4-flash | deepseek-v4-pro（deepseek-chat/reasoner 已于 2026-07-24 退休，Hermes 调研确认）
 LLM_API_KEY: str = ""
 ```
 
@@ -253,8 +253,13 @@ LLM_API_KEY: str = ""
 
 ```python
 PROVIDER_PROTOCOLS: dict[str, dict] = {
-    "deepseek":           {"protocol": "openai",    "default_base_url": "https://api.deepseek.com/v1"},
-    "deepseek-anthropic": {"protocol": "anthropic", "default_base_url": "https://api.deepseek.com/anthropic"},
+    # protocol: 协议适配器（LLMAdapter 子类）
+    # default_base_url: LLM_BASE_URL 为空时使用
+    # requires_reasoning_echo: DeepSeek V4 强制回传 reasoning_content（Hermes 调研，2026-08-07）
+    "deepseek":           {"protocol": "openai",    "default_base_url": "https://api.deepseek.com/v1",
+                           "requires_reasoning_echo": True},
+    "deepseek-anthropic": {"protocol": "anthropic", "default_base_url": "https://api.deepseek.com/anthropic",
+                           "requires_reasoning_echo": True},
     # 未来：qwen/moonshot/zhipu → openai 协议 + 各自 base_url；anthropic → anthropic 协议
 }
 
@@ -296,7 +301,7 @@ def resolve_provider() -> dict:
 纯函数测试，无 HTTP（与现有模块级 mock 风格一致）：
 
 - **OpenAIAdapter.canonical2llm**：纯文本 / 带 thinking（→ `reasoning_content`）/ 带 toolCall（arguments 对象 → JSON 字符串断言）/ 混合（text + toolCall 共存）/ toolResult → `role=tool`
-- **AnthropicAdapter.canonical2llm**：纯文本 / thinking block / toolCall → `tool_use` / toolResult → `tool_result` 包独立 user 消息 / **相邻 toolResult 不合并** / system 提取到顶层 / **`is_error=True` → 携带 `is_error`** / tools schema 转换
+- **AnthropicAdapter.canonical2llm**：纯文本 / thinking block / toolCall → `tool_use` / toolResult → `tool_result` 包 user 消息 / **连续 toolResult 合并到一条 user 消息** / **空 content → `"(no output)"`** / system 提取到顶层 / **`is_error=True` → 携带 `is_error`** / tools schema 转换（含重复名去重）
 - **OpenAIAdapter.llm2canonical**：文本流 / reasoning / tool_calls 多 chunk index 合并 / usage / `[DONE]`
 - **AnthropicAdapter.llm2canonical**：`text_delta` → token / `thinking_delta` → reasoning_token / `input_json_delta` 跨 chunk 拼装 → tool_call / `message_delta.stop_reason=tool_use` / usage 汇总
 
