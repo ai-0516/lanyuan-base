@@ -105,13 +105,15 @@ async def save_tool_result_message(
     conversation_id: int,
     tool_call_id: str,
     content: str,
+    tool_name: str | None = None,
 ) -> Message:
-    """保存 tool 执行结果消息"""
+    """保存 tool 执行结果消息（review #53：tool_name 直接入库，回读无需反向匹配）"""
     msg = Message(
         conversation_id=conversation_id,
         role="tool",
         content=content,
         tool_call_id=tool_call_id,
+        tool_name=tool_name,
     )
     db.add(msg)
     await db.flush()

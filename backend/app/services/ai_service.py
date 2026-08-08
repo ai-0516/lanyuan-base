@@ -100,7 +100,7 @@ async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int |
         content=None,
     )
     await session.save_tool_result_message(
-        db, new_conv.id, tool_call_id=tool_call_id, content=summary
+        db, new_conv.id, tool_call_id=tool_call_id, content=summary, tool_name="compress_context"
     )
 
     events.emit(events.SESSION_END, {
@@ -220,6 +220,7 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
                             session_id,
                             tool_call_id=tr.get("tool_call_id", ""),
                             content=tr.get("result", ""),
+                            tool_name=tr.get("tool"),
                         )
                 else:
                     # 纯文本回复

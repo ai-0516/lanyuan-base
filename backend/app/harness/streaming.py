@@ -89,17 +89,17 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
     adapter = get_adapter(provider["protocol"])
     base_url = provider["base_url"]
     url = f"{base_url.rstrip('/')}{adapter.endpoint_path}"
-    headers = adapter.build_headers(settings.LLM_API_KEY)
+    headers = adapter.build_headers()
 
-    request_body: dict = adapter.canonical2llm(messages, tools)
-    request_body["model"] = settings.LLM_MODEL
+    request_body: dict = adapter.canonical_to_llm(messages, tools)
+    request_body["model"] = provider["model"]
     request_body["stream"] = True
     if getattr(adapter, "DEFAULT_MAX_TOKENS", None):
         request_body["max_tokens"] = adapter.DEFAULT_MAX_TOKENS  # Anthropic 必填
 
     logger.info(
         "LLM request: provider=%s protocol=%s model=%s messages=%d tools=%s",
-        settings.LLM_PROVIDER, adapter.protocol, settings.LLM_MODEL,
+        settings.LLM_PROVIDER, adapter.protocol, provider["model"],
         len(messages), "yes" if tools else "no",
     )
 
@@ -154,19 +154,23 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
                     if not line.startswith("data: "):
                         continue
                     data_str = line[6:].strip()
-                    if adapter.is_end_signal(data_str):
-                        saw_end_signal = True
-                        break
                     try:
                         data = json.loads(data_str)
                     except json.JSONDecodeError:
+                        data = None  # [DONE] 等非 JSON 结束信号，adapter.is_end 内部处理
+
+                    if adapter.is_end(data_str, data):
+                        saw_end_signal = True
+                        if data_str == "[DONE]":
+                            break
+                        continue
+
+                    if data is None:
                         error_chunk_count += 1
                         last_error_chunk = data_str
                         continue
 
-                    if adapter.is_end_data(data):
-                        saw_end_signal = True
-                    for event, ev_data in adapter.llm2canonical(data, state):
+                    for event, ev_data in adapter.llm_to_canonical(data, state):
                         yield (event, ev_data)
 
                 # ── 流结束 — 收尾事件（reasoning 合并 / tool_call / done / usage）──

@@ -14,7 +14,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from app.config import settings
+from app.harness.adapters import get_adapter, resolve_provider
 from app.harness.hooks import events
 from app.harness.hooks.events import on
 
@@ -46,14 +46,18 @@ def _ts() -> str:
 @on(events.AGENT_START)
 async def on_agent_start(data: dict):
     meta = data.get("meta", {})
+    # review #53：model/api_url 从 provider 读取，不再直读 settings
+    provider = resolve_provider()
+    adapter = get_adapter(provider["protocol"])
+    api_url = f"{provider['base_url'].rstrip('/')}{adapter.endpoint_path}"
     _write_line({
         "event": events.AGENT_START,
         "req_id": data["req_id"],
         "ts": _ts(),
         "session_id": meta.get("session_id"),
         "user_message": meta.get("user_message"),
-        "model": settings.LLM_MODEL,
-        "api_url": f"{settings.LLM_BASE_URL or 'https://api.deepseek.com/v1'}/chat/completions",
+        "model": provider["model"],
+        "api_url": api_url,
     })
 
 

@@ -7,6 +7,7 @@ HTTP 传输留在 streaming.py（重试 / mock / 错误分类是协议无关的�
 from abc import ABC, abstractmethod
 
 from app.harness.adapters.messages import Message
+from app.harness.adapters.providers import Protocol
 
 
 class LLMAdapter(ABC):
@@ -16,7 +17,7 @@ class LLMAdapter(ABC):
     协议相关的 URL 后缀 / 认证头 / 流结束信号由子类提供。
     """
 
-    protocol: str  # "openai" | "anthropic"
+    protocol: Protocol  # Protocol.OPENAI | Protocol.ANTHROPIC
 
     # Anthropic API 必填 max_tokens；OpenAI 兼容协议不传（None）
     DEFAULT_MAX_TOKENS: int | None = None
@@ -28,26 +29,26 @@ class LLMAdapter(ABC):
         """base_url 后的 API 路径后缀"""
         raise NotImplementedError
 
-    def build_headers(self, api_key: str) -> dict:
-        """认证 + 版本头（协议相关）"""
+    def build_headers(self) -> dict:
+        """认证 + 版本头（协议相关）。settings.LLM_API_KEY 由 adapter 自行读取"""
         raise NotImplementedError
 
-    def is_end_signal(self, data_str: str) -> bool:
-        """SSE data 行是否为流结束信号（如 OpenAI 的 [DONE]）"""
-        raise NotImplementedError
+    def is_end(self, data_str: str, data: dict | None) -> bool:
+        """SSE data 行是否为流结束信号（OpenAI [DONE] / Anthropic message_stop）
 
-    def is_end_data(self, data: dict) -> bool:
-        """SSE data JSON 是否为流结束事件（如 Anthropic 的 message_stop）"""
+        data_str: data 行原文（未解析）；data: 解析后的 JSON（解析失败为 None）。
+        协议差异在 adapter 内屏蔽，streaming.py 统一调用。
+        """
         raise NotImplementedError
 
     # ── 转换 ──
 
     @abstractmethod
-    def canonical2llm(self, messages: list[Message], tools: list[dict] | None) -> dict:
+    def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None) -> dict:
         """canonical → 该协议请求体的内容部分（messages + 可选 tools）"""
 
     @abstractmethod
-    def llm2canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
+    def llm_to_canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
         """增量解析：喂一个 SSE 事件 dict → 本次产出的事件列表（可为空）
 
         跨事件状态（tool_call 累积 / thinking 累积 / usage）由调用方传入的

@@ -9,13 +9,16 @@ DeepSeek / Qwen / Moonshot / 智谱 均走此协议（TECH_SPEC §5.2）。
   **硬约束（DeepSeek V4）**：模型返回 reasoning_content 后后续 turn 必须
   原样回传，否则 HTTP 400 "reasoning_content must be passed back"
   （Hermes #15700/#17212/#17825）
-- toolResult → role=tool + tool_call_id（is_error 忽略，错误文本已在 content）
+- toolResult → role=tool + tool_call_id（OpenAI 协议无 is_error 字段——这是
+  协议限制，错误文本已在 content 中传给模型；Anthropic 的 tool_result 才有
+  is_error，见 anthropic.py）
 """
 
 import json
 import logging
 from typing import cast
 
+from app.config import settings
 from app.harness.adapters.llm_adapter import LLMAdapter
 from app.harness.adapters.messages import (
     AssistantMessage,
@@ -27,6 +30,7 @@ from app.harness.adapters.messages import (
     is_thinking_block,
     is_tool_call_block,
 )
+from app.harness.adapters.providers import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +59,19 @@ def _merge_tool_call(
 class OpenAIAdapter(LLMAdapter):
     """OpenAI 兼容协议（/chat/completions）"""
 
-    protocol = "openai"
+    protocol = Protocol.OPENAI
 
     @property
     def endpoint_path(self) -> str:
         return "/chat/completions"
 
-    def build_headers(self, api_key: str) -> dict:
-        return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    def build_headers(self) -> dict:
+        return {"Authorization": f"Bearer {settings.LLM_API_KEY}", "Content-Type": "application/json"}
 
-    def is_end_signal(self, data_str: str) -> bool:
+    def is_end(self, data_str: str, data: dict | None) -> bool:
         return data_str == "[DONE]"
 
-    def is_end_data(self, data: dict) -> bool:
-        return False
-
-    def canonical2llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
+    def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
         """canonical → OpenAI 兼容请求体的内容部分 {"messages": [...], "tools"?: [...]}"""
         result: list[dict] = []
         for msg in messages:
@@ -123,7 +124,7 @@ class OpenAIAdapter(LLMAdapter):
             body["tools"] = tools
         return body
 
-    def llm2canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
+    def llm_to_canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
         """增量解析：喂一个 OpenAI SSE 事件 dict → 本次产出的事件列表
 
         从 streaming.py deepseek_chat 的解析逻辑原样搬移（行为不变）：

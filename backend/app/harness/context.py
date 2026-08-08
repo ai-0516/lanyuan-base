@@ -25,11 +25,14 @@ Section 设计（issue #11）：
 """
 
 import json
+import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Message
+
+logger = logging.getLogger(__name__)
 
 # ── Prompt Sections ──────────────────────────────────────────
 # 每个 section 独立维护，修改不影响其他 section
@@ -170,21 +173,29 @@ def orm_to_canonical(history: list[Message]) -> list[dict]:
     """Message ORM → canonical dict（不含 system，纯历史消息）
 
     DB(列) → canonical 映射：
-    - role=tool → toolResult（tool_name 按 tool_call_id 从 assistant tool_calls 匹配，匹配不到缺省）
+    - role=tool → toolResult（tool_name 优先读 DB 列；旧数据为 NULL 时按
+      tool_call_id 从 assistant tool_calls 匹配兜底，review #53）
     - role=assistant + tool_calls 列 → assistant 的 toolCall blocks（arguments JSON 解析为对象）
     - role=assistant 纯文本 → TextBlock 包装
     """
     result: list[dict] = []
-    tool_names: dict[str, str] = {}  # tool_call_id → tool_name（供 toolResult 匹配）
+    tool_names: dict[str, str] = {}  # tool_call_id → tool_name（旧数据兜底匹配）
+    tool_result_count = 0
+    unnamed_count = 0  # tool_name 缺失（既无 DB 列值、反向匹配也失败）的条数
     for m in history:
         if m.role == "tool":
+            tool_result_count += 1
             entry: dict = {
                 "role": "toolResult",
                 "tool_call_id": m.tool_call_id or "",
                 "content": m.content or "",
             }
-            if m.tool_call_id in tool_names:
-                entry["tool_name"] = tool_names[m.tool_call_id]
+            # 新数据直读 tool_name 列；旧数据（NULL）按 tool_call_id 反向匹配
+            name = str(m.tool_name or "") or tool_names.get(str(m.tool_call_id or ""), "")
+            if name:
+                entry["tool_name"] = name
+            else:
+                unnamed_count += 1
             result.append(entry)
         elif m.role == "assistant" and m.tool_calls:
             blocks: list[dict] = []
@@ -205,6 +216,13 @@ def orm_to_canonical(history: list[Message]) -> list[dict]:
             result.append({"role": "assistant", "content": [{"type": "text", "text": m.content or ""}]})
         else:
             result.append({"role": m.role, "content": m.content})
+    if tool_result_count > 0 and unnamed_count > 0:
+        # 新代码已把 tool_name 写入 DB 列；仍有未匹配说明是存量旧数据，
+        # 属于一次性迁移噪音，记 info 便于观察存量清洗进度
+        logger.info(
+            "orm_to_canonical: %d 条 toolResult 中 %d 条缺 tool_name（存量旧数据）",
+            tool_result_count, unnamed_count,
+        )
     return result
 
 

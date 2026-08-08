@@ -16,6 +16,7 @@ import json
 import logging
 from typing import cast
 
+from app.config import settings
 from app.harness.adapters.llm_adapter import LLMAdapter
 from app.harness.adapters.messages import (
     AssistantMessage,
@@ -27,6 +28,7 @@ from app.harness.adapters.messages import (
     is_thinking_block,
     is_tool_call_block,
 )
+from app.harness.adapters.providers import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -36,30 +38,29 @@ NO_OUTPUT_PLACEHOLDER = "(no output)"
 class AnthropicAdapter(LLMAdapter):
     """Anthropic 协议（/v1/messages）"""
 
-    protocol = "anthropic"
+    protocol = Protocol.ANTHROPIC
 
-    # Anthropic API 必填（DeepSeek anthropic 端点同样要求）
-    DEFAULT_MAX_TOKENS = 4096
+    # Anthropic API 必填（DeepSeek anthropic 端点同样要求）。
+    # 4096 偏保守，长回复/长工具结果可能截断，调大至 DeepSeek 上限附近
+    DEFAULT_MAX_TOKENS = 8192
 
     @property
     def endpoint_path(self) -> str:
         return "/v1/messages"
 
-    def build_headers(self, api_key: str) -> dict:
+    def build_headers(self) -> dict:
         # Anthropic 用 x-api-key（非 Bearer），且必须带版本头
         return {
-            "x-api-key": api_key,
+            "x-api-key": settings.LLM_API_KEY,
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
 
-    def is_end_signal(self, data_str: str) -> bool:
-        return False  # Anthropic 无 [DONE] 行，靠 is_end_data 的 message_stop
+    def is_end(self, data_str: str, data: dict | None) -> bool:
+        # Anthropic 无 [DONE] 行，靠 message_stop 事件（data 已解析）
+        return bool(data and data.get("type") == "message_stop")
 
-    def is_end_data(self, data: dict) -> bool:
-        return data.get("type") == "message_stop"
-
-    def canonical2llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
+    def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
         """canonical → Anthropic 请求体内容部分 {"system": str|None, "messages": [...], "tools"?: [...]}"""
         system = None
         result: list[dict] = []
@@ -143,7 +144,7 @@ class AnthropicAdapter(LLMAdapter):
             })
         return result
 
-    def llm2canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
+    def llm_to_canonical(self, event: dict, state: dict) -> list[tuple[str, object]]:
         """增量解析：喂一个 Anthropic SSE 事件 dict → 本次产出的事件列表
 
         SSE 事件类型：message_start / content_block_start / content_block_delta /

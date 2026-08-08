@@ -61,6 +61,27 @@ Message = SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
 Block = TextBlock | ThinkingBlock | ToolCallBlock
 
 
+# ── 消息级判断（review #53：从 context_compact 上移，canonical 判断统一归口）──
+
+
+def is_system_message(msg: Message) -> bool:
+    """是否为 system 消息"""
+    return msg.get("role") == "system"
+
+
+def is_tool_call_message(msg: Message) -> bool:
+    """assistant 消息且 content 含 toolCall block → 工具调用消息"""
+    if msg.get("role") != "assistant":
+        return False
+    content = msg.get("content")
+    return isinstance(content, list) and any(b.get("type") == "toolCall" for b in content)
+
+
+def is_tool_result_message(msg: Message) -> bool:
+    """toolResult 消息 → 工具结果消息"""
+    return msg.get("role") == "toolResult"
+
+
 # ── Block 类型守卫（TypedDict 联合收窄，Pyright 无法从 b["type"] 自动收窄）──
 
 

@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     JWT_EXPIRES_HOURS: int = 8760  # 365 days
 
     # LLM API（#15 Adapter）— DEEPSEEK_* 已于 2026-08-07 迁移，无兼容
-    LLM_PROVIDER: str = "deepseek"      # deepseek | deepseek-anthropic | （未来）qwen/moonshot/zhipu/anthropic
+    LLM_PROVIDER: str = "deepseek-openai"  # deepseek-openai | deepseek-anthropic
+    # （未来: qwen/moonshot/zhipu/anthropic）
     LLM_BASE_URL: str = ""              # 空 → 按 provider 默认值
-    LLM_MODEL: str = "deepseek-v4-flash"  # deepseek-v4-flash | deepseek-v4-pro
+    LLM_MODEL: str = ""                 # 空 → 按 provider 默认值（deepseek-v4-flash）
     # （deepseek-chat/reasoner 已于 2026-07-24 退休）
     LLM_API_KEY: str = ""
 

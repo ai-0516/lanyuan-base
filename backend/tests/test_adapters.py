@@ -1,9 +1,9 @@
 """Adapter 层单元测试（TECH_SPEC §8.1）
 
 纯函数测试，无 HTTP：
-- OpenAIAdapter.canonical2llm: canonical → OpenAI 请求体内容
-- AnthropicAdapter.canonical2llm: canonical → Anthropic 请求体内容（含硬约束）
-- llm2canonical 增量解析 + finalize: SSE 事件 → 统一事件
+- OpenAIAdapter.canonical_to_llm: canonical → OpenAI 请求体内容
+- AnthropicAdapter.canonical_to_llm: canonical → Anthropic 请求体内容（含硬约束）
+- llm_to_canonical 增量解析 + finalize: SSE 事件 → 统一事件
 """
 
 from app.harness.adapters.anthropic import AnthropicAdapter
@@ -15,13 +15,13 @@ def _collect(adapter, events: list[dict]) -> list[tuple]:
     state: dict = {}
     out: list[tuple] = []
     for e in events:
-        out.extend(adapter.llm2canonical(e, state))
+        out.extend(adapter.llm_to_canonical(e, state))
     out.extend(adapter.finalize(state))
     return out
 
 
 # ═══════════════════════════════════════════════
-# OpenAIAdapter.canonical2llm
+# OpenAIAdapter.canonical_to_llm
 # ═══════════════════════════════════════════════
 
 class TestOpenAICanonical2Llm:
@@ -31,7 +31,7 @@ class TestOpenAICanonical2Llm:
             {"role": "system", "content": "你是助手"},
             {"role": "user", "content": "你好"},
         ]
-        body = OpenAIAdapter().canonical2llm(msgs)
+        body = OpenAIAdapter().canonical_to_llm(msgs)
         assert body == {
             "messages": [
                 {"role": "system", "content": "你是助手"},
@@ -48,7 +48,7 @@ class TestOpenAICanonical2Llm:
                 {"type": "text", "text": "回答"},
             ],
         }]
-        entry = OpenAIAdapter().canonical2llm(msgs)["messages"][0]
+        entry = OpenAIAdapter().canonical_to_llm(msgs)["messages"][0]
         assert entry["reasoning_content"] == "思考中"
         assert entry["content"] == "回答"  # 字符串化，非 block 数组
 
@@ -61,7 +61,7 @@ class TestOpenAICanonical2Llm:
                 "arguments": {"city": "北京"},
             }],
         }]
-        entry = OpenAIAdapter().canonical2llm(msgs)["messages"][0]
+        entry = OpenAIAdapter().canonical_to_llm(msgs)["messages"][0]
         assert entry["content"] is None
         assert entry["tool_calls"] == [{
             "id": "call_1", "type": "function",
@@ -77,7 +77,7 @@ class TestOpenAICanonical2Llm:
                 {"type": "toolCall", "id": "c1", "name": "t1", "arguments": {}},
             ],
         }]
-        entry = OpenAIAdapter().canonical2llm(msgs)["messages"][0]
+        entry = OpenAIAdapter().canonical_to_llm(msgs)["messages"][0]
         assert entry["content"] == "我来查一下"
         assert len(entry["tool_calls"]) == 1
 
@@ -85,12 +85,12 @@ class TestOpenAICanonical2Llm:
         msgs = [{
             "role": "toolResult", "tool_call_id": "call_1", "content": "晴，25°C",
         }]
-        entry = OpenAIAdapter().canonical2llm(msgs)["messages"][0]
+        entry = OpenAIAdapter().canonical_to_llm(msgs)["messages"][0]
         assert entry == {"role": "tool", "tool_call_id": "call_1", "content": "晴，25°C"}
 
 
 # ═══════════════════════════════════════════════
-# AnthropicAdapter.canonical2llm
+# AnthropicAdapter.canonical_to_llm
 # ═══════════════════════════════════════════════
 
 class TestAnthropicCanonical2Llm:
@@ -101,7 +101,7 @@ class TestAnthropicCanonical2Llm:
             {"role": "system", "content": "你是助手"},
             {"role": "user", "content": "你好"},
         ]
-        body = AnthropicAdapter().canonical2llm(msgs)
+        body = AnthropicAdapter().canonical_to_llm(msgs)
         assert body["system"] == "你是助手"
         assert body["messages"] == [
             {"role": "user", "content": [{"type": "text", "text": "你好"}]}
@@ -115,7 +115,7 @@ class TestAnthropicCanonical2Llm:
                 "arguments": {"city": "北京"},
             }],
         }]
-        entry = AnthropicAdapter().canonical2llm(msgs)["messages"][0]
+        entry = AnthropicAdapter().canonical_to_llm(msgs)["messages"][0]
         assert entry == {
             "role": "assistant",
             "content": [{"type": "tool_use", "id": "call_1", "name": "get_weather",
@@ -132,7 +132,7 @@ class TestAnthropicCanonical2Llm:
             {"role": "toolResult", "tool_call_id": "c1", "content": "结果1"},
             {"role": "toolResult", "tool_call_id": "c2", "content": "结果2"},
         ]
-        messages = AnthropicAdapter().canonical2llm(msgs)["messages"]
+        messages = AnthropicAdapter().canonical_to_llm(msgs)["messages"]
         # 两条连续 toolResult 合并成一条 user 消息（含两个 tool_result block）
         user_msgs = [m for m in messages if m["role"] == "user"]
         assert len(user_msgs) == 1
@@ -146,20 +146,20 @@ class TestAnthropicCanonical2Llm:
             {"role": "toolResult", "tool_call_id": "c1", "content": "结果"},
             {"role": "user", "content": "追问"},
         ]
-        messages = AnthropicAdapter().canonical2llm(msgs)["messages"]
+        messages = AnthropicAdapter().canonical_to_llm(msgs)["messages"]
         assert messages[-1] == {"role": "user", "content": [{"type": "text", "text": "追问"}]}
 
     def test_empty_content_placeholder(self):
         """空 content → "(no output)" 占位（Anthropic 拒绝空 content）"""
         msgs = [{"role": "toolResult", "tool_call_id": "c1", "content": ""}]
-        body = AnthropicAdapter().canonical2llm(msgs)
+        body = AnthropicAdapter().canonical_to_llm(msgs)
         tr = body["messages"][0]["content"][0]
         assert tr["content"] == "(no output)"
 
     def test_is_error_passed(self):
         """is_error=True → tool_result 携带 is_error（Anthropic 原生字段）"""
         msgs = [{"role": "toolResult", "tool_call_id": "c1", "content": "失败", "is_error": True}]
-        tr = AnthropicAdapter().canonical2llm(msgs)["messages"][0]["content"][0]
+        tr = AnthropicAdapter().canonical_to_llm(msgs)["messages"][0]["content"][0]
         assert tr["is_error"] is True
 
     def test_tools_conversion_and_dedup(self):
@@ -179,12 +179,12 @@ class TestAnthropicCanonical2Llm:
             {"type": "text", "text": "   "},
             {"type": "text", "text": "有效"},
         ]}]
-        blocks = AnthropicAdapter().canonical2llm(msgs)["messages"][0]["content"]
+        blocks = AnthropicAdapter().canonical_to_llm(msgs)["messages"][0]["content"]
         assert blocks == [{"type": "text", "text": "有效"}]
 
 
 # ═══════════════════════════════════════════════
-# OpenAIAdapter.llm2canonical（增量 + finalize）
+# OpenAIAdapter.llm_to_canonical（增量 + finalize）
 # ═══════════════════════════════════════════════
 
 class TestOpenAILlm2Canonical:
@@ -236,7 +236,7 @@ class TestOpenAILlm2Canonical:
 
 
 # ═══════════════════════════════════════════════
-# AnthropicAdapter.llm2canonical（增量 + finalize）
+# AnthropicAdapter.llm_to_canonical（增量 + finalize）
 # ═══════════════════════════════════════════════
 
 class TestAnthropicLlm2Canonical:
@@ -313,6 +313,62 @@ class TestAnthropicLlm2Canonical:
     def test_tool_result_is_error_roundtrip(self):
         """is_error → to_anthropic 携带 →（对称性验证）"""
         msgs = [{"role": "toolResult", "tool_call_id": "c1", "content": "失败", "is_error": True}]
-        body = AnthropicAdapter().canonical2llm(msgs)
+        body = AnthropicAdapter().canonical_to_llm(msgs)
         tr = body["messages"][0]["content"][0]
         assert tr["type"] == "tool_result" and tr["is_error"] is True
+
+
+# ═══════════════════════════════════════════
+# is_end 统一接口（review #53：屏蔽 openai/anthropic 结束信号差异）
+# ═══════════════════════════════════════════
+
+class TestIsEnd:
+    def test_openai_done_signal(self):
+        """OpenAI：[DONE] 原始行 → 结束（data 为 None，因为 [DONE] 不是 JSON）"""
+        assert OpenAIAdapter().is_end("[DONE]", None) is True
+
+    def test_openai_regular_data_not_end(self):
+        assert OpenAIAdapter().is_end("{" + '"choices":[{"delta":{"content":"hi"}}]}' + "}", {"choices": []}) is False
+
+    def test_anthropic_message_stop(self):
+        """Anthropic：message_stop 事件 dict → 结束"""
+        assert AnthropicAdapter().is_end("", {"type": "message_stop"}) is True
+
+    def test_anthropic_other_event_not_end(self):
+        assert AnthropicAdapter().is_end("", {"type": "content_block_delta"}) is False
+        assert AnthropicAdapter().is_end("", None) is False
+
+
+# ═══════════════════════════════════════════
+# Protocol enum（review #53：类型化协议枚举 + get_adapter 注册表）
+# ═══════════════════════════════════════════
+
+class TestProtocol:
+    def test_enum_values(self):
+        from app.harness.adapters.providers import Protocol
+
+        assert Protocol.OPENAI.value == "openai"
+        assert Protocol.ANTHROPIC.value == "anthropic"
+
+    def test_get_adapter_by_protocol(self):
+        from app.harness.adapters import get_adapter
+        from app.harness.adapters.providers import Protocol
+
+        assert get_adapter(Protocol.OPENAI).protocol is Protocol.OPENAI
+        assert get_adapter(Protocol.ANTHROPIC).protocol is Protocol.ANTHROPIC
+
+    def test_resolve_provider_returns_model_and_base_url(self):
+        from app.harness.adapters.providers import PROVIDER_PROTOCOLS, resolve_provider
+
+        cfg = resolve_provider()
+        # 默认 provider（deepseek-openai）→ model 与 base_url 都有值
+        assert cfg["model"]
+        assert cfg["base_url"]
+        assert cfg["protocol"] in PROVIDER_PROTOCOLS.keys() or cfg["protocol"].value in ("openai", "anthropic")
+
+    def test_build_headers_no_api_key_param(self):
+        """build_headers() 无参（adapter 内部读 settings，review #53）"""
+        oa, aa = OpenAIAdapter(), AnthropicAdapter()
+        assert "Authorization" in oa.build_headers()
+        assert "x-api-key" in aa.build_headers()
+        assert "anthropic-version" in aa.build_headers()

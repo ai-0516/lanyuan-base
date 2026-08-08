@@ -22,7 +22,12 @@ import json
 import logging
 
 from app.config import settings
-from app.harness.adapters.messages import Message
+from app.harness.adapters.messages import (
+    Message,
+    is_system_message,
+    is_tool_call_message,
+    is_tool_result_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,23 +54,13 @@ SUMMARY_PROMPT = (
 
 
 # ── 消息格式判断（canonical，TECH_SPEC §4——一次实现，各家通用） ─────
-
-def _is_tool_call_message(msg: Message) -> bool:
-    """assistant 消息且 content 含 toolCall block → 工具调用消息"""
-    if msg.get("role") != "assistant":
-        return False
-    content = msg.get("content")
-    return isinstance(content, list) and any(b.get("type") == "toolCall" for b in content)
-
-
-def _is_tool_result_message(msg: Message) -> bool:
-    """toolResult 消息 → 工具结果消息"""
-    return msg.get("role") == "toolResult"
+# is_tool_call_message / is_tool_result_message / is_system_message 已上移
+# 至 app.harness.adapters.messages（review #53），此处直接复用。
 
 
 def _split_system(messages: list[Message]) -> tuple[list[Message], list[Message]]:
     """分离数组头部的 system 消息，返回 (system 段, 其余消息)"""
-    if messages and messages[0].get("role") == "system":
+    if messages and is_system_message(messages[0]):
         return [messages[0]], list(messages[1:])
     return [], list(messages)
 
@@ -78,8 +73,8 @@ def _compute_tail_start(rest: list[Message], keep_tail: int) -> int:
     """
     tail_start = max(0, len(rest) - keep_tail)
     if (tail_start > 0 and tail_start < len(rest)
-            and _is_tool_result_message(rest[tail_start])
-            and _is_tool_call_message(rest[tail_start - 1])):
+            and is_tool_result_message(rest[tail_start])
+            and is_tool_call_message(rest[tail_start - 1])):
         tail_start -= 1
     return tail_start
 
@@ -109,14 +104,14 @@ def snip_message_compact(
     head_end, tail_start = keep_head, len(rest) - keep_tail
 
     # 头部边界：head 最后一条是 tool_call → 向后吞并其 tool 结果
-    if head_end > 0 and _is_tool_call_message(rest[head_end - 1]):
-        while head_end < len(rest) and _is_tool_result_message(rest[head_end]):
+    if head_end > 0 and is_tool_call_message(rest[head_end - 1]):
+        while head_end < len(rest) and is_tool_result_message(rest[head_end]):
             head_end += 1
 
     # 尾部边界：tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始
     if (tail_start > 0 and tail_start < len(rest)
-            and _is_tool_result_message(rest[tail_start])
-            and _is_tool_call_message(rest[tail_start - 1])):
+            and is_tool_result_message(rest[tail_start])
+            and is_tool_call_message(rest[tail_start - 1])):
         tail_start -= 1
 
     if head_end >= tail_start:
@@ -139,7 +134,7 @@ def tool_result_compact(
     只替换内容不删消息——tool 消息必须跟在对应 assistant(tool_calls) 后，
     占位不破坏 API 要求的配对结构。
     """
-    tool_indices = [i for i, m in enumerate(messages) if _is_tool_result_message(m)]
+    tool_indices = [i for i, m in enumerate(messages) if is_tool_result_message(m)]
     if len(tool_indices) <= keep_recent:
         return messages
 
@@ -210,8 +205,8 @@ async def _compact_with_summary(
             return messages
         # 强裁剪兜底：head 只保留前 KEEP_HEAD 条（含配对保护）
         head_end = min(KEEP_HEAD, len(head))
-        if head_end > 0 and _is_tool_call_message(head[head_end - 1]):
-            while head_end < len(head) and _is_tool_result_message(head[head_end]):
+        if head_end > 0 and is_tool_call_message(head[head_end - 1]):
+            while head_end < len(head) and is_tool_result_message(head[head_end]):
                 head_end += 1
         return system + head[:head_end] + tail
 
