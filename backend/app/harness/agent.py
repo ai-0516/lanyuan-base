@@ -1,7 +1,7 @@
 """AIAgent — 纯 LLM 交互层
 
 只负责与 LLM 的对话循环，不关心数据库、会话、持久化。
-输入 messages（已组装好的 DeepSeek 格式数组），输出事件流。
+输入 messages（已组装好的 canonical 格式数组，TECH_SPEC §4），输出事件流。
 
 Agent Loop 逻辑：
   1. 调 LLM（传入 messages + tools）
@@ -9,12 +9,13 @@ Agent Loop 逻辑：
   3. 如果返回纯文本 → done
 
 错误处理（s11）：
-  - LLM 调用使用 retry_deepseek_chat，429/529/timeout 自动退避重试
+  - LLM 调用使用 retry_llm_chat，429/529/timeout 自动退避重试
   - 重试耗尽或不可重试错误 → 降级为模拟回复
   - 重大错误（SSE 断流/解析失败）通过 LLM_ERROR 事件传递
 """
 
 import copy
+import json
 import logging
 import secrets
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ from typing import Any
 
 from app.config import settings
 from app.harness import context_compact, streaming
+from app.harness.adapters.messages import Message
 from app.harness.errors import LLMStatus
 from app.harness.hooks import events
 
@@ -55,7 +57,7 @@ class AIAgent:
             "turns": self._turns,
         }
 
-    async def run(self, messages: list[dict], db=None, user_id=None, meta=None):
+    async def run(self, messages: list[Message], db=None, user_id=None, meta=None):
         """Agent Loop
 
         产出 (event, data) 元组：
@@ -69,8 +71,8 @@ class AIAgent:
         self._turns = []
         correlation_id = secrets.token_hex(4)
 
-        # LLM 调用源：有 API Key 时用 retry_deepseek_chat（带重试），否则用 mock
-        use_real_llm = bool(settings.DEEPSEEK_API_KEY)
+        # LLM 调用源：有 API Key 时用 retry_llm_chat（带重试），否则用 mock
+        use_real_llm = bool(settings.LLM_API_KEY)
 
         # agent:start — 整个 Agent 循环开始
         events.emit(events.AGENT_START, {"meta": meta, "req_id": correlation_id})
@@ -132,7 +134,7 @@ class AIAgent:
                 used_fallback = False  # 本轮是否降级为模拟回复
 
                 # ── 选择 LLM 源 ──
-                source = streaming.retry_deepseek_chat if use_real_llm else streaming.mock_chat
+                source = streaming.retry_llm_chat if use_real_llm else streaming.mock_chat
 
                 async for event, data in source(messages, **kw):
                     if event == "token":
@@ -253,20 +255,32 @@ class AIAgent:
                         "turn": turn, "req_id": correlation_id,
                     })
 
-                    # 回填 assistant tool_call（含 reasoning_content，DeepSeek 推理模型要求）
-                    msg: dict = {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [tc],
-                    }
+                    # 回填 assistant tool_call（canonical，TECH_SPEC §4）
+                    # DeepSeek V4 硬约束：reasoning_content 必须回传 → thinking block 保留
+                    raw_args = tc.get("function", {}).get("arguments", "{}")
+                    try:
+                        args_obj = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except json.JSONDecodeError:
+                        args_obj = {"_raw": raw_args}
+                    assistant_content: list[dict] = [{
+                        "type": "toolCall",
+                        "id": tc.get("id", ""),
+                        "name": tool_name,
+                        "arguments": args_obj,
+                    }]
                     if self._reasoning_content:
-                        msg["reasoning_content"] = self._reasoning_content
-                    messages.append(msg)
-                    # 回填 tool 结果
+                        assistant_content.append({
+                            "type": "thinking",
+                            "thinking": self._reasoning_content,
+                        })
+                    messages.append({"role": "assistant", "content": assistant_content})
+                    # 回填 tool 结果（canonical toolResult，is_error 来自 tool_status）
                     messages.append({
-                        "role": "tool",
+                        "role": "toolResult",
                         "tool_call_id": tc.get("id", ""),
+                        "tool_name": tool_name,
                         "content": result,
+                        "is_error": tool_status == "error",
                     })
                     turn_trace["tool_results"].append({
                         "tool": tool_name,

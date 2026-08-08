@@ -45,8 +45,8 @@ class TestMultiTurnEventStream:
     async def test_multi_turn_emits_message_start_per_reply(self):
         """两轮回复：每轮首个 token 前各发一次 message:start"""
         async def multi_turn(messages, **kw):
-            # messages 已回填 tool 结果（含 role=tool）→ 第二轮
-            if any(m.get("role") == "tool" for m in messages):
+            # messages 已回填 tool 结果（含 role=toolResult）→ 第二轮
+            if any(m.get("role") == "toolResult" for m in messages):
                 yield ("token", "第二轮：查到了")
                 yield ("done", "")
             else:
@@ -71,8 +71,8 @@ class TestMultiTurnEventStream:
     async def test_no_message_start_when_first_turn_has_no_token(self):
         """首轮纯 tool_call（无 token）：不发 message:start，第二轮 token 前发"""
         async def tool_only_first(messages, **kw):
-            # messages 已回填 tool 结果（含 role=tool）→ 第二轮
-            if any(m.get("role") == "tool" for m in messages):
+            # messages 已回填 tool 结果（含 role=toolResult）→ 第二轮
+            if any(m.get("role") == "toolResult" for m in messages):
                 yield ("token", "第二轮：查到了")
                 yield ("done", "")
             else:
@@ -110,7 +110,7 @@ class TestMultiTurnEventStream:
 
         async def fallback_second_turn(messages, **kw):
             # 第二轮 LLM 调用失败 → fallback 降级回复
-            if any(m.get("role") == "tool" for m in messages):
+            if any(m.get("role") == "toolResult" for m in messages):
                 yield ("fallback", {"message": fallback_msg})
             else:
                 yield ("token", "第一轮：我来查一下")

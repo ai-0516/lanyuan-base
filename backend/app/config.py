@@ -16,10 +16,15 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRES_HOURS: int = 8760  # 365 days
 
-    # DeepSeek API
-    DEEPSEEK_API_KEY: str = ""
-    DEEPSEEK_MODEL: str = "deepseek-chat"
-    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    # LLM API（#15 Adapter）— DEEPSEEK_* 已于 2026-08-07 迁移，无兼容
+    # provider 与 protocol 分离（review #53 第二轮）：厂商维度与协议维度正交。
+    # 例：deepseek 厂商既支持 openai 协议也支持 anthropic 协议，protocol 单独选择。
+    LLM_PROVIDER: str = "deepseek"      # 厂商: deepseek | （未来）qwen/moonshot/zhipu/anthropic
+    LLM_PROTOCOL: str = "openai"        # 协议: openai | anthropic（对应该协议的 LLMAdapter 子类）
+    LLM_BASE_URL: str = ""              # 空 → 按 (provider, protocol) 默认值
+    LLM_MODEL: str = ""                 # 空 → 按 provider 默认值（deepseek-v4-flash）
+    # （deepseek-chat/reasoner 已于 2026-07-24 退休）
+    LLM_API_KEY: str = ""
 
     # 上下文压缩（#8）— 生产调优直接改环境变量，无需改代码
     COMPACT_MAX_MESSAGES: int = 50            # L1: 消息数超过则裁剪中间

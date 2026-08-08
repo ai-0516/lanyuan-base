@@ -22,7 +22,7 @@ from app.harness.context_compact import (
 )
 
 
-# ── 消息构造 helper（OpenAI/DeepSeek 兼容格式） ──
+# ── 消息构造 helper（canonical 格式，TECH_SPEC §4） ──
 
 def _system(text: str) -> dict:
     return {"role": "system", "content": text}
@@ -35,14 +35,12 @@ def _user(text: str) -> dict:
 def _tool_call_msg(call_id: str, name: str = "test_tool") -> dict:
     return {
         "role": "assistant",
-        "content": None,
-        "tool_calls": [{"id": call_id, "type": "function",
-                        "function": {"name": name, "arguments": "{}"}}],
+        "content": [{"type": "toolCall", "id": call_id, "name": name, "arguments": {}}],
     }
 
 
 def _tool_result(call_id: str, content: str) -> dict:
-    return {"role": "tool", "tool_call_id": call_id, "content": content}
+    return {"role": "toolResult", "tool_call_id": call_id, "content": content}
 
 
 def _long_tool_result(call_id: str) -> dict:
@@ -145,7 +143,7 @@ class TestMicroCompact:
         assert result[7]["content"].startswith("x")
         assert result[9]["content"].startswith("x")
         # 消息结构未被破坏（tool_call 前驱仍在原位）
-        assert result[0]["role"] == "assistant" and result[0]["tool_calls"]
+        assert result[0]["role"] == "assistant" and result[0]["content"]
         # 不原地修改传入列表（review 问题 2 回归：接口风格与其他函数一致）
         assert messages[1]["content"].startswith("x"), "原列表不应被修改"
         assert messages[3]["content"].startswith("x")

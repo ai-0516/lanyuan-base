@@ -4,9 +4,12 @@
 - PROMPT_SECTIONS 拆分为独立 section（identity / tools / memory / compression）
 - 按需加载：memory_index 非空才注入，否则不注入
 - session 粒度缓存：同 session 冻结（memory_index 变化不重组装）；不同 session 各自组装
-- build_deepseek_messages 的 session_id 参数路径
+- build_messages 的 session_id 参数路径
 - SYSTEM_PROMPT 兼容常量（默认 context 组装结果）
+- orm_to_canonical：ORM → canonical（review #53 tool_name 直读列 / 旧数据兜底匹配）
 """
+
+import json
 
 import pytest
 
@@ -135,25 +138,26 @@ class TestGetSystemPromptCache:
 
 
 # ═══════════════════════════════════════════
-#  build_deepseek_messages — 集成入口
+#  build_messages — 集成入口
 # ═══════════════════════════════════════════
 
 
-class TestBuildDeepseekMessages:
-    def _fake_msg(self, role: str, content: str):
+class TestBuildMessages:
+    def _fake_msg(self, role: str, content: str, tool_call_id=None, tool_calls=None, tool_name=None):
         from types import SimpleNamespace
 
         return SimpleNamespace(
             role=role,
             content=content,
-            tool_call_id=None,
-            tool_calls=None,
+            tool_call_id=tool_call_id,
+            tool_calls=tool_calls,
+            tool_name=tool_name,
         )
 
     def test_memory_index_still_supported(self):
         """memory_index 关键字参数兼容（#9 既有调用路径）"""
         index = "你的记忆索引：\n- [user] #1 用户名字"
-        messages = context.build_deepseek_messages(
+        messages = context.build_messages(
             [self._fake_msg("user", "你好")],
             "你好",
             memory_index=index,
@@ -164,13 +168,13 @@ class TestBuildDeepseekMessages:
     def test_session_id_freezes_system_across_calls(self):
         """同 session_id 连续组装 → system 冻结（复用首次结果）；不同 session → 各自组装"""
         fake = self._fake_msg("user", "你好")
-        m1 = context.build_deepseek_messages(
+        m1 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引A",
             session_id="s1",
         )
-        m2 = context.build_deepseek_messages(
+        m2 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引B",
@@ -180,13 +184,67 @@ class TestBuildDeepseekMessages:
         assert "索引A" in m1[0]["content"]
         assert "索引B" not in m1[0]["content"]
 
-        m3 = context.build_deepseek_messages(
+        m3 = context.build_messages(
             [fake],
             "你好",
             memory_index="索引C",
             session_id="s2",
         )
         assert "索引C" in m3[0]["content"]  # 新 session 用当轮记忆索引
+
+
+class TestOrmToCanonical:
+    """orm_to_canonical：DB ORM → canonical（review #53：tool_name 直读列，旧数据兜底匹配）"""
+
+    def _msg(self, role, content="", tool_call_id=None, tool_calls=None, tool_name=None):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            role=role, content=content,
+            tool_call_id=tool_call_id, tool_calls=tool_calls, tool_name=tool_name,
+        )
+
+    def test_tool_name_reads_db_column_directly(self):
+        """新数据：tool_name 列有值 → 直接读列，不依赖 assistant 消息"""
+        history = [
+            self._msg("user", "查天气"),
+            self._msg("assistant", tool_calls=json.dumps([{
+                "id": "call_1", "type": "function",
+                "function": {"name": "get_weather", "arguments": "{}"},
+            }])),
+            self._msg("tool", "晴", tool_call_id="call_1", tool_name="get_weather"),
+        ]
+        out = context.orm_to_canonical(history)
+        assert out[-1]["role"] == "toolResult"
+        assert out[-1]["tool_name"] == "get_weather"
+
+    def test_tool_name_fallback_to_assistant_match(self):
+        """旧数据：tool_name 列为 NULL → 按 tool_call_id 从 assistant tool_calls 反向匹配"""
+        history = [
+            self._msg("assistant", tool_calls=json.dumps([{
+                "id": "call_9", "type": "function",
+                "function": {"name": "create_post", "arguments": "{}"},
+            }])),
+            self._msg("tool", "ok", tool_call_id="call_9", tool_name=None),
+        ]
+        out = context.orm_to_canonical(history)
+        assert out[-1]["tool_name"] == "create_post"
+
+    def test_tool_name_missing_stays_absent(self):
+        """都匹配不到 → 不带 tool_name 键（ToolResultMessage NotRequired）"""
+        history = [self._msg("tool", "ok", tool_call_id="call_x")]
+        out = context.orm_to_canonical(history)
+        assert "tool_name" not in out[-1]
+
+    def test_plain_user_and_assistant_passthrough(self):
+        """纯文本 user / assistant 透传（assistant 包 TextBlock）"""
+        history = [
+            self._msg("user", "你好"),
+            self._msg("assistant", "你好呀"),
+        ]
+        out = context.orm_to_canonical(history)
+        assert out[0] == {"role": "user", "content": "你好"}
+        assert out[1] == {"role": "assistant", "content": [{"type": "text", "text": "你好呀"}]}
 
 
 # ═══════════════════════════════════════════

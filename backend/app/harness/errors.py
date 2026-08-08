@@ -89,7 +89,7 @@ RETRY_CONFIG: dict[LLMStatus, dict | None] = {
         "max_retries": 1,
         "base_delay_ms": 0,
         "jitter": False,
-        "description": "retry_deepseek_chat 已缓冲，重试不会导致前端重复",
+        "description": "retry_llm_chat 已缓冲，重试不会导致前端重复",
     },
     LLMStatus.SSE_PARSE_ERROR: None,
     LLMStatus.UNEXPECTED: None,

@@ -24,4 +24,5 @@ class Message(Base):
     content = Column(Text, nullable=True)
     tool_calls = Column(Text, nullable=True)
     tool_call_id = Column(String(100), nullable=True)
+    tool_name = Column(String(100), nullable=True)  # tool 消息的工具名（review #53：回填时直接入库）
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

@@ -1,11 +1,16 @@
-"""DeepSeek API 流式客户端 + 模拟回复 + 重试包装
+"""LLM 流式客户端（协议无关编排）+ 模拟回复 + 重试包装
 
-职责：
-- 模拟回复（无 API Key 时的 fallback）
-- DeepSeek API 的 HTTP SSE 请求，支持工具调用
-- 逐 token 产出 (event, data) 元组
-- 错误分类为 LLMStatus，可重试的错误自动重试
-- 重大错误（SSE 解析失败、断流）记录详细日志到 critical-errors.log
+协议差异（URL 后缀 / 认证头 / SSE 行格式 / 消息转换）由 adapters 层封装
+（LLMAdapter 子类，TECH_SPEC §5），本模块只做协议无关的编排：
+- HTTP 传输（httpx SSE 流）
+- 错误分类（LLMStatus / HTTP_STATUS_MAP）
+- 重试（RETRY_CONFIG 指数退避 + 413 压缩后重试）
+- mock（无 API Key 时的降级路径）
+
+事件契约（与历史 deepseek_chat 一致）：
+- ("token", str) / ("reasoning_token", str) / ("reasoning", str)
+- ("tool_call", dict) — OpenAI 形状 {id, type, function:{name, arguments}}
+- ("done", "") / ("usage", dict) / ("error", dict) / ("fallback", dict)
 """
 
 import asyncio
@@ -17,7 +22,9 @@ import httpx
 
 from app.config import settings
 from app.harness import context_compact
-from app.harness.errors import LLMStatus, RETRY_CONFIG, HTTP_STATUS_MAP, retry_delay
+from app.harness.adapters import get_adapter, resolve_provider
+from app.harness.adapters.messages import Message
+from app.harness.errors import HTTP_STATUS_MAP, LLMStatus, RETRY_CONFIG, retry_delay
 
 logger = logging.getLogger(__name__)
 # 重大错误专用日志（SSE 解析失败、断流等需要人肉关注的问题）
@@ -25,39 +32,28 @@ _critical_logger = logging.getLogger("app.harness.streaming.critical")
 
 MOCK_REPLY_TEMPLATE = (
     "收到您的消息：「{message}」\n\n"
-    "（当前为模拟模式，未配置 DeepSeek API Key。"
-    "请在后端环境变量中设置 DEEPSEEK_API_KEY 以启用真实 AI 对话。）"
+    "（当前为模拟模式，未配置 LLM API Key。"
+    "请在后端环境变量中设置 LLM_API_KEY 以启用真实 AI 对话。）"
 )
 
 
-async def mock_chat(messages: list[dict]):
+def _last_user_text(messages: list[Message]) -> str:
+    """取最后一条 user 消息的文本（canonical content 可能是 str 或 block 列表）"""
+    for msg in reversed(messages):
+        if msg["role"] == "user":
+            content = msg["content"]
+            if isinstance(content, str):
+                return content
+            return "".join(b["text"] for b in content)
+    return ""
+
+
+async def mock_chat(messages: list[Message]):
     """模拟回复 — API Key 未配置时使用"""
-    user_msg = messages[-1]["content"] if messages else ""
-    reply = MOCK_REPLY_TEMPLATE.format(message=user_msg)
+    reply = MOCK_REPLY_TEMPLATE.format(message=_last_user_text(messages))
     logger.info("LLM request (mock): messages=%d", len(messages))
     yield ("token", reply)
     yield ("done", "")
-
-
-def _merge_tool_call(
-    accumulator: dict[int, dict],
-    index: int,
-    chunk: dict,
-):
-    """将流式 chunk 中的 tool_call delta 合并到累加器中"""
-    if index not in accumulator:
-        accumulator[index] = {
-            "id": "",
-            "type": "function",
-            "function": {"name": "", "arguments": ""},
-        }
-    tc = chunk.get("tool_calls", [{}])[0]
-    if tc.get("id"):
-        accumulator[index]["id"] = tc["id"]
-    if tc.get("function", {}).get("name"):
-        accumulator[index]["function"]["name"] = tc["function"]["name"]
-    if tc.get("function", {}).get("arguments"):
-        accumulator[index]["function"]["arguments"] += tc["function"]["arguments"]
 
 
 def _critical_error(code: LLMStatus, details: dict):
@@ -74,39 +70,45 @@ def _critical_error(code: LLMStatus, details: dict):
     logger.error("LLM critical: code=%s details=%s", code.value, details)
 
 
-async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
-    """调用 DeepSeek API（SSE 流式），支持工具调用
+async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
+    """调用 LLM（按 LLM_PROVIDER 选协议），SSE 流式，支持工具调用
+
+    输入 canonical 消息（TECH_SPEC §4），内部经 adapter 转换为协议请求体；
+    输出统一事件（协议无关，见模块 docstring）。
 
     产出 (event, data) 元组序列：
     - ("token", content) — AI 回复文字
+    - ("reasoning_token", content) — 思考过程增量
+    - ("reasoning", content) — 思考过程合并（流结束）
     - ("tool_call", tool_call_dict) — 模型请求调用工具
     - ("done", "") — 流正常结束（无工具调用时）
+    - ("usage", dict) — token 用量
     - ("error", dict) — 发生错误，包含 code/message 等结构信息
     """
+    provider = resolve_provider()
+    adapter = get_adapter(provider["protocol"])
+    base_url = provider["base_url"]
+    url = f"{base_url.rstrip('/')}{adapter.endpoint_path}"
+    headers = adapter.build_headers()
+
+    request_body: dict = adapter.canonical_to_llm(messages, tools)
+    request_body["model"] = provider["model"]
+    request_body["stream"] = True
+    if getattr(adapter, "DEFAULT_MAX_TOKENS", None):
+        request_body["max_tokens"] = adapter.DEFAULT_MAX_TOKENS  # Anthropic 必填
+
+    logger.info(
+        "LLM request: provider=%s protocol=%s model=%s messages=%d tools=%s",
+        settings.LLM_PROVIDER, adapter.protocol, provider["model"],
+        len(messages), "yes" if tools else "no",
+    )
+
     try:
-        request_body = {
-            "model": settings.DEEPSEEK_MODEL,
-            "messages": messages,
-            "stream": True,
-        }
-        if tools:
-            request_body["tools"] = tools
-
-        logger.info(
-            "LLM request: model=%s messages=%d tools=%s",
-            settings.DEEPSEEK_MODEL,
-            len(messages),
-            "yes" if tools else "no",
-        )
-
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
-                f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json",
-                },
+                url,
+                headers=headers,
                 json=request_body,
             ) as response:
                 # ── 非 200 响应 — 分类错误码 ──
@@ -131,23 +133,20 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                         })
                     else:
                         logger.error(
-                            "DeepSeek API error: status=%s code=%s body=%s",
+                            "LLM API error: status=%s code=%s body=%s",
                             response.status_code, code.value, body_text,
                         )
 
                     yield ("error", {
                         "code": code,
-                        "message": f"DeepSeek API 返回错误 ({code.value})",
+                        "message": f"LLM API 返回错误 ({code.value})",
                         "http_status": response.status_code,
                     })
                     return
 
-                # ── 200 响应 — 解析 SSE 流 ──
-                tool_call_accumulator: dict[int, dict] = {}
-                reasoning_content_parts: list[str] = []
-                token_count = 0
-                usage_data: dict | None = None
-                saw_done_signal = False  # 是否收到 [DONE]
+                # ── 200 响应 — 解析 SSE 流（协议差异走 adapter）──
+                state: dict = {}
+                saw_end_signal = False  # [DONE] 或 message_stop
                 error_chunk_count = 0
                 last_error_chunk = ""
 
@@ -155,89 +154,52 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
                     if not line.startswith("data: "):
                         continue
                     data_str = line[6:].strip()
-                    if data_str == "[DONE]":
-                        saw_done_signal = True
-                        break
                     try:
                         data = json.loads(data_str)
-                        choice = data.get("choices", [{}])[0]
-                        delta = choice.get("delta", {})
-
-                        # 思考过程 token（DeepSeek 推理模型）
-                        rc = delta.get("reasoning_content", "")
-                        if rc:
-                            reasoning_content_parts.append(rc)
-                            yield ("reasoning_token", rc)
-
-                        # 文本 token
-                        content = delta.get("content", "")
-                        if content:
-                            token_count += 1
-                            yield ("token", content)
-
-                        # 工具调用（按 index 合并多 chunk 参数）
-                        if delta.get("tool_calls"):
-                            for tc_chunk in delta["tool_calls"]:
-                                _merge_tool_call(
-                                    tool_call_accumulator,
-                                    tc_chunk.get("index", 0),
-                                    {"tool_calls": [tc_chunk]},
-                                )
-
                     except json.JSONDecodeError:
+                        data = None  # [DONE] 等非 JSON 结束信号，adapter.is_end 内部处理
+
+                    if adapter.is_end(data_str, data):
+                        saw_end_signal = True
+                        if data_str == "[DONE]":
+                            break
+                        continue
+
+                    if data is None:
                         error_chunk_count += 1
                         last_error_chunk = data_str
                         continue
 
-                    # 捕获 usage（通常在最后一个 chunk 中）
-                    if data.get("usage"):
-                        usage_data = data["usage"]
+                    for event, ev_data in adapter.llm_to_canonical(data, state):
+                        yield (event, ev_data)
 
-        # ── SSE 流结束 — 检查是否异常断流 ──
-        if not saw_done_signal and token_count > 0 and not tool_call_accumulator:
-            # 收到了 token 但流非正常结束 — 断流
-            _critical_error(LLMStatus.SSE_DISCONNECTED, {
-                "tokens_before": token_count,
-                "has_tool_calls": bool(tool_call_accumulator),
-                "tool_call_count": len(tool_call_accumulator),
-            })
-            yield ("error", {
-                "code": LLMStatus.SSE_DISCONNECTED,
-                "message": "AI 回复流中断，请重试",
-                "tokens_before": token_count,
-            })
-            return
+                # ── 流结束 — 收尾事件（reasoning 合并 / tool_call / done / usage）──
+                for event, ev_data in adapter.finalize(state):
+                    yield (event, ev_data)
 
-        if error_chunk_count > 0:
-            _critical_error(LLMStatus.SSE_PARSE_ERROR, {
-                "error_chunk_count": error_chunk_count,
-                "last_chunk": last_error_chunk,
-                "tokens_before": token_count,
-            })
-            # 非 fatal — 继续处理已成功解析的数据
+                # ── 断流检测 — 收到 token 但流非正常结束 ──
+                # 通过 adapter 统一接口查询 state（不直读协议相关 key，review #53）
+                has_token = adapter.has_tokens(state)
+                has_tool_call = adapter.has_tool_calls(state)
+                if not saw_end_signal and has_token and not has_tool_call:
+                    _critical_error(LLMStatus.SSE_DISCONNECTED, {
+                        "tokens_before": adapter.token_count(state),
+                        "has_tool_calls": has_tool_call,
+                    })
+                    yield ("error", {
+                        "code": LLMStatus.SSE_DISCONNECTED,
+                        "message": "AI 回复流中断，请重试",
+                        "tokens_before": adapter.token_count(state),
+                    })
+                    return
 
-        # ── 流结束 — 判断是工具调用还是纯文本 ──
-        if reasoning_content_parts:
-            yield ("reasoning", "".join(reasoning_content_parts))
-
-        if tool_call_accumulator:
-            logger.info(
-                "LLM response: tokens=%d finish_reason=tool_calls tools=%d",
-                token_count,
-                len(tool_call_accumulator),
-            )
-            for tc in tool_call_accumulator.values():
-                yield ("tool_call", tc)
-            if usage_data:
-                yield ("usage", usage_data)
-        else:
-            logger.info(
-                "LLM response: tokens=%d finish_reason=stop",
-                token_count,
-            )
-            yield ("done", "")
-            if usage_data:
-                yield ("usage", usage_data)
+                if error_chunk_count > 0:
+                    _critical_error(LLMStatus.SSE_PARSE_ERROR, {
+                        "error_chunk_count": error_chunk_count,
+                        "last_chunk": last_error_chunk,
+                        "tokens_before": adapter.token_count(state),
+                    })
+                    # 非 fatal — 继续处理已成功解析的数据
 
     except httpx.TimeoutException:
         logger.error("LLM timeout: messages=%d timeout=60s", len(messages))
@@ -261,10 +223,10 @@ async def deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
         })
 
 
-async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = None):
-    """带自动重试的 DeepSeek 流式调用
+async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = None):
+    """带自动重试的 LLM 流式调用（协议无关）
 
-    产出同 deepseek_chat，但：
+    产出同 llm_chat，但：
     - 可重试的错误（429/529/timeout）自动退避重试
     - 不可重试的错误（401/SSE 断流等）立即 yield error
     - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
@@ -273,9 +235,9 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
     **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
     才缓存 token 并一次性 yield，以避免重复输出。
 
-    用法与 deepseek_chat 相同，直接替换即可。
+    用法与 llm_chat 相同，直接替换即可。
     """
-    # deepseek_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
+    # llm_chat 不修改 messages 列表，重试时传入相同的 messages 是安全的
 
     # safelimit: 最多尝试 max_retries+1 次（attempt 0 为首次，1..max_retries 为重试）
     # max_retries=3 → 共 4 次：attempt 0(首次) → 1(重试1) → 2(重试2) → 3(重试3→耗尽)
@@ -289,7 +251,7 @@ async def retry_deepseek_chat(messages: list[dict], tools: list[dict] | None = N
         is_retry = attempt > 0
         retry_buf: list[tuple] = []
 
-        async for event, data in deepseek_chat(messages, tools=tools):
+        async for event, data in llm_chat(messages, tools=tools):
             if event == "error":
                 error_data = data
                 break

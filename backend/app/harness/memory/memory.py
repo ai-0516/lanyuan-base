@@ -238,14 +238,14 @@ async def consolidate(db: AsyncSession, user_id: int) -> int:
 
 
 async def _call_llm(prompt: str) -> str:
-    """单次 LLM 调用（TEXT ONLY），复用 streaming.deepseek_chat
+    """单次 LLM 调用（TEXT ONLY），复用 streaming.llm_chat
 
     2026-08-03：抽取/合并共用（provider 不再持有 LLM 能力）。
     """
     from app.harness import streaming  # 函数内 import，避免模块循环依赖
 
     parts: list[str] = []
-    async for event, data in streaming.deepseek_chat(
+    async for event, data in streaming.llm_chat(
         [{"role": "user", "content": prompt}]
     ):
         if event == "token":
@@ -352,7 +352,7 @@ async def _llm_select(user_message: str, memories: list) -> list | None:
         from app.harness import streaming  # 函数内 import，避免循环依赖
 
         parts: list[str] = []
-        async for event, data in streaming.deepseek_chat(
+        async for event, data in streaming.llm_chat(
             [{"role": "user", "content": prompt}]
         ):
             if event == "token":
