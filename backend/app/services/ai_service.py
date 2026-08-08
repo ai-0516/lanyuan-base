@@ -91,7 +91,7 @@ async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int |
         content=None,
     )
     await session.save_tool_result_message(
-        db, new_conv.id, tool_call_id=tool_call_id, content=summary, tool_name="compress_context"
+        db, new_conv.id, tool_call_id=tool_call_id, content=summary
     )
 
     events.emit(events.SESSION_END, {
