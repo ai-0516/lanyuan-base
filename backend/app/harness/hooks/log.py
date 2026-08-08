@@ -7,7 +7,7 @@
 import logging
 import time as time_module
 
-from app.harness.adapters import resolve_provider
+from app.harness.adapters import get_adapter, resolve_provider
 from app.harness.hooks import events
 from app.harness.hooks.events import on
 
@@ -40,10 +40,14 @@ async def log_agent_start(data: dict):
     _timestamps[req_id] = {"agent": time_module.time()}
 
     msg = meta.get("user_message", "")
-    model = resolve_provider()["model"]  # review #53：从 provider 读，不直读 settings
+    # review #53 第二轮：打印 provider/protocol/adapter 详细信息（不直读 settings）
+    provider = resolve_provider()
+    adapter = get_adapter(provider["protocol"])
     logger.info(
-        "[%s] [%s] [%s] model=%s 用户: %s",
-        session_id, req_id, events.AGENT_START, model, _truncate(msg),
+        "[%s] [%s] [%s] provider=%s protocol=%s adapter=%s model=%s 用户: %s",
+        session_id, req_id, events.AGENT_START,
+        provider["provider"], provider["protocol"].value, type(adapter).__name__,
+        provider["model"], _truncate(msg),
     )
 
 

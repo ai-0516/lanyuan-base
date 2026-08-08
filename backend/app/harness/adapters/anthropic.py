@@ -60,6 +60,9 @@ class AnthropicAdapter(LLMAdapter):
         # Anthropic 无 [DONE] 行，靠 message_stop 事件（data 已解析）
         return bool(data and data.get("type") == "message_stop")
 
+    def has_tool_calls(self, state: dict) -> bool:
+        return bool(state.get("tool_uses"))
+
     def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
         """canonical → Anthropic 请求体内容部分 {"system": str|None, "messages": [...], "tools"?: [...]}"""
         system = None

@@ -41,6 +41,23 @@ class LLMAdapter(ABC):
         """
         raise NotImplementedError
 
+    # ── state 查询（review #53 第二轮：streaming 不直接读 state 内部 key）──
+    # state 由 llm_to_canonical 写入，其内部结构是协议相关的（如 openai 用
+    # tool_acc、anthropic 用 tool_uses）。上层通过以下统一接口查询语义状态，
+    # 不感知具体 key——断流检测 / 日志因此是协议无关的。
+
+    def has_tokens(self, state: dict) -> bool:
+        """流中是否产出了文本 token（断流检测用）"""
+        return state.get("token_count", 0) > 0
+
+    def token_count(self, state: dict) -> int:
+        """已产出的 token 数（日志用）"""
+        return state.get("token_count", 0)
+
+    def has_tool_calls(self, state: dict) -> bool:
+        """是否累积了工具调用（断流检测用）"""
+        raise NotImplementedError
+
     # ── 转换 ──
 
     @abstractmethod

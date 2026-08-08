@@ -71,6 +71,9 @@ class OpenAIAdapter(LLMAdapter):
     def is_end(self, data_str: str, data: dict | None) -> bool:
         return data_str == "[DONE]"
 
+    def has_tool_calls(self, state: dict) -> bool:
+        return bool(state.get("tool_acc"))
+
     def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None = None) -> dict:
         """canonical → OpenAI 兼容请求体的内容部分 {"messages": [...], "tools"?: [...]}"""
         result: list[dict] = []

@@ -199,7 +199,16 @@ def orm_to_canonical(history: list[Message]) -> list[dict]:
             result.append(entry)
         elif m.role == "assistant" and m.tool_calls:
             blocks: list[dict] = []
-            for tc in json.loads(m.tool_calls):
+            try:
+                parsed_calls = json.loads(str(m.tool_calls))
+            except (json.JSONDecodeError, TypeError) as e:
+                # 数据损坏：整列不是合法 JSON（review #53 第二轮要求 log）
+                logger.error(
+                    "orm_to_canonical: assistant 消息 tool_calls JSON 解析失败 msg_id=%s: %s",
+                    m.id, e,
+                )
+                parsed_calls = []
+            for tc in parsed_calls:
                 fn = tc.get("function", {})
                 tc_id = tc.get("id", "")
                 name = fn.get("name", "")
@@ -208,6 +217,10 @@ def orm_to_canonical(history: list[Message]) -> list[dict]:
                 try:
                     args_obj = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                 except json.JSONDecodeError:
+                    logger.error(
+                        "orm_to_canonical: toolCall arguments JSON 解析失败 tool=%s id=%s: %.200s",
+                        name, tc_id, raw_args,
+                    )
                     args_obj = {"_raw": raw_args}
                 blocks.append({"type": "toolCall", "id": tc_id, "name": name, "arguments": args_obj})
             result.append({"role": "assistant", "content": blocks})

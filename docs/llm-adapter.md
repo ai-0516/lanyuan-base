@@ -159,6 +159,13 @@ class LLMAdapter(ABC):
     build_headers() -> dict     # 认证 + 版本头（adapter 内部读 settings.LLM_API_KEY）
     is_end(data_str, data) -> bool  # SSE data 行是否流结束（openai: [DONE]；anthropic: message_stop）
 
+    # ── state 语义查询（review #53 第二轮）──
+    # state 内部结构是协议相关的（openai 写 tool_acc、anthropic 写 tool_uses），
+    # 但 streaming 只通过以下接口查询，不直读 state key——断流检测 / 日志协议无关。
+    has_tokens(state) -> bool       # 是否产出了文本 token（断流检测）
+    token_count(state) -> int       # 已产出 token 数（日志）
+    has_tool_calls(state) -> bool   # 是否累积了工具调用（断流检测）
+
     @abstractmethod
     def canonical_to_llm(self, messages: list[Message], tools: list[dict] | None) -> dict:
         """canonical → 该协议请求体（messages + 可选 tools 转换）"""
@@ -248,11 +255,16 @@ adapter 子类已把协议细节封装，将来若真要换 SDK 只动对应子�
 ### 6.1 settings 变更（`app/config.py`）
 
 ```python
-LLM_PROVIDER: str = "deepseek-openai"  # deepseek-openai | deepseek-anthropic | （未来）qwen/moonshot/zhipu/anthropic
-LLM_BASE_URL: str = ""              # 空 → 按 provider 默认值
-LLM_MODEL: str = ""                 # 空 → 按 provider 默认值（deepseek-v4-flash）
+LLM_PROVIDER: str = "deepseek"   # 厂商维度（deepseek | 未来 qwen/moonshot/zhipu/anthropic）
+LLM_PROTOCOL: str = "openai"     # 协议维度（openai | anthropic，对应该协议的 adapter）
+LLM_BASE_URL: str = ""           # 空 → 按 (provider, protocol) 默认值
+LLM_MODEL: str = ""              # 空 → 按 provider 默认值（deepseek-v4-flash）
 LLM_API_KEY: str = ""
 ```
+
+> review #53 第二轮：provider 与 protocol 拆成两个正交维度。同一厂商可支持
+> 多种协议（deepseek 同时提供 openai 兼容与 anthropic 兼容端点），protocol
+> 决定用哪套协议转换；base_url 默认值按 (provider, protocol) 二元查表。
 
 删除：`DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL`（同步改所有引用点，grep 全量清理）。
 
@@ -265,22 +277,21 @@ class Protocol(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
 
-PROVIDER_PROTOCOLS: dict[str, dict] = {
-    # protocol: 协议适配器（LLMAdapter 子类）
-    # default_base_url: LLM_BASE_URL 为空时使用
-    #   （DeepSeek 官方文档：openai 模式 base_url 为 https://api.deepseek.com，无 /v1 后缀）
-    # default_model: LLM_MODEL 为空时使用
-    # requires_reasoning_echo: DeepSeek V4 强制回传 reasoning_content（Hermes 调研，2026-08-07）
-    "deepseek-openai":    {"protocol": Protocol.OPENAI,    "default_base_url": "https://api.deepseek.com",
-                           "default_model": "deepseek-v4-flash", "requires_reasoning_echo": True},
-    "deepseek-anthropic": {"protocol": Protocol.ANTHROPIC, "default_base_url": "https://api.deepseek.com/anthropic",
-                           "default_model": "deepseek-v4-flash", "requires_reasoning_echo": True},
-    # 未来：qwen/moonshot/zhipu → openai 协议 + 各自 base_url；anthropic → anthropic 协议
+# provider 厂商级默认（与协议无关）：default_model + quirk
+PROVIDER_DEFAULTS: dict[str, dict] = {
+    "deepseek": {"default_model": "deepseek-v4-flash", "requires_reasoning_echo": True},
+    # 未来：qwen/moonshot/zhipu → 各自 default_model / quirk
+}
+
+# (provider, protocol) → 默认 base_url（LLM_BASE_URL 非空则覆盖）
+DEFAULT_BASE_URLS: dict[tuple[str, Protocol], str] = {
+    ("deepseek", Protocol.OPENAI):    "https://api.deepseek.com",            # 官方文档：无 /v1 后缀
+    ("deepseek", Protocol.ANTHROPIC): "https://api.deepseek.com/anthropic",
 }
 
 def resolve_provider() -> dict:
-    """按 settings.LLM_PROVIDER 解析 provider 完整配置
-    （LLM_BASE_URL / LLM_MODEL 非空则覆盖默认；返回含 base_url / model）"""
+    """按 settings.LLM_PROVIDER + settings.LLM_PROTOCOL 解析完整配置
+    （双维查表；返回 {provider, protocol, requires_reasoning_echo, base_url, model}）"""
 ```
 
 ### 6.3 `streaming.py` 改造
@@ -302,7 +313,7 @@ def resolve_provider() -> dict:
 | `app/harness/adapters/llm_adapter.py` | `LLMAdapter` 抽象基类（§5.1） |
 | `app/harness/adapters/openai.py` | `OpenAIAdapter`：`canonical_to_llm` + `llm_to_canonical`（从 streaming.py 抽出，行为不变） |
 | `app/harness/adapters/anthropic.py` | `AnthropicAdapter`：`canonical_to_llm` + `llm_to_canonical`（新写） |
-| `app/harness/adapters/providers.py` | `PROVIDER_PROTOCOLS` + `resolve_provider`（§6.2） |
+| `app/harness/adapters/providers.py` | `PROVIDER_DEFAULTS` + `DEFAULT_BASE_URLS` + `resolve_provider`（§6.2） |
 | `app/harness/streaming.py` | 按协议拿 adapter 实例路由（§6.3）；SSE 解析代码移入 adapters |
 | `app/harness/agent.py` L257-270 | 回填 canonical：assistant 消息 content = `[{"type":"toolCall","id","name","arguments"}]`（+thinking block 若 `self._reasoning_content`）；tool 结果 → `{"role":"toolResult","tool_call_id","tool_name","content","is_error": tool_status=="error"}` |
 | `app/harness/context_compact.py` | `_is_tool_call_message`：`role=="assistant"` 且 content 含 `toolCall` block；`_is_tool_result_message`：`role=="toolResult"`；占位符消息改 canonical（`{"role":"user","content":"[snipped N messages...]"}` → 保持 user + str 即兼容）；`_summarize` 改调 `llm_chat` |
@@ -330,7 +341,7 @@ def resolve_provider() -> dict:
 ### 8.3 端到端手动验证（不进 CI，CI 无 key）
 
 1. `LLM_PROVIDER=deepseek` + 真实 key：现有 OpenAI 路径回归（对话 + 工具调用）
-2. `LLM_PROVIDER=deepseek-anthropic` + 同一 key：验证 `to_anthropic` + anthropic SSE 解析（对话 + 工具调用 + 配对）
+2. `LLM_PROVIDER=deepseek` + `LLM_PROTOCOL=anthropic`：验证 anthropic SSE 解析（对话 + 工具调用 + 配对）
 3. `LLM_API_KEY` 为空：mock 路径不变
 
 ## 9. 风险与待确认

@@ -17,19 +17,10 @@ from app.harness import context, context_compact, memory, session
 from app.harness.agent import AIAgent
 from app.harness.hooks import events
 from app.harness.tools import TOOLS, execute_tool
-from app.models.conversation import Message
 from app.models.llm_usage import LlmUsage
 from app.schemas.ai import MessageItem, SessionResponse
 
 logger = logging.getLogger(__name__)
-
-
-def _to_canonical_messages(history: list[Message]) -> list[dict]:
-    """Message ORM → canonical dict（摘要/rotation 输入，TECH_SPEC §4）
-
-    丢弃 DB 内部字段（id / conversation_id / created_at），复用 context.orm_to_canonical。
-    """
-    return context.orm_to_canonical(history)
 
 
 async def _get_last_total_tokens(db, session_id: int) -> int | None:
@@ -63,7 +54,7 @@ async def _maybe_rotate(db, user_id: int, session_id: int, u_k_id: int) -> int |
     - system_prompt 缓存 pop(A)（死数据清理，TECH_SPEC 8.7）
     """
     history = await context.get_recent_messages(db, session_id)
-    messages = _to_canonical_messages(history)
+    messages = context.orm_to_canonical(history)
 
     # 超限判断：用该会话最近一次 LLM 调用的精确 total_tokens（llm_usage 表），
     # 不用字符估算（PR #49 review：LLM response 自带精确 usage 信息）

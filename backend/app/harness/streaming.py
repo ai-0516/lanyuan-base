@@ -178,17 +178,18 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
                     yield (event, ev_data)
 
                 # ── 断流检测 — 收到 token 但流非正常结束 ──
-                has_token = state.get("token_count", 0) > 0
-                has_tool_call = bool(state.get("tool_acc") or state.get("tool_uses"))
+                # 通过 adapter 统一接口查询 state（不直读协议相关 key，review #53）
+                has_token = adapter.has_tokens(state)
+                has_tool_call = adapter.has_tool_calls(state)
                 if not saw_end_signal and has_token and not has_tool_call:
                     _critical_error(LLMStatus.SSE_DISCONNECTED, {
-                        "tokens_before": state.get("token_count", 0),
+                        "tokens_before": adapter.token_count(state),
                         "has_tool_calls": has_tool_call,
                     })
                     yield ("error", {
                         "code": LLMStatus.SSE_DISCONNECTED,
                         "message": "AI 回复流中断，请重试",
-                        "tokens_before": state.get("token_count", 0),
+                        "tokens_before": adapter.token_count(state),
                     })
                     return
 
@@ -196,7 +197,7 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
                     _critical_error(LLMStatus.SSE_PARSE_ERROR, {
                         "error_chunk_count": error_chunk_count,
                         "last_chunk": last_error_chunk,
-                        "tokens_before": state.get("token_count", 0),
+                        "tokens_before": adapter.token_count(state),
                     })
                     # 非 fatal — 继续处理已成功解析的数据
 

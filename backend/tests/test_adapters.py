@@ -358,13 +358,39 @@ class TestProtocol:
         assert get_adapter(Protocol.ANTHROPIC).protocol is Protocol.ANTHROPIC
 
     def test_resolve_provider_returns_model_and_base_url(self):
-        from app.harness.adapters.providers import PROVIDER_PROTOCOLS, resolve_provider
+        from app.harness.adapters.providers import (
+            DEFAULT_BASE_URLS,
+            PROVIDER_DEFAULTS,
+            Protocol,
+            resolve_provider,
+        )
 
         cfg = resolve_provider()
-        # 默认 provider（deepseek-openai）→ model 与 base_url 都有值
+        # 默认 provider/protocol（deepseek + openai）→ model 与 base_url 都有值
+        assert cfg["provider"] in PROVIDER_DEFAULTS
+        assert isinstance(cfg["protocol"], Protocol)
         assert cfg["model"]
         assert cfg["base_url"]
-        assert cfg["protocol"] in PROVIDER_PROTOCOLS.keys() or cfg["protocol"].value in ("openai", "anthropic")
+        # (provider, protocol) 组合必须能查到默认 base_url
+        assert (cfg["provider"], cfg["protocol"]) in DEFAULT_BASE_URLS
+
+    def test_resolve_provider_unknown_protocol(self):
+        """未知 protocol → ValueError（review #53 第二轮：协议独立校验）"""
+
+        from app.config import settings
+
+        from app.harness.adapters.providers import resolve_provider
+
+        old = settings.LLM_PROTOCOL
+        try:
+            settings.LLM_PROTOCOL = "not-a-protocol"
+            try:
+                resolve_provider()
+                raise AssertionError("应抛出 ValueError")
+            except ValueError as e:
+                assert "LLM_PROTOCOL" in str(e)
+        finally:
+            settings.LLM_PROTOCOL = old
 
     def test_build_headers_no_api_key_param(self):
         """build_headers() 无参（adapter 内部读 settings，review #53）"""

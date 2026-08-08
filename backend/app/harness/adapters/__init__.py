@@ -11,14 +11,15 @@ get_adapter() 按 resolve_provider().protocol 查表，streaming.py 用统一接
 from app.harness.adapters.anthropic import AnthropicAdapter
 from app.harness.adapters.llm_adapter import LLMAdapter
 from app.harness.adapters.openai import OpenAIAdapter
-from app.harness.adapters.providers import PROVIDER_PROTOCOLS, Protocol, resolve_provider
+from app.harness.adapters.providers import DEFAULT_BASE_URLS, PROVIDER_DEFAULTS, Protocol, resolve_provider
 
 __all__ = [
     "LLMAdapter",
     "OpenAIAdapter",
     "AnthropicAdapter",
     "Protocol",
-    "PROVIDER_PROTOCOLS",
+    "PROVIDER_DEFAULTS",
+    "DEFAULT_BASE_URLS",
     "resolve_provider",
     "get_adapter",
 ]
