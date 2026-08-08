@@ -358,21 +358,26 @@ class TestProtocol:
         assert get_adapter(Protocol.ANTHROPIC).protocol is Protocol.ANTHROPIC
 
     def test_resolve_provider_returns_model_and_base_url(self):
-        from app.harness.adapters.providers import (
-            DEFAULT_BASE_URLS,
-            PROVIDER_DEFAULTS,
-            Protocol,
-            resolve_provider,
-        )
+        from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
 
         cfg = resolve_provider()
         # 默认 provider/protocol（deepseek + openai）→ model 与 base_url 都有值
-        assert cfg["provider"] in PROVIDER_DEFAULTS
+        assert cfg["provider"] in PROVIDERS
         assert isinstance(cfg["protocol"], Protocol)
         assert cfg["model"]
         assert cfg["base_url"]
-        # (provider, protocol) 组合必须能查到默认 base_url
-        assert (cfg["provider"], cfg["protocol"]) in DEFAULT_BASE_URLS
+        # (provider, protocol) 组合必须能查到协议特殊配置（含 default_base_url）
+        assert cfg["protocol"] in PROVIDERS[cfg["provider"]]["protocols"]
+        assert cfg["protocol_config"].get("default_base_url")
+
+    def test_provider_protocol_config_extensible(self):
+        """协议特殊配置是可扩展 dict（不只有 url，review #53 第二轮）"""
+        from app.harness.adapters.providers import PROVIDERS, Protocol
+
+        proto_cfg = PROVIDERS["deepseek"]["protocols"][Protocol.OPENAI]
+        assert isinstance(proto_cfg, dict)
+        assert "default_base_url" in proto_cfg  # 目前字段
+        # 未来扩展：直接往该 dict 加字段即可，resolve_provider 原样透传 protocol_config
 
     def test_resolve_provider_unknown_protocol(self):
         """未知 protocol → ValueError（review #53 第二轮：协议独立校验）"""

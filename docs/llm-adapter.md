@@ -277,21 +277,23 @@ class Protocol(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
 
-# provider 厂商级默认（与协议无关）：default_model + quirk
-PROVIDER_DEFAULTS: dict[str, dict] = {
-    "deepseek": {"default_model": "deepseek-v4-flash", "requires_reasoning_echo": True},
-    # 未来：qwen/moonshot/zhipu → 各自 default_model / quirk
-}
-
-# (provider, protocol) → 默认 base_url（LLM_BASE_URL 非空则覆盖）
-DEFAULT_BASE_URLS: dict[tuple[str, Protocol], str] = {
-    ("deepseek", Protocol.OPENAI):    "https://api.deepseek.com",            # 官方文档：无 /v1 后缀
-    ("deepseek", Protocol.ANTHROPIC): "https://api.deepseek.com/anthropic",
+# provider 公共配置（与协议无关）+ protocols 协议特殊配置（可扩展 dict）
+PROVIDERS: dict[str, dict] = {
+    "deepseek": {
+        "default_model": "deepseek-v4-flash",          # LLM_MODEL 为空时使用
+        "requires_reasoning_echo": True,               # quirk 跟 provider 走
+        "protocols": {                                  # 协议特殊配置：可扩展 dict
+            Protocol.OPENAI:    {"default_base_url": "https://api.deepseek.com"},             # 无 /v1 后缀
+            Protocol.ANTHROPIC: {"default_base_url": "https://api.deepseek.com/anthropic"},
+            # 未来扩展：直接往该 dict 加字段（协议版本、额外 header 等）
+        },
+    },
+    # 未来：qwen/moonshot/zhipu → 各自 default_model / quirk + protocols
 }
 
 def resolve_provider() -> dict:
     """按 settings.LLM_PROVIDER + settings.LLM_PROTOCOL 解析完整配置
-    （双维查表；返回 {provider, protocol, requires_reasoning_echo, base_url, model}）"""
+    （双维查表；返回 {provider, protocol, requires_reasoning_echo, base_url, model, protocol_config}）"""
 ```
 
 ### 6.3 `streaming.py` 改造
