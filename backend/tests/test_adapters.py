@@ -361,23 +361,27 @@ class TestProtocol:
         from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
 
         cfg = resolve_provider()
-        # 默认 provider/protocol（deepseek + openai）→ model 与 base_url 都有值
+        # 返回类型是扁平 ProviderConfig（review #53 第三轮：协议配置展开，不嵌套）
+        assert isinstance(cfg, dict)  # TypedDict 运行时即 dict
         assert cfg["provider"] in PROVIDERS
         assert isinstance(cfg["protocol"], Protocol)
         assert cfg["model"]
         assert cfg["base_url"]
-        # (provider, protocol) 组合必须能查到协议特殊配置（含 default_base_url）
-        assert cfg["protocol"] in PROVIDERS[cfg["provider"]]["protocols"]
-        assert cfg["protocol_config"].get("default_base_url")
+        # 协议特殊配置已展开进顶层：默认 protocol（openai）能查到 default_base_url
+        proto_cfg = PROVIDERS[cfg["provider"]]["protocols"][cfg["protocol"]]
+        assert cfg["base_url"] == proto_cfg["default_base_url"]
+        # 公共配置字段也在顶层
+        assert cfg["requires_reasoning_echo"] is True
 
     def test_provider_protocol_config_extensible(self):
-        """协议特殊配置是可扩展 dict（不只有 url，review #53 第二轮）"""
-        from app.harness.adapters.providers import PROVIDERS, Protocol
+        """协议特殊配置是可扩展 dict；resolve_provider 展开进顶层（不嵌套 protocol_config）"""
+        from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
 
         proto_cfg = PROVIDERS["deepseek"]["protocols"][Protocol.OPENAI]
         assert isinstance(proto_cfg, dict)
         assert "default_base_url" in proto_cfg  # 目前字段
-        # 未来扩展：直接往该 dict 加字段即可，resolve_provider 原样透传 protocol_config
+        # 未来扩展：往该 dict 加字段 → resolve_provider 展开进顶层返回（ProviderConfig 同步声明）
+        assert "protocol_config" not in resolve_provider()  # 不嵌套
 
     def test_resolve_provider_unknown_protocol(self):
         """未知 protocol → ValueError（review #53 第二轮：协议独立校验）"""

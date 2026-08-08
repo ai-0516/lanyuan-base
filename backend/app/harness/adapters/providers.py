@@ -5,17 +5,18 @@
 - LLM_PROVIDER：厂商维度（deepseek / 未来 qwen/moonshot/zhipu/anthropic）
 - LLM_PROTOCOL：协议维度（openai / anthropic，对应 LLMAdapter 子类）
 
-配置分层（review #53 第二轮补充）：
+配置分层（review #53 第三轮）：
 - provider 公共配置（与协议无关）：default_model / quirk（如 requires_reasoning_echo）
 - 协议特殊配置（protocols[Protocol]）：每协议一个可扩展 dict，
   目前是 default_base_url，未来可加协议版本、额外 header 等任意字段
 
-同一厂商可支持多种协议（例：deepseek 同时提供 openai 兼容端点与 anthropic
-兼容端点），protocol 决定用哪套协议转换；quirk 跟着 provider 走
-（Hermes ProviderProfile 思想）。
+resolve_provider() 返回 ProviderConfig（扁平 TypedDict）：公共配置字段 +
+协议特殊配置展开合并后的字段。**返回结构对所有 provider/protocol 统一**，
+调用方不需要感知「哪层配置来自哪里」——拿到就是一个完整配置对象。
 """
 
 from enum import Enum
+from typing import TypedDict
 
 from app.config import settings
 
@@ -25,6 +26,20 @@ class Protocol(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+
+
+class ProviderConfig(TypedDict):
+    """resolve_provider() 返回类型（扁平结构，调用方契约）
+
+    字段 = provider 公共配置 + 协议特殊配置展开合并。
+    新增协议特殊配置项时同步在此声明（协议差异不外溢）。
+    """
+
+    provider: str
+    protocol: Protocol
+    requires_reasoning_echo: bool
+    base_url: str
+    model: str
 
 
 # provider → {公共配置, protocols: {Protocol → 协议特殊配置}}
@@ -51,13 +66,12 @@ PROVIDERS: dict[str, dict] = {
 }
 
 
-def resolve_provider() -> dict:
+def resolve_provider() -> ProviderConfig:
     """按 settings.LLM_PROVIDER + settings.LLM_PROTOCOL 解析 provider 完整配置
 
     LLM_BASE_URL / LLM_MODEL 非空则覆盖默认值（环境变量优先）。
 
-    返回: {provider, protocol, requires_reasoning_echo, base_url, model, protocol_config}
-    protocol_config 为该协议特殊配置 dict（当前含 default_base_url，扩展字段随 PROVIDERS 走）。
+    返回: ProviderConfig（扁平结构，协议特殊配置已展开合并）。
     """
     provider = settings.LLM_PROVIDER
     try:
@@ -74,13 +88,16 @@ def resolve_provider() -> dict:
         )
     protocol_cfg = cfg.get("protocols", {}).get(protocol, {})
 
-    base_url = settings.LLM_BASE_URL or protocol_cfg.get("default_base_url", "")
-    model = settings.LLM_MODEL or cfg["default_model"]
-    return {
+    # default_base_url 已消费进 base_url（LLM_BASE_URL 优先），不重复暴露；
+    # 其余协议特殊配置字段展开合并进顶层（未来扩展直接加，同步声明到 ProviderConfig）
+    result: ProviderConfig = {
         "provider": provider,
         "protocol": protocol,
         "requires_reasoning_echo": cfg["requires_reasoning_echo"],
-        "base_url": base_url,
-        "model": model,
-        "protocol_config": protocol_cfg,
+        "base_url": settings.LLM_BASE_URL or protocol_cfg.get("default_base_url", ""),
+        "model": settings.LLM_MODEL or cfg["default_model"],
     }
+    for k, v in protocol_cfg.items():
+        if k != "default_base_url":
+            result[k] = v  # type: ignore[typeddict-unknown-key]
+    return result

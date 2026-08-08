@@ -291,9 +291,19 @@ PROVIDERS: dict[str, dict] = {
     # 未来：qwen/moonshot/zhipu → 各自 default_model / quirk + protocols
 }
 
-def resolve_provider() -> dict:
+class ProviderConfig(TypedDict):
+    """resolve_provider() 返回类型（扁平结构，调用方契约）
+    字段 = provider 公共配置 + 协议特殊配置展开合并"""
+    provider: str
+    protocol: Protocol
+    requires_reasoning_echo: bool
+    base_url: str
+    model: str
+
+def resolve_provider() -> ProviderConfig:
     """按 settings.LLM_PROVIDER + settings.LLM_PROTOCOL 解析完整配置
-    （双维查表；返回 {provider, protocol, requires_reasoning_echo, base_url, model, protocol_config}）"""
+    （双维查表；返回扁平 ProviderConfig——协议特殊配置展开进顶层，
+    default_base_url 已消费进 base_url；调用方无嵌套负担）"""
 ```
 
 ### 6.3 `streaming.py` 改造
