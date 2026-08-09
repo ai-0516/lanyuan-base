@@ -12,6 +12,10 @@
     python -m app.harness.evals.cli --tasks tasks/ --llm \
         --baseline-prompt-file baseline.txt --candidate-prompt-file candidate.txt --reps 3
 
+    # 成本预期：compare 模式 LLM 调用数 = tasks × reps × 2（baseline + candidate）。
+    # 例：10 任务 × 3 reps = 60 次调用/维度；reps=3 时 bootstrap CI 较宽
+    # （0.2-0.8），适合冒烟，精细对比需加大 reps 或后续 paired 对比（PR #61 review）。
+
 数据库：默认独立评测库 eval_lanyuan.db（不碰开发/生产数据），--db-url 可覆盖。
 """
 
@@ -95,6 +99,8 @@ def main() -> int:
                     system_prompt=Path(args.candidate_prompt_file).read_text(encoding="utf-8"),
                 )
                 print(f"对比模式: baseline vs candidate, reps={args.reps}\n")
+                print(f"成本预期: {len(tasks)} 任务 × {args.reps} reps × 2 = "
+                      f"{len(tasks) * args.reps * 2} 次 LLM 调用\n")
                 report = await compare(tasks, baseline, candidate, session, user_id, reps=args.reps)
                 print(report.render())
             else:
