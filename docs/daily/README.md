@@ -22,6 +22,7 @@
 | [08-05](2026-08-05.md) | System Prompt 运行时组装（#11） | PROMPT_SECTIONS 拆分、确定性缓存（json.dumps + lru_cache）、workspace 按需注入 |
 | [08-06](2026-08-06.md) | Session 管理设计调研与定案（#41）+ TECH_SPEC 第 8 章（#43） | 压缩旋转 rotation、摘要 tool 消息入库 + tail 迁移、/new 移除、search_history（LIKE 起步）、缓存去 LRU |
 | [08-07](2026-08-07.md) | LLM Adapter 方案调研与定案（#15）+ TECH_SPEC | pi-ai 多厂商抽象调研（canonical block 消息 / 两段式转换）、D1 block 风格 / D2 一段式 / D3 LLM_* 配置、Message 表列式存储无需迁移、LLMAdapter 抽象类（review 采纳） |
+| [08-09](2026-08-09.md) | evals 评测体系调研与落地（#55/#56/#57）+ max_tokens 调研 | 三轮调研吸收 8 设计点、架子优先策略、运行形态两档（--llm 门控）、报告器独立包零依赖、harness 复用 agent 循环 + mock 冒烟 |
 
 ---
 
