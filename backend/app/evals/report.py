@@ -1,5 +1,8 @@
 """ATOF 报告器 — 读任意 ATOF jsonl，输出行为指标（#56）
 
+独立包（app.evals）：零依赖、不触发应用配置初始化（.env/settings），
+无 LLM 类评测，CI 可直接跑。
+
 数据格式服务于评测：本模块只用 ATOF 中语义明确的字段，不用启发式推断。
 若字段缺失导致指标算不准，应修改 jsonl.py 的写入补充字段，而非在此兜底。
 
@@ -12,7 +15,7 @@
 - wall_s:      req 内首事件到 agent:end 的墙钟秒数（无 agent:end 用末事件）
 
 用法：
-    python -m app.harness.evals.report <jsonl 文件或目录> ...
+    python -m app.evals.report <jsonl 文件或目录> ...
     无参数时默认读 logs/llm-requests/
 """
 
@@ -26,15 +29,16 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from app.harness.hooks.events import (
-    AGENT_END,
-    AGENT_START,
-    LLM_END,
-    LLM_ERROR,
-    TOOL_END,
-    TOOL_START,
-    TURN_START,
-)
+# 事件名常量——与 app.harness.hooks.events 保持一致（replay_llm.py 同款先例）。
+# 不 import events 模块：导入会触发 harness 包初始化（hooks→adapters→Settings），
+# 报告器只是读文件，不应依赖应用配置。
+AGENT_START = "agent:start"
+AGENT_END = "agent:end"
+TURN_START = "turn:start"
+LLM_END = "llm:end"
+LLM_ERROR = "llm:error"
+TOOL_START = "tool:start"
+TOOL_END = "tool:end"
 
 DEFAULT_LOG_DIR = "logs/llm-requests"
 
