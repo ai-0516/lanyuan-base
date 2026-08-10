@@ -18,8 +18,8 @@ pytest 覆盖函数/API 层和部分编排层，但测不到「行为层」—�
 
 ```
 backend/
-├── app/evals/report.py            # 无 LLM 类：ATOF 报告器（独立包，零依赖）
 └── app/harness/evals/
+    ├── report.py                  # 无 LLM 类：ATOF 报告器（读 jsonl 出行为指标）
     ├── judge.py                   # 确定性断言组件 + AgentTrace
     ├── harness.py                 # 执行器：run_task / compare / bootstrap / load_tasks
     └── cli.py                     # 有 LLM 类入口，--llm 门控
@@ -37,8 +37,8 @@ backend/
 
 ```bash
 cd backend
-uv run python -m app.evals.report                    # 默认读 logs/llm-requests/
-uv run python -m app.evals.report <jsonl 文件或目录>
+uv run python -m app.harness.evals.report                    # 默认读 logs/llm-requests/
+uv run python -m app.harness.evals.report <jsonl 文件或目录>
 ```
 
 指标口径：
