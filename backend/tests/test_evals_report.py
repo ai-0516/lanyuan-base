@@ -6,7 +6,7 @@
 import json
 
 
-from app.harness.evals.report import (
+from app.evals.report import (
     aggregate,
     format_report,
     read_events,
