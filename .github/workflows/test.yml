@@ -169,15 +169,31 @@ jobs:
           set -o pipefail
           python -m app.harness.evals.report tests/data/sample_atof.jsonl | tee /tmp/evals_atof.txt
 
-      - name: Verify task set loads
+      - name: Smoke test task set (mock, no LLM)
+        # mock 冒烟（#59）：每任务跑通 agent 循环 + judge，验证任务定义与 judge
+        # 可执行（不抛异常）；mock 下 agent 不调工具，真实判定由开发期 --llm 评测完成
         run: |
           set -o pipefail
-          python - <<'EOF' | tee /tmp/evals_tasks.txt
-          from app.harness.evals.harness import load_tasks
+          python - <<'EOF' | tee /tmp/evals_smoke.txt
+          import asyncio
           from pathlib import Path
-          tasks = load_tasks(Path("app/harness/evals/tasks"))
-          print(f"加载 {len(tasks)} 个任务: {', '.join(t.name for t in tasks)}")
-          assert len(tasks) >= 6, "测试集加载异常"
+
+          from app.harness.evals.harness import RunConfig, load_tasks, run_task
+
+          async def main():
+              tasks = load_tasks(Path("app/harness/evals/tasks"))
+              ok = 0
+              for t in tasks:
+                  try:
+                      await run_task(t, db=None, user_id=1, cfg=RunConfig(name="smoke"))
+                      status = "OK"
+                      ok += 1
+                  except Exception as e:
+                      status = f"ERROR: {type(e).__name__}"
+                  print(f"{t.name}: {status}")
+              print(f"冒烟 {ok}/{len(tasks)} 任务管线可执行（mock 模式，零 LLM 调用）")
+
+          asyncio.run(main())
           EOF
 
       - name: Build evals report
@@ -195,10 +211,13 @@ jobs:
             cat /tmp/evals_atof.txt
             echo '```'
             echo ''
-            echo '### 测试集加载验证（app/harness/evals/tasks/）'
+            echo '### 测试集冒烟跑（app/harness/evals/tasks/，mock 零 LLM 调用）'
             echo '```'
-            cat /tmp/evals_tasks.txt
+            cat /tmp/evals_smoke.txt
             echo '```'
+            echo ''
+            echo '说明：mock 下 agent 不调工具，工具/标记/DB 断言不生效；'
+            echo '真实评测（--llm）在开发期手动运行，产出每任务 PASS/FAIL。'
           } > evals-report.txt
 
       - name: Upload evals report
