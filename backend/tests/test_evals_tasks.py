@@ -31,6 +31,8 @@ from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.models.user_memory import UserMemory
 
+pytestmark = pytest.mark.eval  # 无 LLM 类评测（#59）
+
 TASKS_DIR = Path(__file__).parent.parent / "app" / "harness" / "evals" / "tasks"
 
 

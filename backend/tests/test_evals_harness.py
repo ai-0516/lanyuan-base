@@ -22,6 +22,8 @@ from app.harness.evals.harness import (
 )
 from app.harness.evals.judge import MarkerInReply, NoToolCalled
 
+pytestmark = pytest.mark.eval  # 无 LLM 类评测（#59）
+
 MOCK_MARKER = "模拟模式"  # streaming.MOCK_REPLY_TEMPLATE 包含的固定文案
 
 

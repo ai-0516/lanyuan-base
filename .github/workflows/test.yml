@@ -134,3 +134,120 @@ jobs:
 
       - name: Test replay-llm --help
         run: python scripts/replay_llm.py --help
+
+  eval:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv & Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: false
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 无 LLM 类评测（#59）：不需要 LLM key，CI 可直接跑；有 LLM 类（--llm 门控）不挂 CI
+      - name: Run no-LLM evals (pytest -m eval)
+        run: |
+          set -o pipefail
+          pytest -m eval -q --tb=short 2>&1 | tee /tmp/evals_pytest.txt
+
+      - name: Run ATOF reporter on sample data
+        run: python -m app.harness.evals.report tests/data/sample_atof.jsonl | tee /tmp/evals_atof.txt
+
+      - name: Verify task set loads
+        run: |
+          python - <<'EOF' | tee /tmp/evals_tasks.txt
+          from app.harness.evals.harness import load_tasks
+          from pathlib import Path
+          tasks = load_tasks(Path("app/harness/evals/tasks"))
+          print(f"加载 {len(tasks)} 个任务: {', '.join(t.name for t in tasks)}")
+          assert len(tasks) >= 6, "测试集加载异常"
+          EOF
+
+      - name: Build evals report
+        run: |
+          {
+            echo '## 📊 Evals Report（无 LLM 类，#59）'
+            echo ''
+            echo '### 单元测试（pytest -m eval）'
+            echo '```'
+            grep -E "passed" /tmp/evals_pytest.txt | tail -1
+            echo '```'
+            echo ''
+            echo '### ATOF 报告器（sample_atof.jsonl）'
+            echo '```'
+            cat /tmp/evals_atof.txt
+            echo '```'
+            echo ''
+            echo '### 测试集加载验证（app/harness/evals/tasks/）'
+            echo '```'
+            cat /tmp/evals_tasks.txt
+            echo '```'
+          } > evals-report.txt
+
+      - name: Upload evals report
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-report
+          path: backend/evals-report.txt
+          retention-days: 7
+
+      - name: Post evals report to PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('backend/evals-report.txt', 'utf8');
+
+            const branch = context.ref.replace('refs/heads/', '');
+
+            if (branch === 'main') {
+              console.log('On main branch, skipping PR comment');
+              return;
+            }
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
+            });
+
+            if (pulls.length === 0) {
+              console.log(`No open PR found for branch ${branch}`);
+              return;
+            }
+
+            const prNumber = pulls[0].number;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const evalsComment = comments.find(c => c.body.includes('Evals Report'));
+
+            // 删旧重建，让 comment 始终在 PR 最底部（沿用 coverage 评论模式）
+            if (evalsComment) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: evalsComment.id,
+              });
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: report,
+            });
