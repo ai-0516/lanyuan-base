@@ -12,6 +12,7 @@ import sys
 
 from app.harness.evals.harness import (
     RunConfig,
+    Task,
     bootstrap_ci,
     compare,
     load_tasks,
@@ -28,7 +29,7 @@ MOCK_MARKER = "模拟模式"  # streaming.MOCK_REPLY_TEMPLATE 包含的固定文
 
 async def test_run_task_smoke_no_tool_call():
     """mock 模式：agent 不调工具 → NoToolCalled 通过"""
-    task = {"name": "smoke_no_tool", "prompt": "你好", "judge": NoToolCalled()}
+    task = Task(name="smoke_no_tool", prompt="你好", judge=NoToolCalled())
     result = await run_task(task, db=None, user_id=1, cfg=RunConfig(name="run"))
     assert result.passed is True
     assert result.trace.final_reply  # 有回复
@@ -36,14 +37,14 @@ async def test_run_task_smoke_no_tool_call():
 
 async def test_run_task_marker_in_mock_reply():
     """mock 回复固定含「模拟模式」→ MarkerInReply 通过，验证 final_reply 收集正确"""
-    task = {"name": "smoke_marker", "prompt": "你好", "judge": MarkerInReply(MOCK_MARKER)}
+    task = Task(name="smoke_marker", prompt="你好", judge=MarkerInReply(MOCK_MARKER))
     result = await run_task(task, db=None, user_id=1, cfg=RunConfig(name="run"))
     assert result.passed is True
 
 
 async def test_run_task_system_prompt_override():
     """system_prompt 覆盖：自定义 prompt 出现于 mock 回复中（mock 回显 user 消息）"""
-    task = {"name": "smoke_sp", "prompt": "测试覆盖", "judge": MarkerInReply("测试覆盖")}
+    task = Task(name="smoke_sp", prompt="测试覆盖", judge=MarkerInReply("测试覆盖"))
     cfg = RunConfig(name="custom", system_prompt="你是评测专用助手。")
     result = await run_task(task, db=None, user_id=1, cfg=cfg)
     assert result.passed is True
@@ -51,8 +52,8 @@ async def test_run_task_system_prompt_override():
 
 async def test_run_batch_multiple_tasks():
     tasks = [
-        {"name": "t1", "prompt": "你好", "judge": NoToolCalled()},
-        {"name": "t2", "prompt": "你好", "judge": NoToolCalled()},
+        Task(name="t1", prompt="你好", judge=NoToolCalled()),
+        Task(name="t2", prompt="你好", judge=NoToolCalled()),
     ]
     results = await run_batch(tasks, RunConfig(name="run"), db=None, user_id=1)
     assert len(results) == 2
@@ -88,8 +89,8 @@ def test_bootstrap_ci_empty():
 async def test_compare_report_shape():
     """mock 下两配置都通过 NoToolCalled → 两行报告、delta=0"""
     tasks = [
-        {"name": "cmp1", "prompt": "你好", "judge": NoToolCalled()},
-        {"name": "cmp2", "prompt": "你好", "judge": NoToolCalled()},
+        Task(name="cmp1", prompt="你好", judge=NoToolCalled()),
+        Task(name="cmp2", prompt="你好", judge=NoToolCalled()),
     ]
     baseline = RunConfig(name="baseline")
     candidate = RunConfig(name="candidate", system_prompt="自定义 candidate prompt。")
@@ -118,7 +119,7 @@ def test_load_tasks_from_file(tmp_path):
         encoding="utf-8",
     )
     tasks = load_tasks(f)
-    assert [t["name"] for t in tasks] == ["a", "b"]
+    assert [t.name for t in tasks] == ["a", "b"]
 
 
 def test_load_tasks_from_dir(tmp_path):
@@ -129,7 +130,7 @@ def test_load_tasks_from_dir(tmp_path):
     )
     (tmp_path / "_skip.py").write_text("TASKS = []\n", encoding="utf-8")
     tasks = load_tasks(tmp_path)
-    assert [t["name"] for t in tasks] == ["x"]
+    assert [t.name for t in tasks] == ["x"]
 
 
 def test_load_tasks_from_sample_file():
@@ -138,7 +139,7 @@ def test_load_tasks_from_sample_file():
 
     sample = Path(__file__).parent / "data" / "sample_tasks.py"
     tasks = load_tasks(sample)
-    names = [t["name"] for t in tasks]
+    names = [t.name for t in tasks]
     assert names == [
         "greeting_no_tool",
         "get_post_by_id",
@@ -148,7 +149,7 @@ def test_load_tasks_from_sample_file():
     ]
     # judge 全部是可执行断言组件（Judge 协议：有 check 方法）
     for t in tasks:
-        assert callable(getattr(t["judge"], "check", None)), t["name"]
+        assert callable(getattr(t.judge, "check", None)), t.name
 
 
 # ── CLI --llm 门控 ──────────────────────────────────────────────

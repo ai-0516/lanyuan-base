@@ -18,10 +18,24 @@ from typing import Any
 
 from app.harness.agent import AIAgent
 from app.harness.context import build_messages
-from app.harness.evals.judge import AgentTrace, EvalContext, ToolCall
+from app.harness.evals.judge import AgentTrace, EvalContext, Judge, ToolCall
 from app.harness.tools import TOOLS, execute_tool
 
-# 任务结构：{"name": str, "prompt": str, "judge": Judge, "system_prompt": str | None}
+# ── 任务结构 ────────────────────────────────────────────────────
+
+
+@dataclass
+class Task:
+    """评测任务：数据（prompt）+ 判定逻辑（judge）
+
+    任务文件导出的 TASKS 列表元素即 Task（load_tasks 从 dict 构造并校验）。
+    """
+
+    name: str
+    prompt: str
+    judge: Judge
+    system_prompt: str | None = None
+
 
 # ── 单次运行结果 ────────────────────────────────────────────────
 
@@ -52,15 +66,15 @@ class RunConfig:
 # ── 任务加载 ────────────────────────────────────────────────────
 
 
-def load_tasks(path: str | Path) -> list[dict]:
+def load_tasks(path: str | Path) -> list[Task]:
     """从 Python 文件加载 TASKS 列表
 
     path 可以是 .py 文件，或包含 TASKS 定义的目录（扫描 *.py）。
-    任务格式：{"name", "prompt", "judge": Judge 实例, "system_prompt"?: str}
+    任务格式（Task 字段）：name / prompt / judge: Judge 实例 / system_prompt?（可选）
     """
     p = Path(path)
     files = sorted(p.glob("*.py")) if p.is_dir() else [p]
-    tasks: list[dict] = []
+    tasks: list[Task] = []
     for f in files:
         if f.name.startswith("_"):
             continue
@@ -68,11 +82,14 @@ def load_tasks(path: str | Path) -> list[dict]:
         assert spec and spec.loader
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        for task in getattr(mod, "TASKS", []):
-            assert "name" in task and "prompt" in task and "judge" in task, (
+        for item in getattr(mod, "TASKS", []):
+            if isinstance(item, Task):
+                tasks.append(item)
+                continue
+            assert "name" in item and "prompt" in item and "judge" in item, (
                 f"{f.name}: 任务必须含 name/prompt/judge"
             )
-            tasks.append(task)
+            tasks.append(Task(**item))
     return tasks
 
 
@@ -94,14 +111,14 @@ def _build_messages(prompt: str, task_name: str, system_prompt: str | None) -> l
 
 
 async def run_task(
-    task: dict,
+    task: Task,
     db: Any,
     user_id: int,
     cfg: RunConfig,
 ) -> TaskResult:
     """跑单个任务一次：agent 循环 → 收集轨迹 → judge 判定"""
-    trace = AgentTrace(prompt=task["prompt"])
-    messages = _build_messages(task["prompt"], task["name"], cfg.system_prompt)
+    trace = AgentTrace(prompt=task.prompt)
+    messages = _build_messages(task.prompt, task.name, cfg.system_prompt)
 
     agent = AIAgent(tools=TOOLS, tool_executor=execute_tool)
     current_reply: list[str] = []
@@ -109,7 +126,7 @@ async def run_task(
         messages,
         db=db,
         user_id=user_id,
-        meta={"eval": True, "task": task["name"], "cfg": cfg.name},
+        meta={"eval": True, "task": task.name, "cfg": cfg.name},
     ):
         if event == "message:start":
             current_reply = []
@@ -131,10 +148,9 @@ async def run_task(
         elif event == "error":
             trace.errors.append(str(data))
 
-    judge = task["judge"]
-    result = await judge.check(EvalContext(trace=trace, db=db, user_id=user_id))
+    result = await task.judge.check(EvalContext(trace=trace, db=db, user_id=user_id))
     return TaskResult(
-        task=task["name"],
+        task=task.name,
         cfg_name=cfg.name,
         passed=result.passed,
         reason=result.reason,
@@ -143,7 +159,7 @@ async def run_task(
 
 
 async def run_batch(
-    tasks: list[dict],
+    tasks: list[Task],
     cfg: RunConfig,
     db: Any,
     user_id: int,
@@ -208,7 +224,7 @@ class CompareReport:
 
 
 async def compare(
-    tasks: list[dict],
+    tasks: list[Task],
     baseline: RunConfig,
     candidate: RunConfig,
     db: Any,
@@ -226,7 +242,7 @@ async def compare(
         b_rate = sum(b_passed) / len(b_passed)
         c_rate = sum(c_passed) / len(c_passed)
         rows.append(CompareRow(
-            task=task["name"],
+            task=task.name,
             baseline_rate=b_rate,
             baseline_ci=bootstrap_ci(b_passed),
             candidate_rate=c_rate,
