@@ -10,6 +10,7 @@ import logging
 
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,12 @@ async def validation_exception_handler(request, exc):
 async def api_exception_handler(request, exc):
     """FastAPI 异常处理器，将异常转为统一格式"""
     status_code = getattr(exc, "status_code", 500)
-    if hasattr(exc, "detail"):
+    # 仅 HTTPException 有业务 detail（dict 透传 / 字符串兼容 / 404 默认文案）。
+    # 用 StarletteHTTPException 判断：fastapi.HTTPException 是其子类（独立类，
+    # 非 re-export），路由 404/401 抛的则是 Starlette 本身——两者都要覆盖（#64）。
+    # 不能按 hasattr(exc, "detail") 判断——SQLAlchemy 等 DB 异常也有 detail
+    # 属性（值为 []），会被误判进此分支导致不打日志、文案错误（#64）
+    if isinstance(exc, StarletteHTTPException):
         detail = exc.detail
         if isinstance(detail, dict) and "code" in detail:
             return JSONResponse(
@@ -62,7 +68,7 @@ async def api_exception_handler(request, exc):
             status_code=status_code,
             content={"code": status_code * 100, "message": message},
         )
-    # 非 HTTPException（如 Pydantic ValidationError、SQL 错误等）
+    # 非 HTTPException（如 Pydantic ValidationError、SQL 错误等）→ 不暴露内部细节
     logger.exception("未捕获的异常: %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,

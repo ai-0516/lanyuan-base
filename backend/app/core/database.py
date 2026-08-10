@@ -14,12 +14,21 @@ _sqlite_pool = (
     if "sqlite" in settings.DATABASE_URL
     else {"pool_size": 10, "max_overflow": 10}
 )
+# MySQL → 连接保活：MySQL wait_timeout=28800（8h）会关闭空闲连接，
+# 连接池复用僵尸连接会报 "Lost connection to MySQL server during query"（#64）。
+# pool_pre_ping 取连接前探活剔除死连接；pool_recycle 早于 wait_timeout 定期回收。
+_pool_keepalive = (
+    {"pool_pre_ping": True, "pool_recycle": 3600}
+    if "sqlite" not in settings.DATABASE_URL
+    else {}
+)
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     connect_args=_connect_args,
     **_sqlite_pool,
+    **_pool_keepalive,
 )
 
 # SQLite 默认不强制外键约束，必须显式开启 PRAGMA（MySQL 天然支持 FK）
