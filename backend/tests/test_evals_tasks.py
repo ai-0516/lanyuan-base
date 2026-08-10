@@ -3,7 +3,7 @@
 覆盖：
 - jsonl 任务加载（expect 翻译、注释/空行跳过、缺字段/未知 expect 报错、.py+.jsonl 混合目录）
 - ToolCalled 参数 list 值 = 包含匹配（检索参数合理性断言）
-- DbMemoryContains DB 状态检查（记忆落库验证）
+- DBMemoryContains DB 状态检查（记忆落库验证）
 - CLI _reset_eval_user 每轮重置（可复现性）
 - 真实测试集目录（app/harness/evals/tasks/*.jsonl）可加载、题目覆盖三维度
 """
@@ -20,7 +20,7 @@ from app.harness.evals.judge import (
     AgentTrace,
     AllOf,
     AnyOf,
-    DbMemoryContains,
+    DBMemoryContains,
     EvalContext,
     MarkerInReply,
     NoToolCalled,
@@ -131,7 +131,7 @@ def test_expect_translation_all_types():
     assert isinstance(_expect_to_judge({"tool": "memory_add"}), ToolCalled)
     assert isinstance(_expect_to_judge({"no_tool": True}), NoToolCalled)
     assert isinstance(_expect_to_judge({"marker": "没有"}), MarkerInReply)
-    assert isinstance(_expect_to_judge({"db_memory_contains": "美式"}), DbMemoryContains)
+    assert isinstance(_expect_to_judge({"db_memory_contains": "美式"}), DBMemoryContains)
     assert isinstance(_expect_to_judge({"all": [{"no_tool": True}]}), AllOf)
     assert isinstance(_expect_to_judge({"any": [{"marker": "a"}, {"marker": "b"}]}), AnyOf)
 
@@ -148,6 +148,12 @@ def test_expect_translation_nested_combo():
     assert isinstance(j, AllOf)
     assert isinstance(j.judges[0], AnyOf)
     assert isinstance(j.judges[1], MarkerInReply)
+
+
+def test_expect_translation_multiple_keys_raises():
+    """#66 review：判定键互斥，组合必须用 all/any 显式表达（避免静默忽略）"""
+    with pytest.raises(ValueError, match="互斥"):
+        _expect_to_judge({"tool": "memory_add", "marker": "已记住"})
 
 
 # ── ToolCalled 参数 list 包含匹配 ────────────────────────────────
@@ -180,7 +186,7 @@ async def test_tool_called_exact_match_unchanged():
     assert not r.passed
 
 
-# ── DbMemoryContains DB 状态检查 ────────────────────────────────
+# ── DBMemoryContains DB 状态检查 ────────────────────────────────
 
 
 async def test_db_memory_contains_found(tmp_db):
@@ -190,7 +196,7 @@ async def test_db_memory_contains_found(tmp_db):
                        description="喜欢美式咖啡", body="用户喜欢喝美式咖啡")
         )
         await session.commit()
-        r = await DbMemoryContains("美式").check(
+        r = await DBMemoryContains("美式").check(
             EvalContext(trace=AgentTrace(prompt="p"), db=session, user_id=7)
         )
         assert r.passed
@@ -205,14 +211,14 @@ async def test_db_memory_contains_not_found(tmp_db):
                        description="喜欢奶茶", body="用户喜欢喝奶茶")
         )
         await session.commit()
-        r = await DbMemoryContains("美式").check(
+        r = await DBMemoryContains("美式").check(
             EvalContext(trace=AgentTrace(prompt="p"), db=session, user_id=7)
         )
         assert not r.passed
 
 
 async def test_db_memory_contains_without_db_context():
-    r = await DbMemoryContains("x").check(EvalContext(trace=AgentTrace(prompt="p")))
+    r = await DBMemoryContains("x").check(EvalContext(trace=AgentTrace(prompt="p")))
     assert not r.passed
     assert "无 db" in r.reason
 
@@ -252,6 +258,32 @@ async def test_reset_eval_user_clears_data(tmp_db):
         assert (await session.execute(
             select(User).where(User.openid == "eval")
         )).scalar_one() is not None
+
+
+async def test_reset_eval_user_rejects_non_eval_user(tmp_db):
+    """#66 review：只允许重置评测用户（openid=eval），拒绝误删正常用户数据"""
+    from app.harness.evals.cli import _reset_eval_user
+
+    async with tmp_db() as session:
+        session.add(User(openid="wx_normal_user", nickname="正常用户"))
+        await session.commit()
+        normal = (await session.execute(
+            select(User).where(User.openid == "wx_normal_user")
+        )).scalar_one()
+        conv = Conversation(user_id=normal.id, title="正常用户的对话")
+        session.add(conv)
+        await session.commit()
+
+        with pytest.raises(ValueError, match="openid=eval"):
+            await _reset_eval_user(session, normal.id)
+
+        # 拒绝时未删除任何数据（正常用户及其对话都保留）
+        assert (await session.execute(
+            select(User).where(User.openid == "wx_normal_user")
+        )).scalar_one() is not None
+        assert (await session.execute(
+            select(Conversation).where(Conversation.user_id == normal.id)
+        )).scalars().all()
 
 
 # ── 真实测试集目录 ──────────────────────────────────────────────

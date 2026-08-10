@@ -76,7 +76,7 @@ expect 支持（可递归组合）：
 | `{"tool": "名称", "params": {...}}` | ToolCalled | 参数子集匹配；**params 值为 list = 包含匹配**（实际参数须含全部字符串，用于 query 措辞不可控的检索断言） |
 | `{"no_tool": true}` | NoToolCalled | 断言未调用任何工具 |
 | `{"marker": "字符串"}` | MarkerInReply | 最终回复包含 marker |
-| `{"db_memory_contains": "关键词"}` | DbMemoryContains | DB 状态检查：该用户已写入含关键词的记忆 |
+| `{"db_memory_contains": "关键词"}` | DBMemoryContains | DB 状态检查：该用户已写入含关键词的记忆 |
 | `{"all": [...]}` / `{"any": [...]}` | AllOf / AnyOf | 递归组合 |
 
 **Python 任务文件**（需要自定义 judge 逻辑时）：导出 TASKS 列表（Task 字段
@@ -96,7 +96,7 @@ TASKS = [
 ]
 ```
 
-judge 组件：`ToolCalled(name, params=None)`（params 为参数子集匹配）/ `NoToolCalled()` / `MarkerInReply(marker)` / `DbMemoryContains(keyword)` / `AllOf(*j)` / `AnyOf(*j)`。
+judge 组件：`ToolCalled(name, params=None)`（params 为参数子集匹配）/ `NoToolCalled()` / `MarkerInReply(marker)` / `DBMemoryContains(keyword)` / `AllOf(*j)` / `AnyOf(*j)`。
 
 **首批测试集**（`backend/app/harness/evals/tasks/*.jsonl`，#58）：检索正确性
 （search_history 调用 + query 含关键词）、记忆正确性（memory_add 落库 +

@@ -49,11 +49,21 @@ async def _reset_eval_user(session, user_id: int) -> None:
 
     评测库跨轮次持久化，上轮的对话/记忆会污染下轮的陷阱题判定
     （如 memory_add 测试写入的「用户偏好」会被下轮检索到）。每轮从干净状态开始。
+
+    只允许重置评测用户（openid == "eval"），拒绝误删正常用户数据（#66 review）。
     """
     from sqlalchemy import delete, select
 
     from app.models.conversation import Conversation, Message
+    from app.models.user import User
     from app.models.user_memory import UserMemory
+
+    # 只允许重置评测用户（openid=eval）：避免误删正常用户数据
+    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None or user.openid != "eval":
+        raise ValueError(
+            f"仅允许重置评测用户（openid=eval），实际: {user.openid if user else '用户不存在'}"
+        )
 
     conv_ids = select(Conversation.id).where(Conversation.user_id == user_id)
     await session.execute(

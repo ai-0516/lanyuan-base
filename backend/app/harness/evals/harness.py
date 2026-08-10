@@ -23,7 +23,7 @@ from app.harness.evals.judge import (
     AgentTrace,
     AllOf,
     AnyOf,
-    DbMemoryContains,
+    DBMemoryContains,
     EvalContext,
     Judge,
     MarkerInReply,
@@ -81,13 +81,19 @@ class RunConfig:
 def _expect_to_judge(exp: dict) -> Judge:
     """jsonl 测试题 expect 字段 → Judge 组件（#58 样本与逻辑分离）
 
-    expect 支持（可递归组合）：
+    expect 支持（可递归组合，判定键互斥——组合必须用 all/any 显式表达）：
     - {"tool": "名称", "params": {...}}       → ToolCalled（params 值 list = 包含匹配）
     - {"no_tool": true}                       → NoToolCalled
     - {"marker": "字符串"}                    → MarkerInReply
-    - {"db_memory_contains": "关键词"}        → DbMemoryContains（DB 状态检查）
+    - {"db_memory_contains": "关键词"}        → DBMemoryContains（DB 状态检查）
     - {"all": [expect...]} / {"any": [...]}   → AllOf / AnyOf 组合
     """
+    _KEYS = ("all", "any", "tool", "no_tool", "marker", "db_memory_contains")
+    keys = [k for k in _KEYS if k in exp]
+    if len(keys) > 1:
+        raise ValueError(
+            f"expect 判定键互斥，同时出现 {keys}；组合请用 all/any 显式表达（#66 review）"
+        )
     if "all" in exp:
         return AllOf(*(_expect_to_judge(e) for e in exp["all"]))
     if "any" in exp:
@@ -99,7 +105,7 @@ def _expect_to_judge(exp: dict) -> Judge:
     if "marker" in exp:
         return MarkerInReply(exp["marker"])
     if "db_memory_contains" in exp:
-        return DbMemoryContains(exp["db_memory_contains"])
+        return DBMemoryContains(exp["db_memory_contains"])
     raise ValueError(f"无法识别的 expect 判定: {exp!r}")
 
 

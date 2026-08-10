@@ -167,7 +167,7 @@ class AnyOf:
         return JudgeResult(False, "所有断言均未通过: " + " | ".join(reasons))
 
 
-class DbMemoryContains:
+class DBMemoryContains:
     """DB 状态检查：断言该用户已写入含关键词的记忆（#58 记忆正确性）
 
     用途：验证「记住 X」类任务的落库结果——agent 调了 memory_add 只是第一步，
