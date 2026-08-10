@@ -6,8 +6,9 @@
 import json
 
 
-from app.evals.report import (
+from app.harness.evals.report import (
     aggregate,
+    format_report,
     read_events,
     score_file,
     score_req,
@@ -206,3 +207,37 @@ def test_aggregate():
     assert agg["tool_errors_total"] == 1
     assert agg["completion_tokens_total"] == 10
     assert agg["reqs_with_error"] == 1
+
+
+# ── sample 数据端到端（PR #61 review 补充）──────────────────────
+
+
+def test_sample_atof_end_to_end():
+    """tests/data/sample_atof.jsonl 完整走 score_file → aggregate → format_report
+
+    两个 req：001 正常流程（0 错 0 重试）、002 工具失败后重试成功（1 错 1 重试）。
+    用真实 sample 数据验证报告器，避免纯合成事件与生产格式脱节。
+    """
+    from pathlib import Path
+
+    sample = Path(__file__).parent / "data" / "sample_atof.jsonl"
+    metrics = score_file(str(sample))
+    by_id = {m.req_id: m for m in metrics}
+    assert set(by_id) == {"sample-20260808-001", "sample-20260808-002"}
+
+    m1 = by_id["sample-20260808-001"]
+    assert m1.turns == 2 and m1.llm_calls == 2 and m1.tool_calls == 1
+    assert m1.tool_errors == 0 and m1.retries == 0
+    assert m1.completion_tokens == 199  # 79 + 120
+
+    m2 = by_id["sample-20260808-002"]
+    assert m2.turns == 2 and m2.llm_calls == 2 and m2.tool_calls == 2
+    assert m2.tool_errors == 1 and m2.retries == 1
+    assert m2.completion_tokens == 150  # 60 + 90
+    assert m2.error_tools == [("search_history", 1)]
+
+    agg = aggregate(metrics)
+    assert agg["req_count"] == 2
+    assert agg["tool_errors_total"] == 1 and agg["retries_total"] == 1
+    text = format_report(metrics, agg)
+    assert "sample-20260" in text and "search_history×1" in text

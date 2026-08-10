@@ -132,6 +132,25 @@ def test_load_tasks_from_dir(tmp_path):
     assert [t["name"] for t in tasks] == ["x"]
 
 
+def test_load_tasks_from_sample_file():
+    """sample 任务文件（tests/data/sample_tasks.py）可被 load_tasks 直接加载（PR #61 review 补充）"""
+    from pathlib import Path
+
+    sample = Path(__file__).parent / "data" / "sample_tasks.py"
+    tasks = load_tasks(sample)
+    names = [t["name"] for t in tasks]
+    assert names == [
+        "greeting_no_tool",
+        "get_post_by_id",
+        "get_post_wrong_param",
+        "search_and_mention",
+        "either_tool_or_marker",
+    ]
+    # judge 全部是可执行断言组件（Judge 协议：有 check 方法）
+    for t in tasks:
+        assert callable(getattr(t["judge"], "check", None)), t["name"]
+
+
 # ── CLI --llm 门控 ──────────────────────────────────────────────
 
 
