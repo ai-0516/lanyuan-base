@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +19,18 @@ from typing import Any
 
 from app.harness.agent import AIAgent
 from app.harness.context import build_messages
-from app.harness.evals.judge import AgentTrace, EvalContext, Judge, ToolCall
+from app.harness.evals.judge import (
+    AgentTrace,
+    AllOf,
+    AnyOf,
+    DbMemoryContains,
+    EvalContext,
+    Judge,
+    MarkerInReply,
+    NoToolCalled,
+    ToolCall,
+    ToolCalled,
+)
 from app.harness.tools import TOOLS, execute_tool
 
 # ── 任务结构 ────────────────────────────────────────────────────
@@ -66,17 +78,72 @@ class RunConfig:
 # ── 任务加载 ────────────────────────────────────────────────────
 
 
-def load_tasks(path: str | Path) -> list[Task]:
-    """从 Python 文件加载 TASKS 列表
+def _expect_to_judge(exp: dict) -> Judge:
+    """jsonl 测试题 expect 字段 → Judge 组件（#58 样本与逻辑分离）
 
-    path 可以是 .py 文件，或包含 TASKS 定义的目录（扫描 *.py）。
-    任务格式（Task 字段）：name / prompt / judge: Judge 实例 / system_prompt?（可选）
+    expect 支持（可递归组合）：
+    - {"tool": "名称", "params": {...}}       → ToolCalled（params 值 list = 包含匹配）
+    - {"no_tool": true}                       → NoToolCalled
+    - {"marker": "字符串"}                    → MarkerInReply
+    - {"db_memory_contains": "关键词"}        → DbMemoryContains（DB 状态检查）
+    - {"all": [expect...]} / {"any": [...]}   → AllOf / AnyOf 组合
+    """
+    if "all" in exp:
+        return AllOf(*(_expect_to_judge(e) for e in exp["all"]))
+    if "any" in exp:
+        return AnyOf(*(_expect_to_judge(e) for e in exp["any"]))
+    if "tool" in exp:
+        return ToolCalled(exp["tool"], exp.get("params"))
+    if exp.get("no_tool"):
+        return NoToolCalled()
+    if "marker" in exp:
+        return MarkerInReply(exp["marker"])
+    if "db_memory_contains" in exp:
+        return DbMemoryContains(exp["db_memory_contains"])
+    raise ValueError(f"无法识别的 expect 判定: {exp!r}")
+
+
+def _load_jsonl_tasks(f: Path) -> list[Task]:
+    """从 jsonl 数据文件加载测试题（#58 验收：测试题沉淀为 jsonl 数据文件）
+
+    每行一个 JSON 对象：{"name", "prompt", "expect"}（expect 见 _expect_to_judge）。
+    空行与 # 开头的注释行跳过。判定逻辑全部由 expect 翻译为确定性断言组件。
+    """
+    tasks: list[Task] = []
+    for line_no, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        item = json.loads(line)
+        missing = [k for k in ("name", "prompt", "expect") if k not in item]
+        if missing:
+            raise ValueError(f"{f.name}:{line_no} 缺少字段 {missing}")
+        tasks.append(Task(
+            name=item["name"],
+            prompt=item["prompt"],
+            judge=_expect_to_judge(item["expect"]),
+        ))
+    return tasks
+
+
+def load_tasks(path: str | Path) -> list[Task]:
+    """从任务文件加载测试集
+
+    - .py 文件：导出 TASKS 列表（Task dataclass 或 {name/prompt/judge} dict）
+    - .jsonl 文件：每行 {name, prompt, expect}，expect 翻译为确定性 judge（#58）
+    - 目录：扫描 *.py + *.jsonl（_ 前缀文件跳过）
     """
     p = Path(path)
-    files = sorted(p.glob("*.py")) if p.is_dir() else [p]
+    if p.is_dir():
+        files = sorted([*p.glob("*.py"), *p.glob("*.jsonl")])
+    else:
+        files = [p]
     tasks: list[Task] = []
     for f in files:
         if f.name.startswith("_"):
+            continue
+        if f.suffix == ".jsonl":
+            tasks.extend(_load_jsonl_tasks(f))
             continue
         spec = importlib.util.spec_from_file_location(f"evals_tasks_{f.stem}", f)
         assert spec and spec.loader
@@ -97,13 +164,21 @@ def load_tasks(path: str | Path) -> list[Task]:
 
 
 def _build_messages(prompt: str, task_name: str, system_prompt: str | None) -> list[dict]:
-    """构造 LLM messages：默认走生产 system prompt，覆盖时直接拼接"""
+    """构造 LLM messages：默认走生产 system prompt，覆盖时直接拼接
+
+    注意：build_messages 只拼 system + history，user 消息由生产路径从 DB
+    history 提供（docstring：user_message 参数保留用于未来扩展）。评测无
+    history，必须显式追加 user 消息——否则 LLM 只收到 system，回复与
+    prompt 无关（实测 0/6 根因）。
+    """
     if system_prompt is None:
-        return build_messages(
+        messages = build_messages(
             history=[],
             user_message=prompt,
             session_id=f"eval-{task_name}",
         )
+        messages.append({"role": "user", "content": prompt})
+        return messages
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt},

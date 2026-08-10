@@ -1,6 +1,6 @@
 # Agent 行为评测（evals）体系
 
-> 覆盖：ATOF 报告器（#56）、评测 harness（#57）、测试集（#58 待做）、CI 集成（#59 待做）
+> 覆盖：ATOF 报告器（#56）、评测 harness（#57）、测试集（#58）、CI 集成（#59 待做）
 > 调研背景见 issue #55（三轮调研 + 8 个吸收设计点 + 定稿方案）。
 
 ## 评测什么
@@ -55,7 +55,32 @@ uv run python -m app.evals.report <jsonl 文件或目录>
 
 ## 评测 harness（#57）
 
-### 任务定义（任务文件，Python）
+### 任务定义
+
+测试集 = 纯数据（jsonl）+ 判定逻辑（judge 组件）分离（#58 落地）。
+
+**jsonl 数据文件**（推荐，测试题沉淀为数据）：每行一个 JSON 对象
+`{"name", "prompt", "expect"}`，空行与 `#` 注释行跳过。expect 翻译为确定性 judge：
+
+```json
+{"name": "search_rotation_session",
+ "prompt": "帮我找一下上次讨论的 session 旋转方案",
+ "expect": {"tool": "search_history", "params": {"query": ["旋转"]}}}
+```
+
+expect 支持（可递归组合）：
+
+| expect | 翻译为 | 说明 |
+|---|---|---|
+| `{"tool": "名称"}` | ToolCalled | 断言调用了工具 |
+| `{"tool": "名称", "params": {...}}` | ToolCalled | 参数子集匹配；**params 值为 list = 包含匹配**（实际参数须含全部字符串，用于 query 措辞不可控的检索断言） |
+| `{"no_tool": true}` | NoToolCalled | 断言未调用任何工具 |
+| `{"marker": "字符串"}` | MarkerInReply | 最终回复包含 marker |
+| `{"db_memory_contains": "关键词"}` | DbMemoryContains | DB 状态检查：该用户已写入含关键词的记忆 |
+| `{"all": [...]}` / `{"any": [...]}` | AllOf / AnyOf | 递归组合 |
+
+**Python 任务文件**（需要自定义 judge 逻辑时）：导出 TASKS 列表（Task 字段
+name / prompt / judge / system_prompt?）。
 
 ```python
 # tasks/retrieval.py
@@ -71,22 +96,28 @@ TASKS = [
 ]
 ```
 
-judge 组件：`ToolCalled(name, params=None)`（params 为参数子集匹配）/ `NoToolCalled()` / `MarkerInReply(marker)` / `AllOf(*j)` / `AnyOf(*j)`。
+judge 组件：`ToolCalled(name, params=None)`（params 为参数子集匹配）/ `NoToolCalled()` / `MarkerInReply(marker)` / `DbMemoryContains(keyword)` / `AllOf(*j)` / `AnyOf(*j)`。
+
+**首批测试集**（`backend/app/harness/evals/tasks/*.jsonl`，#58）：检索正确性
+（search_history 调用 + query 含关键词）、记忆正确性（memory_add 落库 +
+memory 工具查询不瞎编）、边界行为（检索无结果/领域外问题不瞎编）三维度各 2 题。
 
 ### 运行（有 LLM 类，花钱）
 
 ```bash
 cd backend
 # 单配置跑全部任务
-uv run python -m app.harness.evals.cli --tasks tasks/ --llm
+uv run python -m app.harness.evals.cli --tasks app/harness/evals/tasks/ --llm
 
 # baseline/candidate 对比（system_prompt 维度）+ bootstrap 置信度
-uv run python -m app.harness.evals.cli --tasks tasks/ --llm \
+uv run python -m app.harness.evals.cli --tasks app/harness/evals/tasks/ --llm \
     --baseline-prompt-file baseline.txt --candidate-prompt-file candidate.txt --reps 3
 ```
 
 - **`--llm` 是门控**：不加直接退出，零 LLM 调用（CI 不会误触发花钱）
 - 数据库默认独立评测库 `eval_lanyuan.db`（不碰开发/生产数据），`--db-url` 可覆盖
+- **每轮评测自动重置评测用户数据**（#58 可复现性）：上轮的对话/记忆会污染下轮
+  陷阱题判定（如 memory_add 写入的偏好会被下轮检索到），从干净状态开始
 - 无 LLM key 时自动走 mock（`mock_chat`），管线零成本冒烟，但不产出真实结论
 
 ### 对比报告
@@ -103,7 +134,7 @@ delta 为 candidate - baseline 的百分点；括号内为 bootstrap 95% 置信�
 
 - ✅ #56 报告器（PR #60，已 merge）
 - ✅ #57 harness 框架（PR #61）
-- ⏳ #58 手工测试集（检索/记忆/边界行为陷阱题，依赖 #57）
+- ✅ #58 首批测试集（检索/记忆/边界行为陷阱题，jsonl 数据文件）
 - ⏳ #59 CI 集成 + 报告可见（无 LLM 档 + PR 评论摘要 + Artifact 完整报告）
 
 评测不修改生产代码，全部开发期离线运行。

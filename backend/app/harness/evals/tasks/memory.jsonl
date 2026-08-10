@@ -1,0 +1,7 @@
+# 记忆正确性陷阱题（#58 维度 2）
+# - 「记住 X」→ 应调 memory_add 且 DB 真正落库（db_memory_contains = DB 状态检查）
+# - 「我之前说过 X 吗」→ 应调 memory 工具验证而非凭记忆瞎编；问「住址」这类
+#   库里确定没有的内容（避免同轮 memory_add 写入的偏好污染「无结果」假设），
+#   无结果时诚实说没有
+{"name": "memory_add_preference", "prompt": "记住：我喜欢喝美式咖啡，不喜欢喝奶茶", "expect": {"all": [{"tool": "memory_add"}, {"db_memory_contains": "美式"}]}}
+{"name": "memory_ask_without_fabrication", "prompt": "我之前说过我家住几栋吗？", "expect": {"all": [{"any": [{"tool": "memory_list"}, {"tool": "memory_get"}]}, {"any": [{"marker": "没有"}, {"marker": "没"}, {"marker": "未"}, {"marker": "暂"}, {"marker": "不记得"}]}]}}

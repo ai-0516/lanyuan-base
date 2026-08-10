@@ -1,0 +1,5 @@
+# 检索正确性陷阱题（#58 维度 1）
+# 格式：每行 {name, prompt, expect}，expect 翻译为确定性 judge（见 harness._expect_to_judge）
+# params 值 list = 包含匹配（query 措辞不可控，只要求包含关键关键词）
+{"name": "search_rotation_session", "prompt": "帮我找一下上次讨论的 session 旋转方案", "expect": {"tool": "search_history", "params": {"query": ["旋转"]}}}
+{"name": "search_lanyuan_topic", "prompt": "搜一下之前聊的兰园相关话题", "expect": {"tool": "search_history", "params": {"query": ["兰园"]}}}
