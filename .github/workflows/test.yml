@@ -151,7 +151,12 @@ jobs:
           enable-cache: false
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # 自建 venv + 激活 PATH（#59 修复）：setup-uv 的 VIRTUAL_ENV 与 pip 目标环境
+        # 不一致（pip 装到 python3.12 user site，python 命令是 3.11）→ 显式统一
+        run: |
+          uv venv .venv
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          uv pip install --python .venv/bin/python -r requirements.txt
 
       # 无 LLM 类评测（#59）：不需要 LLM key，CI 可直接跑；有 LLM 类（--llm 门控）不挂 CI
       - name: Run no-LLM evals (pytest -m eval)
@@ -160,10 +165,13 @@ jobs:
           pytest -m eval -q --tb=short 2>&1 | tee /tmp/evals_pytest.txt
 
       - name: Run ATOF reporter on sample data
-        run: python -m app.harness.evals.report tests/data/sample_atof.jsonl | tee /tmp/evals_atof.txt
+        run: |
+          set -o pipefail
+          python -m app.harness.evals.report tests/data/sample_atof.jsonl | tee /tmp/evals_atof.txt
 
       - name: Verify task set loads
         run: |
+          set -o pipefail
           python - <<'EOF' | tee /tmp/evals_tasks.txt
           from app.harness.evals.harness import load_tasks
           from pathlib import Path
