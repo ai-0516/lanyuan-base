@@ -9,6 +9,7 @@
 
 import sys
 
+import pytest
 
 from app.harness.evals.harness import (
     RunConfig,
@@ -109,35 +110,44 @@ async def test_compare_report_shape():
 
 
 def test_load_tasks_from_file(tmp_path):
-    f = tmp_path / "tasks_smoke.py"
+    f = tmp_path / "tasks.jsonl"
     f.write_text(
-        "from app.harness.evals.judge import NoToolCalled\n"
-        "TASKS = [\n"
-        '    {"name": "a", "prompt": "p1", "judge": NoToolCalled()},\n'
-        '    {"name": "b", "prompt": "p2", "judge": NoToolCalled()},\n'
-        "]\n",
+        '{"name": "a", "prompt": "p1", "expect": {"no_tool": true}}\n'
+        '{"name": "b", "prompt": "p2", "expect": {"no_tool": true}}\n',
         encoding="utf-8",
     )
     tasks = load_tasks(f)
     assert [t.name for t in tasks] == ["a", "b"]
 
 
+def test_load_tasks_rejects_py_file(tmp_path):
+    """#66 定：任务文件只用 jsonl，Python 任务文件不再支持"""
+    f = tmp_path / "tasks.py"
+    f.write_text("TASKS = []\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="jsonl"):
+        load_tasks(f)
+
+
 def test_load_tasks_from_dir(tmp_path):
-    (tmp_path / "x.py").write_text(
-        "from app.harness.evals.judge import NoToolCalled\n"
-        'TASKS = [{"name": "x", "prompt": "p", "judge": NoToolCalled()}]\n',
+    (tmp_path / "x.jsonl").write_text(
+        '{"name": "x", "prompt": "p", "expect": {"no_tool": true}}\n',
         encoding="utf-8",
     )
-    (tmp_path / "_skip.py").write_text("TASKS = []\n", encoding="utf-8")
+    (tmp_path / "_skip.jsonl").write_text(
+        '{"name": "skip", "prompt": "p", "expect": {"no_tool": true}}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "ignore.py").write_text("TASKS = []\n", encoding="utf-8")
     tasks = load_tasks(tmp_path)
+    # 只加载 .jsonl（_ 前缀跳过），目录中的 .py 被忽略
     assert [t.name for t in tasks] == ["x"]
 
 
 def test_load_tasks_from_sample_file():
-    """sample 任务文件（tests/data/sample_tasks.py）可被 load_tasks 直接加载（PR #61 review 补充）"""
+    """sample 任务文件（tests/data/sample_tasks.jsonl）可被 load_tasks 直接加载（#66 迁移为 jsonl）"""
     from pathlib import Path
 
-    sample = Path(__file__).parent / "data" / "sample_tasks.py"
+    sample = Path(__file__).parent / "data" / "sample_tasks.jsonl"
     tasks = load_tasks(sample)
     names = [t.name for t in tasks]
     assert names == [

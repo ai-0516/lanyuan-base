@@ -77,6 +77,15 @@ class Judge(Protocol):
 # ── 内置确定性断言组件 ───────────────────────────────────────────
 
 
+def _param_match(expected: Any, actual: Any) -> bool:
+    """单参数值匹配：#58 扩展——期望值为 list 时做「包含匹配」（实际值须含全部字符串），
+    否则精确相等。list 语义服务检索参数合理性断言（LLM 生成的 query 措辞不可控，
+    只要求包含关键关键词）。"""
+    if isinstance(expected, list):
+        return isinstance(actual, str) and all(kw in actual for kw in expected)
+    return actual == expected
+
+
 class ToolCalled:
     """断言调用了指定工具；可带参数子集匹配（arguments 为 dict 时做子集比对）"""
 
@@ -90,9 +99,10 @@ class ToolCalled:
                 continue
             if self.params is None:
                 return JudgeResult(True, f"调用了工具 {self.name}")
-            # 参数子集匹配：断言里的键值都出现在实际参数中
+            # 参数子集匹配：断言里的键值都出现在实际参数中（list 值 = 包含匹配）
             missing = {
-                k: v for k, v in self.params.items() if tc.arguments.get(k) != v
+                k: v for k, v in self.params.items()
+                if not _param_match(v, tc.arguments.get(k))
             }
             if not missing:
                 return JudgeResult(True, f"调用了工具 {self.name} 且参数匹配")
@@ -155,3 +165,43 @@ class AnyOf:
                 return JudgeResult(True, r.reason)
             reasons.append(r.reason)
         return JudgeResult(False, "所有断言均未通过: " + " | ".join(reasons))
+
+
+class DBMemoryContains:
+    """DB 状态检查：断言该用户已写入含关键词的记忆（#58 记忆正确性）
+
+    用途：验证「记住 X」类任务的落库结果——agent 调了 memory_add 只是第一步，
+    还要确认内容真的写进了 UserMemory 表（body 或 description 包含关键词）。
+    """
+
+    def __init__(self, keyword: str) -> None:
+        self.keyword = keyword
+
+    async def check(self, ctx: EvalContext) -> JudgeResult:
+        if ctx.db is None or ctx.user_id is None:
+            return JudgeResult(False, "无 db/user_id 上下文，无法做 DB 状态检查")
+        from sqlalchemy import or_, select
+
+        from app.models.user_memory import UserMemory
+
+        stmt = (
+            select(UserMemory)
+            .where(
+                UserMemory.user_id == ctx.user_id,
+                or_(
+                    UserMemory.body.contains(self.keyword),
+                    UserMemory.description.contains(self.keyword),
+                ),
+            )
+            .limit(1)
+        )
+        row = (await ctx.db.execute(stmt)).scalars().first()
+        if row is not None:
+            return JudgeResult(
+                True,
+                f"DB 已写入含「{self.keyword}」的记忆（id={row.id}）",
+            )
+        return JudgeResult(
+            False,
+            f"DB 中无含「{self.keyword}」的记忆（用户 {ctx.user_id}）",
+        )

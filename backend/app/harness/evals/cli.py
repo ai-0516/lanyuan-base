@@ -31,7 +31,7 @@ from typing import cast
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="agent 行为评测（有 LLM 类）")
-    p.add_argument("--tasks", required=True, help="任务文件(.py)或目录（含 TASKS 列表）")
+    p.add_argument("--tasks", required=True, help="任务文件(.jsonl)或目录（含测试题）")
     p.add_argument("--llm", action="store_true",
                    help="门控：显式开启才会调用 LLM（花钱）")
     p.add_argument("--db-url", default="",
@@ -42,6 +42,51 @@ def _parse_args() -> argparse.Namespace:
                    help="candidate system prompt 文件（开启对比模式）")
     p.add_argument("--reps", type=int, default=3, help="对比模式每任务重复次数")
     return p.parse_args()
+
+
+async def _reset_eval_user(session, user_id: int) -> None:
+    """清空评测用户的旧数据（#58 可复现性）
+
+    评测库跨轮次持久化，上轮的对话/记忆会污染下轮的陷阱题判定
+    （如 memory_add 测试写入的「用户偏好」会被下轮检索到）。每轮从干净状态开始。
+
+    只允许重置评测用户（openid == "eval"），拒绝误删正常用户数据（#66 review）。
+    """
+    from sqlalchemy import delete, select
+
+    from app.models.conversation import Conversation, Message
+    from app.models.user import User
+    from app.models.user_memory import UserMemory
+
+    # 只允许重置评测用户（openid=eval）：避免误删正常用户数据
+    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None or user.openid != "eval":
+        raise ValueError(
+            f"仅允许重置评测用户（openid=eval），实际: {user.openid if user else '用户不存在'}"
+        )
+
+    conv_ids = select(Conversation.id).where(Conversation.user_id == user_id)
+    await session.execute(
+        delete(Message).where(Message.conversation_id.in_(conv_ids))
+    )
+    await session.execute(delete(Conversation).where(Conversation.user_id == user_id))
+    await session.execute(delete(UserMemory).where(UserMemory.user_id == user_id))
+    await session.commit()
+
+
+def _ensure_tools_registered() -> None:
+    """触发工具注册（#58 修复）：@tool 注册发生在 router 模块 import 时
+
+    生产路径由 main.py 的 `from app.api.v1 import ...` 触发；评测 CLI 不经过
+    main.py，若不显式 import 则 registry 为空 → LLM 拿不到工具定义，
+    所有 ToolCalled 类任务必然失败（实测 0/6）。与 main.py 一致 import 全部
+    工具所在模块，保证评测环境工具集与生产一致。
+    """
+    from app.api.v1 import ai, comments, memory, notifications, posts, profile  # noqa: F401
+
+    from app.harness.tool_registry import registry
+
+    assert registry._tools, "工具注册失败：registry 为空"
 
 
 def main() -> int:
@@ -58,6 +103,10 @@ def main() -> int:
 
     # 独立评测库：在 import app.core.database（engine 于模块导入时创建）之前设置
     os.environ.setdefault("DATABASE_URL", args.db_url or "sqlite+aiosqlite:///./eval_lanyuan.db")
+
+    # 工具注册（见 _ensure_tools_registered docstring）——必须在 DATABASE_URL
+    # 设置后执行：import app.api.v1.* 会触发 database engine 创建
+    _ensure_tools_registered()
 
     from app.core.database import async_session_factory, init_db
     from app.harness.evals.harness import (
@@ -81,6 +130,9 @@ def main() -> int:
                 await session.commit()
                 await session.refresh(user)
             user_id = cast(int, user.id)
+            # 每轮从干净状态开始（#58：上轮对话/记忆会污染陷阱题判定）
+            await _reset_eval_user(session, user_id)
+            print(f"评测用户已重置（id={user_id}），从干净状态开始")
 
         tasks = load_tasks(args.tasks)
         if not tasks:
