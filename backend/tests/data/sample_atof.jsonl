@@ -1,0 +1,26 @@
+{"event": "agent:start", "req_id": "sample-20260808-001", "ts": "2026-08-08T09:38:10.000000+00:00", "session_id": "s1", "user_message": "查一下 id 为 1 的帖子", "model": "deepseek-v4-flash", "api_url": "https://api.deepseek.com/chat/completions"}
+{"event": "turn:start", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:10.100000+00:00"}
+{"event": "llm:start", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:10.200000+00:00", "messages_sent": 3, "tools_sent": 8}
+{"event": "llm:end", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:11.500000+00:00", "finish_reason": "tool_calls", "tokens": 23, "usage": {"completion_tokens": 79, "total_tokens": 3226}, "content": "", "tool_calls": [{"function": {"name": "get_post", "arguments": "{\"post_id\": 1}"}}]}
+{"event": "tool:start", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:11.600000+00:00", "tool_name": "get_post", "tool_call_id": "call_001"}
+{"event": "tool:end", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:11.700000+00:00", "tool_name": "get_post", "tool_call_id": "call_001", "result": "{\"id\": 1, \"title\": \"测试帖\", \"content\": \"hello\"}", "status": "ok"}
+{"event": "turn:end", "req_id": "sample-20260808-001", "turn": 0, "ts": "2026-08-08T09:38:11.800000+00:00"}
+{"event": "turn:start", "req_id": "sample-20260808-001", "turn": 1, "ts": "2026-08-08T09:38:11.900000+00:00"}
+{"event": "llm:start", "req_id": "sample-20260808-001", "turn": 1, "ts": "2026-08-08T09:38:12.000000+00:00", "messages_sent": 5, "tools_sent": 8}
+{"event": "llm:end", "req_id": "sample-20260808-001", "turn": 1, "ts": "2026-08-08T09:38:13.200000+00:00", "finish_reason": "stop", "tokens": 5, "usage": {"completion_tokens": 120, "total_tokens": 3400}, "content": "这是 id 为 1 的帖子：测试帖", "tool_calls": []}
+{"event": "turn:end", "req_id": "sample-20260808-001", "turn": 1, "ts": "2026-08-08T09:38:13.300000+00:00"}
+{"event": "agent:end", "req_id": "sample-20260808-001", "ts": "2026-08-08T09:38:13.500000+00:00", "total_turns": 2}
+{"event": "agent:start", "req_id": "sample-20260808-002", "ts": "2026-08-08T09:40:00.000000+00:00", "session_id": "s2", "user_message": "搜索一下兰园相关消息", "model": "deepseek-v4-flash", "api_url": "https://api.deepseek.com/chat/completions"}
+{"event": "turn:start", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:00.100000+00:00"}
+{"event": "llm:start", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:00.200000+00:00", "messages_sent": 3, "tools_sent": 8}
+{"event": "llm:end", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:01.400000+00:00", "finish_reason": "tool_calls", "tokens": 20, "usage": {"completion_tokens": 60, "total_tokens": 3100}, "content": "", "tool_calls": [{"function": {"name": "search_history", "arguments": "{\"query\": \"兰园\"}"}}]}
+{"event": "tool:start", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:01.500000+00:00", "tool_name": "search_history", "tool_call_id": "call_002"}
+{"event": "tool:end", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:01.600000+00:00", "tool_name": "search_history", "tool_call_id": "call_002", "result": "timeout", "status": "error"}
+{"event": "tool:start", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:02.000000+00:00", "tool_name": "search_history", "tool_call_id": "call_003"}
+{"event": "tool:end", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:02.300000+00:00", "tool_name": "search_history", "tool_call_id": "call_003", "result": "[{\"id\": 7, \"content\": \"兰园活动\"}]", "status": "ok"}
+{"event": "turn:end", "req_id": "sample-20260808-002", "turn": 0, "ts": "2026-08-08T09:40:02.400000+00:00"}
+{"event": "turn:start", "req_id": "sample-20260808-002", "turn": 1, "ts": "2026-08-08T09:40:02.500000+00:00"}
+{"event": "llm:start", "req_id": "sample-20260808-002", "turn": 1, "ts": "2026-08-08T09:40:02.600000+00:00", "messages_sent": 6, "tools_sent": 8}
+{"event": "llm:end", "req_id": "sample-20260808-002", "turn": 1, "ts": "2026-08-08T09:40:03.800000+00:00", "finish_reason": "stop", "tokens": 4, "usage": {"completion_tokens": 90, "total_tokens": 3300}, "content": "找到了：兰园活动", "tool_calls": []}
+{"event": "turn:end", "req_id": "sample-20260808-002", "turn": 1, "ts": "2026-08-08T09:40:03.900000+00:00"}
+{"event": "agent:end", "req_id": "sample-20260808-002", "ts": "2026-08-08T09:40:04.100000+00:00", "total_turns": 2}
