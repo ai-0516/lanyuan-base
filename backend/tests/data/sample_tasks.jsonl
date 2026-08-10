@@ -1,0 +1,11 @@
+# 评测任务示例（原 sample_tasks.py 迁移为 jsonl，#66 定：任务文件只用 jsonl）
+# 运行方式见 docs/evals.md：
+#   无 LLM 门控提示（不会产生任何 LLM 调用）
+#     python -m app.harness.evals.cli --tasks tests/data/sample_tasks.jsonl
+#   真实评测（花钱）：mock 模式下 agent 不调工具，ToolCalled 类任务会 FAIL 属预期
+#     python -m app.harness.evals.cli --tasks tests/data/sample_tasks.jsonl --llm
+{"name": "greeting_no_tool", "prompt": "你好", "expect": {"no_tool": true}}
+{"name": "get_post_by_id", "prompt": "帮我查一下 id 为 1 的帖子内容", "expect": {"tool": "get_post", "params": {"post_id": 1}}}
+{"name": "get_post_wrong_param", "prompt": "帮我查一下 id 为 1 的帖子内容", "expect": {"tool": "get_post", "params": {"post_id": 2}}}
+{"name": "search_and_mention", "prompt": "搜索一下「兰园」相关的历史消息，然后告诉我", "expect": {"all": [{"tool": "search_history", "params": {"query": ["兰园"]}}, {"marker": "兰园"}]}}
+{"name": "either_tool_or_marker", "prompt": "随便说点什么", "expect": {"any": [{"tool": "get_post"}, {"marker": "模拟模式"}]}}

@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import random
 from dataclasses import dataclass
@@ -133,36 +132,25 @@ def _load_jsonl_tasks(f: Path) -> list[Task]:
 
 
 def load_tasks(path: str | Path) -> list[Task]:
-    """从任务文件加载测试集
+    """从 jsonl 数据文件加载测试集（#58/#66：只支持 jsonl，去掉 Python 任务文件）
 
-    - .py 文件：导出 TASKS 列表（Task dataclass 或 {name/prompt/judge} dict）
-    - .jsonl 文件：每行 {name, prompt, expect}，expect 翻译为确定性 judge（#58）
-    - 目录：扫描 *.py + *.jsonl（_ 前缀文件跳过）
+    - .jsonl 文件：每行 {name, prompt, expect}，expect 翻译为确定性 judge
+    - 目录：扫描 *.jsonl（_ 前缀文件跳过）
+    - 需要新的判定类型时先补全 judge 组件（expect 类型），再用 jsonl 定义 case
+      （#66 定：自定义 judge 场景 = judge 定义不全，不为此保留 Python 任务文件）
     """
     p = Path(path)
     if p.is_dir():
-        files = sorted([*p.glob("*.py"), *p.glob("*.jsonl")])
+        files = sorted(p.glob("*.jsonl"))
     else:
+        if p.suffix != ".jsonl":
+            raise ValueError(f"评测任务文件仅支持 .jsonl（#66 定）：{p}")
         files = [p]
     tasks: list[Task] = []
     for f in files:
         if f.name.startswith("_"):
             continue
-        if f.suffix == ".jsonl":
-            tasks.extend(_load_jsonl_tasks(f))
-            continue
-        spec = importlib.util.spec_from_file_location(f"evals_tasks_{f.stem}", f)
-        assert spec and spec.loader
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        for item in getattr(mod, "TASKS", []):
-            if isinstance(item, Task):
-                tasks.append(item)
-                continue
-            assert "name" in item and "prompt" in item and "judge" in item, (
-                f"{f.name}: 任务必须含 name/prompt/judge"
-            )
-            tasks.append(Task(**item))
+        tasks.extend(_load_jsonl_tasks(f))
     return tasks
 
 

@@ -89,19 +89,19 @@ def test_load_tasks_jsonl_unknown_expect_raises(tmp_path):
         load_tasks(f)
 
 
-def test_load_tasks_dir_mixes_py_and_jsonl(tmp_path):
-    (tmp_path / "a.py").write_text(
+def test_load_tasks_dir_ignores_py(tmp_path):
+    """#66 定：目录只扫描 .jsonl，Python 任务文件被忽略"""
+    (tmp_path / "a.jsonl").write_text(
+        '{"name": "j1", "prompt": "p", "expect": {"no_tool": true}}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "b.py").write_text(
         "from app.harness.evals.judge import NoToolCalled\n"
         'TASKS = [{"name": "py1", "prompt": "p", "judge": NoToolCalled()}]\n',
         encoding="utf-8",
     )
-    (tmp_path / "b.jsonl").write_text(
-        '{"name": "j1", "prompt": "p", "expect": {"no_tool": true}}\n',
-        encoding="utf-8",
-    )
     tasks = load_tasks(tmp_path)
-    # 按文件名排序：a.py 先于 b.jsonl
-    assert [t.name for t in tasks] == ["py1", "j1"]
+    assert [t.name for t in tasks] == ["j1"]
 
 
 # ── expect 翻译 ─────────────────────────────────────────────────

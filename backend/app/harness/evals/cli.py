@@ -31,7 +31,7 @@ from typing import cast
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="agent 行为评测（有 LLM 类）")
-    p.add_argument("--tasks", required=True, help="任务文件(.py/.jsonl)或目录（含任务定义）")
+    p.add_argument("--tasks", required=True, help="任务文件(.jsonl)或目录（含测试题）")
     p.add_argument("--llm", action="store_true",
                    help="门控：显式开启才会调用 LLM（花钱）")
     p.add_argument("--db-url", default="",

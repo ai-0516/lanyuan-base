@@ -57,9 +57,10 @@ uv run python -m app.harness.evals.report <jsonl 文件或目录>
 
 ### 任务定义
 
-测试集 = 纯数据（jsonl）+ 判定逻辑（judge 组件）分离（#58 落地）。
+测试集 = 纯数据（jsonl）+ 判定逻辑（judge 组件）分离（#58 落地，#66 定：任务文件只用 jsonl，
+需要新判定时先补全 judge 组件、再用 jsonl 定义 case，不保留 Python 任务文件）。
 
-**jsonl 数据文件**（推荐，测试题沉淀为数据）：每行一个 JSON 对象
+**jsonl 数据文件**：每行一个 JSON 对象
 `{"name", "prompt", "expect"}`，空行与 `#` 注释行跳过。expect 翻译为确定性 judge：
 
 ```json
@@ -68,7 +69,7 @@ uv run python -m app.harness.evals.report <jsonl 文件或目录>
  "expect": {"tool": "search_history", "params": {"query": ["旋转"]}}}
 ```
 
-expect 支持（可递归组合）：
+expect 支持（判定键互斥，组合用 all/any 显式表达，可递归）：
 
 | expect | 翻译为 | 说明 |
 |---|---|---|
@@ -78,23 +79,6 @@ expect 支持（可递归组合）：
 | `{"marker": "字符串"}` | MarkerInReply | 最终回复包含 marker |
 | `{"db_memory_contains": "关键词"}` | DBMemoryContains | DB 状态检查：该用户已写入含关键词的记忆 |
 | `{"all": [...]}` / `{"any": [...]}` | AllOf / AnyOf | 递归组合 |
-
-**Python 任务文件**（需要自定义 judge 逻辑时）：导出 TASKS 列表（Task 字段
-name / prompt / judge / system_prompt?）。
-
-```python
-# tasks/retrieval.py
-from app.harness.evals.judge import ToolCalled, NoToolCalled
-
-TASKS = [
-    {"name": "retrieval_uses_search_history",
-     "prompt": "帮我找上次讨论 session 旋转的内容",
-     "judge": ToolCalled("search_history")},
-    {"name": "no_fabrication_when_empty",
-     "prompt": "查不到就直说",
-     "judge": NoToolCalled()},
-]
-```
 
 judge 组件：`ToolCalled(name, params=None)`（params 为参数子集匹配）/ `NoToolCalled()` / `MarkerInReply(marker)` / `DBMemoryContains(keyword)` / `AllOf(*j)` / `AnyOf(*j)`。
 
