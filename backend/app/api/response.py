@@ -50,6 +50,9 @@ async def validation_exception_handler(request, exc):
 async def api_exception_handler(request, exc):
     """FastAPI 异常处理器，将异常转为统一格式"""
     status_code = getattr(exc, "status_code", 500)
+    # 入口统一记录：所有进 handler 的异常都可追踪（含 detail 分支——该分支
+    # 曾无日志，导致 #64 事故的 500 在 error.log/app.log 无迹可查）
+    logger.warning("API 异常: %s %s → %s (%s)", request.method, request.url.path, status_code, type(exc).__name__)
     # 仅 HTTPException 有业务 detail（dict 透传 / 字符串兼容 / 404 默认文案）。
     # 用 StarletteHTTPException 判断：fastapi.HTTPException 是其子类（独立类，
     # 非 re-export），路由 404/401 抛的则是 Starlette 本身——两者都要覆盖（#64）。

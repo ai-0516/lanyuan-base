@@ -47,14 +47,17 @@ def test_sql_exception_logs_and_returns_500(caplog):
     assert any("未捕获的异常" in r.getMessage() for r in caplog.records)
 
 
-def test_business_error_detail_dict_passthrough():
-    """业务错误（HTTPException detail dict）原样透传"""
+def test_business_error_detail_dict_passthrough(caplog):
+    """业务错误（HTTPException detail dict）原样透传，且入口有日志可追踪"""
     app = _make_app(HTTPException(status_code=400, detail={"code": 40001, "message": "参数错误"}))
-    with TestClient(app) as client:
-        resp = client.get("/boom")
+    with caplog.at_level(logging.WARNING):
+        with TestClient(app) as client:
+            resp = client.get("/boom")
 
     assert resp.status_code == 400
     assert resp.json() == {"code": 40001, "message": "参数错误"}
+    # 入口统一日志（detail 分支也必须有日志可追踪，#64 事故教训）
+    assert any("API 异常" in r.getMessage() for r in caplog.records)
 
 
 def test_http_exception_string_detail_uses_status_code():
