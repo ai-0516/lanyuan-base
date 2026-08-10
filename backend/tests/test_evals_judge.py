@@ -1,5 +1,6 @@
 """judge 断言组件单测（#57）"""
 
+import pytest
 
 from app.harness.evals.judge import (
     AgentTrace,
@@ -11,6 +12,8 @@ from app.harness.evals.judge import (
     ToolCall,
     ToolCalled,
 )
+
+pytestmark = pytest.mark.eval  # 无 LLM 类评测（#59）
 
 
 # ── ToolCall.from_llm：解析 LLM tool_call 事件 ───────────────────

@@ -1,6 +1,6 @@
 # Agent 行为评测（evals）体系
 
-> 覆盖：ATOF 报告器（#56）、评测 harness（#57）、测试集（#58）、CI 集成（#59 待做）
+> 覆盖：ATOF 报告器（#56）、评测 harness（#57）、测试集（#58）、CI 集成（#59 进行中）
 > 调研背景见 issue #55（三轮调研 + 8 个吸收设计点 + 定稿方案）。
 
 ## 评测什么
@@ -11,7 +11,7 @@ pytest 覆盖函数/API 层和部分编排层，但测不到「行为层」—�
 
 | 档位 | 内容 | 成本 | 运行方式 |
 |---|---|---|---|
-| 无 LLM 类 | ATOF 报告器（读 jsonl 出指标） | 免费 | pytest 集成 + CI 可跑（#59 接入） |
+| 无 LLM 类 | ATOF 报告器（读 jsonl 出指标）+ 测试集 mock 冒烟跑 | 免费 | pytest 集成 + CI 可跑（#59 接入） |
 | 有 LLM 类 | 评测 harness（跑真实 agent） | 花钱 | **仅独立命令 + `--llm` 门控**，CI 不挂 |
 
 ## 模块结构
@@ -52,6 +52,10 @@ uv run python -m app.harness.evals.report <jsonl 文件或目录>
 | retries | 工具出错后同名工具再次调用（error → 同名 start） |
 | tokens | llm:end usage.completion_tokens 之和（无 usage 回退 tokens 字段） |
 | wall_s | req 内首事件到 agent:end 的墙钟秒数 |
+
+> **口径差异（PR #67 review）**：`reqs_with_error`（聚合 TOTAL 行）只统计 **req 级错误**（agent:end.error / llm:error），
+> 而 `tool_errors` 是**工具级错误**（tool:end status != "ok"）——同一请求可能工具出错但重试成功（req 最终无错），
+> 因此 TOTAL 行可能出现 `reqs_with_error=0` 但 `errs=1` 的情况。两口径都正确，各司其职，不是 bug。
 
 ## 评测 harness（#57）
 
@@ -104,6 +108,21 @@ uv run python -m app.harness.evals.cli --tasks app/harness/evals/tasks/ --llm \
   陷阱题判定（如 memory_add 写入的偏好会被下轮检索到），从干净状态开始
 - 无 LLM key 时自动走 mock（`mock_chat`），管线零成本冒烟，但不产出真实结论
 
+## CI 无 LLM 档（#59）
+
+`eval` job（与 lint/test 平级）三段，全部零 LLM 调用：
+
+| 段 | 内容 | 作用 |
+|---|---|---|
+| 单元测试 | `pytest -m eval`（judge/harness/report/tasks 四件套标记 `pytest.mark.eval`） | 组件层确定性测试 |
+| ATOF 报告器 | 跑 `tests/data/sample_atof.jsonl` 出指标表 | 报告器可用性 |
+| 测试集冒烟跑 | 每个任务 mock 跑通 agent 循环 + judge，输出 OK/ERROR | 任务定义与 judge 可执行（不抛异常） |
+
+> **冒烟跑为什么是 OK/ERROR 而非 PASS/FAIL**：mock 下 agent 不调工具，工具/标记/DB
+> 断言必然 FAIL（实测 0/6），展示会误导成「评测全挂」；每任务真实判定（PASS/FAIL）
+> 由开发期 `--llm` 手动评测产出（#58 验收 6/6 通过）。
+> 报告贴 PR 评论（删旧重建，始终在 PR 最底部）+ Artifact 完整报告。
+
 ### 对比报告
 
 ```
@@ -119,6 +138,6 @@ delta 为 candidate - baseline 的百分点；括号内为 bootstrap 95% 置信�
 - ✅ #56 报告器（PR #60，已 merge）
 - ✅ #57 harness 框架（PR #61）
 - ✅ #58 首批测试集（检索/记忆/边界行为陷阱题，jsonl 数据文件）
-- ⏳ #59 CI 集成 + 报告可见（无 LLM 档 + PR 评论摘要 + Artifact 完整报告）
+- ⏳ #59 CI 集成（PR #67 已实现：无 LLM 档三段 + PR 评论摘要 + Artifact；待 merge）
 
 评测不修改生产代码，全部开发期离线运行。

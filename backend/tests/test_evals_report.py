@@ -5,6 +5,7 @@
 
 import json
 
+import pytest
 
 from app.harness.evals.report import (
     aggregate,
@@ -13,6 +14,8 @@ from app.harness.evals.report import (
     score_file,
     score_req,
 )
+
+pytestmark = pytest.mark.eval  # 无 LLM 类评测（#59）
 
 TS0 = "2026-08-08T09:38:10.000000+00:00"
 
