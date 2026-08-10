@@ -53,6 +53,10 @@ uv run python -m app.harness.evals.report <jsonl 文件或目录>
 | tokens | llm:end usage.completion_tokens 之和（无 usage 回退 tokens 字段） |
 | wall_s | req 内首事件到 agent:end 的墙钟秒数 |
 
+> **口径差异（PR #67 review）**：`reqs_with_error`（聚合 TOTAL 行）只统计 **req 级错误**（agent:end.error / llm:error），
+> 而 `tool_errors` 是**工具级错误**（tool:end status != "ok"）——同一请求可能工具出错但重试成功（req 最终无错），
+> 因此 TOTAL 行可能出现 `reqs_with_error=0` 但 `errs=1` 的情况。两口径都正确，各司其职，不是 bug。
+
 ## 评测 harness（#57）
 
 ### 任务定义
