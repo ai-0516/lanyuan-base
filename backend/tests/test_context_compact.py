@@ -142,6 +142,24 @@ class TestSnipCompact:
         only_system = [_system("sys")]
         assert context_compact.snip_message_compact(only_system) == only_system
 
+    def test_snip_logs_boundary_info(self, caplog):
+        """裁剪动作记录边界日志（issue #72：压缩无日志是 debug 盲区）"""
+        import logging
+
+        rest = [_user(f"u{i}") for i in range(57)]
+        rest[9] = _tool_call_msg("call_tail")
+        rest[10] = _tool_result("call_tail", "tail result")
+        messages = [_system("sys")] + rest
+
+        with caplog.at_level(logging.INFO, logger="app.harness.context_compact"):
+            context_compact.snip_message_compact(messages)
+
+        log_lines = [r.message for r in caplog.records]
+        assert any("context_compact: snip" in line for line in log_lines), "裁剪必须记录日志"
+        snip_line = next(line for line in log_lines if "context_compact: snip" in line)
+        assert "first_tail=" in snip_line and "last_head=" in snip_line
+        assert "tail=10→9" in snip_line, "配对保护回溯应在日志可见（tail 保护前 10 → 保护后 9）"
+
 
 # ═══════════════════════════════════════════════
 # tool_result_compact — L2
@@ -246,6 +264,25 @@ class TestCompactHistory:
 
         result = await context_compact.llm_compact(messages)
         assert result == messages
+
+    @pytest.mark.asyncio
+    async def test_summary_logs_head_info(self, monkeypatch, caplog):
+        """摘要成功记录 head 条数与长度（issue #72）"""
+        import logging
+
+        async def _fake_summarize(messages):
+            return "用户想要发布一篇帖子，已确认标题内容"
+
+        monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
+        messages = [_system("sys")] + [_user(f"u{i}") for i in range(10)]
+
+        with caplog.at_level(logging.INFO, logger="app.harness.context_compact"):
+            await context_compact.llm_compact(messages)
+
+        log_lines = [r.message for r in caplog.records]
+        assert any("context_compact: [Compacted] summarized" in line for line in log_lines), (
+            "摘要成功必须记录日志"
+        )
 
     @pytest.mark.asyncio
     async def test_no_system_messages(self, monkeypatch):

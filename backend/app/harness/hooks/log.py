@@ -54,7 +54,7 @@ async def log_agent_start(data: dict):
 @on(events.TURN_START)
 async def log_turn_start(data: dict):
     req_id = data["req_id"]
-    turn = data["turn"] + 1
+    turn = data["turn"]
     _timestamps.setdefault(req_id, {})["turn"] = time_module.time()
     sid = _session_ids.get(req_id, "?")
     logger.info("[%s] [%s] [%s] turn=%d", sid, req_id, events.TURN_START, turn)
@@ -63,7 +63,7 @@ async def log_turn_start(data: dict):
 @on(events.LLM_START)
 async def log_llm_start(data: dict):
     req_id = data["req_id"]
-    turn = data["turn"] + 1
+    turn = data["turn"]
     messages_cnt = len(data.get("messages_sent", []))
     tools_cnt = len(data.get("tools_sent") or [])
     _timestamps.setdefault(req_id, {})["llm"] = time_module.time()
@@ -77,7 +77,7 @@ async def log_llm_start(data: dict):
 @on(events.LLM_END)
 async def log_llm_end(data: dict):
     req_id = data["req_id"]
-    turn = data["turn"] + 1
+    turn = data["turn"]
     ts = _timestamps.get(req_id, {})
     elapsed = _fmt_elapsed(ts.pop("llm", None))
     sid = _session_ids.get(req_id, "?")
@@ -109,7 +109,7 @@ async def log_llm_end(data: dict):
 async def log_llm_error(data: dict):
     """LLM 调用失败时的独立日志"""
     req_id = data["req_id"]
-    turn = data["turn"] + 1
+    turn = data["turn"]
     error = data.get("error", "未知错误")
     detail = data.get("detail")
     sid = _session_ids.get(req_id, "?")
@@ -163,7 +163,7 @@ async def log_tool_end(data: dict):
 @on(events.TURN_END)
 async def log_turn_end(data: dict):
     req_id = data["req_id"]
-    turn = data["turn"] + 1
+    turn = data["turn"]
     ts = _timestamps.get(req_id, {})
     elapsed = _fmt_elapsed(ts.pop("turn", None))
     sid = _session_ids.get(req_id, "?")
