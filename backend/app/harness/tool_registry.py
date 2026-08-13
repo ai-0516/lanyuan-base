@@ -92,6 +92,24 @@ def _to_dict(result: Any) -> Any:
     return result
 
 
+def strip_keys(data: Any, keys: set[str]) -> Any:
+    """递归删除 dict 中的指定字段（result_formatter 辅助工具）
+
+    每个 tool 的 formatter 显式调用并注释声明删掉了什么（如 {"avatar"}），
+    不做全局隐含清洗——LLM 看到什么由每个 formatter 自己决定（issue #68/#69）。
+    """
+    if isinstance(data, dict):
+        return {k: strip_keys(v, keys) for k, v in data.items() if k not in keys}
+    if isinstance(data, list):
+        return [strip_keys(item, keys) for item in data]
+    return data
+
+
+def dumps(data: Any) -> str:
+    """formatter 统一 JSON 序列化（datetime 等非 JSON 类型 → str，保持中文）"""
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
 class ToolDef:
     """单个工具定义：schema + 执行"""
 

@@ -6,46 +6,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.models.user import User
 from app.schemas.user import UserPublic, UserUpdate
 
 router = APIRouter(tags=["用户"])
 
 
-def _format_user_profile(data) -> str:
-    """我的资料（get/update 共用）→ LLM 摘要
-
-    只暴露 LLM 需要的公开资料；openid/unionid/房号（room/unit）等隐私字段不进摘要。
-    """
-    if not data:
-        return "未找到该用户资料"
-    building = data.get("building") or "未设置"
-    if not data.get("show_building", True):
-        building = "未公开"
-    return (
-        f"昵称：{data.get('nickname', '?')}\n"
-        f"小区：{data.get('community') or '未设置'}\n"
-        f"楼栋：{building}\n"
-        f"简介：{data.get('bio') or '无'}"
-    )
+def _format_get_my_profile(data) -> str:
+    """删减：avatar（base64 头像）、openid/unionid（微信身份标识）、unit/room（房号隐私）。
+    其余字段（昵称/小区/楼栋/简介/开关）原样保留。"""
+    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
 
 
-def _format_user_public(data) -> str:
-    """他人公开资料 → LLM 摘要（不含 base64 头像）"""
-    if not data:
-        return "该用户不存在"
-    building = data.get("building") or "未公开"
-    return (
-        f"用户 #{data.get('id', '?')}：{data.get('nickname', '?')}\n"
-        f"小区：{data.get('community') or '未设置'}\n"
-        f"楼栋：{building}\n"
-        f"简介：{data.get('bio') or '无'}"
-    )
+def _format_update_my_profile(data) -> str:
+    """删减：同 get_my_profile（avatar/openid/unionid/unit/room）。返回更新后的资料 JSON。"""
+    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
+
+
+def _format_get_user_public(data) -> str:
+    """删减：avatar（base64 头像，LLM 不需要）。其余公开字段原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
 
 
 @router.get("/user/me")
-@tool(result_formatter=_format_user_profile)
+@tool(result_formatter=_format_get_my_profile)
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -57,7 +42,7 @@ async def get_my_profile(
 
 
 @router.put("/user/me")
-@tool(result_formatter=_format_user_profile)
+@tool(result_formatter=_format_update_my_profile)
 async def update_my_profile(
     data: UserUpdate,
     db: AsyncSession = Depends(get_db),
@@ -79,7 +64,7 @@ async def update_my_profile(
 
 
 @router.get("/users/{user_id}")
-@tool(result_formatter=_format_user_public)
+@tool(result_formatter=_format_get_user_public)
 async def get_user_public(
     user_id: int,
     db: AsyncSession = Depends(get_db),

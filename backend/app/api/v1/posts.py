@@ -1,12 +1,11 @@
 """帖子相关 API"""
 
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.schemas.post import PostCreate
 from app.services import post_service
 
@@ -14,64 +13,33 @@ router = APIRouter(prefix="/posts", tags=["帖子"])
 
 
 def _format_list_posts(data: dict) -> str:
-    """list_posts 结果 → LLM 友好摘要"""
-    items = data.get("items", [])
-    total = data.get("total", 0)
-    page = data.get("page", 1)
-    size = data.get("size", 20)
-
-    lines = [f"共 {total} 条帖子（第 {page}/{max(1, -(-total // size))} 页，每页 {size} 条）："]
-    for p in items:
-        pid = p.get("id", "?")
-        user = p.get("user", {}).get("nickname", "?")
-        content = (p.get("content") or "")[:80]
-        cmt = f'{len(p.get("comments", []))}条评论'
-        like = f'{len(p.get("likers", []))}赞'
-        lines.append(f"  #{pid} {user}：{content} [{cmt}, {like}]")
-    return "\n".join(lines)
+    """删减：帖子作者/评论者/点赞者 avatar（base64 头像，LLM 不需要）。其余结构原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
 
 
-def _format_post(data) -> str:
-    """帖子详情/创建结果 → LLM 摘要（帖子核心 + 评论，不含 base64 头像）"""
-    if not data:
-        return "帖子不存在"
-    user = data.get("user", {})
-    lines = [
-        f"帖子 #{data.get('id', '?')}｜作者：{user.get('nickname', '?')}",
-        f"内容：{data.get('content', '')}",
-    ]
-    comments = data.get("comments") or []
-    likes = len(data.get("likers") or [])
-    lines.append(f"{len(comments)} 条评论，{likes} 赞")
-    for c in comments[:10]:
-        cu = c.get("user", {})
-        lines.append(f"  {cu.get('nickname', '?')}：{c.get('content', '')}")
-    return "\n".join(lines)
+def _format_create_post(data) -> str:
+    """删减：作者 avatar（base64 头像，LLM 不需要）。返回创建结果 JSON。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_get_post(data) -> str:
+    """删减：作者/评论者/点赞者 avatar（base64 头像，LLM 不需要）。帖子详情结构原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
 
 
 def _format_delete_post(data) -> str:
-    """删除结果 → LLM 摘要（api_error 路径 data 为 None）"""
-    if data is None:
-        return "删除失败（无权删除或帖子不存在）"
-    return "帖子已删除"
+    """无删减：返回原始结果（{} = 已删除，null = 无权/不存在）"""
+    return dumps(data)
 
 
 def _format_like_post(data) -> str:
-    """点赞结果 → LLM 摘要"""
-    if data is None:
-        return "点赞失败：帖子不存在"
-    liked = data.get("liked")
-    count = data.get("likeCount", 0)
-    return f"点赞成功，当前 {count} 赞" if liked else f"该帖子已点过赞（无变化），当前 {count} 赞"
+    """无删减：返回原始结果（{liked, likeCount}，null = 帖子不存在）"""
+    return dumps(data)
 
 
 def _format_unlike_post(data) -> str:
-    """取消点赞结果 → LLM 摘要"""
-    if data is None:
-        return "取消点赞失败：帖子不存在"
-    unliked = data.get("unliked")
-    count = data.get("likeCount", 0)
-    return f"已取消点赞，当前 {count} 赞" if unliked else f"该帖子未点赞（无变化），当前 {count} 赞"
+    """无删减：返回原始结果（{unliked, likeCount}，null = 帖子不存在）"""
+    return dumps(data)
 
 
 @router.get("")
@@ -88,7 +56,7 @@ async def list_posts(
 
 
 @router.post("")
-@tool(result_formatter=_format_post)
+@tool(result_formatter=_format_create_post)
 async def create_post(
     data: PostCreate,
     db: AsyncSession = Depends(get_db),
@@ -100,7 +68,7 @@ async def create_post(
 
 
 @router.get("/{post_id}")
-@tool(result_formatter=_format_post)
+@tool(result_formatter=_format_get_post)
 async def get_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),

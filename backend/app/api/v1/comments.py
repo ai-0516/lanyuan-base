@@ -5,44 +5,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.schemas.comment import CommentCreate
 from app.services import comment_service
 
 router = APIRouter(tags=["评论"])
 
 
-def _format_comments(data) -> str:
-    """评论列表 → LLM 摘要（不含 base64 头像）"""
-    if not data:
-        return "暂无评论"
-    lines = [f"共 {len(data)} 条评论："]
-    for c in data:
-        user = c.get("user", {})
-        reply = ""
-        if c.get("reply_to"):
-            reply = f"（回复 {c['reply_to'].get('nickname', '?')}）"
-        lines.append(f"  {user.get('nickname', '?')}{reply}：{c.get('content', '')}")
-    return "\n".join(lines)
+def _format_list_comments(data) -> str:
+    """删减：每条评论的 user.avatar（base64 头像，LLM 不需要）。其余结构原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
 
 
-def _format_comment(data) -> str:
-    """单条评论（创建结果）→ LLM 摘要"""
-    if not data:
-        return "评论操作失败"
-    user = data.get("user", {})
-    return f"评论已发布｜{user.get('nickname', '?')}：{data.get('content', '')}"
+def _format_create_comment(data) -> str:
+    """删减：评论者 user.avatar（base64 头像，LLM 不需要）。返回创建结果 JSON。"""
+    return dumps(strip_keys(data, {"avatar"}))
 
 
 def _format_delete_comment(data) -> str:
-    """删除评论结果 → LLM 摘要"""
-    if data is None:
-        return "删除失败（无权删除或评论不存在）"
-    return "评论已删除"
+    """无删减：返回原始结果（{} = 已删除，null = 无权/不存在）"""
+    return dumps(data)
 
 
 @router.get("/posts/{post_id}/comments")
-@tool(result_formatter=_format_comments)
+@tool(result_formatter=_format_list_comments)
 async def list_comments(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -54,7 +40,7 @@ async def list_comments(
 
 
 @router.post("/posts/{post_id}/comments")
-@tool(result_formatter=_format_comment)
+@tool(result_formatter=_format_create_comment)
 async def create_comment(
     post_id: int,
     data: CommentCreate,
