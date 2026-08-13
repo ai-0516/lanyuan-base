@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, tool
 from app.models.conversation import Conversation, Message
 from app.schemas.ai import ChatRequest
 from app.services import ai_service
@@ -79,7 +79,12 @@ def _merge_overlapping_hits(
     return [seg for _, seg in sorted(segments, key=lambda t: t[0])]
 
 
-@tool
+def _format_search_history(data: dict) -> str:
+    """无删减：命中消息结构原样返回（message_id/role/content/context_window 语义清晰，LLM 可直接读懂）"""
+    return dumps(data)
+
+
+@tool(result_formatter=_format_search_history)
 async def search_history(
     query: str,
     limit: int = 3,
@@ -271,10 +276,10 @@ async def chat(
                 db, user_id, data.session_id, data.message
             ):
                 if event in ("token", "done", "error", "cmd_new_session", "message:start"):
-                    yield f"event: {event}\ndata: {json.dumps(content, ensure_ascii=False)}\n\n"
+                    yield f"event: {event}\ndata: {dumps(content)}\n\n"
         except Exception:
             logger.exception("SSE 流异常: user_id=%s session_id=%s", user_id, data.session_id)
-            yield f"event: error\ndata: {json.dumps('AI回复被中断，请重试', ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {dumps('AI回复被中断，请重试')}\n\n"
 
     return StreamingResponse(
         event_stream(),

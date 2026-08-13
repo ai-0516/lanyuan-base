@@ -5,14 +5,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["通知"])
 
 
+def _format_list_notifications(data) -> str:
+    """删减：通知发起者 from_user.avatar（base64 头像，LLM 不需要）。其余结构原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_notification_count(data) -> str:
+    """无删减：返回原始结果（{count}）"""
+    return dumps(data)
+
+
+def _format_mark_all_read(data) -> str:
+    """无删减：返回原始结果（{updated} = 已读条数）"""
+    return dumps(data)
+
+
 @router.get("")
-@tool
+@tool(result_formatter=_format_list_notifications)
 async def list_notifications(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -23,7 +38,7 @@ async def list_notifications(
 
 
 @router.get("/count")
-@tool(name="notification_count")
+@tool(name="notification_count", result_formatter=_format_notification_count)
 async def notification_count(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -34,7 +49,7 @@ async def notification_count(
 
 
 @router.put("/read-all")
-@tool
+@tool(result_formatter=_format_mark_all_read)
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),

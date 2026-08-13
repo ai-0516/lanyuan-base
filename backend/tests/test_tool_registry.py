@@ -227,6 +227,42 @@ class TestExecution:
         })
         assert result == "摘要：共15条"
 
+    @pytest.mark.asyncio
+    async def test_orm_model_converted_before_formatter(self):
+        """SQLAlchemy ORM 对象在进 formatter 前转 dict（get_my_profile 路径，issue #68）
+
+        回归：get_my_profile 返回 User ORM 对象——之前 _strip_avatar 对 ORM 无效、
+        formatter 分支直接把 ORM 对象传给 formatter。现在 _to_dict 统一转 dict。
+        """
+        from app.models.user import User
+
+        r = ToolRegistry()
+        seen = {}
+
+        def _fmt(data):
+            seen["data"] = data
+            return "ok"
+
+        async def _get_profile(db=DependsClass(_fake_db), user_id=DependsClass(_fake_user)):
+            return {"code": 0, "data": User(
+                id=7, openid="wx-openid", unionid="u-1", nickname="测试用户",
+                avatar="data:image/png;base64,AAAA",
+                community="兰园", building="3栋", unit="1单元", room="101",
+                bio="你好", show_building=True, show_room=False,
+            )}
+
+        td = ToolDef("get_profile", "我的资料", _get_profile, result_formatter=_fmt)
+        r.register(td)
+
+        result = await r.execute("mock_db", 7, {
+            "function": {"name": "get_profile", "arguments": "{}"}
+        })
+        assert result == "ok"
+        # formatter 收到 dict（ORM 已转换），不是 ORM 对象
+        assert isinstance(seen["data"], dict)
+        assert seen["data"]["nickname"] == "测试用户"
+        assert seen["data"]["room"] == "101"  # dict 全字段仍在——字段取舍是 formatter 的职责
+
 
 # ── Test ToolRegistry ──
 

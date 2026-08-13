@@ -5,15 +5,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.schemas.comment import CommentCreate
 from app.services import comment_service
 
 router = APIRouter(tags=["评论"])
 
 
+def _format_list_comments(data) -> str:
+    """删减：每条评论的 user.avatar（base64 头像，LLM 不需要）。其余结构原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_create_comment(data) -> str:
+    """删减：评论者 user.avatar（base64 头像，LLM 不需要）。返回创建结果 JSON。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_delete_comment(data) -> str:
+    """无删减：返回原始结果（{} = 已删除，null = 无权/不存在）"""
+    return dumps(data)
+
+
 @router.get("/posts/{post_id}/comments")
-@tool
+@tool(result_formatter=_format_list_comments)
 async def list_comments(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -25,7 +40,7 @@ async def list_comments(
 
 
 @router.post("/posts/{post_id}/comments")
-@tool
+@tool(result_formatter=_format_create_comment)
 async def create_comment(
     post_id: int,
     data: CommentCreate,
@@ -38,7 +53,7 @@ async def create_comment(
 
 
 @router.delete("/comments/{comment_id}")
-@tool
+@tool(result_formatter=_format_delete_comment)
 async def delete_comment(
     comment_id: int,
     db: AsyncSession = Depends(get_db),

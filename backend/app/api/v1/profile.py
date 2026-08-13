@@ -6,15 +6,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
-from app.harness.tool_registry import tool
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.models.user import User
 from app.schemas.user import UserPublic, UserUpdate
 
 router = APIRouter(tags=["用户"])
 
 
+def _format_get_my_profile(data) -> str:
+    """删减：avatar（base64 头像）、openid/unionid（微信身份标识）、unit/room（房号隐私）。
+    其余字段（昵称/小区/楼栋/简介/开关）原样保留。"""
+    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
+
+
+def _format_update_my_profile(data) -> str:
+    """删减：同 get_my_profile（avatar/openid/unionid/unit/room）。返回更新后的资料 JSON。"""
+    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
+
+
+def _format_get_user_public(data) -> str:
+    """删减：avatar（base64 头像，LLM 不需要）。其余公开字段原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
 @router.get("/user/me")
-@tool
+@tool(result_formatter=_format_get_my_profile)
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -26,7 +42,7 @@ async def get_my_profile(
 
 
 @router.put("/user/me")
-@tool
+@tool(result_formatter=_format_update_my_profile)
 async def update_my_profile(
     data: UserUpdate,
     db: AsyncSession = Depends(get_db),
@@ -48,7 +64,7 @@ async def update_my_profile(
 
 
 @router.get("/users/{user_id}")
-@tool
+@tool(result_formatter=_format_get_user_public)
 async def get_user_public(
     user_id: int,
     db: AsyncSession = Depends(get_db),
