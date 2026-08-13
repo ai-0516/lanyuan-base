@@ -5,12 +5,19 @@
 - 代表性 formatter 行为：隐私字段收敛、base64 移除、搜索结果结构
 """
 
+from datetime import datetime
+
 from app.main import app  # noqa: F401,E402 全量 import 触发 @tool 注册
-from app.harness.tool_registry import registry
+from app.harness.tool_registry import _to_dict, registry
 from app.api.v1.ai import _format_search_history
+from app.api.v1.comments import _format_comments
 from app.api.v1.memory import _format_memory_list
+from app.api.v1.notifications import _format_notifications
 from app.api.v1.posts import _format_post
 from app.api.v1.profile import _format_user_profile
+from app.schemas.comment import CommentResponse
+from app.schemas.common import ReplyTo, UserBrief
+from app.schemas.notification import NotificationResponse
 
 
 def test_all_api_tools_have_formatter():
@@ -87,3 +94,52 @@ def test_memory_list_formatter():
     out = _format_memory_list(data)
     assert "#1" in out and "#2" in out
     assert "喜欢简洁" in out
+
+
+def test_comment_list_formatter_with_real_models():
+    """真实形态：list[CommentResponse] 走 _to_dict → formatter 全链路（#69 review）"""
+    data = [
+        CommentResponse(
+            id=1,
+            user=UserBrief(id=2, nickname="小明", avatar="data:image/png;base64,AAAA"),
+            content="欢迎新邻居",
+            reply_to=None,
+            created_at=datetime(2026, 8, 10, 10, 0, 0),
+        ),
+        CommentResponse(
+            id=3,
+            user=UserBrief(id=4, nickname="小红", avatar="data:image/png;base64,BBBB"),
+            content="谢谢",
+            reply_to=ReplyTo(user_id=2, nickname="小明"),
+            created_at=datetime(2026, 8, 10, 10, 5, 0),
+        ),
+    ]
+    converted = _to_dict(data)
+    assert all(isinstance(item, dict) for item in converted), (
+        f"_to_dict 未递归 list，formatter 会收到 Pydantic 对象: {converted!r}"
+    )
+    out = _format_comments(converted)
+    assert "共 2 条评论" in out
+    assert "小明" in out and "小红" in out
+    assert "回复 小明" in out  # reply_to 嵌套也转 dict
+    assert "base64" not in out
+
+
+def test_notification_list_formatter_with_real_models():
+    """真实形态：list[NotificationResponse] 走 _to_dict → formatter 全链路（#69 review）"""
+    data = [
+        NotificationResponse(
+            id=1, type="like",
+            from_user=UserBrief(id=2, nickname="小明", avatar="data:image/png;base64,AAAA"),
+            post_id=10, post_title="社区公告", is_read=False,
+            created_at=datetime(2026, 8, 10, 10, 0, 0),
+        ),
+    ]
+    converted = _to_dict(data)
+    assert all(isinstance(item, dict) for item in converted), (
+        f"_to_dict 未递归 list，formatter 会收到 Pydantic 对象: {converted!r}"
+    )
+    out = _format_notifications(converted)
+    assert "共 1 条未读通知" in out
+    assert "like" in out and "小明" in out
+    assert "base64" not in out

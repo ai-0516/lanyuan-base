@@ -85,6 +85,10 @@ def _to_dict(result: Any) -> Any:
             for c in result.__table__.columns
             if c.name not in ("created_at", "updated_at")
         }
+    if isinstance(result, list):
+        # list 递归：list[Pydantic/SQLAlchemy model] 逐个转换（#69 review——
+        # list_comments/list_notifications 的 formatter 收到 Pydantic 对象会 AttributeError）
+        return [_to_dict(item) for item in result]
     return result
 
 
