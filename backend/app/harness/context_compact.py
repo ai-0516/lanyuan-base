@@ -68,14 +68,19 @@ def _split_system(messages: list[Message]) -> tuple[list[Message], list[Message]
 def _compute_tail_start(rest: list[Message], keep_tail: int) -> int:
     """计算尾部起始下标（含配对保护）
 
-    tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始，
-    保证 assistant(tool_calls) 与其 tool 结果消息不拆散。
+    tail 第一条是 tool 结果 → 回溯整组连续 tool 结果的开头；若组起点前一条
+    是 assistant(tool_calls)，则从 tool_call 开始保留——保证 assistant(tool_calls)
+    与其全部 tool 结果不拆散（多工具并行时 tool 结果连续排列，只查紧邻前一条
+    会漏掉第 2..N 条所属的 tool_call，产生孤儿 tool 消息 → DeepSeek 400，
+    issue #70）。
     """
     tail_start = max(0, len(rest) - keep_tail)
-    if (tail_start > 0 and tail_start < len(rest)
-            and is_tool_result_message(rest[tail_start])
-            and is_tool_call_message(rest[tail_start - 1])):
-        tail_start -= 1
+    if tail_start > 0 and tail_start < len(rest) and is_tool_result_message(rest[tail_start]):
+        group_start = tail_start
+        while group_start > 0 and is_tool_result_message(rest[group_start - 1]):
+            group_start -= 1
+        if group_start > 0 and is_tool_call_message(rest[group_start - 1]):
+            tail_start = group_start - 1
     return tail_start
 
 
@@ -108,11 +113,8 @@ def snip_message_compact(
         while head_end < len(rest) and is_tool_result_message(rest[head_end]):
             head_end += 1
 
-    # 尾部边界：tail 第一条是 tool 结果且前一条是 tool_call → 从 tool_call 开始
-    if (tail_start > 0 and tail_start < len(rest)
-            and is_tool_result_message(rest[tail_start])
-            and is_tool_call_message(rest[tail_start - 1])):
-        tail_start -= 1
+    # 尾部边界：tool 结果需与前驱 assistant(tool_calls) 整组保留（_compute_tail_start 统一逻辑）
+    tail_start = _compute_tail_start(rest, keep_tail)
 
     if head_end >= tail_start:
         return messages

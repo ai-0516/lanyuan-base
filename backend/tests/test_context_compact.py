@@ -105,6 +105,37 @@ class TestSnipCompact:
         assert any("tail result" in c for c in contents)
         assert any("call_tail" in c for c in contents), "tool_call 前驱必须一并保留"
 
+    def test_tail_boundary_multi_tool_results(self):
+        """多工具并行：tail 第一条是第 2 个 tool 结果 → 回溯整组到 assistant(tool_calls)
+
+        回归 issue #70：一个 assistant 带多个 tool_calls，tool 结果连续排列
+        （toolResult × N）。裁剪边界落在第 2..N 条 tool 结果上时，只查紧邻
+        前一条（也是 tool 结果）会漏掉所属的 tool_call → 孤儿 tool 消息
+        → DeepSeek 400 "Messages with role 'tool' must be a response to
+        a preceding message with 'tool_calls'"。
+        """
+        rest = [_user(f"u{i}") for i in range(57)]
+        # tail_start = 57 - 47 = 10 → rest[10] 是第 2 个 tool 结果（rest[9] 也是 tool 结果）
+        rest[8] = {
+            "role": "assistant",
+            "content": [
+                {"type": "toolCall", "id": "call_a", "name": "multi", "arguments": {}},
+                {"type": "toolCall", "id": "call_b", "name": "multi", "arguments": {}},
+            ],
+        }
+        rest[9] = _tool_result("call_a", "result A")
+        rest[10] = _tool_result("call_b", "result B")
+        messages = [_system("sys")] + rest
+
+        result = context_compact.snip_message_compact(messages)
+
+        contents = [json.dumps(m, ensure_ascii=False) for m in result]
+        assert any("result B" in c for c in contents)
+        # assistant(tool_calls) 必须一并保留（toolCall 定义，不是 tool 结果的 tool_call_id）
+        assert any('"type": "toolCall", "id": "call_b"' in c for c in contents), (
+            "多工具并行时 tool_call 前驱必须整组保留，否则产生孤儿 tool 消息"
+        )
+
     def test_empty_and_system_only(self):
         """空数组 / 只有 system 不崩溃"""
         assert context_compact.snip_message_compact([]) == []
@@ -270,6 +301,33 @@ class TestReactiveCompact:
         contents = [json.dumps(m, ensure_ascii=False) for m in result]
         assert any("tail result" in c for c in contents)
         assert any("call_t" in c for c in contents), "tool_call 前驱必须一并保留"
+
+    @pytest.mark.asyncio
+    async def test_tail_boundary_multi_tool_results(self, monkeypatch):
+        """多工具并行：tail 第一条是第 2 个 tool 结果 → 回溯整组（_compute_tail_start 共用缺陷）"""
+        async def _fake_summarize(messages):
+            return "摘要"
+
+        monkeypatch.setattr(context_compact, "_summarize", _fake_summarize)
+        messages = [_system("sys")] + [_user(f"u{i}") for i in range(20)]
+        # tail_start = 20 - 5 = 15 → rest[15] 是第 2 个 tool 结果（rest[14] 也是 tool 结果）
+        messages[14] = {
+            "role": "assistant",
+            "content": [
+                {"type": "toolCall", "id": "call_a", "name": "multi", "arguments": {}},
+                {"type": "toolCall", "id": "call_b", "name": "multi", "arguments": {}},
+            ],
+        }
+        messages[15] = _tool_result("call_a", "result A")
+        messages[16] = _tool_result("call_b", "result B")
+
+        result = await context_compact.llm_reactive_compact(messages)
+
+        contents = [json.dumps(m, ensure_ascii=False) for m in result]
+        assert any("result B" in c for c in contents)
+        assert any('"type": "toolCall", "id": "call_b"' in c for c in contents), (
+            "多工具并行时 tool_call 前驱必须整组保留，否则产生孤儿 tool 消息"
+        )
 
     @pytest.mark.asyncio
     async def test_summary_failure_force_trim(self, monkeypatch):
