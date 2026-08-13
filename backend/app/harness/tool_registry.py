@@ -8,7 +8,6 @@ db 和 user_id 自动注入，不暴露给 LLM。
 import inspect
 import json
 import logging
-import re
 import types as pytypes
 from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints, Annotated
 from fastapi.params import Depends as DependsClass
@@ -67,23 +66,26 @@ def _get_dep_name(default: Any) -> str:
     return ""
 
 
-# ── 结果清洗 ──
-
-_BASE64_PATTERN = re.compile(r'"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}"')
-
-
-def _strip_avatar(data) -> None:
-    """递归移除所有 dict 中的 avatar 字段"""
-    if isinstance(data, dict):
-        data.pop("avatar", None)
-        for v in data.values():
-            _strip_avatar(v)
-    elif isinstance(data, list):
-        for item in data:
-            _strip_avatar(item)
-
-
 # ── ToolDef ──
+
+
+def _to_dict(result: Any) -> Any:
+    """Pydantic model / SQLAlchemy model → dict；其他类型原样返回
+
+    formatter 契约：收到的一定是 dict（或 None/标量）。
+    SQLAlchemy model 跳过 created_at/updated_at——onupdate 会触发异步懒加载（MissingGreenlet）。
+    """
+    if hasattr(result, "model_dump"):
+        return result.model_dump()
+    if hasattr(result, "dict"):
+        return result.dict()
+    if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
+        return {
+            c.name: getattr(result, c.name)
+            for c in result.__table__.columns
+            if c.name not in ("created_at", "updated_at")
+        }
+    return result
 
 
 class ToolDef:
@@ -213,34 +215,17 @@ class ToolDef:
         if isinstance(result, dict) and "code" in result and "data" in result:
             result = result["data"]
 
-        # 递归移除 avatar 字段（base64 头像数据，LLM 不需要）
-        _strip_avatar(result)
-
-        # 如果有 result_formatter，用它生成 LLM 友好的摘要文本
+        # 有 result_formatter：先统一转 dict（Pydantic/SQLAlchemy model），
+        # 由每个 tool 自己的 formatter 决定 LLM 看什么——不再全局猜字段
         if self.result_formatter:
-            # Pydantic model → dict，formatter 统一处理 dict
-            if hasattr(result, "model_dump"):
-                result = result.model_dump()
-            elif hasattr(result, "dict"):
-                result = result.dict()
-            return self.result_formatter(result)
+            return self.result_formatter(_to_dict(result))
 
         if isinstance(result, str):
             return result
 
-        # SQLAlchemy model → dict（如 get_my_profile 返回的 User 对象）
-        if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
-            # 只读 LLM 关心的字段，跳过内部时间戳（updated_at 含 onupdate，会触发异步懒加载）
-            result = {
-                c.name: getattr(result, c.name)
-                for c in result.__table__.columns
-                if c.name not in ("created_at", "updated_at")
-            }
-        
-        result = json.dumps(result, ensure_ascii=False, default=str)
-        # 正则兜底：strip_base64_uris 的保留，处理任何遗漏的 data URI
-        result = _BASE64_PATTERN.sub('""', result)
-        # 最后防线：超过 50KB 才截断
+        result = json.dumps(_to_dict(result), ensure_ascii=False, default=str)
+
+        # 最后防线：超过 50KB 才截断（防爆，非数据清洗）
         if len(result) > 50000:
             result = result[:50000] + "…(结果过长已截断)"
         return result

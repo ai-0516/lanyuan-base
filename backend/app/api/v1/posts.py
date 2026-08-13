@@ -31,6 +31,49 @@ def _format_list_posts(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_post(data) -> str:
+    """帖子详情/创建结果 → LLM 摘要（帖子核心 + 评论，不含 base64 头像）"""
+    if not data:
+        return "帖子不存在"
+    user = data.get("user", {})
+    lines = [
+        f"帖子 #{data.get('id', '?')}｜作者：{user.get('nickname', '?')}",
+        f"内容：{data.get('content', '')}",
+    ]
+    comments = data.get("comments") or []
+    likes = len(data.get("likers") or [])
+    lines.append(f"{len(comments)} 条评论，{likes} 赞")
+    for c in comments[:10]:
+        cu = c.get("user", {})
+        lines.append(f"  {cu.get('nickname', '?')}：{c.get('content', '')}")
+    return "\n".join(lines)
+
+
+def _format_delete_post(data) -> str:
+    """删除结果 → LLM 摘要（api_error 路径 data 为 None）"""
+    if data is None:
+        return "删除失败（无权删除或帖子不存在）"
+    return "帖子已删除"
+
+
+def _format_like_post(data) -> str:
+    """点赞结果 → LLM 摘要"""
+    if data is None:
+        return "点赞失败：帖子不存在"
+    liked = data.get("liked")
+    count = data.get("likeCount", 0)
+    return f"点赞成功，当前 {count} 赞" if liked else f"该帖子已点过赞（无变化），当前 {count} 赞"
+
+
+def _format_unlike_post(data) -> str:
+    """取消点赞结果 → LLM 摘要"""
+    if data is None:
+        return "取消点赞失败：帖子不存在"
+    unliked = data.get("unliked")
+    count = data.get("likeCount", 0)
+    return f"已取消点赞，当前 {count} 赞" if unliked else f"该帖子未点赞（无变化），当前 {count} 赞"
+
+
 @router.get("")
 @tool(result_formatter=_format_list_posts)
 async def list_posts(
@@ -45,7 +88,7 @@ async def list_posts(
 
 
 @router.post("")
-@tool
+@tool(result_formatter=_format_post)
 async def create_post(
     data: PostCreate,
     db: AsyncSession = Depends(get_db),
@@ -57,7 +100,7 @@ async def create_post(
 
 
 @router.get("/{post_id}")
-@tool
+@tool(result_formatter=_format_post)
 async def get_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -72,7 +115,7 @@ async def get_post(
 
 
 @router.delete("/{post_id}")
-@tool
+@tool(result_formatter=_format_delete_post)
 async def delete_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -86,7 +129,7 @@ async def delete_post(
 
 
 @router.post("/{post_id}/like")
-@tool
+@tool(result_formatter=_format_like_post)
 async def like_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -100,7 +143,7 @@ async def like_post(
 
 
 @router.delete("/{post_id}/like")
-@tool
+@tool(result_formatter=_format_unlike_post)
 async def unlike_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),

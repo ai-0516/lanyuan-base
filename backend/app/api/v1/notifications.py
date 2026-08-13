@@ -11,8 +11,31 @@ from app.services import notification_service
 router = APIRouter(prefix="/notifications", tags=["通知"])
 
 
+def _format_notifications(data) -> str:
+    """通知列表 → LLM 摘要（不含 base64 头像）"""
+    if not data:
+        return "暂无未读通知"
+    lines = [f"共 {len(data)} 条未读通知："]
+    for n in data:
+        from_user = n.get("from_user", {})
+        lines.append(
+            f"  {n.get('type', '?')}｜{from_user.get('nickname', '?')} → {n.get('post_title', '')}"
+        )
+    return "\n".join(lines)
+
+
+def _format_notification_count(data) -> str:
+    """未读数量 → LLM 摘要"""
+    return f"未读通知 {data.get('count', 0)} 条"
+
+
+def _format_mark_all_read(data) -> str:
+    """标记已读结果 → LLM 摘要"""
+    return f"已将 {data.get('updated', 0)} 条通知标记为已读"
+
+
 @router.get("")
-@tool
+@tool(result_formatter=_format_notifications)
 async def list_notifications(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -23,7 +46,7 @@ async def list_notifications(
 
 
 @router.get("/count")
-@tool(name="notification_count")
+@tool(name="notification_count", result_formatter=_format_notification_count)
 async def notification_count(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -34,7 +57,7 @@ async def notification_count(
 
 
 @router.put("/read-all")
-@tool
+@tool(result_formatter=_format_mark_all_read)
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),

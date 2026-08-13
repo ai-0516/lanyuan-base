@@ -79,7 +79,26 @@ def _merge_overlapping_hits(
     return [seg for _, seg in sorted(segments, key=lambda t: t[0])]
 
 
-@tool
+def _format_search_history(data: dict) -> str:
+    """历史搜索命中 → LLM 摘要（消息内容 + 上下文窗口）"""
+    results = data.get("results", [])
+    total = data.get("total", 0)
+    if not results:
+        return "未找到相关历史消息"
+    lines = [f"找到 {total} 段相关历史："]
+    for r in results:
+        lines.append(
+            f"—— 命中 #{r.get('message_id')}（{r.get('role')}，此段前后各 "
+            f"{r.get('messages_before', 0)}/{r.get('messages_after', 0)} 条）——"
+        )
+        lines.append(r.get("content", ""))
+        for m in r.get("context_window", []):
+            if m.get("message_id") != r.get("message_id"):
+                lines.append(f"[上下文 {m.get('role')}] {m.get('content', '')}")
+    return "\n".join(lines)
+
+
+@tool(result_formatter=_format_search_history)
 async def search_history(
     query: str,
     limit: int = 3,

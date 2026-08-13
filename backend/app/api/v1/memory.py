@@ -45,8 +45,34 @@ def _to_dict(m) -> dict:
     }
 
 
+def _format_memory_list(data) -> str:
+    """记忆列表 → LLM 摘要（id 即索引，#N 可被 memory_get 取全文）"""
+    if not data:
+        return "暂无记忆"
+    lines = [f"共 {len(data)} 条记忆："]
+    for m in data:
+        lines.append(f"  #{m['id']} [{m['type']}] {m['name']}：{m['description']}")
+    return "\n".join(lines)
+
+
+def _format_memory(data) -> str:
+    """单条记忆（get/add 共用）→ LLM 摘要"""
+    if not data:
+        return "操作未成功（记忆不存在或参数非法）"
+    return (
+        f"记忆 #{data['id']} [{data['type']}] {data['name']}\n"
+        f"摘要：{data['description']}\n"
+        f"内容：{data['body']}"
+    )
+
+
+def _format_memory_delete(data) -> str:
+    """删除记忆结果 → LLM 摘要（幂等：不存在也视为成功）"""
+    return "记忆已删除" if data.get("deleted") else "该记忆不存在（无需删除）"
+
+
 @router.get("")
-@tool(name="memory_list")
+@tool(name="memory_list", result_formatter=_format_memory_list)
 async def list_memories(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -57,7 +83,7 @@ async def list_memories(
 
 
 @router.post("")
-@tool(name="memory_add")
+@tool(name="memory_add", result_formatter=_format_memory)
 async def add_memory(
     data: MemoryCreate,
     db: AsyncSession = Depends(get_db),
@@ -86,7 +112,7 @@ async def add_memory(
 
 
 @router.get("/{memory_id}")
-@tool(name="memory_get")
+@tool(name="memory_get", result_formatter=_format_memory)
 async def get_memory(
     memory_id: int,
     db: AsyncSession = Depends(get_db),
@@ -101,7 +127,7 @@ async def get_memory(
 
 
 @router.delete("/{memory_id}")
-@tool(name="memory_delete")
+@tool(name="memory_delete", result_formatter=_format_memory_delete)
 async def delete_memory(
     memory_id: int,
     db: AsyncSession = Depends(get_db),

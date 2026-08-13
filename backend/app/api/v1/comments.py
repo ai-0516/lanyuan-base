@@ -12,8 +12,37 @@ from app.services import comment_service
 router = APIRouter(tags=["评论"])
 
 
+def _format_comments(data) -> str:
+    """评论列表 → LLM 摘要（不含 base64 头像）"""
+    if not data:
+        return "暂无评论"
+    lines = [f"共 {len(data)} 条评论："]
+    for c in data:
+        user = c.get("user", {})
+        reply = ""
+        if c.get("reply_to"):
+            reply = f"（回复 {c['reply_to'].get('nickname', '?')}）"
+        lines.append(f"  {user.get('nickname', '?')}{reply}：{c.get('content', '')}")
+    return "\n".join(lines)
+
+
+def _format_comment(data) -> str:
+    """单条评论（创建结果）→ LLM 摘要"""
+    if not data:
+        return "评论操作失败"
+    user = data.get("user", {})
+    return f"评论已发布｜{user.get('nickname', '?')}：{data.get('content', '')}"
+
+
+def _format_delete_comment(data) -> str:
+    """删除评论结果 → LLM 摘要"""
+    if data is None:
+        return "删除失败（无权删除或评论不存在）"
+    return "评论已删除"
+
+
 @router.get("/posts/{post_id}/comments")
-@tool
+@tool(result_formatter=_format_comments)
 async def list_comments(
     post_id: int,
     db: AsyncSession = Depends(get_db),
@@ -25,7 +54,7 @@ async def list_comments(
 
 
 @router.post("/posts/{post_id}/comments")
-@tool
+@tool(result_formatter=_format_comment)
 async def create_comment(
     post_id: int,
     data: CommentCreate,
@@ -38,7 +67,7 @@ async def create_comment(
 
 
 @router.delete("/comments/{comment_id}")
-@tool
+@tool(result_formatter=_format_delete_comment)
 async def delete_comment(
     comment_id: int,
     db: AsyncSession = Depends(get_db),
