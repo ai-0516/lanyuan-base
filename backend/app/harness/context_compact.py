@@ -84,6 +84,19 @@ def _compute_tail_start(rest: list[Message], keep_tail: int) -> int:
     return tail_start
 
 
+def _msg_tag(m: Message) -> str:
+    """消息类型标签（debug 日志用）：role + assistant block 类型 / tool 结果 id"""
+    if not isinstance(m, dict):
+        return str(m)[:20]
+    role = m.get("role")
+    if role == "assistant" and isinstance(m.get("content"), list):
+        types = [b.get("type") for b in m["content"] if isinstance(b, dict)]
+        return f"assistant({','.join(types)})"
+    if role == "toolResult":
+        return f"toolResult({str(m.get('tool_call_id', '?'))[:12]})"
+    return str(role)
+
+
 def estimate_tokens(messages: list[Message]) -> int:
     """字符数近似估算 token（DeepSeek 无官方 tokenizer，保守偏大）"""
     return len(json.dumps(messages, ensure_ascii=False, default=str))
@@ -107,6 +120,7 @@ def snip_message_compact(
     keep_head = min(KEEP_HEAD, max_messages // 2)
     keep_tail = max_messages - keep_head
     head_end, tail_start = keep_head, len(rest) - keep_tail
+    raw_tail_start = tail_start
 
     # 头部边界：head 最后一条是 tool_call → 向后吞并其 tool 结果
     if head_end > 0 and is_tool_call_message(rest[head_end - 1]):
@@ -120,6 +134,14 @@ def snip_message_compact(
         return messages
 
     snipped = tail_start - head_end
+    logger.info(
+        "context_compact: snip %d msgs (total=%d max=%d head_end=%d "
+        "tail=%d→%d last_head=%s first_tail=%s)",
+        snipped, len(messages), max_messages, head_end,
+        raw_tail_start, tail_start,
+        _msg_tag(rest[head_end - 1]) if head_end > 0 else "-",
+        _msg_tag(rest[tail_start]) if tail_start < len(rest) else "-",
+    )
     placeholder = {"role": "user", "content": f"[snipped {snipped} messages from conversation middle]"}
     return system + rest[:head_end] + [placeholder] + rest[tail_start:]
 
@@ -212,6 +234,10 @@ async def _compact_with_summary(
                 head_end += 1
         return system + head[:head_end] + tail
 
+    logger.info(
+        "context_compact: %s summarized %d msgs → %d chars (tail_start=%d)",
+        marker, len(head), len(summary), tail_start,
+    )
     compacted: list[Message] = [{"role": "user", "content": f"{marker}\n\n{summary}"}]
     return system + compacted + tail
 
