@@ -1,6 +1,7 @@
 // 发现页 - 帖子信息流
 const { request } = require('../../utils/request');
 const { fullUrl } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -38,7 +39,7 @@ Page({
 
   onLoad() {
     this.loadPosts(true);
-    const userInfo = wx.getStorageSync('userInfo') || {};
+    const userInfo = auth.getUserInfo() || {};
     if (userInfo.id) {
       this.setData({ currentUserId: userInfo.id });
     }
@@ -182,7 +183,7 @@ Page({
     if (index === -1) return;
     const post = posts[index];
     const liked = !post.liked;
-    const userInfo = wx.getStorageSync('userInfo') || {};
+    const userInfo = auth.getUserInfo() || {};
     const currentNickname = userInfo.nickname || '';
 
     try {
@@ -257,7 +258,7 @@ Page({
       const payload = { content: text };
       if (this.data.replyToId) payload.parent_comment_id = this.data.replyToId;
       const newComment = await request('POST', '/posts/' + postId + '/comments', payload);
-      const userInfo = wx.getStorageSync('userInfo') || {};
+      const userInfo = auth.getUserInfo() || {};
       const commentObj = {
         id: newComment.id || Date.now(),
         user: { id: userInfo.id, nickname: userInfo.nickname || '我', avatar: userInfo.avatar || '' },

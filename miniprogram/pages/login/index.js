@@ -1,6 +1,6 @@
 // 登录页
 const { request } = require('../../utils/request');
-const { isLoggedIn } = require('../../utils/auth');
+const auth = require('../../utils/auth');
 
 const STORAGE_KEY = 'lastProfile';
 
@@ -16,7 +16,7 @@ Page({
     // 尝试自动获取微信头像和昵称
     this._tryAutoProfile();
     // 已登录且 Token 有效 → 直接跳首页
-    if (isLoggedIn()) {
+    if (auth.isLoggedIn()) {
       this._autoLogin();
     } else {
       this.setData({ checked: true });
@@ -83,8 +83,7 @@ Page({
       await request('GET', '/auth/check');
       wx.reLaunch({ url: '/pages/feed/index' });
     } catch {
-      wx.removeStorageSync('token');
-      wx.removeStorageSync('userInfo');
+      auth.clearToken();
       this.setData({ checked: true });
     }
   },
@@ -135,8 +134,8 @@ Page({
 
       this._saveProfile(this.data.avatar, nickname);
 
-      wx.setStorageSync('token', result.token);
-      wx.setStorageSync('userInfo', result.user);
+      auth.setToken(result.token);
+      auth.setUserInfo(result.user);
 
       wx.reLaunch({ url: '/pages/feed/index' });
     } catch (err) {

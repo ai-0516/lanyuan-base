@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
 const { APP_VERSION, fullUrl } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -90,8 +91,7 @@ Page({
   },
 
   confirmLogout() {
-    wx.removeStorageSync('token');
-    wx.removeStorageSync('userInfo');
+    auth.clearToken();
     this.setData({ showLogoutModal: false });
     wx.reLaunch({ url: '/pages/login/index' });
   },

@@ -1,6 +1,7 @@
 // 帖子详情页 — 和 feed 页完全一致的交互（区别：只显示一个帖子）
 const { request } = require('../../utils/request');
 const { fullUrl } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -24,7 +25,7 @@ Page({
       return;
     }
     this.postId = parseInt(postId, 10);
-    const userInfo = wx.getStorageSync('userInfo') || {};
+    const userInfo = auth.getUserInfo() || {};
     this.setData({ currentUserId: userInfo.id || 0 });
     this.loadPost();
   },
@@ -103,7 +104,7 @@ Page({
     const post = this.data.post;
     if (!post || post.id !== postId) return;
     const liked = !post.liked;
-    const userInfo = wx.getStorageSync('userInfo') || {};
+    const userInfo = auth.getUserInfo() || {};
     const currentNickname = userInfo.nickname || '';
     let newLikers = [...(post.likers || [])];
     if (liked) {
