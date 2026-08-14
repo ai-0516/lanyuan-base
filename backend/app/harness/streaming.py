@@ -235,10 +235,12 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
     - 可重试的错误（429/529/timeout）自动退避重试
     - 不可重试的错误（401/SSE 断流等）立即 yield error
     - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
-    - 重试等待期间 yield token 事件（俏皮文案），作为普通消息展示
+    - 重试等待期间 yield retry_wait 事件（俏皮文案），作为独立事件展示
 
-    **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
-    才缓存 token 并一次性 yield，以避免重复输出。
+    **缓冲策略**（#78/#81）：首次尝试（attempt 0）直接流式（保留打字机体验）；
+    重试轮（attempt 1+）缓存 token 成功才一次性 yield（避免重复输出）。
+    首轮失败前已流出的残缺 token 由 agent 在收到 retry_wait 时丢弃
+    （agent.py 清空 full_reply / _reasoning_content）——DB 不落残缺前缀。
 
     用法与 llm_chat 相同，直接替换即可。
     """
@@ -263,13 +265,15 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
             if is_retry:
                 retry_buf.append((event, data))
             else:
-                yield (event, data)  # 首次尝试：直接流式
+                yield (event, data)  # 首次尝试：直接流式（打字机体验）
 
         if error_data is None:
             if is_retry and retry_buf:
                 for evt, dat in retry_buf:
                     yield (evt, dat)
             return
+
+        # ── 失败: 重试轮缓冲丢弃；首轮残缺由 agent 收到 retry_wait 时清空 ──
 
         # ── 错误处理 ──
         err: dict = error_data  # type: ignore[assignment]
@@ -304,7 +308,7 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
             "LLM retry: code=%s attempt=%d/%d delay=%.1fs",
             code.value, attempt + 1, max_retries, delay,
         )
-        yield ("token", "AI 正在飞速思考中……")
+        yield ("retry_wait", "AI 正在飞速思考中……")
         await asyncio.sleep(delay)
 
     # safety exit (shouldn't reach here)
