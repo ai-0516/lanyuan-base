@@ -152,12 +152,14 @@ Message = UserMessage | AssistantMessage | ToolResultMessage
 ```python
 class LLMAdapter(ABC):
     """协议适配器：canonical 与 LLM 协议互转，上层不感知具体格式"""
-    protocol: Protocol  # Protocol.OPENAI | Protocol.ANTHROPIC
+    protocol: Protocol  # Protocol.OPENAI | Protocol.ANTHROPIC | Protocol.RESPONSES
+    DEFAULT_MAX_TOKENS: int | None   # 非 None 时发送（Anthropic/Responses 必填）
+    max_tokens_field: str = "max_tokens"  # token 上限字段名（Responses 是 max_output_tokens）
 
     # ── 协议相关 HTTP 元信息（streaming.py 编排 HTTP 时读取）──
-    endpoint_path: str          # base_url 后的路径后缀（openai: /chat/completions；anthropic: /v1/messages）
+    endpoint_path: str          # base_url 后的路径后缀（openai: /chat/completions；anthropic: /v1/messages；responses: /responses）
     build_headers() -> dict     # 认证 + 版本头（adapter 内部读 settings.LLM_API_KEY）
-    is_end(data_str, data) -> bool  # SSE data 行是否流结束（openai: [DONE]；anthropic: message_stop）
+    is_end(data_str, data) -> bool  # SSE data 行是否流结束（openai: [DONE]；anthropic: message_stop；responses: response.completed/incomplete/failed）
 
     # ── state 语义查询（review #53 第二轮）──
     # state 内部结构是协议相关的（openai 写 tool_acc、anthropic 写 tool_uses），
@@ -181,6 +183,7 @@ class LLMAdapter(ABC):
 
 class OpenAIAdapter(LLMAdapter): ...      # protocol=Protocol.OPENAI，openai.py
 class AnthropicAdapter(LLMAdapter): ...   # protocol=Protocol.ANTHROPIC，anthropic.py
+class ResponsesAdapter(LLMAdapter): ...   # protocol=Protocol.RESPONSES，responses.py（issue #74）
 ```
 
 - `streaming.py` 不写 if/else：`resolve_provider()` 返回协议 → 查表拿 adapter 实例 → 调统一接口（§6.2）
@@ -217,7 +220,23 @@ class AnthropicAdapter(LLMAdapter): ...   # protocol=Protocol.ANTHROPIC，anthro
 2. `tool_result` 必须紧跟其 `tool_use`（转换保持输入顺序即天然满足，前提是内存消息顺序正确——agent 回填保证）
 3. 连续 toolResult 可合并（见上）；合并后其 tool_result 列表顺序 = 输入顺序
 
-### 5.4 响应解析（`llm_to_canonical` 增量 + `finalize` 收尾）
+### 5.4 ResponsesAdapter — canonical → OpenAI Responses 格式（`/responses`，issue #74）
+
+DeepSeek 官方 2026 年为 Codex 兼容新增的端点（同 openai 模式主机 `https://api.deepseek.com`，无状态：`previous_response_id` 不支持，历史全量走 `input`）。
+
+`canonical_to_llm`：
+
+- `system` → **提取到顶层 `instructions`**（Responses 无 system role 消息）
+- `user` → `{"role": "user", "content": [{"type": "input_text", "text"}]}`
+- `assistant` → 按 block 类型拆成**独立 input item**（顺序与模型自然输出一致：reasoning → message → function_call）：
+  - `thinking` → `{"type": "reasoning", "content": [{"type": "reasoning_text", "text"}]}`——**明文回传**（DeepSeek 文档：明文 content 归并到相邻 assistant 消息；summary/encrypted_content 不支持）
+  - `text` → `{"role": "assistant", "content": [{"type": "output_text", "text"}]}`
+  - `toolCall` → `{"type": "function_call", "call_id", "name", "arguments": json.dumps(arguments)}`
+- `toolResult` → `{"type": "function_call_output", "call_id", "output"}`（错误文本在 content，协议无 is_error 字段）
+- tools 转换：`{"type":"function","function":{...}}` → **扁平结构** `{"type": "function", "name", "description", "parameters"}`（Responses 的 tools 定义不带 function 嵌套）
+- token 上限字段：`max_output_tokens`（非 `max_tokens`，由 `max_tokens_field` 声明，streaming.py 按字段名发送）
+
+### 5.5 响应解析（`llm_to_canonical` 增量 + `finalize` 收尾）
 
 统一产出事件（与现状 `streaming.py` 完全一致）：`token` / `reasoning_token` / `reasoning` / `tool_call` / `usage` / `done` / `error`。
 
@@ -238,6 +257,26 @@ SSE 事件流（`event:` 行 + `data:` JSON）：
 | `message_delta` | `usage.output_tokens`；`delta.stop_reason`（`tool_use` / `end_turn` / `max_tokens`） |
 | `message_stop` | 流结束：有 tool_call → 不 yield `done`；纯文本 → yield `done` + `usage`（若拿到） |
 
+#### ResponsesAdapter.llm_to_canonical
+
+SSE 事件流（每个 data JSON 自带 `type` 字段，无 `[DONE]`，流以 `response.completed` / `response.incomplete` / `response.failed` 结束）：
+
+| SSE 事件 | 处理 |
+|---|---|
+| `response.output_text.delta` | `delta` → yield `token` |
+| `response.reasoning_text.delta` | `delta` → 累积后 yield `reasoning_token` |
+| `response.output_item.added` | `item.type=function_call` → 按 `output_index` 开 tool_acc（记录 call_id/name） |
+| `response.function_call_arguments.delta` | `delta` → 按 `output_index` 累积 arguments |
+| `response.completed` / `incomplete` | 结束事件：从 `response.usage` 捕获 usage（streaming.py 结束信号前先喂给 adapter 消费） |
+| `response.failed` | 同上 + yield `error`（`response.error` 结构信息） |
+| `error` | SSE error 事件 → yield `error`（与 Anthropic 一致） |
+
+`finalize`：reasoning 合并 / tool_acc → `tool_call`（OpenAI 形状，事件契约不变）/ 纯文本 `done` / `usage`。
+
+**streaming.py 配套改动（协议无关）**：
+1. `max_tokens` 字段名改为读 `adapter.max_tokens_field`（OpenAI 兼容认 `max_tokens`，Responses 认 `max_output_tokens`）
+2. `is_end` 为 True 且 data 非 None 时，先喂给 `adapter.llm_to_canonical` 再 continue——结束事件可能携带 payload（Responses 的 usage 在 `response.completed` 里），anthropic `message_stop` 无对应分支零产出，行为不变
+
 错误处理与现状对齐：非 200 响应按 `HTTP_STATUS_MAP` 分类（AUTH_FAILED / BAD_REQUEST / RATE_LIMIT / TIMEOUT / SSE_DISCONNECTED / SSE_PARSE_ERROR / UNEXPECTED），`x-api-key` 认证失败映射同 401。
 
 ### 5.5 SDK 决策（2026-08-07 review 定）
@@ -256,7 +295,7 @@ adapter 子类已把协议细节封装，将来若真要换 SDK 只动对应子�
 
 ```python
 LLM_PROVIDER: str = "deepseek"   # 厂商维度（deepseek | 未来 qwen/moonshot/zhipu/anthropic）
-LLM_PROTOCOL: str = "openai"     # 协议维度（openai | anthropic，对应该协议的 adapter）
+LLM_PROTOCOL: str = "openai"     # 协议维度（openai | anthropic | responses，对应该协议的 adapter）
 LLM_BASE_URL: str = ""           # 空 → 按 (provider, protocol) 默认值
 LLM_MODEL: str = ""              # 空 → 按 provider 默认值（deepseek-v4-flash）
 LLM_API_KEY: str = ""
@@ -276,6 +315,7 @@ LLM_API_KEY: str = ""
 class Protocol(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    RESPONSES = "responses"
 
 # provider 公共配置（与协议无关）+ protocols 协议特殊配置（可扩展 dict）
 PROVIDERS: dict[str, dict] = {
@@ -285,6 +325,7 @@ PROVIDERS: dict[str, dict] = {
         "protocols": {                                  # 协议特殊配置：可扩展 dict
             Protocol.OPENAI:    {"default_base_url": "https://api.deepseek.com"},             # 无 /v1 后缀
             Protocol.ANTHROPIC: {"default_base_url": "https://api.deepseek.com/anthropic"},
+            Protocol.RESPONSES: {"default_base_url": "https://api.deepseek.com"},             # 同 openai 主机，/responses
             # 未来扩展：直接往该 dict 加字段（协议版本、额外 header 等）
         },
     },

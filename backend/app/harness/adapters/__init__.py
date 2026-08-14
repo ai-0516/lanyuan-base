@@ -12,11 +12,13 @@ from app.harness.adapters.anthropic import AnthropicAdapter
 from app.harness.adapters.llm_adapter import LLMAdapter
 from app.harness.adapters.openai import OpenAIAdapter
 from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
+from app.harness.adapters.responses import ResponsesAdapter
 
 __all__ = [
     "LLMAdapter",
     "OpenAIAdapter",
     "AnthropicAdapter",
+    "ResponsesAdapter",
     "Protocol",
     "PROVIDERS",
     "resolve_provider",
@@ -26,6 +28,7 @@ __all__ = [
 _ADAPTERS: dict[Protocol, LLMAdapter] = {
     Protocol.OPENAI: OpenAIAdapter(),
     Protocol.ANTHROPIC: AnthropicAdapter(),
+    Protocol.RESPONSES: ResponsesAdapter(),
 }
 
 

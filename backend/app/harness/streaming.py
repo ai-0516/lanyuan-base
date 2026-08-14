@@ -95,7 +95,7 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
     request_body["model"] = provider["model"]
     request_body["stream"] = True
     if getattr(adapter, "DEFAULT_MAX_TOKENS", None):
-        request_body["max_tokens"] = adapter.DEFAULT_MAX_TOKENS  # Anthropic 必填
+        request_body[adapter.max_tokens_field] = adapter.DEFAULT_MAX_TOKENS  # Anthropic/Responses 必填
 
     logger.info(
         "LLM request: provider=%s protocol=%s model=%s messages=%d tools=%s",
@@ -163,6 +163,11 @@ async def llm_chat(messages: list[Message], tools: list[dict] | None = None):
                         saw_end_signal = True
                         if data_str == "[DONE]":
                             break
+                        if data is not None:
+                            # 结束事件可能携带 payload（如 Responses 的 response.completed 带 usage），
+                            # 先喂给 adapter 消费再结束（anthropic message_stop 无对应分支，零产出）
+                            for event, ev_data in adapter.llm_to_canonical(data, state):
+                                yield (event, ev_data)
                         continue
 
                     if data is None:

@@ -8,6 +8,7 @@
 
 from app.harness.adapters.anthropic import AnthropicAdapter
 from app.harness.adapters.openai import OpenAIAdapter
+from app.harness.adapters.responses import ResponsesAdapter
 
 
 def _collect(adapter, events: list[dict]) -> list[tuple]:
@@ -338,6 +339,161 @@ class TestIsEnd:
         assert AnthropicAdapter().is_end("", {"type": "content_block_delta"}) is False
         assert AnthropicAdapter().is_end("", None) is False
 
+    def test_responses_terminal_events(self):
+        """Responses：三个结束事件 dict → 结束（无 [DONE]）"""
+        for t in ("response.completed", "response.incomplete", "response.failed"):
+            assert ResponsesAdapter().is_end("", {"type": t}) is True
+
+    def test_responses_regular_event_not_end(self):
+        assert ResponsesAdapter().is_end("", {"type": "response.output_text.delta"}) is False
+        assert ResponsesAdapter().is_end("[DONE]", None) is False
+
+
+# ═══════════════════════════════════════════
+# ResponsesAdapter（OpenAI Responses API，issue #74）
+# ═══════════════════════════════════════════
+
+class TestResponsesCanonical2Llm:
+
+    def test_system_to_instructions(self):
+        """system 内容 → 顶层 instructions（Responses 无 system role 消息）"""
+        msgs = [
+            {"role": "system", "content": "你是助手"},
+            {"role": "user", "content": "你好"},
+        ]
+        body = ResponsesAdapter().canonical_to_llm(msgs)
+        assert body["instructions"] == "你是助手"
+        assert body["input"] == [{
+            "role": "user",
+            "content": [{"type": "input_text", "text": "你好"}],
+        }]
+
+    def test_assistant_blocks_split_into_items(self):
+        """thinking/text/toolCall → reasoning / message / function_call 三个独立 item"""
+        msgs = [{
+            "role": "assistant",
+            "content": [
+                {"type": "thinking", "thinking": "思考中"},
+                {"type": "text", "text": "我来查"},
+                {"type": "toolCall", "id": "call_1", "name": "get_weather",
+                 "arguments": {"city": "北京"}},
+            ],
+        }]
+        items = ResponsesAdapter().canonical_to_llm(msgs)["input"]
+        # 顺序：reasoning（thinking 明文）→ message（文本）→ function_call
+        assert items == [
+            {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "思考中"}]},
+            {"role": "assistant", "content": [{"type": "output_text", "text": "我来查"}]},
+            {"type": "function_call", "call_id": "call_1", "name": "get_weather",
+             "arguments": '{"city": "北京"}'},
+        ]
+
+    def test_tool_result_to_function_call_output(self):
+        msgs = [{"role": "toolResult", "tool_call_id": "call_1", "content": "晴，25°C"}]
+        items = ResponsesAdapter().canonical_to_llm(msgs)["input"]
+        assert items == [{
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": "晴，25°C",
+        }]
+
+    def test_tools_flattened_structure(self):
+        """OpenAI 形状 tools → Responses 扁平结构（type/name/description/parameters）"""
+        tools = [{"type": "function", "function": {
+            "name": "get_weather", "description": "查天气",
+            "parameters": {"type": "object"},
+        }}]
+        converted = ResponsesAdapter()._convert_tools(tools)
+        assert converted == [{
+            "type": "function", "name": "get_weather", "description": "查天气",
+            "parameters": {"type": "object"},
+        }]
+
+    def test_empty_user_content_skipped(self):
+        """空白 user 消息跳过（无 input item）"""
+        msgs = [{"role": "user", "content": "   "}]
+        assert ResponsesAdapter().canonical_to_llm(msgs)["input"] == []
+
+
+class TestResponsesLlm2Canonical:
+
+    def _stream_with_tool(self) -> list[dict]:
+        """一次完整的 function_call 流（arguments 跨 chunk 累积）"""
+        return [
+            {
+                "type": "response.output_item.added",
+                "output_index": 0,
+                "item": {"type": "function_call", "id": "fc_1", "call_id": "call_1",
+                         "name": "get_weather"},
+            },
+            {
+                "type": "response.function_call_arguments.delta",
+                "output_index": 0,
+                "delta": '{"city":',
+            },
+            {
+                "type": "response.function_call_arguments.delta",
+                "output_index": 0,
+                "delta": '"北京"}',
+            },
+            {"type": "response.output_item.done", "output_index": 0},
+            {
+                "type": "response.completed",
+                "response": {"status": "completed", "usage": {"input_tokens": 10, "output_tokens": 5}},
+            },
+        ]
+
+    def test_text_stream(self):
+        events = [
+            {"type": "response.output_text.delta", "delta": "你"},
+            {"type": "response.output_text.delta", "delta": "好"},
+            {"type": "response.completed", "response": {"status": "completed"}},
+        ]
+        out = _collect(ResponsesAdapter(), events)
+        assert out == [("token", "你"), ("token", "好"), ("done", "")]
+
+    def test_reasoning_and_text(self):
+        events = [
+            {"type": "response.reasoning_text.delta", "delta": "思考"},
+            {"type": "response.output_text.delta", "delta": "回答"},
+            {"type": "response.completed", "response": {"status": "completed"}},
+        ]
+        out = _collect(ResponsesAdapter(), events)
+        assert ("reasoning_token", "思考") in out
+        assert ("reasoning", "思考") in out
+        assert ("token", "回答") in out
+        assert out[-1] == ("done", "")
+
+    def test_tool_call_arguments_multi_chunk_merge(self):
+        """function_call 跨 chunk 按 output_index 合并 arguments → tool_call（OpenAI 形状）"""
+        out = _collect(ResponsesAdapter(), self._stream_with_tool())
+        tool_calls = [d for e, d in out if e == "tool_call"]
+        assert len(tool_calls) == 1
+        assert tool_calls[0] == {
+            "id": "call_1", "type": "function",
+            "function": {"name": "get_weather", "arguments": '{"city":"北京"}'},
+        }
+        assert not any(e == "done" for e, _ in out)  # 有 tool_call 不产 done
+
+    def test_usage_from_completed_event(self):
+        """usage 在结束事件 response.completed 的 response 对象里（streaming 结束信号前喂入）"""
+        out = _collect(ResponsesAdapter(), self._stream_with_tool())
+        usage = [d for e, d in out if e == "usage"]
+        assert usage and usage[0]["input_tokens"] == 10 and usage[0]["output_tokens"] == 5
+
+    def test_failed_terminal_yields_error(self):
+        """response.failed → error 事件（结束事件，saw_end_signal 由 streaming 置位）"""
+        events = [{
+            "type": "response.failed",
+            "response": {"status": "failed", "error": {"code": "server_error", "message": "挂了"}},
+        }]
+        out = _collect(ResponsesAdapter(), events)
+        assert ("error", {"code": "server_error", "message": "挂了"}) in out
+
+    def test_empty_stream_no_done(self):
+        out = _collect(ResponsesAdapter(), [])
+        assert out == []
+
 
 # ═══════════════════════════════════════════
 # Protocol enum（review #53：类型化协议枚举 + get_adapter 注册表）
@@ -349,6 +505,7 @@ class TestProtocol:
 
         assert Protocol.OPENAI.value == "openai"
         assert Protocol.ANTHROPIC.value == "anthropic"
+        assert Protocol.RESPONSES.value == "responses"
 
     def test_get_adapter_by_protocol(self):
         from app.harness.adapters import get_adapter
@@ -356,6 +513,26 @@ class TestProtocol:
 
         assert get_adapter(Protocol.OPENAI).protocol is Protocol.OPENAI
         assert get_adapter(Protocol.ANTHROPIC).protocol is Protocol.ANTHROPIC
+        assert get_adapter(Protocol.RESPONSES).protocol is Protocol.RESPONSES
+
+    def test_resolve_provider_responses_protocol(self):
+        """LLM_PROTOCOL=responses → base_url https://api.deepseek.com + max_output_tokens 字段"""
+        from app.config import settings
+
+        from app.harness.adapters import get_adapter
+        from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
+
+        old = settings.LLM_PROTOCOL
+        try:
+            settings.LLM_PROTOCOL = "responses"
+            cfg = resolve_provider()
+            assert cfg["protocol"] is Protocol.RESPONSES
+            assert cfg["base_url"] == PROVIDERS["deepseek"]["protocols"][Protocol.RESPONSES]["default_base_url"]
+            adapter = get_adapter(cfg["protocol"])
+            assert adapter.endpoint_path == "/responses"
+            assert adapter.max_tokens_field == "max_output_tokens"
+        finally:
+            settings.LLM_PROTOCOL = old
 
     def test_resolve_provider_returns_model_and_base_url(self):
         from app.harness.adapters.providers import PROVIDERS, Protocol, resolve_provider
