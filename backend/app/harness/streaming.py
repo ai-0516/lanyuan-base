@@ -237,10 +237,10 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
     - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
     - 重试等待期间 yield retry_wait 事件（俏皮文案），作为独立事件展示
 
-    **缓冲策略**（#81 review）：所有 attempt（含首轮）都缓冲，成功一次性
-    flush、失败丢弃——防止 SSE_DISCONNECTED/TIMEOUT 重试场景下首轮流出的
-    残缺 token 进 full_reply 造成 DB 拼接污染。代价：首轮成功时无实时流式
-    （重试场景本 <1%，可接受）。
+    **缓冲策略**（#78/#81）：首次尝试（attempt 0）直接流式（保留打字机体验）；
+    重试轮（attempt 1+）缓存 token 成功才一次性 yield（避免重复输出）。
+    首轮失败前已流出的残缺 token 由 agent 在收到 retry_wait 时丢弃
+    （agent.py 清空 full_reply / _reasoning_content）——DB 不落残缺前缀。
 
     用法与 llm_chat 相同，直接替换即可。
     """
@@ -255,22 +255,25 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
 
     for attempt in range(_max_possible):
         error_data = None
+        is_retry = attempt > 0
         retry_buf: list[tuple] = []
 
         async for event, data in llm_chat(messages, tools=tools):
             if event == "error":
                 error_data = data
                 break
-            retry_buf.append((event, data))  # 所有 attempt 都缓冲（#81 review：
-            # 首轮失败前流出的 token 也纳入——SSE_DISCONNECTED/TIMEOUT 重试成功时
-            # full_reply 不再含首轮残缺前缀，避免 DB 拼接污染）
+            if is_retry:
+                retry_buf.append((event, data))
+            else:
+                yield (event, data)  # 首次尝试：直接流式（打字机体验）
 
         if error_data is None:
-            for evt, dat in retry_buf:
-                yield (evt, dat)  # 成功: 一次性 flush（含首轮，无缝）
+            if is_retry and retry_buf:
+                for evt, dat in retry_buf:
+                    yield (evt, dat)
             return
 
-        # ── 失败: retry_buf 丢弃（含首轮残留，不流出下游） ──
+        # ── 失败: 重试轮缓冲丢弃；首轮残缺由 agent 收到 retry_wait 时清空 ──
 
         # ── 错误处理 ──
         err: dict = error_data  # type: ignore[assignment]

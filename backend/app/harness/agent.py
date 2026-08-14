@@ -145,6 +145,11 @@ class AIAgent:
                         assert isinstance(data, str)
                         full_reply += data
                         token_count += 1
+                    elif event == "retry_wait":
+                        # 重试等待信号：丢弃首轮失败前已流出的残缺 token / reasoning
+                        # （#78：重试轮 flush 的完整回复从零累加，LLM_END content 无拼接污染）
+                        full_reply = ""
+                        self._reasoning_content = ""
                     elif event == "reasoning":
                         assert isinstance(data, str)
                         self._reasoning_content = data

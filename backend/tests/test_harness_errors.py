@@ -255,11 +255,11 @@ class TestRetryLlmChat:
 
     @pytest.mark.asyncio
     async def test_downstream_events_preserved_during_buffer(self):
-        """所有 attempt 都缓冲：首轮失败前流出的 token 不流出下游（#81 review）
+        """首次尝试直接流式（打字机），重试成功后再 yield 缓存事件
 
-        修复前：首次尝试直接流式 → SSE_DISCONNECTED/TIMEOUT 重试成功时
-        full_reply = 首轮残缺 + 完整回复（DB 拼接污染）。
-        修复后：首轮残留丢弃，下游只看到重试成功的完整回复。
+        首轮失败前已流出的残缺 token 由 agent 收到 retry_wait 时丢弃
+        （agent.py 清空 full_reply，见 test_agent.py 的 agent 层验证）——
+        streaming 层保持流式，不缓冲首轮。
         """
         from app.harness.streaming import retry_llm_chat
 
@@ -283,12 +283,12 @@ class TestRetryLlmChat:
             events = []
             async for evt, dat in retry_llm_chat(["msg"]):
                 events.append((evt, dat))
-            # 首轮残留 "partial_" 被丢弃（不进 full_reply），只流出重试成功的完整回复
-            assert len(events) == 3
-            assert events[0] == ("retry_wait", "AI 正在飞速思考中……")  # 重试提示
-            assert events[1] == ("token", "complete")               # 重试成功完整回复
-            assert events[2] == ("done", "")
-            assert all(evt != "partial_" for evt, _ in events), "首轮残留不得流出"
+            # 首次尝试直接流式：partial_ 流出；重试成功 flush complete
+            assert len(events) == 4
+            assert events[0] == ("token", "partial_")              # 首次尝试直接流式
+            assert events[1] == ("retry_wait", "AI 正在飞速思考中……")  # 重试提示
+            assert events[2] == ("token", "complete")               # 重试缓存后 yield
+            assert events[3] == ("done", "")
         finally:
             S.llm_chat = original
 

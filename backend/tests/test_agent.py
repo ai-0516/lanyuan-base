@@ -130,3 +130,36 @@ class TestMultiTurnEventStream:
             i for i, (e, data) in enumerate(events)
             if e == "token" and data == fallback_msg
         )
+
+    @pytest.mark.asyncio
+    async def test_retry_wait_clears_partial_reply(self):
+        """首轮残缺 token 在 retry_wait 时清空，持久化 content 不含残缺（#78）
+
+        streaming 首轮保持流式（partial_ 透传显示），但 agent 收到 retry_wait
+        后丢弃已累加的残缺——LLM_END content（持久化数据源）只有重试轮完整回复，
+        DB 无拼接污染。
+        """
+        import app.harness.streaming as S
+
+        async def retry_source(messages, **kw):
+            yield ("token", "partial_")                     # 首轮残缺（已流出）
+            yield ("retry_wait", "AI 正在飞速思考中……")       # 重试信号
+            yield ("token", "complete reply")               # 重试轮完整回复
+            yield ("done", "")
+
+        original = S.mock_chat
+        S.mock_chat = retry_source
+        try:
+            agent = AIAgent(tools=[])
+            events = []
+            async for event, data in agent.run([{"role": "user", "content": "你好"}]):
+                events.append((event, data))
+            # 流式保留：残缺与完整回复都透传（前端靠 retry_wait 替换气泡）
+            tokens = [d for e, d in events if e == "token"]
+            assert tokens == ["partial_", "complete reply"]
+            assert ("retry_wait", "AI 正在飞速思考中……") in events
+            # 持久化内容（_turns → LLM_END content）不含首轮残缺
+            assert agent._turns[0]["content"] == "complete reply"
+            assert "partial_" not in agent._turns[0]["content"]
+        finally:
+            S.mock_chat = original
