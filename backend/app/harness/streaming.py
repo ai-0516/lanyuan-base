@@ -235,10 +235,12 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
     - 可重试的错误（429/529/timeout）自动退避重试
     - 不可重试的错误（401/SSE 断流等）立即 yield error
     - 重试耗尽后 yield fallback 事件（降级回复），不再 yield error
-    - 重试等待期间 yield token 事件（俏皮文案），作为普通消息展示
+    - 重试等待期间 yield retry_wait 事件（俏皮文案），作为独立事件展示
 
-    **注意**：正常情况（一次成功）完全是流式的，不缓存。只在重试时（<1%）
-    才缓存 token 并一次性 yield，以避免重复输出。
+    **缓冲策略**（#81 review）：所有 attempt（含首轮）都缓冲，成功一次性
+    flush、失败丢弃——防止 SSE_DISCONNECTED/TIMEOUT 重试场景下首轮流出的
+    残缺 token 进 full_reply 造成 DB 拼接污染。代价：首轮成功时无实时流式
+    （重试场景本 <1%，可接受）。
 
     用法与 llm_chat 相同，直接替换即可。
     """
@@ -253,23 +255,22 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
 
     for attempt in range(_max_possible):
         error_data = None
-        is_retry = attempt > 0
         retry_buf: list[tuple] = []
 
         async for event, data in llm_chat(messages, tools=tools):
             if event == "error":
                 error_data = data
                 break
-            if is_retry:
-                retry_buf.append((event, data))
-            else:
-                yield (event, data)  # 首次尝试：直接流式
+            retry_buf.append((event, data))  # 所有 attempt 都缓冲（#81 review：
+            # 首轮失败前流出的 token 也纳入——SSE_DISCONNECTED/TIMEOUT 重试成功时
+            # full_reply 不再含首轮残缺前缀，避免 DB 拼接污染）
 
         if error_data is None:
-            if is_retry and retry_buf:
-                for evt, dat in retry_buf:
-                    yield (evt, dat)
+            for evt, dat in retry_buf:
+                yield (evt, dat)  # 成功: 一次性 flush（含首轮，无缝）
             return
+
+        # ── 失败: retry_buf 丢弃（含首轮残留，不流出下游） ──
 
         # ── 错误处理 ──
         err: dict = error_data  # type: ignore[assignment]
