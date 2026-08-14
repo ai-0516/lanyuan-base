@@ -161,9 +161,18 @@ Page({
 
     let buffer = '';
     let currentEvent = '';  // 跟踪当前 SSE 事件类型
+    // 跨 chunk 的 UTF-8 解码器（stream:true 保留多字节字符跨 chunk 状态，#77：
+    // 不复用会导致中文字符被 chunk 边界截断时出现 U+FFFD 乱码）
+    let sseDecoder = null;
+    try {
+      sseDecoder = new TextDecoder('utf-8', { stream: true });
+    } catch (e) {
+      // TextDecoder 不可用时走 arrayBufferToString 降级路径
+      console.warn('[ai-chat] TextDecoder 不可用，走降级解码:', e);
+    }
 
     task.onChunkReceived((res) => {
-      const chunk = this.arrayBufferToString(res.data);
+      const chunk = this.arrayBufferToString(res.data, sseDecoder);
       buffer += chunk;
 
       // 按行解析 SSE 事件
@@ -271,18 +280,35 @@ Page({
     this.scrollToBottom();
   },
 
-  /** ArrayBuffer 转字符串（UTF-8 安全） */
-  arrayBufferToString(buf) {
+  /** ArrayBuffer 转字符串（UTF-8 安全）
+   *  @param {ArrayBuffer} buf - 本次 chunk 的二进制数据
+   *  @param {TextDecoder|null} [decoder] - 持久 stream 解码器（跨 chunk 保留多字节状态）；
+   *    传 null/不传时退化为一次性解码（无跨 chunk 状态）
+   */
+  arrayBufferToString(buf, decoder) {
+    if (decoder) {
+      return decoder.decode(buf, { stream: true });
+    }
     try {
       return new TextDecoder('utf-8').decode(buf);
     } catch {
-      // 降级: percent-encode 后 decodeURIComponent
+      // 降级: percent-encode 后 decodeURIComponent（#77：解码失败不再抛异常，
+      // 多字节序列被 chunk 截断时保留原始字节，避免 URIError 中断整个流）
       const bytes = new Uint8Array(buf);
       let binary = '';
       for (let i = 0; i < bytes.length; i++) {
         binary += '%' + bytes[i].toString(16).padStart(2, '0');
       }
-      return decodeURIComponent(binary);
+      try {
+        return decodeURIComponent(binary);
+      } catch {
+        // 降级仍失败（chunk 截断的不完整 UTF-8 序列）：按 latin1 逐字节解码保留可读文本
+        let text = '';
+        for (let i = 0; i < bytes.length; i++) {
+          text += String.fromCharCode(bytes[i]);
+        }
+        return text;
+      }
     }
   },
 
