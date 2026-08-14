@@ -28,7 +28,7 @@ ai_service.py
 | L2 | 降级为模拟回复 | `streaming.py:retry_deepseek_chat()` fallback 分支 | 重试耗尽 / 不可重试错误 |
 | L3 | 兜底异常捕获 | `agent.py` + `ai_service.py` try/except | 任意未捕获异常 |
 
-L1 在前端无感知（等待期间 yield `token("AI 正在飞速思考中……")`），L2 用户看到"AI 暂时无法回复"，
+L1 在前端有等待提示（等待期间 yield `retry_wait("AI 正在飞速思考中……")` 独立事件，前端单独渲染、不污染回复内容，#78），L2 用户看到"AI 暂时无法回复"，
 L3 用户看到"AI 回复被中断"。
 
 ## 3. 错误码设计
@@ -163,7 +163,7 @@ HTTP 状态码到枚举的映射在 `HTTP_STATUS_MAP` 内部完成，不暴露�
 
 - **首次尝试**（attempt 0）：直接 yield 所有事件，完全流式
 - **重试**（attempt 1+）：缓存 token，成功后才一次性 yield（避免重复输出）
-- 重试等待期间先 yield `token("AI 正在飞速思考中……")`，让前端有反馈
+- 重试等待期间先 yield `retry_wait("AI 正在飞速思考中……")` 独立事件，让前端有反馈（#78：不再用 token，避免污染持久化回复）
 - 重试耗尽后 yield `fallback` 事件（不再 yield `error`），agent.py 收到后转为降级回复
 
 ```python
@@ -188,7 +188,7 @@ for attempt in range(_max_possible):
         return
 
     # 错误处理... 重试决策...
-    yield ("token", "AI 正在飞速思考中……")  # 填充等待
+    yield ("retry_wait", "AI 正在飞速思考中……")  # 填充等待（独立事件，不进回复内容）
     await asyncio.sleep(delay)
 ```
 

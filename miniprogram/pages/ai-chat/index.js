@@ -206,6 +206,17 @@ Page({
             currentEvent = '';
             return;
           }
+          // retry_wait 事件：重试等待提示（#78 独立事件，不进回复内容，
+          // 重试成功后的首个 token 会替换掉提示与首轮残留）
+          if (currentEvent === 'retry_wait') {
+            this._retryPending = true;
+            this.showRetryWaiting();
+            currentEvent = '';
+            continue;
+          }
+          // 重试成功后的完整回复：清掉等待文案与首轮失败前流出的部分，
+          // 从完整回复重新开始（消除「部分+提示+完整」三段拼接，#78）
+          if (this._retryPending) this.resetAiBubbleForRetry();
           try {
             const parsed = JSON.parse(dataStr);
             // parsed 可能是 {"content":"..."} 或 裸字符串 "内容"（token 事件）
@@ -229,6 +240,30 @@ Page({
       lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
       this.setData({ messages });
       this.scrollToBottom();
+    }
+  },
+
+  /** 重试等待提示：把当前 AI 气泡替换为等待文案（#78） */
+  showRetryWaiting() {
+    const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant') {
+      lastMsg.content = 'AI 正在飞速思考中……';
+      lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
+      this.setData({ messages });
+      this.scrollToBottom();
+    }
+  },
+
+  /** 重试成功后的完整回复：清空当前 AI 气泡（去掉等待文案与首轮残留，#78） */
+  resetAiBubbleForRetry() {
+    this._retryPending = false;
+    const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant') {
+      lastMsg.content = '';
+      lastMsg.nodes = [];
+      this.setData({ messages });
     }
   },
 

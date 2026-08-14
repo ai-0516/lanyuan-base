@@ -186,7 +186,7 @@ class TestRetryLlmChat:
             assert elapsed >= 0.3, f"应该等待退避，实际 {elapsed:.2f}s"
             # retrying token + success + done
             assert len(events) == 3
-            assert events[0] == ("token", "AI 正在飞速思考中……")
+            assert events[0] == ("retry_wait", "AI 正在飞速思考中……")
             assert events[1] == ("token", "success")
             assert events[2] == ("done", "")
             assert call_count == 2
@@ -215,9 +215,9 @@ class TestRetryLlmChat:
 
             # 3 次 retrying token + 1 次 fallback
             assert len(events) == 4
-            assert events[0] == ("token", "AI 正在飞速思考中……")
-            assert events[1] == ("token", "AI 正在飞速思考中……")
-            assert events[2] == ("token", "AI 正在飞速思考中……")
+            assert events[0] == ("retry_wait", "AI 正在飞速思考中……")
+            assert events[1] == ("retry_wait", "AI 正在飞速思考中……")
+            assert events[2] == ("retry_wait", "AI 正在飞速思考中……")
             assert events[3][0] == "fallback", f"最后应为 fallback，实际 {events[3][0]}"
             assert "message" in events[3][1]
             # RATE_LIMIT/OVERLOADED: max_retries=3, 所以总调用 4 次（1 次初始 + 3 次重试）
@@ -281,7 +281,7 @@ class TestRetryLlmChat:
             # 首次尝试直接 yield("partial_")，retrying token，重试后 yield("complete", "done")
             assert len(events) == 4
             assert events[0] == ("token", "partial_")              # 首次尝试直接流式
-            assert events[1] == ("token", "AI 正在飞速思考中……")  # 重试提示
+            assert events[1] == ("retry_wait", "AI 正在飞速思考中……")  # 重试提示
             assert events[2] == ("token", "complete")               # 重试缓存后 yield
             assert events[3] == ("done", "")
         finally:
@@ -338,7 +338,7 @@ class TestPayloadTooLarge:
             assert call_count == 3, f"应有 3 次调用，实际 {call_count}"
             # retrying 提示 + 重试成功（缓存后 yield）
             assert len(events) == 3
-            assert events[0] == ("token", "AI 正在飞速思考中……")
+            assert events[0] == ("retry_wait", "AI 正在飞速思考中……")
             assert events[1] == ("token", "ok")
             assert events[2] == ("done", "")
             # messages 被原地压缩：摘要消息 + 尾部 5 条（+system 无）

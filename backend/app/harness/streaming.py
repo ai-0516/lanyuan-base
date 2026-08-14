@@ -304,7 +304,7 @@ async def retry_llm_chat(messages: list[Message], tools: list[dict] | None = Non
             "LLM retry: code=%s attempt=%d/%d delay=%.1fs",
             code.value, attempt + 1, max_retries, delay,
         )
-        yield ("token", "AI 正在飞速思考中……")
+        yield ("retry_wait", "AI 正在飞速思考中……")
         await asyncio.sleep(delay)
 
     # safety exit (shouldn't reach here)
