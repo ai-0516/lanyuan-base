@@ -17,10 +17,14 @@ class LLMAdapter(ABC):
     协议相关的 URL 后缀 / 认证头 / 流结束信号由子类提供。
     """
 
-    protocol: Protocol  # Protocol.OPENAI | Protocol.ANTHROPIC
+    protocol: Protocol  # Protocol.OPENAI | Protocol.ANTHROPIC | Protocol.RESPONSES
 
-    # Anthropic API 必填 max_tokens；OpenAI 兼容协议不传（None）
+    # Anthropic API 必填 max_tokens；OpenAI 兼容协议不传（None）。
+    # Responses API 的字段名是 max_output_tokens（见 max_tokens_field）
     DEFAULT_MAX_TOKENS: int | None = None
+
+    # token 上限字段名：协议相关（OpenAI 兼容认 max_tokens，Responses 认 max_output_tokens）
+    max_tokens_field: str = "max_tokens"
 
     # ── 协议相关 HTTP 元信息（streaming.py 编排 HTTP 时读取）──
 

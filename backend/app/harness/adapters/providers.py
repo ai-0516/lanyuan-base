@@ -26,6 +26,7 @@ class Protocol(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    RESPONSES = "responses"
 
 
 class ProviderConfig(TypedDict):
@@ -59,6 +60,10 @@ PROVIDERS: dict[str, dict] = {
             },
             Protocol.ANTHROPIC: {
                 "default_base_url": "https://api.deepseek.com/anthropic",
+            },
+            # DeepSeek Responses API（2026 为 Codex 兼容新增）：同 openai 模式主机
+            Protocol.RESPONSES: {
+                "default_base_url": "https://api.deepseek.com",
             },
         },
     },

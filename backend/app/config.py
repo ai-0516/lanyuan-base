@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # provider 与 protocol 分离（review #53 第二轮）：厂商维度与协议维度正交。
     # 例：deepseek 厂商既支持 openai 协议也支持 anthropic 协议，protocol 单独选择。
     LLM_PROVIDER: str = "deepseek"      # 厂商: deepseek | （未来）qwen/moonshot/zhipu/anthropic
-    LLM_PROTOCOL: str = "openai"        # 协议: openai | anthropic（对应该协议的 LLMAdapter 子类）
+    LLM_PROTOCOL: str = "openai"        # 协议: openai | anthropic | responses（对应 LLMAdapter 子类）
     LLM_BASE_URL: str = ""              # 空 → 按 (provider, protocol) 默认值
     LLM_MODEL: str = ""                 # 空 → 按 provider 默认值（deepseek-v4-flash）
     # （deepseek-chat/reasoner 已于 2026-07-24 退休）
