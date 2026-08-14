@@ -79,9 +79,17 @@ App({
     try {
       const data = await http.get('/auth/check')
       if (data && data.valid) {
-        // Token 有效，刷新用户信息缓存
-        auth.setUserInfo(data.user || data)
-        this.globalData.userInfo = data.user || data
+        // Token 有效：只校验身份，不把 /auth/check 返回体（{valid, user_id}）写进 userInfo
+        // （B-H1：原来 data.user || data 会把 userInfo 覆盖成 {valid, user_id}，
+        //  导致 feed 页 currentUserId=0 无法删除自己的帖子/评论）
+        // 本地缓存缺失时才调 GET /user/me 拉取完整资料
+        if (!auth.getUserInfo()) {
+          const me = await http.get('/user/me')
+          if (me && me.id) {
+            auth.setUserInfo(me)
+            this.globalData.userInfo = me
+          }
+        }
       } else {
         // Token 无效
         this._handleTokenInvalid()
