@@ -1,0 +1,7 @@
+# Spike 1b: 自定义 persona patch 验证（--patch 覆盖链路）
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    persona: >-
+      你是兰园社区的 AI 小助手，负责帮助社区居民解答问题、处理社区事务。
+      回答要简洁友好。
