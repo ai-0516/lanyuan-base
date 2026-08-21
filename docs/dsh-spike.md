@@ -105,6 +105,26 @@ session.event 事件流（on_notification 实时到达）：
 - 生命周期：`--workers 1` 起步（v1 本就每 worker 一份内存缓存）；多 worker 需 session 亲和性
 - 前端：SSE 契约不变，**零改动**；thinking（reasoning-delta）是否展示为产品决策
 
+## exe 定制评估（2026-08-21 补充）
+
+可以定制：exe 的插件集 = `python/sdk-runtime/package.json` 依赖闭包（打包根），删/加依赖 + 重建 exe 即得定制版（官方机制：加一行依赖 + `scripts/build-exe-for-python-sdk.ts`）。但落地前评估：
+
+**打包 ≠ 加载**：exe 内置插件是「可用池」，cordis.yml 决定运行时实际加载哪些——不配置的插件不占内存、不注册工具。运行时裁剪零成本，是优先手段。
+
+| 层次 | 手段 | 效果 |
+|---|---|---|
+| 运行时裁剪（轻） | 自己的 cordis.yml 只配置需要的插件 | 行为/内存/工具面可控，零构建成本 |
+| 打包裁剪（重） | fork sdk-runtime 清单，重建 exe | 文件体积变小（部署相关） |
+
+**三个现实约束**：
+1. 体积收益有限：197M 中 Node runtime 是固定大头（嵌入式 Node 约 100M 量级），插件 JS 只占一部分，全删预计省 30-50M——镜像层面差别不大，除非部署体积有硬红线
+2. 维护成本高：官方 8 天 7 个 rc 的节奏，自建 exe = 每次上游升级重新 merge + pnpm build + 打包（fork 税）；服务器实测 `pnpm build` core dump，构建链有环境门槛
+3. jsonrpc-agent npm 包发布后，插件自由走「npm install + cordis.yml + 裸插件机制」，不需要碰 exe
+
+**何时值得自建 exe**：① 部署体积被微信云托管硬性卡死；② 私有 TS 插件需编译进 runtime 免子进程。其余情况 cordis.yml 裁剪 + MCP 桥 + npm 形态足够。
+
+**v2 建议路径**：默认 cordis.yml 运行时裁剪 + MCP 工具桥；部署体积超限再自建最小 exe（Mac 可构建、CI 化）；需内置私有 TS 插件时在清单中加包或走 npm 裸插件机制。
+
 ## 风险与待确认
 
 1. jsonrpc-agent npm 包未发布（影响 npm 形态时机；发布节奏 8 天 7 个 rc，预期很快）
