@@ -39,7 +39,7 @@ DSH 是构建在 Cordis（vendored）之上的插件化 agent harness。**一切
 | **Chain of Responsibility 责任链** | **waterfall 事件**：`agent/pre-step`、`agent/request`、`llm/stream`、`tools/pre-execute/execute/post-execute`——listener 必须调 `next()` 委托给下一个，可拦截/改写/拒绝 | `docs/architecture.md`（turn flow） |
 | **Command 命令** | **SessionEvent 追加式日志**（append-only 事件流 = 命令日志/事件溯源）；`jobs` 后台任务工具；`todo_write` | `docs/architecture.md`、`packages/jobs/` |
 | **Interpreter 解释器** | `cordis-plugin-include` 解析 cordis.yml 中的 `!!js` 表达式为表达式节点，Loader 在插件激活时求值 | `docs/cordis-primer.md`、`@deepseek-ai/cordis-plugin-include` |
-| **Iterator 迭代器** | `deriveMessages()` / `foldSurface()` / `foldRequestHeader()`——对 session 事件日志的折叠投影；事件流的游标式读取 | `packages/core/session/src/index.ts` |
+| **Iterator 迭代器** | **无自实现**——模式已被现代语言内建迭代吸收（JS `for-of`/`Symbol.iterator`，GoF 1994 年时语言未内建故列为模式）。DSH 直接使用内建迭代，其架构价值在「事件日志 → 迭代 → 投影」机制：`foldSurface()`（全量折叠：遍历事件流归约出模型可见消息序列）、`SurfaceManager`（seq 游标增量折叠，只处理新追加事件）、`foldRequestHeader()`（请求快照重建） | `packages/core/session/src/surface.ts:387`、`packages/core/session/src/surface.ts:398` |
 | **Mediator 中介者** | **Cordis Context（ctx）**：插件之间不直接通信，通过 ctx 服务注册表 + 事件总线中介——插件零互相引用，可独立装卸 | Cordis primer、`docs/architecture.md` |
 | **Memento 备忘录** | `dsh-session-checkpoint-policy`（request / tool-dispatch / completed-step 三档持久化检查点）；compaction 的 `compaction/start|summary|end` 事件是压缩操作的持久化痕迹 | `packages/session/session-checkpoint-policy/`、`packages/compaction/` |
 | **Observer 观察者** | 事件系统主体：`ctx.on()` 订阅、`session/event` 广播（持久事件）、`agent/*`、`tools/*`（实时事件） | `docs/architecture.md`（Events 节） |
