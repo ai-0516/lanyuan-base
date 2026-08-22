@@ -192,6 +192,21 @@ revision = `` `${storeIdentity}:incarnation:${incarnation}:revision:${revision}`
 
 **三条路线**：A. 私有本地（推荐起步，零成本落地）；B. 私有 publish（GitHub Packages，多项目复用才需要）；C. 公有贡献——发 npm 或给 deepseek-harness 提 PR 合入官方（第三个 backend：官方只有 JSONL/SQLite 两个本地后端，无网络数据库后端=框架空白），面试叙事价值，代码实战验证后再走。
 
+**影响面排查（其他插件零代码修改）**：默认 cordis.yml 实际用 **JSONL**（`root: $DSH_SESSION_ROOT ?? './.sessions'`），SQLite 只是可选后端——切换是「jsonl → mysql」。排查结论：
+- **接口消费者（20+ 包）透明**：core/agent、agent-loop、tools、subagent、schedule、feedback、hooks、workspace、apiproxy 等全走 `ctx.sessionPersistence` 接口，backend 换介质无感知
+- **独立 SQLite 使用者不改**：`session-query-sqlite`（搜索索引）与 `storage-sqlite`（DSH 内部 KV）都是**派生/无关存储**，不是 session log 真源，保留或禁用均可
+- **测试确认项（非修改）**：session-checkpoints 的 durable 语义（append 返回即落库，事务提交后 resolve）、session-projection-cache（JSON 文件缓存，可丢弃重建）、apiproxy session-export（`supportsRawArtifacts=false` 路径，照 SQLite）
+
+**查询层组合：MySQL 真源 + SQLite FTS5 搜索投影（2026-08-22 定）**：持久化介质（真源）与查询介质（投影）是**正交维度**，官方本就任意组合（JSONL/SQLite × FTS5）。推荐组合：persistence=MySQL（只写+恢复）、session-query=SQLite FTS5（搜索投影，本地文件）：
+
+```
+MySQL（真源）→ inspect(id) 接口（解耦点）→ session-query-sqlite 建 FTS5 索引（派生投影）
+```
+
+- session-query-sqlite 唯一读入口是 `persistence.inspect(id)`（index.ts:508），从不直接碰文件——切 MySQL 后自动索引 MySQL 数据，零修改
+- 三个边界：① 冷启动索引重建（容器重启丢本地文件，首建全量 + 增量水印续跑，历史量大要验证）；② 最终一致（异步/批量索引，刚写完的会话可能延迟可见——v1 search_history 是实时 LIKE，延迟是产品决策）；③ 多实例各持一份索引副本（workers=1 规避）
+- 价值：**搜索从 MySQL 里解放**——v1 search_history 卡在 MySQL FTS（#42 未落地：中文分词/相关性/索引维护），v2 搜索不碰 MySQL，直接复用官方成熟的 FTS5 实现（高亮/分页/中文处理已踩平）
+
 ## 风险与待确认
 
 1. jsonrpc-agent npm 包未发布（影响 npm 形态时机；发布节奏 8 天 7 个 rc，预期很快）
