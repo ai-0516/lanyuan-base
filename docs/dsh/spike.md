@@ -150,6 +150,48 @@ getOrCreateSession → get-or-load-or-create：
 
 **不做的（排除决策）**：fork 分支语义（从历史切点派生新会话，UI「分支对话」）——git 心智模型，不 human：人类对话只有两条路，要么继续同一会话（=get-or-load-or-create 恢复），要么带着理解开新话题（=摘要+新会话注入）。v2 明确不做，lanyuan-base 无此场景（2026-08-22 定）。
 
+## MySQL PersistenceBackend 落地清单（2026-08-22 补充）
+
+**结论**：不用改 deepseek-harness repo、不用重建运行时、不用 npm publish。DSH 持久化是两层架构——`PersistenceCoordinator`（编排层：write-behind 缓冲/游标/adoption/崩溃修复排序，完全复用）+ `PersistenceBackend<TornMarker>`（物理层 8 hook，coordinator.ts:127 明说 "over files, rows, an object store, …"）。只需照官方 `SqliteStore`（store.ts:56）写一个 MySQL store。
+
+**代码位置**：`lanyuan-base/dsh/` 一体化家目录（与 backend/、miniprogram/ 平级，Node 侧全在此子树，删除即卸载 DSH 集成）：
+
+```
+lanyuan-base/
+├── backend/                        # Python FastAPI（不动）
+├── miniprogram/                    # 微信小程序（不动）
+└── dsh/                            # DSH 运行时（完整 npm 项目）
+    ├── package.json                # @deepseek-ai/dsh + file: 本地插件依赖
+    ├── cordis-lanyuan.yml          # 运行时配置（MySQL backend 插件 + 禁用默认持久化）
+    ├── node_modules/               # npm install 产物（部署时生成）
+    └── mysql-persistence/          # 插件包（TS → dist/）
+        ├── src/index.ts            # MySqlSessionPersistence extends SessionPersistence
+        └── src/store.ts            # MySqlStore implements PersistenceBackend<number>
+```
+
+**表结构**（照官方 SQLite DDL 映射，schema.sql）：`sessions(id, version, created_at, cwd, parent_session, seed_length, origin, delegation_depth, agent_preset, incarnation, revision)` + `events(session_id, seq, type, time, data, source_event_seqs, surface_op, ignorable, PK(session_id, seq), FK → sessions)` + `persistence_state(singleton, store_id)`。data/source_event_seqs 用 JSON 列。
+
+**8 hook 实现要点**（照 SqliteStore 翻译）：
+
+| hook | MySQL 要点 |
+|---|---|
+| `loadStored(id)` | 读 sessions + events 行 → `StoredPrefix{meta, events, revision, tornMarker}` |
+| `readStoredRevision(id)` | 只 SELECT revision/incarnation |
+| `loadStoredFrom?(id, fromSeq)` | 应实现（`WHERE seq >= ?`，按 seq 寻址天然适合） |
+| `appendBatch(meta, events, isMaterialized)` | InnoDB 事务：`!isMaterialized` 时 materialize+首批**原子提交**；`SELECT ... FOR UPDATE` 锁行读 tail → 校验 `first.seq === next seq` → 批量 INSERT → revision+1 |
+| `commitRepair(meta, tornMarker, closers)` | tornMarker 则 DELETE seq>= 截断；closers 校验续接后 INSERT；revision+1 |
+| `list()` | SELECT sessions → headers |
+| `locate?()` | undefined（无每会话独立 artifact，同 SQLite） |
+| `close?()` | 关连接池 |
+
+revision = `` `${storeIdentity}:incarnation:${incarnation}:revision:${revision}` ``（storeIdentity 换 `mysql:${host}:${db}:store:${store_id}`）；TornMarker 用 number（MySQL 事务原子提交，torn 场景实际罕见）。**不做 chunk 打包 codec**（SQLite schema-17 的 packChunkRuns 是物理层优化，MySQL 行数非瓶颈，省掉可简化 torn 语义）。
+
+**加载机制（不 publish 的依据）**：`cordis-plugin-loader` 的 `import()`（lib/index.js:259）——`.` 开头=相对路径导入（`new URL(name, baseUrl)`），否则=npm 包名解析。用 **file: 本地依赖 + 包名** 而非相对路径：`package.json` 声明 `"@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence"`，npm install 装进 `dsh/node_modules`（@deepseek-ai/* 复用运行时版本，mysql2 自动装），cordis.yml 写包名。物理行为等价 publish 后安装，但零发布、代码私有。
+
+**两个前提**：① 禁用默认持久化后端——`ctx.sessionPersistence` 单实例互斥，cordis.yml 把默认 sqlite persistence 插件标 `disabled: true` 换成本插件；② 运行时**不重建**——npm 形态 runtime 就是 `@deepseek-ai/dsh` npm 包，`npm install` 是部署步骤不是打包步骤；exe 形态才需重建（内置插件集编译时固定），v2 用 npm 形态与其无关。
+
+**三条路线**：A. 私有本地（推荐起步，零成本落地）；B. 私有 publish（GitHub Packages，多项目复用才需要）；C. 公有贡献——发 npm 或给 deepseek-harness 提 PR 合入官方（第三个 backend：官方只有 JSONL/SQLite 两个本地后端，无网络数据库后端=框架空白），面试叙事价值，代码实战验证后再走。
+
 ## 风险与待确认
 
 1. jsonrpc-agent npm 包未发布（影响 npm 形态时机；发布节奏 8 天 7 个 rc，预期很快）
