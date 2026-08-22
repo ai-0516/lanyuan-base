@@ -86,4 +86,4 @@ v2 如果 SessionEvent 日志落 MySQL：
 
 - v1 对照：v1 的「model history 组装」是手写 surface（无 replace 语义）；v1 压缩（L1-L4）改消息内容，DSH 改 surface 节点——**v1 改数据，DSH 改视图**
 - 若日志为真源，conversations/messages 从「数据」降级为「投影」——可丢弃重建，但投影器要可靠（这是责任）
-- 恢复限制：跨进程会话恢复仍受 JSON-RPC 协议限制（见 dsh-spike.md「SDK 协议扩展方向」）
+- 恢复限制：跨进程会话恢复仍受 JSON-RPC 协议限制（见 `spike.md`「SDK 协议扩展方向」）
