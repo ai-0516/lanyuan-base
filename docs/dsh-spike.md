@@ -125,6 +125,29 @@ session.event 事件流（on_notification 实时到达）：
 
 **v2 建议路径**：默认 cordis.yml 运行时裁剪 + MCP 工具桥；部署体积超限再自建最小 exe（Mac 可构建、CI 化）；需内置私有 TS 插件时在清单中加包或走 npm 裸插件机制。
 
+## SDK 协议扩展方向：session 跨进程恢复（2026-08-22 补充）
+
+**问题定位**：跨进程会话恢复不可用，既不是 Python SDK 的问题（忠实实现协议），也不是 DSH 核心的问题（核心完整支持 replay/fork/resume，`ctx.sessions.load`、`Session` log-seed 构造、coordinator adopt 机制都在）——缺口在 **JSON-RPC 协议层**（`dsh-sdk-jsonrpc-server` 只有 initialize/session/prompt/shutdown 三个方法，未暴露加载/恢复）。
+
+**改进方向（设计定稿）**：不在协议加新方法，而是在现有 `session/prompt` 内部扩展：
+
+```
+getOrCreateSession → get-or-load-or-create：
+  prompt(id) → 内存有？用内存的
+               : 持久化有？load 成 live session（核心 log-seed 重放）
+               : 都没有？新建
+  → 注入消息 → 追加
+```
+
+**设计要点**：
+1. 恢复是**服务端策略**而非客户端操作——`harness.run(prompt, session_id)` 语义不变，Python SDK 零改动，能力透明获得
+2. 完全复用核心能力（log-seed 构造 Session），不发明新机制；collision 守卫保留为 load 失败的兜底（日志损坏等异常路径）
+3. 三个边界：① 并发写需 owner 机制 + workers=1/session 亲和；② 无条件 load（id 即身份），sessionId 命名策略防意外复用；③ load 语义对「新对话 vs 恢复」的界定要写进文档
+
+**对 lanyuan v2 的意义**：能力落地后，「每请求新 session + 历史注入」策略可退役——正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复，hybrid 简化为零代码自动恢复。
+
+**验证路径**：改动集中在 `packages/sdk/server/src/server.ts` 的 getOrCreateSession + 官方 server 测试扩展；需 pnpm build（服务器 core dump，疑似内存不足，可加 `NODE_OPTIONS=--max-old-space-size=4096` 或 Mac 上构建）。
+
 ## 风险与待确认
 
 1. jsonrpc-agent npm 包未发布（影响 npm 形态时机；发布节奏 8 天 7 个 rc，预期很快）
