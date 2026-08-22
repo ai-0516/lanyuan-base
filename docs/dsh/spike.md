@@ -148,6 +148,8 @@ getOrCreateSession → get-or-load-or-create：
 
 **验证路径**：改动集中在 `packages/sdk/server/src/server.ts` 的 getOrCreateSession + 官方 server 测试扩展；需 pnpm build（服务器 core dump，疑似内存不足，可加 `NODE_OPTIONS=--max-old-space-size=4096` 或 Mac 上构建）。
 
+**不做的（排除决策）**：fork 分支语义（从历史切点派生新会话，UI「分支对话」）——git 心智模型，不 human：人类对话只有两条路，要么继续同一会话（=get-or-load-or-create 恢复），要么带着理解开新话题（=摘要+新会话注入）。v2 明确不做，lanyuan-base 无此场景（2026-08-22 定）。
+
 ## 风险与待确认
 
 1. jsonrpc-agent npm 包未发布（影响 npm 形态时机；发布节奏 8 天 7 个 rc，预期很快）
