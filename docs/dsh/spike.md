@@ -204,7 +204,9 @@ MySQL（真源）→ inspect(id) 接口（解耦点）→ session-query-sqlite �
 ```
 
 - session-query-sqlite 唯一读入口是 `persistence.inspect(id)`（index.ts:508），从不直接碰文件——切 MySQL 后自动索引 MySQL 数据，零修改
-- 三个边界：① 冷启动索引重建（容器重启丢本地文件，首建全量 + 增量水印续跑，历史量大要验证）；② 最终一致（异步/批量索引，刚写完的会话可能延迟可见——v1 search_history 是实时 LIKE，延迟是产品决策）；③ 多实例各持一份索引副本（workers=1 规避）
+- **索引维护机制（自动，零代码）**：不是 seq 水印增量，而是 **revision 驱动的会话粒度对账**（`_reconcile` index.ts:395）——本地 `persisted_sessions` 表记录每个会话已索引的 revision，与 `readStoredRevision`（轻量读，不读日志）比对；revision 变了才 inspect 整个会话重建该会话的 FTS 文档，消失的会话删条目，全部变化一个事务提交 + `global_generation` 递增
+- **部署场景行为（2026-08-22 定）**：微信云托管容器文件系统非持久化 → **每次重新部署索引文件丢失 → 启动对账自动全量重建**（从 MySQL inspect 重建，耗时∝历史量）；切 MySQL 首次启动也全量重建一次（storeIdentity 变了 → 所有 revision 不同）。**数据零风险**（MySQL 真源不动，丢的只是可重建投影），**接受自动重建，不引入持久化卷**——历史量真到重建太慢再挂卷（revision 对账自然变增量，部署调优非架构改动）
+- 三个边界：① 最终一致（异步/批量对账，刚写完的会话可能延迟可见——v1 search_history 是实时 LIKE，延迟是产品决策）；② 多实例各持一份索引副本（workers=1 规避）；③ 重建耗时随历史量线性（社区场景可接受，需实测）
 - 价值：**搜索从 MySQL 里解放**——v1 search_history 卡在 MySQL FTS（#42 未落地：中文分词/相关性/索引维护），v2 搜索不碰 MySQL，直接复用官方成熟的 FTS5 实现（高亮/分页/中文处理已踩平）
 
 ## 风险与待确认
