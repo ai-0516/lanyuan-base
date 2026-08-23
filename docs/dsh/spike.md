@@ -21,7 +21,7 @@
 
 | # | 实验 | 结论 | 关键证据 |
 |---|---|---|---|
-| 1 | DSH runtime 跑通 | ✅ | SDK exe / npm CLI / 自定义 cordis.yml 三链路全部跑通 |
+| 1 | DSH runtime 跑通 | ✅ | SDK exe / 自定义 cordis.yml 链路跑通；npm 形态见 1d/1e |
 | 2 | SSE 流式转发 | ✅ | `text-delta` 事件逐 token，首 token ~1.2s；**跨进程会话恢复受限（重要发现）** |
 | 3 | MCP 工具桥 | ✅ | Python MCP server → dsh-mcp-client → agent 真实调用业务工具 |
 | 4 | 并发 + 崩溃重启 | ✅ | 3 session 并发互不干扰；kill 后 close()+start() 恢复服务 |
@@ -29,10 +29,10 @@
 
 ## 实验 1：runtime 跑通（npm 版）
 
-三条链路均实测成功：
+两条链路实测成功（npm CLI 仅作旁证，不采用）：
 
 1. **SDK + bundled exe**（零配置）：`harness.run()` → `finish=completed`，93 个事件
-2. **npm 版 CLI**：`npm install @deepseek-ai/dsh@0.1.0-rc.7`，`dsh --profile headless "任务"` 真实调用 DeepSeek API；内置 web search 工具被 agent 真实调用（搜索 V4 Pro 新闻并返回带引用来源的总结）
+2. **npm 版 CLI**：`npm install @deepseek-ai/dsh@0.1.0-rc.7`，`dsh --profile headless "任务"` 真实调用 DeepSeek API；内置 web search 工具被 agent 真实调用（搜索 V4 Pro 新闻并返回带引用来源的总结）——**不采用**：v2 后端是 SDK 驱动（无 CLI 使用场景），此链路仅作 npm 形态可用性旁证
 3. **自定义配置**：`--patch`（persona 覆盖生效）；SDK `cordis=` 参数（自定义 cordis.yml persona 生效，agent 自称「兰园社区 AI 小助手」）
 
 **发现**：npm 发布是分阶段的——`@deepseek-ai/dsh` CLI（rc.7）已发布，但 **jsonrpc-agent 相关包（dsh-sdk-jsonrpc-server 等）尚未发布**（8/10 rc.1 → 8/17 rc.7，节奏很快）。SDK 驱动 npm 自定义 runtime 需等这些包发布，或从源码 build（本地 pnpm build 遇 core dump，未走通）。
