@@ -10,7 +10,7 @@
 - [2. 技术选型（v2 增量）](#2-技术选型v2-增量)
 - [3. 系统架构](#3-系统架构)
 - [4. SSE 协议：透传 DSH 事件](#4-sse-协议透传-dsh-事件)
-- [5. 会话策略（三段演进）](#5-会话策略三段演进)
+- [5. 会话策略（MySQL + get-or-load-or-create）](#5-会话策略mysql-persistencebackend--get-or-load-or-create)
 - [6. MCP 工具桥](#6-mcp-工具桥)
 - [7. dsh/ 家目录](#7-dsh-家目录)
 - [8. 数据模型（v2 增量）](#8-数据模型v2-增量)
@@ -148,19 +148,20 @@ lanyuan-base/
 ### 4.4 明确不做
 
 - ❌ text-delta→token 等瘦身翻译（v1 契约退役）
-- ❌ reasoning-delta 丢弃（thinking 展示 = 产品决策，见 §14）
 - ❌ 事件字段删减
+- reasoning-delta：**透传但前端暂不渲染 thinking**（2026-08-23 用户定，数据仍透传，前端丢弃渲染）
 
-## 5. 会话策略（三段演进）
+## 5. 会话策略：MySQL PersistenceBackend + get-or-load-or-create（2026-08-23 用户定）
 
-### 5.1 短期（M1/M2 落地）：每请求新 session + 历史注入
+**v2 会话目标**：MySQL 持久化 + get-or-load-or-create 恢复，配套使用（持久化提供 load 数据源，恢复提供 load 逻辑）。历史注入仅为 M1/M2 过渡期临时手段，M3 落地后退役。
+
+### 5.1 过渡期（M1/M2）：每请求新 session + 历史注入
 
 - 已验证（实验 2h）：`session/prompt` 注入 `[历史1, 历史2, 新问题]` content blocks → agent 正确理解上下文（「地暖 22°C」）
+- 仅用于 M1 骨架/M2 工具桥的功能验证；M3 后退役
 - 前端历史展示/搜索仍走 MySQL（不变）
-- DSH session 承载单次请求处理 + JSONL 审计
-- 跨会话压缩（rotation）FastAPI 侧沿用 v1 逻辑
 
-### 5.2 中期（M3）：MySQL PersistenceBackend 插件
+### 5.2 MySQL PersistenceBackend 插件（M3，v2 会话组成部分）
 
 两层架构（PersistenceCoordinator 编排层全复用 + 物理层 8 hook 只写 MySQL store）：
 - 代码位置：`dsh/mysql-persistence/`（TS → dist/，file: 本地依赖零 publish）
@@ -172,7 +173,7 @@ lanyuan-base/
   - 不做 chunk 打包 codec（行数非瓶颈）
 - 两个前提：cordis.yml 禁用默认 jsonl persistence（`disabled: true`）；运行时不重建（npm install 是部署步骤）
 
-### 5.3 长期：get-or-load-or-create（官方缺口，服务端策略）
+### 5.3 get-or-load-or-create（M3，v2 会话组成部分）
 
 - 官方 rc.5 缺口确认：`handleRequest` 仅 initialize/session/prompt/shutdown；`getOrCreateSession` 只查内存（"发现框架空白"叙事）
 - 设计（已定稿）：不在协议加新方法，在 `session/prompt` 内部扩展：
@@ -184,6 +185,7 @@ lanyuan-base/
 - Python SDK 零改动（服务端策略）；collision 守卫保留为 load 失败兜底
 - 三个边界：并发写 owner 机制 + workers=1/session 亲和；无条件 load（id 即身份）；load 语义界定写文档
 - 实现 = 本地 `@lanyuan/dsh-server` 插件替换官方 sdk-jsonrpc-server（同 mysql-persistence 套路）
+- 恢复后「每请求新 session + 历史注入」退役：正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复
 
 ### 5.4 环境变量管理（2g 实验教训）
 
@@ -230,7 +232,7 @@ DSH runtime
 
 | 工具 | 说明 |
 |---|---|
-| `search_history` | 搜索用户过往对话（v1 #42 卡点 → v2 搜索走 SQLite FTS5 投影，见 §8） |
+| `search_history` | **给 LLM 的搜索 tool**（前端不做搜索页/API，2026-08-23 定）；数据源 SQLite FTS5 投影（§8.3，v1 #42 MySQL FTS 卡点解放） |
 | `get_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号） |
 | 其余 v1 工具按需迁移 | 发帖/评论/记忆类（里程碑内逐个搬） |
 
@@ -275,6 +277,8 @@ DSH runtime
 
 conversation / message 仍为业务数据 + 前端历史投影（写路径 v2 保持）。**搜索从 MySQL 解放**：v1 #42 MySQL FTS 卡点 → v2 搜索走 SQLite FTS5 投影（§8.3）。
 
+> ⚠️ v1 历史对话数据定位待确认（§14#3）：v1 的 conversation/message 表存有历史对话；v2 的 FTS5 投影只覆盖 DSH session 日志（v2 起的新对话）。旧数据是保留在 MySQL 仅供展示（搜索 tool 只覆盖 v2）？还是迁移/同步进 DSH 日志（需一次性回填）？还是不管？
+
 ### 8.2 MySQL PersistenceBackend 表结构（中期）
 
 ```
@@ -310,16 +314,20 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 全部不变（v1 TECH_SPEC §4）。v2 只改 /ai/chat 内部实现。
 
-### 9.3 新增（如需要）
+### 9.3 搜索能力
 
-- 搜索接口（SQLite FTS5 投影）——复用 session-query 能力，API 形态 v1 search_history 对齐，待 v2 前端需求确认（§14）
+**前端不做搜索 API/搜索页**（2026-08-23 用户定）——搜索是给 LLM 的 tool（`search_history`，§6.4），数据源 SQLite FTS5 投影（§8.3）。
 
 ## 10. 前端 v2（小程序）
+
+### 10.0 双版本策略（2026-08-23 用户定）
+
+**忽略 v1，以 v2 为准**——不做并行期，v2 前端直接替换（v1 前端契约/页面退役）。
 
 ### 10.1 事件消费
 
 - 消息流：`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾
-- thinking：`assistant/chunk`（reasoning-delta）→ 可折叠思考区（产品决策，§14）
+- thinking：reasoning-delta **透传但不渲染**（§4.4，暂不展示思考过程）
 - 工具过程：`tool/call` / `tool/result` → 过程卡片（工具名 + 参数 + 结果）
 - 多轮：`message:start` 语义由 `turn/start` 承接（新气泡）
 - 错误/重试：`turn/end` reason.kind=error / SSE error 帧
@@ -374,24 +382,22 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 | 里程碑 | 内容 | 依赖 |
 |---|---|---|
-| **M1 骨架** | dsh/ 家目录 + SDK 拉起 runtime + SSE 透传 + 最短对话（每请求新 session） | spike 1d/1e、2a-2h |
+| **M1 骨架** | dsh/ 家目录 + SDK 拉起 runtime + SSE 透传 + 最短对话（每请求新 session，过渡会话） | spike 1d/1e、2a-2h |
 | **M2 工具桥** | MCP server（首批工具）+ user_id 注入机制验证 | spike 3/3b |
-| **M3 会话** | MySQL PersistenceBackend 插件（或按需直接做 get-or-load-or-create 本地插件） | MySQL 落地清单 |
-| **M4 前端 v2 + 部署** | 小程序事件消费改造 + Docker + 云托管 | §10、§11 |
+| **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
+| **M4 前端 v2 + 部署** | 小程序事件消费改造（v2 直接替换 v1）+ Docker + 云托管 | §10、§11 |
 
 每个里程碑独立 PR + dev-lead review；实现顺序串行（一个功能块一个 issue）。
 
 ## 14. 待确认项
 
+已定案（2026-08-23 用户）：thinking 前端暂不展示（§4.4）；搜索只做 LLM tool 不做前端 API（§9.3）；FTS5 延迟可见可接受（§8.3）；忽略 v1 以 v2 为准（§10.0）；MCP 每 worker 一个（§3.1）；会话 = MySQL + get-or-load-or-create（§5）。
+
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
-| 1 | thinking（reasoning-delta）是否前端展示 | 技术就绪，产品决策 | 用户 |
-| 2 | 微信云托管镜像大小限制 | 未实测 docker 构建 | 用户/M4 实测 |
-| 3 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | 原则已定，机制实现时 spike 验证 | dev/M2 |
-| 4 | 搜索接口 API 形态（v2 前端是否需要独立搜索页） | 依赖前端需求 | 用户 |
-| 5 | 历史注入的延迟可见性（FTS5 异步对账）是否可接受 | 技术边界已明确 | 用户 |
-| 6 | v2 前端双版本切换策略（v1 小程序 vs v2 小程序并行/替换） | 未定 | 用户 |
-| 7 | MCP server 进程数（每 worker 一个 vs 全局一个） | 默认每 worker 一个，量大再评估 | dev/M4 |
+| 1 | 微信云托管镜像大小限制 | 未实测 docker 构建 | M4 实测 |
+| 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | 原则已定（§6.3），机制实现时 spike 验证 | dev/M2 |
+| 3 | v1 历史对话数据（conversation/message 表）在 v2 的定位 | 未定（见 §8.1 注） | 用户 |
 
 ---
 
