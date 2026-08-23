@@ -246,15 +246,15 @@ DSH runtime
 
 ## 7. dsh/ 家目录
 
-### 7.1 package.json（显式 11 依赖，0.1.1-rc.2）
+### 7.1 package.json（10 依赖 + 自写 bin 入口，0.1.1-rc.2）
 
 ```jsonc
 {
   "dependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-agent-spine-demo": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent-spine-demo": "0.1.1-rc.2",   // agent 骨架：官方唯一，无非 demo 替代（§7.4）
     "@deepseek-ai/dsh-sdk-jsonrpc-server": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-sdk-jsonrpc-demo": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2",           // boot 核心（自写 runtime bin 用，§7.4）
     "@deepseek-ai/dsh-llm-deepseek": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-checkpoint-policy": "0.1.1-rc.2",
@@ -265,9 +265,12 @@ DSH runtime
     // 中期追加（file: 本地插件，零 publish）：
     "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",
     "@lanyuan/dsh-server": "file:./server"
-  }
+  },
+  "bin": { "dsh-jsonrpc-agent": "bin/dsh-jsonrpc-agent.js" }
 }
 ```
+
+> **版本说明**：0.1.1-rc.2 在 npm 的 `next` 标签（`latest` 停旧版 0.0.1-rc.x）——安装时显式锁定 `0.1.1-rc.2`，不能裸装（会拿到 latest 旧版）。
 
 ### 7.2 cordis-lanyuan.yml
 
@@ -278,6 +281,13 @@ DSH runtime
 - **严格模式**：cordis.yml 用到的每个插件必须显式声明在 package.json（spike 1d 教训）
 - **原生模块 build scripts 默认忽略**（node-pty/koffi 等）：bash 能力受限需 `pnpm approve-builds`；核心对话链路不受影响
 - 版本锁定 0.1.1-rc.2（部分包无此版本，对齐时 notarget——按需安装，不强行全量）
+
+### 7.4 runtime 入口：自写 bin（替代官方 sdk-jsonrpc-demo）
+
+- **`dsh-sdk-jsonrpc-demo` 不引入**（2026-08-23 定）：它是 `@deepseek-ai/dsh-app-boot` 的 62 行薄封装（`boot()` + stdin/SIGTERM 信号处理，解包确认），官方无正式替代包（`dsh-sdk-jsonrpc-agent` 404）
+- 自写 `dsh/bin/dsh-jsonrpc-agent.js`（~20 行，照 demo 逻辑）：读 `DSH_CORDIS_CONFIG` → `boot()` → 信号处理；依赖 `dsh-app-boot`（正式包，0.1.1-rc.2 批次）
+- SDK `runtime_bin` 指向 `node_modules/.bin/dsh-jsonrpc-agent`（自写的 bin）；入口归 lanyuan 控制（后续 get-or-load-or-create 换 server 插件时入口不用动）
+- **`dsh-agent-spine-demo` 保留**：非 demo 替代不存在（`dsh-agent-spine` 404；`dsh-agent` 是接口定义包非可配置插件）；它是官方 SDK/JSON-RPC 形态的唯一 agent 骨架（executor-less/UI-less：创建 agent、回合调度、标题、重试、persisted goals）——自己写等于重写骨架，v2 无此必要。demo 后缀是官方历史命名，行为即正式骨架（官方 sdk-runtime 默认配置用它）
 
 ## 8. 数据模型（v2 增量）
 
