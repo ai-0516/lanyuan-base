@@ -275,6 +275,37 @@ DSH runtime
 
 > **版本说明**：0.1.1-rc.2 在 npm 的 `next` 标签（`latest` 停旧版 0.0.1-rc.x）——安装时显式锁定 `0.1.1-rc.2`，不能裸装（会拿到 latest 旧版）。
 
+### 7.1b 依赖清单：每个包干什么、为什么依赖
+
+**官方正式包（10）**——按运行时角色分组：
+
+| 包 | 组 | 干什么 | 为什么依赖（缺了会怎样） | v2 备注 |
+|---|---|---|---|---|
+| `@deepseek-ai/dsh` | 启动·核心 | runtime 核心聚合：cordis 装配、dsh CLI、plugin 管理、agent loop / session / surface 等一切核心机制 | 整个 runtime 的地基；所有插件 peer-depend 它 | cordis.yml 无直接条目，但 pnpm 严格模式要求显式声明 |
+| `@deepseek-ai/dsh-app-boot` | 启动·核心 | app bin 的共享 boot 胶水：.env 加载、fail-loud 守卫、config 解析、Loader boot 序列 | 自写 runtime bin 的底层依赖（`boot()` 是唯一干活函数） | 替代官方 demo bin 后引入（§7.4） |
+| `@deepseek-ai/dsh-sdk-jsonrpc-server` | 协议层 | stdio JSON-RPC 服务端插件：initialize / session/prompt / shutdown | 没有它 SDK 无法与 runtime 通信，对话链路断 | **中期被本地 @lanyuan/dsh-server 替换（get-or-load-or-create）** |
+| `@deepseek-ai/dsh-llm-deepseek` | 骨架·模型 | DeepSeek chat-completions 适配器（LLM seam 的实现） | 没有它 agent 没有模型通道，无法生成回复 | 模型 = deepseek-v4-flash |
+| `@deepseek-ai/dsh-session-persistence-jsonl` | 会话·持久化 | JSONL 会话日志落盘 backend（崩溃恢复/审计/回放） | 没有它会话不落盘，进程内多轮无日志 | **中期换自写 mysql 插件（disabled 默认 jsonl）** |
+| `@deepseek-ai/dsh-session-checkpoint-policy` | 会话·持久化 | 语义化持久化时机：模型请求前 / 工具副作用前打 durable 检查点 | 不配它，已确认的回合可能因崩溃丢失 | 与 persistence 配套 |
+| `@deepseek-ai/dsh-subprocess-local` | 能力·执行 | 本地子进程能力（spawn/kill/输出管道），bash 执行器的底层 | 没有它 bash 工具无法 spawn 子进程 | 被 bash-local 消费 |
+| `@deepseek-ai/dsh-bash-local` | 能力·执行 | bash 执行器（agent 跑命令的能力） | 没有它 agent 不能执行 shell 命令 | pnpm 需 approve-builds（node-pty）才完整 |
+| `@deepseek-ai/dsh-fs-local` | 能力·文件 | 本地文件系统能力（ctx.fs：工作区指令加载） | 没有它 agent 无法读写工作区文件 | — |
+| `@deepseek-ai/dsh-mcp-client` | 工具桥 | MCP 客户端桥：spawn 外部 MCP server、listTools、注册进 ctx.tools | 没有它 Python 业务工具进不了 DSH 工具表——**v2 工具桥的核心** | 工具名 mcp__lanyuan__*（§6） |
+
+**本地插件（3，file: 依赖零 publish）**：
+
+| 包 | 干什么 | 为什么需要 | 何时引入 |
+|---|---|---|---|
+| `@lanyuan/dsh-agent-spine`（`file:./spine`） | 自写 agent 骨架：agent 创建、回合调度、LLM 路由、session、标题 | 官方骨架是 examples 包（不依赖，§7.4）；内部依赖 core 包 dsh-agent / dsh-agent-loop / dsh-llm / dsh-session / dsh-session-title / dsh-scope / dsh-invariants / dsh-home-paths（0.1.1-rc.2 已确认） | M1 |
+| `@lanyuan/dsh-session-persistence-mysql`（`file:./mysql-persistence`） | MySQL 持久化 backend（8 hook，§5.2/§8.2） | v2 会话真源 = MySQL；官方无网络数据库 backend（框架空白） | M3 |
+| `@lanyuan/dsh-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
+
+**bin 入口（1，自写）**：
+
+| 入口 | 干什么 | 为什么自写 |
+|---|---|---|
+| `dsh-jsonrpc-agent`（`bin/dsh-jsonrpc-agent.js`） | runtime 启动入口：读 DSH_CORDIS_CONFIG → boot() → 信号处理 | 官方 bin 是 examples 包（62 行薄封装）；自写 ~20 行等价实现（§7.4） |
+
 ### 7.2 cordis-lanyuan.yml
 
 基于 spike `cordis-jsonrpc.yml`（8 插件）：sdk-jsonrpc-server / agent-core(**@lanyuan/dsh-agent-spine**，自写) / llm-deepseek / sessions(jsonl) / session-checkpoints / subprocess / bash / fs-local + `mcp-lanyuan` 条目（§6.2）。中期替换：sessions → mysql 插件（disabled 默认 jsonl）、sdk-jsonrpc-server → 本地 server 插件。
