@@ -1,0 +1,8 @@
+# Spike 实验目录忽略项
+.venv/
+npm-dsh/node_modules/
+npm-dsh/.dsh-home/
+npm-dsh/.sessions/
+npm-dsh/.sessions-sdk/
+.sessions/
+__pycache__/

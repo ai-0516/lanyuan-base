@@ -1,0 +1,10 @@
+# Spike 3: MCP 工具桥——lanyuan 业务工具（Python MCP server）接入 DSH
+- insert:
+    - id: mcp-lanyuan
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: lanyuan
+        transport: stdio
+        command: /home/ubuntu/.hermes/profiles/dev/workspace/lanyuan-base-feat-82/spike/.venv/bin/python
+        args:
+          - /home/ubuntu/.hermes/profiles/dev/workspace/lanyuan-base-feat-82/spike/3_lanyuan_mcp_server.py
