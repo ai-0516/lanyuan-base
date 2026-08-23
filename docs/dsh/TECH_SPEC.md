@@ -286,7 +286,7 @@ DSH runtime
 | `@deepseek-ai/dsh-sdk-jsonrpc-server` | 协议层 | stdio JSON-RPC 服务端插件：initialize / session/prompt / shutdown | 没有它 SDK 无法与 runtime 通信，对话链路断 | **中期被本地 @lanyuan/dsh-server 替换（get-or-load-or-create）** |
 | `@deepseek-ai/dsh-llm-deepseek` | 骨架·模型 | DeepSeek chat-completions 适配器（LLM seam 的实现） | 没有它 agent 没有模型通道，无法生成回复 | 模型 = deepseek-v4-flash |
 | `@deepseek-ai/dsh-session-persistence-jsonl` | 会话·持久化 | JSONL 会话日志落盘 backend（崩溃恢复/审计/回放） | 没有它会话不落盘，进程内多轮无日志 | **中期换自写 mysql 插件（disabled 默认 jsonl）** |
-| `@deepseek-ai/dsh-session-checkpoint-policy` | 会话·持久化 | 语义化持久化时机：模型请求前 / 工具副作用前打 durable 检查点 | 不配它，已确认的回合可能因崩溃丢失 | 与 persistence 配套 |
+| `@deepseek-ai/dsh-session-checkpoint-policy` | 会话·持久化 | 语义化持久化时机：`llm/stream` 前 / 顶层 `tools/execute` 前 / `agent/pre-step` 前强制 `sessions.flush()`（源码 83 行，三个边界监听） | 去掉后靠 write-behind 自动兜底（200ms deadline）——崩溃最多丢 200ms 缓冲；**但工具副作用可能先执行后落盘**（副作用无日志 → 恢复不一致/审计缺口）；且失去 fail-closed 保护。对「日志即历史/审计」的 v2 会话模型**必须保留** | 与 persistence 配套 |
 | `@deepseek-ai/dsh-subprocess-local` | 能力·执行 | 本地子进程能力（spawn/kill/输出管道），bash 执行器的底层 | 没有它 bash 工具无法 spawn 子进程 | 被 bash-local 消费 |
 | `@deepseek-ai/dsh-bash-local` | 能力·执行 | bash 执行器（agent 跑命令的能力） | 没有它 agent 不能执行 shell 命令 | pnpm 需 approve-builds（node-pty）才完整 |
 | `@deepseek-ai/dsh-fs-local` | 能力·文件 | 本地文件系统能力（ctx.fs：工作区指令加载） | 没有它 agent 无法读写工作区文件 | — |
