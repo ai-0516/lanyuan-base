@@ -108,7 +108,7 @@ lanyuan-base/
 2. FastAPI 组装请求：短期 = 读 MySQL 历史 → content blocks + 新问题
 3. harness.run(prompt, on_notification=...)
 4. on_notification 实时到达 → sse_passthrough 逐事件包装 SSE 帧 → 前端
-5. 回复写回 MySQL（message/conversation 投影）
+5. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
 6. 工具调用 → DSH 内部调 MCP server（§6）→ 结果回 agent → 继续/结束
 ```
 
@@ -159,7 +159,7 @@ lanyuan-base/
 
 - 已验证（实验 2h）：`session/prompt` 注入 `[历史1, 历史2, 新问题]` content blocks → agent 正确理解上下文（「地暖 22°C」）
 - 仅用于 M1 骨架/M2 工具桥的功能验证；M3 后退役
-- 前端历史展示/搜索仍走 MySQL（不变）
+- M1/M2 前端历史列表暂不保证（M3 起从 DSH 日志派生，§10.4）
 
 ### 5.2 MySQL PersistenceBackend 插件（M3，v2 会话组成部分）
 
@@ -273,13 +273,13 @@ DSH runtime
 
 ## 8. 数据模型（v2 增量）
 
-### 8.1 MySQL 业务数据（v1 不变）
+### 8.1 MySQL 业务数据（用户/帖子等 v1 表不变）
 
-conversation / message 仍为业务数据 + 前端历史投影（写路径 v2 保持）。**搜索从 MySQL 解放**：v1 #42 MySQL FTS 卡点 → v2 搜索走 SQLite FTS5 投影（§8.3）。
+**v1 历史对话数据定位（2026-08-23 用户定：C 不管）**：v2 **不再维护** conversation / message 表（停止写入），前端历史列表改走 DSH session 日志派生（§10）。v1 旧对话沉底（保留在库不删，但不接入 v2 展示/搜索/注入；搜索 tool 只覆盖 v2 起的新对话）。表结构不在 v2 中演进，后续如需清理另议。
 
-> ⚠️ v1 历史对话数据定位待确认（§14#3）：v1 的 conversation/message 表存有历史对话；v2 的 FTS5 投影只覆盖 DSH session 日志（v2 起的新对话）。旧数据是保留在 MySQL 仅供展示（搜索 tool 只覆盖 v2）？还是迁移/同步进 DSH 日志（需一次性回填）？还是不管？
+**搜索从 MySQL 解放**：v1 #42 MySQL FTS 卡点 → v2 搜索走 SQLite FTS5 投影（§8.3）。
 
-### 8.2 MySQL PersistenceBackend 表结构（中期）
+### 8.2 MySQL PersistenceBackend 表结构（M3）
 
 ```
 sessions(id VARCHAR(64) PK, version, created_at, cwd, parent_session,
@@ -338,7 +338,12 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 10.3 组件树变化
 
-v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking 折叠区 / 工具过程卡片组件。其余页面不动。
+v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking 折叠区（暂不渲染，§10.1）/ 工具过程卡片组件。其余页面不动。
+
+### 10.4 历史列表
+
+- 数据源 = **DSH session 日志派生**（M3 起：MySQL events → 消息序列，或 FTS5 投影）；v1 旧对话不展示（§8.1 C 定案）
+- v1 conversation/message 表不再读取
 
 ## 11. 部署（微信云托管）
 
@@ -391,13 +396,12 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 ## 14. 待确认项
 
-已定案（2026-08-23 用户）：thinking 前端暂不展示（§4.4）；搜索只做 LLM tool 不做前端 API（§9.3）；FTS5 延迟可见可接受（§8.3）；忽略 v1 以 v2 为准（§10.0）；MCP 每 worker 一个（§3.1）；会话 = MySQL + get-or-load-or-create（§5）。
+已定案（2026-08-23 用户）：thinking 前端暂不展示（§4.4）；搜索只做 LLM tool 不做前端 API（§9.3）；FTS5 延迟可见可接受（§8.3）；忽略 v1 以 v2 为准（§10.0）；MCP 每 worker 一个（§3.1）；会话 = MySQL + get-or-load-or-create（§5）；v1 历史对话不维护不迁移（§8.1 C）。
 
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
 | 1 | 微信云托管镜像大小限制 | 未实测 docker 构建 | M4 实测 |
 | 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | 原则已定（§6.3），机制实现时 spike 验证 | dev/M2 |
-| 3 | v1 历史对话数据（conversation/message 表）在 v2 的定位 | 未定（见 §8.1 注） | 用户 |
 
 ---
 
