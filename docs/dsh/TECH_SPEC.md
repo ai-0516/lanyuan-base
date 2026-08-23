@@ -53,7 +53,7 @@
 
 | 组件 | 选型 | 依据 |
 |---|---|---|
-| DSH runtime | **零 examples 依赖**：官方正式包（dsh / dsh-app-boot / dsh-sdk-jsonrpc-server / dsh-llm-deepseek / dsh-session-persistence-jsonl / dsh-session-checkpoint-policy / dsh-subprocess-local / dsh-bash-local / dsh-fs-local / dsh-mcp-client，全 0.1.1-rc.2）+ 本地自写（@lanyuan/dsh-agent-spine 骨架、bin 入口，§7.4） | spike 1d 验证 rc.2 批次；用户 2026-08-23 定：不依赖官方 examples 包 |
+| DSH runtime | **零 examples + 能力裁剪**：官方正式包 7 个（dsh / dsh-app-boot / dsh-sdk-jsonrpc-server / dsh-llm-deepseek / dsh-session-persistence-jsonl / dsh-session-checkpoint-policy / dsh-mcp-client，全 0.1.1-rc.2）+ 本地自写（spine 骨架、bin 入口，§7.4）；**不装 bash/subprocess/fs-local**（无 shell/文件场景，§7.1b） | spike 1d 验证 rc.2 批次；用户 2026-08-23 定：零 examples + 能力裁剪 |
 | Python SDK | `deepseek-harness-sdk`（`DeepSeekHarness` 高级 API） | spike 1a/1d：SDK 拉起 runtime 三链路 |
 | 包管理 | **pnpm** | spike 1d：npm install 服务器稳定崩溃（内存）；pnpm 成功 |
 | 工具桥 | `fastmcp`（Python MCP server）+ `@deepseek-ai/dsh-mcp-client` | spike 3/3b：agent 真实调用业务工具 |
@@ -260,10 +260,9 @@ DSH runtime
     "@deepseek-ai/dsh-llm-deepseek": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-checkpoint-policy": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-subprocess-local": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-bash-local": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-fs-local": "0.1.1-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
+    // 裁剪说明：subprocess-local / bash-local / fs-local 不装（§7.1b——lanyuan 无 shell/文件场景，
+    // spine 配置关闭对应能力；将来需要再加回）
     // 本地插件（file:，零 publish；spine 的组装依赖在其 package.json 内声明）：
     "@lanyuan/dsh-agent-spine": "file:./spine",           // 自写 agent 骨架（§7.4）
     "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",  // 中期
@@ -287,9 +286,9 @@ DSH runtime
 | `@deepseek-ai/dsh-llm-deepseek` | 骨架·模型 | DeepSeek chat-completions 适配器（LLM seam 的实现） | 没有它 agent 没有模型通道，无法生成回复 | 模型 = deepseek-v4-flash |
 | `@deepseek-ai/dsh-session-persistence-jsonl` | 会话·持久化 | JSONL 会话日志落盘 backend（崩溃恢复/审计/回放） | 没有它会话不落盘，进程内多轮无日志 | **中期换自写 mysql 插件（disabled 默认 jsonl）** |
 | `@deepseek-ai/dsh-session-checkpoint-policy` | 会话·持久化 | 语义化持久化时机：`llm/stream` 前 / 顶层 `tools/execute` 前 / `agent/pre-step` 前强制 `sessions.flush()`（源码 83 行，三个边界监听） | 去掉后靠 write-behind 自动兜底（200ms deadline）——崩溃最多丢 200ms 缓冲；**但工具副作用可能先执行后落盘**（副作用无日志 → 恢复不一致/审计缺口）；且失去 fail-closed 保护。对「日志即历史/审计」的 v2 会话模型**必须保留** | 与 persistence 配套 |
-| `@deepseek-ai/dsh-subprocess-local` | 能力·执行 | 本地子进程能力（spawn/kill/输出管道），bash 执行器的底层 | 没有它 bash 工具无法 spawn 子进程 | 被 bash-local 消费 |
-| `@deepseek-ai/dsh-bash-local` | 能力·执行 | bash 执行器（agent 跑命令的能力） | 没有它 agent 不能执行 shell 命令 | pnpm 需 approve-builds（node-pty）才完整 |
-| `@deepseek-ai/dsh-fs-local` | 能力·文件 | 本地文件系统能力（ctx.fs：工作区指令加载） | 没有它 agent 无法读写工作区文件 | — |
+| `@deepseek-ai/dsh-subprocess-local` | ~~能力·执行~~ **裁剪** | 本地子进程服务（bash 执行器的底层） | **不需要**：唯一消费者是 bash（已裁）；mcp-client 自己 spawn（只复用 dsh-subprocess 的 env scrub 定义，不走此服务） | 将来需要 agent 跑命令再加回 |
+| `@deepseek-ai/dsh-bash-local` | ~~能力·执行~~ **裁剪** | bash 执行器（agent 跑 shell 命令） | **不需要**：社区问答助手无 shell 场景；spine 配置 `toolBash: false` 即不 mount（index.ts:250-253） | 将来需要再加回 + 开配置 |
+| `@deepseek-ai/dsh-fs-local` | ~~能力·文件~~ **裁剪** | 文件系统服务（ctx.fs） | **不需要**：fs 的消费者 = workspaceContext + skill filesystem，均可关（`workspaceContext: false`、`skills.enabled: false`）；关后无人消费 | 将来需要 agent 读写文件再加回 |
 | `@deepseek-ai/dsh-mcp-client` | 工具桥 | MCP 客户端桥：spawn 外部 MCP server、listTools、注册进 ctx.tools | 没有它 Python 业务工具进不了 DSH 工具表——**v2 工具桥的核心** | 工具名 mcp__lanyuan__*（§6） |
 
 **本地插件（3，file: 依赖零 publish）**：
@@ -308,12 +307,25 @@ DSH runtime
 
 ### 7.2 cordis-lanyuan.yml
 
-基于 spike `cordis-jsonrpc.yml`（8 插件）：sdk-jsonrpc-server / agent-core(**@lanyuan/dsh-agent-spine**，自写) / llm-deepseek / sessions(jsonl) / session-checkpoints / subprocess / bash / fs-local + `mcp-lanyuan` 条目（§6.2）。中期替换：sessions → mysql 插件（disabled 默认 jsonl）、sdk-jsonrpc-server → 本地 server 插件。
+基于 spike `cordis-jsonrpc.yml` **裁剪为 6 插件**（去掉 subprocess/bash/fs-local）：sdk-jsonrpc-server / agent-core(**@lanyuan/dsh-agent-spine**) / llm-deepseek / sessions(jsonl) / session-checkpoints + `mcp-lanyuan` 条目（§6.2）。**spine 配置裁剪**（§7.1b 依据）：
+
+```yaml
+- id: agent-core
+  name: '@lanyuan/dsh-agent-spine'
+  config:
+    toolBash: false              # 不 mount bash 工具（bash-local 不装）
+    workspaceContext: false      # 不读工作区文件（fs-local 不装）
+    skills: { enabled: false }   # 不用技能目录（fs 另一消费者，一并关）
+    persona: >-                  # 兰园 persona
+      你是兰园社区的 AI 小助手…
+```
+
+中期替换：sessions → mysql 插件（disabled 默认 jsonl）、sdk-jsonrpc-server → 本地 server 插件。
 
 ### 7.3 pnpm 注意事项
 
 - **严格模式**：cordis.yml 用到的每个插件必须显式声明在 package.json（spike 1d 教训）
-- **原生模块 build scripts 默认忽略**（node-pty/koffi 等）：bash 能力受限需 `pnpm approve-builds`；核心对话链路不受影响
+- **原生模块 build scripts 默认忽略**（node-pty/koffi 等）：bash 已裁剪（§7.1b），**无需 approve-builds**；若将来加回 bash 需处理（node-pty）
 - 版本锁定 0.1.1-rc.2（部分包无此版本，对齐时 notarget——按需安装，不强行全量）
 
 ### 7.4 零 examples 依赖：自写 spine + 自写 bin（2026-08-23 用户定）
@@ -451,7 +463,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 | 里程碑 | 内容 | 依赖 |
 |---|---|---|
-| **M1 骨架** | dsh/ 家目录 + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session，过渡会话） | spike 1d/1e、2a-2h |
+| **M1 骨架** | dsh/ 家目录 + 自写 spine/bin + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session，过渡会话）——**含裁剪验证**：无 bash/subprocess/fs 配置跑通对话 + MCP 工具桥（§7.1b 三个能力包去掉后实测） | spike 1d/1e、2a-2h |
 | **M2 工具桥** | MCP server（首批工具）+ user_id 注入机制验证 | spike 3/3b |
 | **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
 | **M4 前端 v2 + 部署** | 小程序事件消费改造（v2 直接替换 v1）+ Docker + 云托管 | §10、§11 |
