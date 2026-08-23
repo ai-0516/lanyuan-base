@@ -1,6 +1,10 @@
+# spine 为本地 workspace 成员（@lanyuan/dsh-agent-spine，零 examples 依赖 §7.4）
+# —— prepare/build 的 --filter 依赖 workspace 匹配；file:./spine 依赖同步保留
+packages:
+  - spine
+
 allowBuilds:
-  '@deepseek-ai/dsh-subprocess-local': set this to true or false
-  '@google/genai': set this to true or false
-  koffi: set this to true or false
-  node-pty: set this to true or false
-  protobufjs: set this to true or false
+  # 仅激活依赖链引用的原生包需要构建：
+  # koffi —— @deepseek-ai/dsh-session-persistence-jsonl（sessions 插件，激活）依赖
+  # 其余（subprocess-local/node-pty/genai/protobufjs）不在激活链，占位符清除
+  koffi: true

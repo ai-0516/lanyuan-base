@@ -3,6 +3,9 @@ name = "lanyuan-base-backend"
 version = "0.1.0"
 description = "兰园公共底座 - 后端"
 requires-python = ">=3.11"
+dependencies = [
+    "deepseek-harness-sdk==0.1.1rc1",
+]
 
 [project.scripts]
 replay-llm = "scripts.replay_llm:main"
