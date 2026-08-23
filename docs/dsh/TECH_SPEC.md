@@ -128,15 +128,17 @@ lanyuan-base/
 
 | type | data 关键字段 | 前端用途 | 白名单 |
 |---|---|---|---|
-| `assistant/chunk` | `chunk.type`=text-delta / reasoning-delta / block-start / block-end / usage / finish；`chunk.text` | 正文流 | ✅ **仅 text-delta** |
+| `assistant/chunk` | `chunk.type`=text-delta / reasoning-delta / block-start / block-end / usage / finish；`chunk.text`；`turn`、`step` | 正文流 | ✅ **仅 text-delta** |
+| `step/start` | `turn`、`step` | **气泡边界**——承接 v1 `message:start` 粒度（step = 一次 LLM 调用，`agent.ts:279`；v1 的 turn 概念） | ✅ |
 | `user/message` | content | **用户气泡数据源**（agent.ts:283：prompt → user/message append → 事件发出；前端以事件流为单一数据源渲染用户消息） | ✅ |
-| `turn/start` | — | 新回合（新气泡） | ✅ |
+| `turn/start` | `turn` | 回合边界（一次 user_prompt 处理开始，对应 v1 `loop:start`）——前端重置回合状态 | ✅ |
 | `turn/end` | `reason.kind`=completed / max-tokens / error | 回合收尾；**done 判定** | ✅ |
 | `tool/call` | `name`（mcp__lanyuan__*）、`arguments` | 工具过程展示（**前端不关心**——工具使用对用户透明，2026-08-23 用户定） | ❌ |
 | `tool/result` | `message` | 同上 | ❌ |
 | `session/title` | title | 会话标题（前端暂不展示） | ❌（历史列表需要时再开） |
 | `request/header` | — | 诊断 | ❌ |
 | `agent/inbox/spliced` | — | 注入确认（内部） | ❌ |
+| `step/end` | `turn`、`step` | 气泡清理可用「下个 step/start 删空气泡」替代，无需转发 | ❌ |
 | `assistant/chunk` 子类型 reasoning-delta / block-start / block-end / usage / finish | — | thinking 暂不展示；用量无展示需求 | ❌ |
 | 通知 `session.status` | status=idle | 后端 done 判定用（不转发） | ❌ |
 
@@ -421,11 +423,12 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 ### 10.1 事件消费
 
 - 用户消息：`user/message` 事件渲染用户气泡（事件流单一数据源，前端不做本地乐观渲染）
-- AI 气泡：**`turn/start` 承接 v1 `message:start` 语义**（建一条气泡）——一次请求 = 一个 turn，turn 内多个 step（含工具调用）不产生新气泡；`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾（气泡仍空则丢弃不渲染）
+- AI 气泡：**`step/start` 承接 v1 `message:start` 语义**（每次 LLM 调用一条气泡，粒度对齐）——`step/start` 开新气泡（若上一个气泡为空则先删——纯工具步骤无文字不显示）；`assistant/chunk`（text-delta）追加当前气泡；`turn/end` 收尾（最终气泡仍空则丢弃）
+- 回合边界：`turn/start` = 一次 user_prompt 处理开始（对应 v1 `loop:start`，前端重置回合状态，不建气泡）
 - thinking：后端已过滤（§4.2），前端不收到 reasoning-delta——暂不展示思考过程
 - 工具过程：**不展示**（tool/call、tool/result 后端已过滤，§4.2——工具使用对用户透明）
 - 错误/重试：`turn/end` reason.kind=error / SSE error 帧；**v1 `retry_wait` 无对应**——DSH llm-retry 在 turn 内静默重试（前端透明，最终 turn/end reason 反映结果）
-- v1 事件对照：token→assistant/chunk(text-delta)、done→turn/end、error→turn/end reason=error / error 帧、message:start→turn/start、retry_wait→无（静默重试）
+- v1 事件对照：token→assistant/chunk(text-delta)、done→turn/end、error→turn/end reason=error / error 帧、message:start→**step/start**（粒度=一次 LLM 调用）、loop:start→turn/start、retry_wait→无（静默重试）
 
 ### 10.2 状态维护
 
