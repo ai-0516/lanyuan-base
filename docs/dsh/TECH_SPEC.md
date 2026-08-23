@@ -53,7 +53,7 @@
 
 | 组件 | 选型 | 依据 |
 |---|---|---|
-| DSH runtime | `@deepseek-ai/*` **0.1.1-rc.2 统一批次**（dsh / dsh-sdk-jsonrpc-server / dsh-agent-spine-demo / dsh-sdk-jsonrpc-demo / dsh-llm-deepseek / dsh-session-persistence-jsonl / dsh-session-checkpoint-policy / dsh-subprocess-local / dsh-bash-local / dsh-fs-local / dsh-mcp-client） | spike 1d：旧 rc.1 引用 npm 不存在的包（发布缺口）；rc.2 批次验证跑通 |
+| DSH runtime | **零 examples 依赖**：官方正式包（dsh / dsh-app-boot / dsh-sdk-jsonrpc-server / dsh-llm-deepseek / dsh-session-persistence-jsonl / dsh-session-checkpoint-policy / dsh-subprocess-local / dsh-bash-local / dsh-fs-local / dsh-mcp-client，全 0.1.1-rc.2）+ 本地自写（@lanyuan/dsh-agent-spine 骨架、bin 入口，§7.4） | spike 1d 验证 rc.2 批次；用户 2026-08-23 定：不依赖官方 examples 包 |
 | Python SDK | `deepseek-harness-sdk`（`DeepSeekHarness` 高级 API） | spike 1a/1d：SDK 拉起 runtime 三链路 |
 | 包管理 | **pnpm** | spike 1d：npm install 服务器稳定崩溃（内存）；pnpm 成功 |
 | 工具桥 | `fastmcp`（Python MCP server）+ `@deepseek-ai/dsh-mcp-client` | spike 3/3b：agent 真实调用业务工具 |
@@ -95,9 +95,11 @@ lanyuan-base/
 │       └── tools/mcp_server/      # Python 业务工具 MCP server（复用 @tool schema）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
-    ├── package.json               # 11 个 0.1.1-rc.2 依赖 + file: 本地插件
+    ├── package.json               # 正式包依赖 + file: 本地插件 + bin 入口
     ├── cordis-lanyuan.yml         # 运行时配置（见 §7）
+    ├── bin/dsh-jsonrpc-agent.js   # 自写 runtime 入口（替代官方 demo bin，§7.4）
     ├── node_modules/              # pnpm install 产物（部署时生成）
+    ├── spine/                     # 自写 agent 骨架插件 @lanyuan/dsh-agent-spine（§7.4）
     └── mysql-persistence/         # 中期：MySQL PersistenceBackend 插件（TS → dist/）
 ```
 
@@ -246,15 +248,15 @@ DSH runtime
 
 ## 7. dsh/ 家目录
 
-### 7.1 package.json（10 依赖 + 自写 bin 入口，0.1.1-rc.2）
+### 7.1 package.json（零 examples 依赖，0.1.1-rc.2）
 
 ```jsonc
 {
   "dependencies": {
+    // 官方正式包（全 0.1.1-rc.2，next 标签）：
     "@deepseek-ai/dsh": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-agent-spine-demo": "0.1.1-rc.2",   // agent 骨架：官方唯一，无非 demo 替代（§7.4）
-    "@deepseek-ai/dsh-sdk-jsonrpc-server": "0.1.1-rc.2",
     "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2",           // boot 核心（自写 runtime bin 用，§7.4）
+    "@deepseek-ai/dsh-sdk-jsonrpc-server": "0.1.1-rc.2",
     "@deepseek-ai/dsh-llm-deepseek": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-checkpoint-policy": "0.1.1-rc.2",
@@ -262,9 +264,10 @@ DSH runtime
     "@deepseek-ai/dsh-bash-local": "0.1.1-rc.2",
     "@deepseek-ai/dsh-fs-local": "0.1.1-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
-    // 中期追加（file: 本地插件，零 publish）：
-    "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",
-    "@lanyuan/dsh-server": "file:./server"
+    // 本地插件（file:，零 publish；spine 的组装依赖在其 package.json 内声明）：
+    "@lanyuan/dsh-agent-spine": "file:./spine",           // 自写 agent 骨架（§7.4）
+    "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",  // 中期
+    "@lanyuan/dsh-server": "file:./server"                // 中期
   },
   "bin": { "dsh-jsonrpc-agent": "bin/dsh-jsonrpc-agent.js" }
 }
@@ -274,7 +277,7 @@ DSH runtime
 
 ### 7.2 cordis-lanyuan.yml
 
-基于 spike `cordis-jsonrpc.yml`（8 插件）：sdk-jsonrpc-server / agent-core(spine) / llm-deepseek / sessions(jsonl) / session-checkpoints / subprocess / bash / fs-local + `mcp-lanyuan` 条目（§6.2）。中期替换：sessions → mysql 插件（disabled 默认 jsonl）、sdk-jsonrpc-server → 本地 server 插件。
+基于 spike `cordis-jsonrpc.yml`（8 插件）：sdk-jsonrpc-server / agent-core(**@lanyuan/dsh-agent-spine**，自写) / llm-deepseek / sessions(jsonl) / session-checkpoints / subprocess / bash / fs-local + `mcp-lanyuan` 条目（§6.2）。中期替换：sessions → mysql 插件（disabled 默认 jsonl）、sdk-jsonrpc-server → 本地 server 插件。
 
 ### 7.3 pnpm 注意事项
 
@@ -282,12 +285,24 @@ DSH runtime
 - **原生模块 build scripts 默认忽略**（node-pty/koffi 等）：bash 能力受限需 `pnpm approve-builds`；核心对话链路不受影响
 - 版本锁定 0.1.1-rc.2（部分包无此版本，对齐时 notarget——按需安装，不强行全量）
 
-### 7.4 runtime 入口：自写 bin（替代官方 sdk-jsonrpc-demo）
+### 7.4 零 examples 依赖：自写 spine + 自写 bin（2026-08-23 用户定）
 
-- **`dsh-sdk-jsonrpc-demo` 不引入**（2026-08-23 定）：它是 `@deepseek-ai/dsh-app-boot` 的 62 行薄封装（`boot()` + stdin/SIGTERM 信号处理，解包确认），官方无正式替代包（`dsh-sdk-jsonrpc-agent` 404）
-- 自写 `dsh/bin/dsh-jsonrpc-agent.js`（~20 行，照 demo 逻辑）：读 `DSH_CORDIS_CONFIG` → `boot()` → 信号处理；依赖 `dsh-app-boot`（正式包，0.1.1-rc.2 批次）
-- SDK `runtime_bin` 指向 `node_modules/.bin/dsh-jsonrpc-agent`（自写的 bin）；入口归 lanyuan 控制（后续 get-or-load-or-create 换 server 插件时入口不用动）
-- **`dsh-agent-spine-demo` 保留**：非 demo 替代不存在（`dsh-agent-spine` 404；`dsh-agent` 是接口定义包非可配置插件）；它是官方 SDK/JSON-RPC 形态的唯一 agent 骨架（executor-less/UI-less：创建 agent、回合调度、标题、重试、persisted goals）——自己写等于重写骨架，v2 无此必要。demo 后缀是官方历史命名，行为即正式骨架（官方 sdk-runtime 默认配置用它）
+**不依赖任何官方 examples 包**——`dsh-agent-spine-demo` 和 `dsh-sdk-jsonrpc-demo` 都在官方仓库 `packages/examples/` 下（acp-demo / agent-spine-demo / jsonrpc-demo），只是示例用途；虽然官方 sdk-runtime 打包根（118 依赖）自己也包含它们，但作为 lanyuan 生产依赖不合理（examples 语义、可能随官方版本变动）。全部替代为本地实现：
+
+| 官方 examples 包 | 替代 | 依据 |
+|---|---|---|
+| `dsh-sdk-jsonrpc-demo`（bin 启动器） | 自写 `dsh/bin/dsh-jsonrpc-agent.js`（~20 行） | 官方 bin 只是 `@deepseek-ai/dsh-app-boot` 的 62 行薄封装（boot + 信号处理，解包确认）；官方无正式替代包（dsh-sdk-jsonrpc-agent 404） |
+| `dsh-agent-spine-demo`（agent 骨架插件） | 自写 `dsh/spine/` → `@lanyuan/dsh-agent-spine` | 官方骨架 = 295 行「组装器」（index.ts 265 + invariant 30），所有能力来自正式 core 包（peer 依赖）；MIT license 可合法搬运 |
+
+**@lanyuan/dsh-agent-spine 实现要点**：
+- 照 `packages/examples/agent-spine-demo/src/index.ts`（295 行）搬组装逻辑：agent 创建、回合调度（dsh-agent-loop）、LLM 路由、session、标题
+- 依赖正式 core 包（全 0.1.1-rc.2 已确认可用）：`dsh-agent` / `dsh-agent-loop` / `dsh-llm` / `dsh-session` / `dsh-session-title` / `dsh-scope` / `dsh-invariants` / `dsh-home-paths`（声明在 spine/package.json）
+- 可裁剪：goal / round-driver / skill 等 lanyuan 不需要的组件（社区问答场景无 goal 模式）
+- 独立 npm 包目录（tsc → dist），与 mysql-persistence 同套路
+
+**自写 bin 实现要点**：
+- 读 `DSH_CORDIS_CONFIG` → `boot()`（dsh-app-boot）→ stdin/SIGTERM 信号处理
+- SDK `runtime_bin` 指向 `node_modules/.bin/dsh-jsonrpc-agent`（自写 bin）；入口归 lanyuan 控制（M3 换 server 插件时入口不动）
 
 ## 8. 数据模型（v2 增量）
 
