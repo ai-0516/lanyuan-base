@@ -40,14 +40,15 @@ class DshRuntime:
     def harness(self) -> DeepSeekHarness:
         if self._harness is None:
             self._harness = self._create()
-            logger.info("DSH runtime 启动（runtime_bin=%s）", DSH_DIR / "node_modules/.bin/dsh-jsonrpc-agent")
+            logger.info("DSH runtime 启动（runtime_bin=%s）", DSH_DIR / "bin" / "dsh-jsonrpc-agent.js")
         return self._harness
 
     def _create(self) -> DeepSeekHarness:
         config = DeepSeekHarnessConfig(
             provider="deepseek-official",
             model=_LLM_MODEL,
-            runtime_bin=str(DSH_DIR / "node_modules/.bin/dsh-jsonrpc-agent"),
+            # 自写 bin（根包 bin 不进 node_modules/.bin，直接指向脚本，§7.4）
+            runtime_bin=str(DSH_DIR / "bin" / "dsh-jsonrpc-agent.js"),
             cordis=str(DSH_DIR / "cordis-lanyuan.yml"),
             env=_runtime_env(),
             request_timeout_seconds=180,
