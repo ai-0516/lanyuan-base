@@ -82,6 +82,7 @@ session.event 事件流（on_notification 实时到达）：
 - DSH 侧：`@deepseek-ai/dsh-mcp-client`（已在 @deepseek-ai/dsh 依赖内，rc.7），cordis patch 用 **`- insert:` 语法**（不是直接条目！）
 - 实测：agent 真实调用 `mcp__lanyuan__search_history`，正确返回并总结模拟数据
 - 工具名：`mcp__<serverName>__<rawName>`；支持 stdio / streamable-http 两种 transport
+- **驱动脚本补齐（2026-08-23 spike 3b）**：8-18 时拉起方（SDK + cordis 配 mcp-client + run）是临时命令没留文件 → 补 `3b_mcp_dsh_drive.py` + `npm-dsh/cordis-mcp.yml`（npm runtime 8 插件 + mcp-lanyuan 条目，`command: .venv/bin/python` spawn 子进程）→ 全链路复跑通过：agent 真实调用 `mcp__lanyuan__search_history` 5 次（连续换 query），正确总结「地暖从 25°C 调到 22°C」，tool_calls=5 tool_results=5；**实验 3 现可完整复现**。说明：npm 形态直接写完整 cordis.yml 加条目即可（等价 8-18 的 `- insert:` patch 语法，后者是 bundled exe 改默认配置的姿势）
 
 **含义**：lanyuan 业务工具（Python，SQLAlchemy + JWT）包成 MCP server 即可接入 DSH，`@tool` 装饰器的 schema 生成可复用（MCP 参数也是 JSON Schema）。user_id 注入仍需桥层强制覆盖（防 LLM 伪造越权，方案设计时细化）。
 
