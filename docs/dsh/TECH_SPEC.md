@@ -34,15 +34,15 @@
 ```
 微信小程序 → FastAPI（唯一后端，不变）
               ├─ /ai/chat: 认证 → 会话组装 → Python SDK → DSH runtime（Node 子进程）
-              │            → on_notification 透传 session.event → SSE（不做翻译）
+              │            → on_notification 白名单过滤 → SSE（§4，事件格式原样）
               ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（@tool schema 复用）
-              └─ MySQL（业务数据 + 会话投影）
+              └─ MySQL（业务数据 + 会话日志）
 ```
 
 ### 1.3 与 v1 的关系
 
 - v1/v2 双版本并行期：v2 后端独立部署，`/ai/chat` 逐步切流
-- 前端 v2 小程序消费 DSH 事件集（见 §10）；v1 前端契约（token/done/error）不再维护
+- 前端 v2 小程序消费 **DSH 事件集（后端白名单过滤后）**——事件格式保留 DSH 原样，后端只发前端关心的子集（§4）
 - 排除决策（用户已确认，spike.md 落档）：
   - **fork 分支语义**（git 心智不 human，lanyuan 无此场景）
   - **session-projection**（单前端直连事件流，前端本地维护状态即可；投影是整值语义表达不了流式序列）
@@ -107,38 +107,43 @@ lanyuan-base/
 1. 前端 → POST /ai/chat（认证通过）
 2. FastAPI 组装请求：短期 = 读 MySQL 历史 → content blocks + 新问题
 3. harness.run(prompt, on_notification=...)
-4. on_notification 实时到达 → sse_passthrough 逐事件包装 SSE 帧 → 前端
+4. on_notification 实时到达 → sse_passthrough 白名单过滤 → SSE 帧 → 前端（§4）
 5. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
 6. 工具调用 → DSH 内部调 MCP server（§6）→ 结果回 agent → 继续/结束
 ```
 
-## 4. SSE 协议：透传 DSH 事件
+## 4. SSE 协议：过滤透传 DSH 事件
 
 ### 4.1 原则（用户 2026-08-23 定）
 
-**向 DSH 靠近，不让 DSH 向我们靠近**。FastAPI SSE 层**只做传输适配**，不做事件翻译——reasoning/tool/usage 信息不丢。
+**向 DSH 靠近，不让 DSH 向我们靠近**：事件类型/结构保留 DSH 原样（不做翻译、不改写字段），但后端做**白名单过滤**——只把前端关心的 event 发过去（2026-08-23 补充），内部/无关事件后端自行消费或丢弃。前端只消费白名单子集。
 
-### 4.2 DSH 事件集（实验 2a/2c/2d 实测）
+### 4.2 事件白名单（发给前端）
 
-`session.event` 通知 payload：`{type, data, ...}`
+`session.event` 通知 payload：`{type, data, ...}`。**✅ = 白名单（发前端）**，**❌ = 后端消费/丢弃**：
 
-| type | data 关键字段 | 前端用途 |
-|---|---|---|
-| `assistant/chunk` | `chunk.type`=text-delta / reasoning-delta / block-start / block-end / usage / finish；`chunk.text` | 正文流 / thinking / 用量 |
-| `tool/call` | `name`（mcp__lanyuan__*）、`arguments` | 工具调用过程展示 |
-| `tool/result` | `message` | 工具结果展示 |
-| `turn/start` / `turn/end` | `reason.kind`=completed / max-tokens / error | 回合边界；**turn/end = done 判定** |
-| `user/message` | content | 用户消息回显 |
-| `session/title` | title | 会话标题 |
-| `request/header` | — | 诊断 |
-| `agent/inbox/spliced` | — | 注入确认 |
-| 通知 `session.status` | status=idle | 兜底 done 判定（turn/end 丢失时） |
+| type | data 关键字段 | 前端用途 | 白名单 |
+|---|---|---|---|
+| `assistant/chunk` | `chunk.type`=text-delta / reasoning-delta / block-start / block-end / usage / finish；`chunk.text` | 正文流 | ✅ **仅 text-delta** |
+| `tool/call` | `name`（mcp__lanyuan__*）、`arguments` | 工具调用过程展示 | ✅ |
+| `tool/result` | `message` | 工具结果展示 | ✅ |
+| `turn/start` | — | 新回合（新气泡） | ✅ |
+| `turn/end` | `reason.kind`=completed / max-tokens / error | 回合收尾；**done 判定** | ✅ |
+| `user/message` | content | 用户消息回显（前端自己已显示，不需要） | ❌ |
+| `session/title` | title | 会话标题（前端暂不展示） | ❌（历史列表需要时再开） |
+| `request/header` | — | 诊断 | ❌ |
+| `agent/inbox/spliced` | — | 注入确认（内部） | ❌ |
+| `assistant/chunk` 子类型 reasoning-delta / block-start / block-end / usage / finish | — | thinking 暂不展示；用量无展示需求 | ❌ |
+| 通知 `session.status` | status=idle | 后端 done 判定用（不转发） | ❌ |
+
+白名单可扩展：未来需要 thinking（reasoning-delta）/ 用量（usage）/ 标题时，后端加回即可（格式零改动）。
 
 ### 4.3 传输适配层职责（sse_passthrough.py）
 
 | 职责 | 说明 |
 |---|---|
-| SSE 帧包装 | `event: <type>\ndata: <json>\n\n`（原样透传 type + data） |
+| 事件过滤 | 白名单（§4.2）：非白名单事件只后端消费，不写 SSE |
+| SSE 帧包装 | `event: <type>\ndata: <json>\n\n`（白名单事件原样透传 type + data） |
 | 认证 | 请求鉴权通过才建立流 |
 | user_id 绑定 | 会话与用户绑定（§6 注入用） |
 | done 判定 | `turn/end`（reason.kind）或 `session.status=idle` 兜底 → 关流 |
@@ -147,9 +152,9 @@ lanyuan-base/
 
 ### 4.4 明确不做
 
-- ❌ text-delta→token 等瘦身翻译（v1 契约退役）
-- ❌ 事件字段删减
-- reasoning-delta：**透传但前端暂不渲染 thinking**（2026-08-23 用户定，数据仍透传，前端丢弃渲染）
+- ❌ text-delta→token 等瘦身翻译（v1 契约退役；事件结构原样）
+- ❌ 事件字段删减/改写（只按事件/子类型粒度过滤，不改 payload 内容）
+- ❌ reasoning-delta 转发（thinking 暂不展示，前端无消费方——白名单外过滤，未来需要再加回）
 
 ## 5. 会话策略：MySQL PersistenceBackend + get-or-load-or-create（2026-08-23 用户定）
 
@@ -303,11 +308,11 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ## 9. API 设计（v2 变更）
 
-### 9.1 /ai/chat（SSE 透传后）
+### 9.1 /ai/chat（SSE 过滤透传后）
 
 - 请求：不变（认证 + 消息 + 会话 id）
-- 响应事件集：**DSH 原始事件透传**（§4.2 表），不再是 v1 的 token/done/error
-- `done` 语义：`turn/end`（reason.kind）→ 前端关流；`session.status=idle` 兜底
+- 响应事件集：**DSH 事件白名单子集**（§4.2），不再是 v1 的 token/done/error
+- `done` 语义：`turn/end`（reason.kind）→ 前端关流；`session.status=idle` 兜底（后端消费，不转发）
 - 错误：runtime 崩溃 → `error` 帧（文案「请重试」，详情只进日志）
 
 ### 9.2 其余 API
@@ -327,7 +332,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 ### 10.1 事件消费
 
 - 消息流：`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾
-- thinking：reasoning-delta **透传但不渲染**（§4.4，暂不展示思考过程）
+- thinking：后端已过滤（§4.2），前端不收到 reasoning-delta——暂不展示思考过程
 - 工具过程：`tool/call` / `tool/result` → 过程卡片（工具名 + 参数 + 结果）
 - 多轮：`message:start` 语义由 `turn/start` 承接（新气泡）
 - 错误/重试：`turn/end` reason.kind=error / SSE error 帧

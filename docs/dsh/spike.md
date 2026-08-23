@@ -54,7 +54,7 @@ session.event 事件流（on_notification 实时到达）：
 
 翻译层（已验证端到端，spike 阶段验证传输可行性）：`text-delta` → `event: token\ndata: {"content": <text>}`，`turn/end` → `event: done`。首 token 延迟 1.2-1.3s（与 v1 相当），多轮同一 session 正常（turn 递增）。
 
-**⚠️ 方向修正（2026-08-23 用户定）**：v2 **不做瘦身翻译**——DSH 定义了更丰富的 event 类型（reasoning-delta / tool/call / tool/result / usage 等），原则是「向 DSH 靠近，不让 DSH 向我们靠近」：FastAPI SSE 层只做传输适配（认证 + user_id 绑定 + SSE 帧包装 + 错误处理 + done 判定），**原样透传 `session.event`（type + data）**，信息不丢；前端 v2 直接消费 DSH 事件集（thinking 展示、工具调用过程、usage 统计均为产品价值）。
+**⚠️ 方向修正（2026-08-23 用户定）**：v2 **不做瘦身翻译**——DSH 定义了更丰富的 event 类型（reasoning-delta / tool/call / tool/result / usage 等），原则是「向 DSH 靠近，不让 DSH 向我们靠近」：FastAPI SSE 层只做传输适配（认证 + user_id 绑定 + SSE 帧包装 + 错误处理 + done 判定），**原样透传 `session.event`（type + data）**，信息不丢；前端 v2 直接消费 DSH 事件集（thinking 展示、工具调用过程、usage 统计均为产品价值）。**（2026-08-23 晚精化：后端白名单过滤，只发前端关心的子集——thinking/usage/内部事件不转发，事件格式仍原样；见 TECH_SPEC §4）**
 
 ### ⚠️ 关键发现：跨进程会话恢复不可用（id collision）
 
@@ -119,7 +119,7 @@ session.event 事件流（on_notification 实时到达）：
 - runtime 载体：**先用 bundled exe 开发**（开箱即用），等 jsonrpc-agent npm 包发布后切 npm 形态（社区插件自由）
 - 会话：MySQL 真源 + 每请求注入（见实验 2）
 - 生命周期：`--workers 1` 起步（v1 本就每 worker 一份内存缓存）；多 worker 需 session 亲和性
-- 前端：SSE **透传 DSH 原始事件**（见实验 2 方向修正，不做 v1 瘦身翻译），前端 v2 消费 DSH 事件集；thinking 展示为产品决策
+- 前端：SSE **过滤透传 DSH 事件**（后端白名单只发前端关心的子集，事件格式原样；见 TECH_SPEC §4），前端 v2 消费白名单事件集；thinking 展示为产品决策（暂不展示）
 
 ## exe 定制评估（2026-08-21 补充）
 
