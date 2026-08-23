@@ -421,9 +421,8 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 ### 10.1 事件消费
 
 - 用户消息：`user/message` 事件渲染用户气泡（事件流单一数据源，前端不做本地乐观渲染）
-- 消息流：`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾
+- AI 气泡：**`turn/start` 承接 v1 `message:start` 语义**（建一条气泡）——一次请求 = 一个 turn，turn 内多个 step（含工具调用）不产生新气泡；`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾（气泡仍空则丢弃不渲染）
 - thinking：后端已过滤（§4.2），前端不收到 reasoning-delta——暂不展示思考过程
-- 多轮：`turn/start` 承接（新回合新气泡）
 - 工具过程：**不展示**（tool/call、tool/result 后端已过滤，§4.2——工具使用对用户透明）
 - 错误/重试：`turn/end` reason.kind=error / SSE error 帧
 
