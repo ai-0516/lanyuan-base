@@ -3,6 +3,18 @@
 > Issue: #82 · 日期：2026-08-18 · 状态：待用户审阅（未建 PR）
 > 全部实验在 `spike/` 目录，使用 DEEPSEEK_API_KEY 真实调用（deepseek-v4-flash）
 
+## 形态背景：三种集成形态（2026-08-10 方案讨论定）
+
+「形态二」是本 spike 的验证对象，先交代三种形态的定义与选型依据：
+
+| 形态 | 描述 | 社区插件自由度 | 评价 |
+|---|---|---|---|
+| **形态一** | Python SDK + 官方 bundled exe（开箱即用） | ❌ 插件集编译时固定，新增社区插件 = 改依赖 + 重新 build exe | 适合先跑通学习 DSH，不追社区插件 |
+| **形态二** ⭐ | **Python FastAPI 后端保持 + npm 完整版 DSH runtime 子进程**（stdio JSON-RPC，不对前端暴露任何 endpoint） | ✅ `npm install` + cordis.yml 加一行配置即可 | **推荐**：后端零重写，满足「社区找插件配置一下」核心诉求 |
+| **形态三** | 后端全改 TS/Node | ✅ 最高（还能直接用 DSH web-app/API 层） | 业务全重写（认证/帖子/评论/记忆/评测全 TS 化），不建议 |
+
+形态二要点：前端只连 FastAPI `/ai/chat`（SSE 契约不变，零改动）；每个 FastAPI worker 一个常驻 DSH 子进程（lifespan 管理）；业务工具走 MCP 桥（Python 原生，`@tool` schema 可复用）；`user_id` 桥层强制注入防越权。
+
 ## 结论速览
 
 **形态二可行**：Python FastAPI 后端保持 + DSH runtime 子进程（Node），5 项实验全部通过。v2 可进入 TECH_SPEC 设计阶段。
