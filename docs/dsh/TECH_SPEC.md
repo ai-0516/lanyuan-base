@@ -274,9 +274,11 @@ DSH runtime
 
 > **版本说明**：0.1.1-rc.2 在 npm 的 `next` 标签（`latest` 停旧版 0.0.1-rc.x）——安装时显式锁定 `0.1.1-rc.2`，不能裸装（会拿到 latest 旧版）。
 
+> **dsh 聚合包与激活清单（2026-08-23 查证）**：`@deepseek-ai/dsh` 是**超级聚合包**（62 直接依赖：CLI + cordis 运行时 + 50+ 个 dsh-* 插件，含我们不用的 bash/fs/pwsh/subagent/workflow 等）——安装后 node_modules 为全量（~341M，磁盘不减）。「裁剪」的真实语义是 **cordis.yml 激活清单裁剪**（运行时只装配激活的插件，其余零加载）。pnpm 严格模式因此要求：① cordis.yml 引用的每个插件必须显式声明（虽然 dsh 已聚合，spike 1d 教训）；② 代码 import 的包（如自写 bin import dsh-app-boot）也要显式声明。`dsh-app-boot` 不是聚合包（1 依赖 js-yaml，1216 行 boot 逻辑；peer 9 个 cordis 生态由 dsh 提供）。
+
 ### 7.1b 依赖清单：每个包干什么、为什么依赖
 
-**官方正式包（10）**——按运行时角色分组：
+**官方正式包（7，激活）**——按运行时角色分组：
 
 | 包 | 组 | 干什么 | 为什么依赖（缺了会怎样） | v2 备注 |
 |---|---|---|---|---|
