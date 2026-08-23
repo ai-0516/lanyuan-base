@@ -54,7 +54,7 @@ session.event 事件流（on_notification 实时到达）：
 
 翻译层（已验证端到端，spike 阶段验证传输可行性）：`text-delta` → `event: token\ndata: {"content": <text>}`，`turn/end` → `event: done`。首 token 延迟 1.2-1.3s（与 v1 相当），多轮同一 session 正常（turn 递增）。
 
-**⚠️ 方向修正（2026-08-23 用户定）**：v2 **不做瘦身翻译**——DSH 定义了更丰富的 event 类型（reasoning-delta / tool/call / tool/result / usage 等），原则是「向 DSH 靠近，不让 DSH 向我们靠近」：FastAPI SSE 层只做传输适配（认证 + user_id 绑定 + SSE 帧包装 + 错误处理 + done 判定），**原样透传 `session.event`（type + data）**，信息不丢；前端 v2 直接消费 DSH 事件集（thinking 展示、工具调用过程、usage 统计均为产品价值）。
+**⚠️ 方向修正（2026-08-23 用户定）**：v2 **不做瘦身翻译**——DSH 定义了更丰富的 event 类型（reasoning-delta / tool/call / tool/result / usage 等），原则是「向 DSH 靠近，不让 DSH 向我们靠近」：FastAPI SSE 层只做传输适配（认证 + user_id 绑定 + SSE 帧包装 + 错误处理 + done 判定），**原样透传 `session.event`（type + data）**，信息不丢；前端 v2 直接消费 DSH 事件集（thinking 展示、工具调用过程、usage 统计均为产品价值）。**（2026-08-23 晚精化：后端白名单过滤，只发前端关心的子集——thinking/usage/内部事件不转发，事件格式仍原样；见 TECH_SPEC §4）**
 
 ### ⚠️ 关键发现：跨进程会话恢复不可用（id collision）
 
@@ -63,14 +63,13 @@ session.event 事件流（on_notification 实时到达）：
 - 根因：JSONRPC 协议只有 `initialize` / `session/prompt` / `shutdown` 三个方法，**没有 load/resume/fork**；JSONL 持久化的设计目标是崩溃恢复/审计/回放（同一 runtime 生命周期内），不是「重启后恢复用户会话」
 - 同一进程内多次 run 同 session：正常（live session 在内存，seed 续接）
 
-### v2 会话策略（已验证替代方案）
+### v2 会话策略（已验证的替代方案 → 2026-08-23 用户定：不采用）
 
-**MySQL 为历史真源 + 每请求新建 DSH session + 历史注入**：
+**~~MySQL 为历史真源 + 每请求新建 DSH session + 历史注入~~**（实验 2h 验证可行，但**不采用**）：
 
-- `session/prompt` 接受 content blocks 数组（无 role，作为一条 user 消息）
-- 实测：注入 `[历史1, 历史2, 新问题]` 三块文本 → agent 正确理解上下文（「您刚才把地暖调到了 22°C」）
+- `session/prompt` 接受 content blocks 数组（无 role，作为一条 user 消息）——实测注入 `[历史1, 历史2, 新问题]` 三块文本 → agent 正确理解上下文（「您刚才把地暖调到了 22°C」）
+- **排除理由（2026-08-23 用户定）**：前期 server 无 resume 能力时直接当新 session 处理（无注入），恢复的正确路径是 get-or-load-or-create（DSH 持久化 + 服务端恢复），而非 FastAPI 侧组装历史——见 TECH_SPEC §5.1
 - 前端历史展示/搜索仍走 MySQL（不变）；DSH session 承载单次请求处理 + JSONL 审计
-- 跨会话压缩（rotation）由 FastAPI 侧沿用 v1 逻辑；DSH 的 compaction 只作用于单请求内
 
 ### 环境变量坑
 
@@ -119,7 +118,7 @@ session.event 事件流（on_notification 实时到达）：
 - runtime 载体：**先用 bundled exe 开发**（开箱即用），等 jsonrpc-agent npm 包发布后切 npm 形态（社区插件自由）
 - 会话：MySQL 真源 + 每请求注入（见实验 2）
 - 生命周期：`--workers 1` 起步（v1 本就每 worker 一份内存缓存）；多 worker 需 session 亲和性
-- 前端：SSE **透传 DSH 原始事件**（见实验 2 方向修正，不做 v1 瘦身翻译），前端 v2 消费 DSH 事件集；thinking 展示为产品决策
+- 前端：SSE **过滤透传 DSH 事件**（后端白名单只发前端关心的子集，事件格式原样；见 TECH_SPEC §4），前端 v2 消费白名单事件集；thinking 展示为产品决策（暂不展示）
 
 ## exe 定制评估（2026-08-21 补充）
 
