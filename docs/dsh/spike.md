@@ -109,9 +109,10 @@ session.event 事件流（on_notification 实时到达）：
 ```
 小程序 SSE → FastAPI（不变）
   ├─ /ai/chat: 认证 → MySQL 读历史组装 → 注入新 DSH session（uuid）
-  │            → on_notification 翻译 SSE（text-delta→token, turn/end→done）
+  │            → on_notification 透传 session.event → SSE（不做翻译，见实验 2 方向修正）
   │            → 回复写回 MySQL
   ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（复用 @tool schema）
+  │             配置模板 = `spike/npm-dsh/cordis-mcp.yml`（实验 3 已验证）
   └─ DSH runtime: 每 worker 一个常驻子进程（lifespan 管理 + close/start 重启包装）
 ```
 
