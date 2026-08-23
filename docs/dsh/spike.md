@@ -146,9 +146,11 @@ getOrCreateSession → get-or-load-or-create：
 
 **对 lanyuan v2 的意义**：能力落地后，「每请求新 session + 历史注入」策略可退役——正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复，hybrid 简化为零代码自动恢复。
 
-**落地形态确认（2026-08-23）**：**不需要自己 build sdk-runtime**——npm 形态已就绪（`@deepseek-ai/dsh` 0.1.1-rc.2、`dsh-sdk-jsonrpc-server` 0.0.1-rc.5、`dsh-agent-spine-demo` 0.0.1-rc.1 均已发布）；SDK `HarnessConfig.runtime_bin`/`launch_args_override` 支持指向任意 runtime（client.py:28-30），默认才走 bundled exe。落地 = 官方 npm 包原样 install + cordis.yml 把 sdk-jsonrpc-server 换成本地 `@lanyuan/dsh-server` 插件（file: 依赖，同 MySQL backend 套路）+ SDK 指向 npm runtime 入口。**无需 build 官方 exe/wheel**；唯一要 build 的是我们自己的插件（tsc → dist）与 npm install（部署步骤）。
+**落地形态确认（2026-08-23）**：**不需要自己 build sdk-runtime**——npm 形态已就绪（`@deepseek-ai/dsh`、`dsh-sdk-jsonrpc-server`、`dsh-agent-spine-demo`、`dsh-sdk-jsonrpc-demo` 等全部为 **0.1.1-rc.2 统一发布批次**）；SDK `HarnessConfig.runtime_bin`/`launch_args_override` 支持指向任意 runtime（client.py:28-30），默认才走 bundled exe。落地 = 官方 npm 包原样 install + cordis.yml 把 sdk-jsonrpc-server 换成本地 `@lanyuan/dsh-server` 插件（file: 依赖，同 MySQL backend 套路）+ SDK 指向 npm runtime 入口。**无需 build 官方 exe/wheel**；唯一要 build 的是我们自己的插件（tsc → dist）与 npm install（部署步骤）。
 
-**验证路径**：改本地 server 插件的 `getOrCreateSession` → get-or-load-or-create（内存有？用内存 → 持久化有？load 成 live session → 都没有？新建），复用核心 log-seed 重放；如需在官方源码验证才需 pnpm build（服务器 core dump，疑似内存不足，可加 `NODE_OPTIONS=--max-old-space-size=4096` 或 Mac 上构建）。**唯一待验证**：SDK 拉起 npm runtime 的 launch 参数组合（spike 1b 验证过 npm CLI 形态，SDK 驱动 npm 需小验证）。
+**验证路径**：改本地 server 插件的 `getOrCreateSession` → get-or-load-or-create（内存有？用内存 → 持久化有？load 成 live session → 都没有？新建），复用核心 log-seed 重放；如需在官方源码验证才需 pnpm build（服务器 core dump，疑似内存不足，可加 `NODE_OPTIONS=--max-old-space-size=4096` 或 Mac 上构建）。
+
+**launch 参数组合已验证（2026-08-23 spike 1d/1e）**：✅ 通过——SDK `runtime_bin` 指向 `node_modules/.bin/dsh-jsonrpc-agent`（`@deepseek-ai/dsh-sdk-jsonrpc-demo@0.1.1-rc.2` 的 bin），`env DSH_CORDIS_CONFIG` 指向 cordis.yml，SDK 成功拉起 npm runtime 进程并跑通真实对话（finish_reason=completed，108 events）。**版本硬性要求：必须用 0.1.1-rc.2 系列**（官方统一发布批次）——旧版 spine-demo rc.1 引用多个 npm 上不存在的包（dsh-skill-local/dsh-bash-env/dsh-goal-session 等，发布缺口）。**安装用 pnpm**（服务器 npm install 稳定崩溃疑似内存，pnpm 成功）；pnpm 严格模式要求 **cordis.yml 用到的每个插件显式声明在 package.json**（正是官方 sdk-runtime 打包清单 118 依赖的职责，lanyuan 落地照抄此模式）；pnpm 默认忽略原生模块 build scripts（node-pty/koffi 等，bash 能力受限，需 `pnpm approve-builds`，核心对话链路不受影响）。
 
 **不做的（排除决策）**：fork 分支语义（从历史切点派生新会话，UI「分支对话」）——git 心智模型，不 human：人类对话只有两条路，要么继续同一会话（=get-or-load-or-create 恢复），要么带着理解开新话题（=摘要+新会话注入）。v2 明确不做，lanyuan-base 无此场景（2026-08-22 定）。
 
@@ -213,7 +215,7 @@ MySQL（真源）→ inspect(id) 接口（解耦点）→ session-query-sqlite �
 
 ## 风险与待确认
 
-1. ~~jsonrpc-agent npm 包未发布~~（已过时：`dsh-sdk-jsonrpc-server` rc.5 / `dsh-agent-spine-demo` rc.1 / `dsh` 0.1.1-rc.2 均已发布，npm 形态已就绪 2026-08-23）→ 新风险：SDK 拉起 npm runtime 的 launch 参数组合未实测
+1. ~~jsonrpc-agent npm 包未发布~~（已过时：0.1.1-rc.2 统一发布，npm 形态已就绪且 launch 参数组合已验证 2026-08-23）→ 新风险：pnpm 忽略原生模块 build scripts（node-pty 等，bash 能力需 `pnpm approve-builds`）
 2. 微信云托管镜像大小限制（spike 无 docker，未实测构建）
 3. MCP 工具桥的 user_id 注入设计（安全细节）
 4. 多 worker 下 DSH 子进程 × worker 数（内存放大，v2 初版 workers=1 规避）
