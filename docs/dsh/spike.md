@@ -52,7 +52,9 @@ session.event 事件流（on_notification 实时到达）：
   user/message, session/title, request/header, agent/inbox/spliced
 ```
 
-翻译层（已验证端到端）：`text-delta` → `event: token\ndata: {"content": <text>}`，`turn/end` → `event: done`。首 token 延迟 1.2-1.3s（与 v1 相当），多轮同一 session 正常（turn 递增）。
+翻译层（已验证端到端，spike 阶段验证传输可行性）：`text-delta` → `event: token\ndata: {"content": <text>}`，`turn/end` → `event: done`。首 token 延迟 1.2-1.3s（与 v1 相当），多轮同一 session 正常（turn 递增）。
+
+**⚠️ 方向修正（2026-08-23 用户定）**：v2 **不做瘦身翻译**——DSH 定义了更丰富的 event 类型（reasoning-delta / tool/call / tool/result / usage 等），原则是「向 DSH 靠近，不让 DSH 向我们靠近」：FastAPI SSE 层只做传输适配（认证 + user_id 绑定 + SSE 帧包装 + 错误处理 + done 判定），**原样透传 `session.event`（type + data）**，信息不丢；前端 v2 直接消费 DSH 事件集（thinking 展示、工具调用过程、usage 统计均为产品价值）。
 
 ### ⚠️ 关键发现：跨进程会话恢复不可用（id collision）
 
@@ -115,7 +117,7 @@ session.event 事件流（on_notification 实时到达）：
 - runtime 载体：**先用 bundled exe 开发**（开箱即用），等 jsonrpc-agent npm 包发布后切 npm 形态（社区插件自由）
 - 会话：MySQL 真源 + 每请求注入（见实验 2）
 - 生命周期：`--workers 1` 起步（v1 本就每 worker 一份内存缓存）；多 worker 需 session 亲和性
-- 前端：SSE 契约不变，**零改动**；thinking（reasoning-delta）是否展示为产品决策
+- 前端：SSE **透传 DSH 原始事件**（见实验 2 方向修正，不做 v1 瘦身翻译），前端 v2 消费 DSH 事件集；thinking 展示为产品决策
 
 ## exe 定制评估（2026-08-21 补充）
 
@@ -165,6 +167,8 @@ getOrCreateSession → get-or-load-or-create：
 **launch 参数组合已验证（2026-08-23 spike 1d/1e）**：✅ 通过——SDK `runtime_bin` 指向 `node_modules/.bin/dsh-jsonrpc-agent`（`@deepseek-ai/dsh-sdk-jsonrpc-demo@0.1.1-rc.2` 的 bin），`env DSH_CORDIS_CONFIG` 指向 cordis.yml，SDK 成功拉起 npm runtime 进程并跑通真实对话（finish_reason=completed，108 events）。**版本硬性要求：必须用 0.1.1-rc.2 系列**（官方统一发布批次）——旧版 spine-demo rc.1 引用多个 npm 上不存在的包（dsh-skill-local/dsh-bash-env/dsh-goal-session 等，发布缺口）。**安装用 pnpm**（服务器 npm install 稳定崩溃疑似内存，pnpm 成功）；pnpm 严格模式要求 **cordis.yml 用到的每个插件显式声明在 package.json**（正是官方 sdk-runtime 打包清单 118 依赖的职责，lanyuan 落地照抄此模式）；pnpm 默认忽略原生模块 build scripts（node-pty/koffi 等，bash 能力受限，需 `pnpm approve-builds`，核心对话链路不受影响）。
 
 **不做的（排除决策）**：fork 分支语义（从历史切点派生新会话，UI「分支对话」）——git 心智模型，不 human：人类对话只有两条路，要么继续同一会话（=get-or-load-or-create 恢复），要么带着理解开新话题（=摘要+新会话注入）。v2 明确不做，lanyuan-base 无此场景（2026-08-22 定）。
+
+**session-projection（多视图状态投影）**：lanyuan 是单前端 + 事件流直连，前端从事件流本地维护状态即可，无第二视图 → **暂无使用场景，v2 不引入**（2026-08-23 定）。补充边界：投影是整值 last-wins 语义（title/todos/goal），表达不了流式序列（token 逐字）——所以它既不替代事件透传、也不做「翻译层」；未来若出现独立视图（工作台页展示 agent 状态、多端共享）再启用（DSH 内建，cordis.yml 加插件 + 注册投影单元即可）。
 
 ## MySQL PersistenceBackend 落地清单（2026-08-22 补充）
 
