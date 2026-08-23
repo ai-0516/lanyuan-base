@@ -33,7 +33,7 @@
 
 ```
 微信小程序 → FastAPI（唯一后端，不变）
-              ├─ /ai/chat: 认证 → 新 DSH session（uuid，无注入）→ Python SDK → DSH runtime（Node 子进程）
+              ├─ /api/v2/ai/chat: 认证 → 新 DSH session（uuid，无注入）→ Python SDK → DSH runtime（Node 子进程）
               │            → on_notification 事件层过滤 → SSE（§4，事件格式原样）
               ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（@tool schema 复用）
               └─ MySQL（业务数据 + 会话日志）
@@ -103,10 +103,10 @@ lanyuan-base/
     └── mysql-persistence/         # 中期：MySQL PersistenceBackend 插件（TS → dist/）
 ```
 
-### 3.3 请求数据流（/ai/chat）
+### 3.3 请求数据流（/api/v2/ai/chat）
 
 ```
-1. 前端 → POST /ai/chat（认证通过）
+1. 前端 → POST /api/v2/ai/chat（认证通过）
 2. FastAPI 创建新 DSH session（uuid），直接发本次请求——**前期无 resume 能力，不做历史注入**（2026-08-23 用户定；M3 get-or-load-or-create 后改为复用/恢复）
 3. harness.run(prompt, on_notification=...)
 4. on_notification 实时到达 → event_layer 过滤 → SSE 帧 → 前端（§4）
@@ -399,16 +399,17 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ## 9. API 设计（v2 变更）
 
-### 9.1 /ai/chat（事件层输出后）
+### 9.1 /api/v2/ai/chat（v2 专属路径，与 v1 区分）
 
-- 请求：不变（认证 + 消息 + 会话 id）
+- **路径：`POST /api/v2/ai/chat`**（2026-08-23 用户定——v2 响应事件集与 v1 完全不同（DSH 事件 vs token/done），同路径返回不同格式易混淆；v2 用版本化路径 `/api/v2`，v1 的 `/api/v1/ai/chat` 保留给旧前端/兼容期）
+- 请求：认证（JWT）+ 消息 + 会话 id（过渡期每次新 uuid；M3 get-or-load-or-create 后复用/恢复）
 - 响应事件集：**DSH 事件白名单子集**（§4.2），不再是 v1 的 token/done/error
 - `done` 语义：`turn/end`（reason.kind）→ 前端关流；`session.status=idle` 兜底（后端消费，不转发）
 - 错误：runtime 崩溃 → `error` 帧（文案「请重试」，详情只进日志）
 
 ### 9.2 其余 API
 
-全部不变（v1 TECH_SPEC §4）。v2 只改 /ai/chat 内部实现。
+维持 `/api/v1` 不变（v1 TECH_SPEC §4）——v2 只新增 `/api/v2/ai/chat`，其余业务 API（用户/帖子/评论/通知/上传等）不迁移、不重写。
 
 ### 9.3 搜索能力
 
