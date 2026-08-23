@@ -3,5 +3,6 @@
 npm-dsh/node_modules/
 npm-dsh/.dsh-home/
 npm-dsh/.sessions/
+npm-dsh/.sessions-sdk/
 .sessions/
 __pycache__/
