@@ -63,14 +63,13 @@ session.event 事件流（on_notification 实时到达）：
 - 根因：JSONRPC 协议只有 `initialize` / `session/prompt` / `shutdown` 三个方法，**没有 load/resume/fork**；JSONL 持久化的设计目标是崩溃恢复/审计/回放（同一 runtime 生命周期内），不是「重启后恢复用户会话」
 - 同一进程内多次 run 同 session：正常（live session 在内存，seed 续接）
 
-### v2 会话策略（已验证替代方案）
+### v2 会话策略（已验证的替代方案 → 2026-08-23 用户定：不采用）
 
-**MySQL 为历史真源 + 每请求新建 DSH session + 历史注入**：
+**~~MySQL 为历史真源 + 每请求新建 DSH session + 历史注入~~**（实验 2h 验证可行，但**不采用**）：
 
-- `session/prompt` 接受 content blocks 数组（无 role，作为一条 user 消息）
-- 实测：注入 `[历史1, 历史2, 新问题]` 三块文本 → agent 正确理解上下文（「您刚才把地暖调到了 22°C」）
+- `session/prompt` 接受 content blocks 数组（无 role，作为一条 user 消息）——实测注入 `[历史1, 历史2, 新问题]` 三块文本 → agent 正确理解上下文（「您刚才把地暖调到了 22°C」）
+- **排除理由（2026-08-23 用户定）**：前期 server 无 resume 能力时直接当新 session 处理（无注入），恢复的正确路径是 get-or-load-or-create（DSH 持久化 + 服务端恢复），而非 FastAPI 侧组装历史——见 TECH_SPEC §5.1
 - 前端历史展示/搜索仍走 MySQL（不变）；DSH session 承载单次请求处理 + JSONL 审计
-- 跨会话压缩（rotation）由 FastAPI 侧沿用 v1 逻辑；DSH 的 compaction 只作用于单请求内
 
 ### 环境变量坑
 

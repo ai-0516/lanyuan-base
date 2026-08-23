@@ -33,7 +33,7 @@
 
 ```
 微信小程序 → FastAPI（唯一后端，不变）
-              ├─ /ai/chat: 认证 → 会话组装 → Python SDK → DSH runtime（Node 子进程）
+              ├─ /ai/chat: 认证 → 新 DSH session（uuid，无注入）→ Python SDK → DSH runtime（Node 子进程）
               │            → on_notification 事件层过滤 → SSE（§4，事件格式原样）
               ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（@tool schema 复用）
               └─ MySQL（业务数据 + 会话日志）
@@ -107,7 +107,7 @@ lanyuan-base/
 
 ```
 1. 前端 → POST /ai/chat（认证通过）
-2. FastAPI 组装请求：短期 = 读 MySQL 历史 → content blocks + 新问题
+2. FastAPI 创建新 DSH session（uuid），直接发本次请求——**前期无 resume 能力，不做历史注入**（2026-08-23 用户定；M3 get-or-load-or-create 后改为复用/恢复）
 3. harness.run(prompt, on_notification=...)
 4. on_notification 实时到达 → event_layer 过滤 → SSE 帧 → 前端（§4）
 5. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
@@ -163,12 +163,12 @@ lanyuan-base/
 
 ## 5. 会话策略：MySQL PersistenceBackend + get-or-load-or-create（2026-08-23 用户定）
 
-**v2 会话目标**：MySQL 持久化 + get-or-load-or-create 恢复，配套使用（持久化提供 load 数据源，恢复提供 load 逻辑）。历史注入仅为 M1/M2 过渡期临时手段，M3 落地后退役。
+**v2 会话目标**：MySQL 持久化 + get-or-load-or-create 恢复，配套使用（持久化提供 load 数据源，恢复提供 load 逻辑）。过渡期（M1/M2）每请求新 session（**无历史注入**），M3 落地 get-or-load-or-create 后恢复会话。
 
-### 5.1 过渡期（M1/M2）：每请求新 session + 历史注入
+### 5.1 过渡期（M1/M2）：每请求新 session（无注入）
 
-- 已验证（实验 2h）：`session/prompt` 注入 `[历史1, 历史2, 新问题]` content blocks → agent 正确理解上下文（「地暖 22°C」）
-- 仅用于 M1 骨架/M2 工具桥的功能验证；M3 后退役
+- **不做历史注入**（2026-08-23 用户定）：前期 server 无 resume 能力 → 每次请求直接当**新 session** 处理（uuid），agent 只带本次请求上下文
+- 历史注入方案（实验 2h 验证过可行）**不采用**——会话恢复的正确路径是 M3 的 get-or-load-or-create（DSH 持久化 + 服务端恢复），而非 FastAPI 侧组装历史 content blocks；前期简化为「新 session 直连」等待 M3
 - M1/M2 前端历史列表暂不保证（M3 起从 DSH 日志派生，§10.4）
 
 ### 5.2 MySQL PersistenceBackend 插件（M3，v2 会话组成部分）
@@ -195,7 +195,7 @@ lanyuan-base/
 - Python SDK 零改动（服务端策略）；collision 守卫保留为 load 失败兜底
 - 三个边界：并发写 owner 机制 + workers=1/session 亲和；无条件 load（id 即身份）；load 语义界定写文档
 - 实现 = 本地 `@lanyuan/dsh-server` 插件替换官方 sdk-jsonrpc-server（同 mysql-persistence 套路）
-- 恢复后「每请求新 session + 历史注入」退役：正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复
+- 恢复后「每请求新 session（无注入）」退役：正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复
 
 ### 5.4 环境变量管理（2g 实验教训）
 
@@ -481,7 +481,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 | 里程碑 | 内容 | 依赖 |
 |---|---|---|
-| **M1 骨架** | dsh/ 家目录 + 自写 spine/bin + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session，过渡会话）——**含裁剪验证**：无 bash/subprocess/fs 配置跑通对话 + MCP 工具桥（§7.1b 三个能力包去掉后实测） | spike 1d/1e、2a-2h |
+| **M1 骨架** | dsh/ 家目录 + 自写 spine/bin + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session **无注入**）——**含裁剪验证**：无 bash/subprocess/fs 配置跑通对话 + MCP 工具桥（§7.1b 三个能力包去掉后实测） | spike 1d/1e、2a-2h |
 | **M2 工具桥** | MCP server（首批工具）+ user_id 注入机制验证 | spike 3/3b |
 | **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
 | **M4 前端 v2 + 部署** | 小程序事件消费改造（v2 直接替换 v1）+ Docker + 云托管 | §10、§11 |
@@ -490,7 +490,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 ## 14. 待确认项
 
-已定案（2026-08-23 用户）：thinking 前端暂不展示（§4.4）；搜索只做 LLM tool 不做前端 API（§9.3）；FTS5 延迟可见可接受（§8.3）；忽略 v1 以 v2 为准（§10.0）；MCP 每 worker 一个（§3.1）；会话 = MySQL + get-or-load-or-create（§5）；v1 历史对话不维护不迁移（§8.1 C）。
+已定案（2026-08-23 用户）：thinking 前端暂不展示（§4.4）；搜索只做 LLM tool 不做前端 API（§9.3）；FTS5 延迟可见可接受（§8.3）；忽略 v1 以 v2 为准（§10.0）；MCP 每 worker 一个（§3.1）；会话 = MySQL + get-or-load-or-create（§5）；v1 历史对话不维护不迁移（§8.1 C）；**过渡期每请求新 session 无注入（2h 历史注入不采用，§5.1）**。
 
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
