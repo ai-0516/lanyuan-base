@@ -1,0 +1,25 @@
+# lanyuan v2 runtime 配置（M1：5 插件，能力裁剪）
+# 基于 spike cordis-jsonrpc.yml（8 插件）裁剪：去掉 subprocess/bash/fs-local
+# spine 为本地 @lanyuan/dsh-agent-spine（零 examples 依赖，§7.4）
+# M2 追加 mcp-lanyuan 条目（业务工具桥）
+- id: sdk-jsonrpc-server
+  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+- id: agent-core
+  name: '@lanyuan/dsh-agent-spine'
+  config:
+    dshHome: !!js process.env.DSH_HOME ?? './.dsh-home'
+    persona: >-
+      你是兰园社区的 AI 小助手，帮助社区居民解答问题、查询信息、处理社区事务。
+      回答简洁、友好、准确；涉及用户个人数据时以工具查询结果为准。
+
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek'
+
+- id: sessions
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js process.env.DSH_SESSION_ROOT ?? './.sessions'
+
+- id: session-checkpoints
+  name: '@deepseek-ai/dsh-session-checkpoint-policy'
