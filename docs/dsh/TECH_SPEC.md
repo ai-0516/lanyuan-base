@@ -129,18 +129,18 @@ lanyuan-base/
 | type | data 关键字段 | 前端用途 | 白名单 |
 |---|---|---|---|
 | `assistant/chunk` | `chunk.type`=text-delta / reasoning-delta / block-start / block-end / usage / finish；`chunk.text` | 正文流 | ✅ **仅 text-delta** |
-| `tool/call` | `name`（mcp__lanyuan__*）、`arguments` | 工具调用过程展示 | ✅ |
-| `tool/result` | `message` | 工具结果展示 | ✅ |
+| `user/message` | content | **用户气泡数据源**（agent.ts:283：prompt → user/message append → 事件发出；前端以事件流为单一数据源渲染用户消息） | ✅ |
 | `turn/start` | — | 新回合（新气泡） | ✅ |
 | `turn/end` | `reason.kind`=completed / max-tokens / error | 回合收尾；**done 判定** | ✅ |
-| `user/message` | content | 用户消息回显（前端自己已显示，不需要） | ❌ |
+| `tool/call` | `name`（mcp__lanyuan__*）、`arguments` | 工具过程展示（**前端不关心**——工具使用对用户透明，2026-08-23 用户定） | ❌ |
+| `tool/result` | `message` | 同上 | ❌ |
 | `session/title` | title | 会话标题（前端暂不展示） | ❌（历史列表需要时再开） |
 | `request/header` | — | 诊断 | ❌ |
 | `agent/inbox/spliced` | — | 注入确认（内部） | ❌ |
 | `assistant/chunk` 子类型 reasoning-delta / block-start / block-end / usage / finish | — | thinking 暂不展示；用量无展示需求 | ❌ |
 | 通知 `session.status` | status=idle | 后端 done 判定用（不转发） | ❌ |
 
-白名单可扩展：未来需要 thinking（reasoning-delta）/ 用量（usage）/ 标题时，加回即可（格式零改动）。
+白名单可扩展：未来需要 thinking（reasoning-delta）/ 用量（usage）/ 工具过程（tool/call、tool/result）/ 标题时，加回即可（格式零改动）。
 
 ### 4.3 事件层职责（event_layer.py）
 
@@ -420,19 +420,20 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 10.1 事件消费
 
+- 用户消息：`user/message` 事件渲染用户气泡（事件流单一数据源，前端不做本地乐观渲染）
 - 消息流：`assistant/chunk`（text-delta）追加气泡；`turn/end` 收尾
 - thinking：后端已过滤（§4.2），前端不收到 reasoning-delta——暂不展示思考过程
-- 工具过程：`tool/call` / `tool/result` → 过程卡片（工具名 + 参数 + 结果）
-- 多轮：`message:start` 语义由 `turn/start` 承接（新气泡）
+- 多轮：`turn/start` 承接（新回合新气泡）
+- 工具过程：**不展示**（tool/call、tool/result 后端已过滤，§4.2——工具使用对用户透明）
 - 错误/重试：`turn/end` reason.kind=error / SSE error 帧
 
 ### 10.2 状态维护
 
-前端本地 state（不引 session-projection）：当前工具、thinking 展开态、消息列表、用量统计（usage 事件）。
+前端本地 state（不引 session-projection）：消息列表（user/message + text-delta 追加）、thinking 展开态、当前回合状态。
 
 ### 10.3 组件树变化
 
-v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking 折叠区（暂不渲染，§10.1）/ 工具过程卡片组件。其余页面不动。
+v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message 渲染用户气泡 + text-delta 追加）；新增 thinking 折叠区（暂不渲染，§10.1）。其余页面不动。
 
 ### 10.4 历史列表
 
