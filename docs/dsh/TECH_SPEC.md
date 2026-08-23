@@ -253,24 +253,40 @@ DSH runtime
 ```jsonc
 {
   "dependencies": {
-    // 官方正式包（全 0.1.1-rc.2，next 标签）：
+    // ① 聚合包（CLI + cordis 运行时 + 插件生态；注意：不含 core 包，见下）
     "@deepseek-ai/dsh": "0.1.1-rc.2",
+    // ② core 包（dsh 聚合 62 个里没有它们——spine 的宿主，必须显式声明）：
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-scope": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-invariants": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm-retry": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.1.1-rc.2",
+    // ③ 激活插件（cordis.yml 引用；pnpm 严格模式要求显式声明，即使 dsh 已聚合）：
     "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2",           // boot 核心（自写 runtime bin 用，§7.4）
     "@deepseek-ai/dsh-sdk-jsonrpc-server": "0.1.1-rc.2",
     "@deepseek-ai/dsh-llm-deepseek": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-checkpoint-policy": "0.1.1-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
-    // 裁剪说明：subprocess-local / bash-local / fs-local 不装（§7.1b——lanyuan 无 shell/文件场景，
-    // spine 配置关闭对应能力；将来需要再加回）
-    // 本地插件（file:，零 publish；spine 的组装依赖在其 package.json 内声明）：
-    "@lanyuan/dsh-agent-spine": "file:./spine",           // 自写 agent 骨架（§7.4）
+    // 裁剪说明：subprocess-local / bash-local / fs-local 不激活（§7.1b）；core 包按需裁剪（goal/skill 等 spine 不 import 的不用声明）
+    // ④ 本地插件（file:，零 publish）：
+    "@lanyuan/dsh-agent-spine": "file:./spine",
     "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",  // 中期
     "@lanyuan/dsh-server": "file:./server"                // 中期
   },
+  "devDependencies": { "typescript": "^5.x" },  // 编译本地插件（spine/mysql-persistence）
   "bin": { "dsh-jsonrpc-agent": "bin/dsh-jsonrpc-agent.js" }
 }
 ```
+
+> **依赖类型应用（2026-08-23 澄清）**：dependencies = 运行时必需（聚合包 + core 包 + 激活插件 + 本地插件，装齐）；peerDependencies = 插件对宿主的声明（自写 spine 的 package.json 用它声明 @deepseek-ai/dsh-agent 等 core 包，宿主 = 本根 package.json 显式声明——避免重复安装/版本统一）；devDependencies = 仅构建期（typescript 编译本地插件，生产镜像不装）。⚠️ **dsh 聚合（62 依赖）不含 core 包**（dsh-agent/agent-loop/llm/session 等均不在内，已逐一核对）——core 包必须显式声明（官方 sdk-runtime 118 依赖同样如此）。
 
 > **版本说明**：0.1.1-rc.2 在 npm 的 `next` 标签（`latest` 停旧版 0.0.1-rc.x）——安装时显式锁定 `0.1.1-rc.2`，不能裸装（会拿到 latest 旧版）。
 
@@ -341,8 +357,8 @@ DSH runtime
 
 **@lanyuan/dsh-agent-spine 实现要点**：
 - 照 `packages/examples/agent-spine-demo/src/index.ts`（295 行）搬组装逻辑：agent 创建、回合调度（dsh-agent-loop）、LLM 路由、session、标题
-- 依赖正式 core 包（全 0.1.1-rc.2 已确认可用）：`dsh-agent` / `dsh-agent-loop` / `dsh-llm` / `dsh-session` / `dsh-session-title` / `dsh-scope` / `dsh-invariants` / `dsh-home-paths`（声明在 spine/package.json）
-- 可裁剪：goal / round-driver / skill 等 lanyuan 不需要的组件（社区问答场景无 goal 模式）
+- 依赖 core 包（全 0.1.1-rc.2 已确认）：`dsh-agent` / `dsh-agent-loop` / `dsh-llm` / `dsh-session` / `dsh-session-title` / `dsh-scope` / `dsh-invariants` / `dsh-tools` / `dsh-system-prompt` / `dsh-llm-retry` / `dsh-home-paths`——**声明方式：根 package.json dependencies 显式声明（宿主）+ spine/package.json peerDependencies（插件惯例，避免重复安装）**
+- 可裁剪：goal / round-driver / skill / jobs / bash 等 lanyuan 不需要的组件（社区问答场景无 goal 模式）——对应 core 包也不用声明
 - 独立 npm 包目录（tsc → dist），与 mysql-persistence 同套路
 
 **自写 bin 实现要点**：
