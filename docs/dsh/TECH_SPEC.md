@@ -9,7 +9,7 @@
 - [1. 概述与范围](#1-概述与范围)
 - [2. 技术选型（v2 增量）](#2-技术选型v2-增量)
 - [3. 系统架构](#3-系统架构)
-- [4. SSE 协议：透传 DSH 事件](#4-sse-协议透传-dsh-事件)
+- [4. 事件层（薄）：过滤起步，扩展点预留](#4-事件层薄过滤起步扩展点预留)
 - [5. 会话策略（MySQL + get-or-load-or-create）](#5-会话策略mysql-persistencebackend--get-or-load-or-create)
 - [6. MCP 工具桥](#6-mcp-工具桥)
 - [7. dsh/ 家目录](#7-dsh-家目录)
@@ -34,7 +34,7 @@
 ```
 微信小程序 → FastAPI（唯一后端，不变）
               ├─ /ai/chat: 认证 → 会话组装 → Python SDK → DSH runtime（Node 子进程）
-              │            → on_notification 白名单过滤 → SSE（§4，事件格式原样）
+              │            → on_notification 事件层过滤 → SSE（§4，事件格式原样）
               ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（@tool schema 复用）
               └─ MySQL（业务数据 + 会话日志）
 ```
@@ -47,7 +47,7 @@
   - **fork 分支语义**（git 心智不 human，lanyuan 无此场景）
   - **session-projection**（单前端直连事件流，前端本地维护状态即可；投影是整值语义表达不了流式序列）
   - **npm CLI 用法**（v2 后端 SDK 驱动，无 CLI 场景）
-  - **不做事件翻译层**（见 §4）
+  - **不做 v1 瘦身翻译**（v1 token/done 契约退役）；事件层**薄实现**：初期只做过滤，翻译能力留扩展点按需加入（§4，2026-08-23 用户定）
 
 ## 2. 技术选型（v2 增量）
 
@@ -89,7 +89,7 @@ lanyuan-base/
 │   └── app/
 │       ├── ai/                    # v2 DSH 集成层（替换 harness/）
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
-│       │   ├── sse_passthrough.py # SSE 透传（帧包装/错误/done 判定）
+│       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
 │       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
 │       │   └── mcp_bridge.py      # MCP server 进程管理（spawn/健康检查）
 │       └── tools/mcp_server/      # Python 业务工具 MCP server（复用 @tool schema）
@@ -107,18 +107,20 @@ lanyuan-base/
 1. 前端 → POST /ai/chat（认证通过）
 2. FastAPI 组装请求：短期 = 读 MySQL 历史 → content blocks + 新问题
 3. harness.run(prompt, on_notification=...)
-4. on_notification 实时到达 → sse_passthrough 白名单过滤 → SSE 帧 → 前端（§4）
+4. on_notification 实时到达 → event_layer 过滤 → SSE 帧 → 前端（§4）
 5. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
 6. 工具调用 → DSH 内部调 MCP server（§6）→ 结果回 agent → 继续/结束
 ```
 
-## 4. SSE 协议：过滤透传 DSH 事件
+## 4. 事件层（薄）：过滤起步，扩展点预留
 
-### 4.1 原则（用户 2026-08-23 定）
+### 4.1 定位（2026-08-23 用户定）
 
-**向 DSH 靠近，不让 DSH 向我们靠近**：事件类型/结构保留 DSH 原样（不做翻译、不改写字段），但后端做**白名单过滤**——只把前端关心的 event 发过去（2026-08-23 补充），内部/无关事件后端自行消费或丢弃。前端只消费白名单子集。
+**做一个薄薄的事件翻译层**（`backend/app/ai/event_layer.py`），初期只做**白名单过滤**——只把前端关心的 event 发过去；后期**如果有必要**再加入其他功能（事件改写/翻译）。不预判具体需求，层内留扩展点。
 
-### 4.2 事件白名单（发给前端）
+原则「向 DSH 靠近，不让 DSH 向我们靠近」不变：**默认保持 DSH 事件原样**（type + data 不改写）；任何改写/翻译必须由明确消费方需求驱动才加入。
+
+### 4.2 事件白名单（初期唯一职责：过滤）
 
 `session.event` 通知 payload：`{type, data, ...}`。**✅ = 白名单（发前端）**，**❌ = 后端消费/丢弃**：
 
@@ -136,24 +138,25 @@ lanyuan-base/
 | `assistant/chunk` 子类型 reasoning-delta / block-start / block-end / usage / finish | — | thinking 暂不展示；用量无展示需求 | ❌ |
 | 通知 `session.status` | status=idle | 后端 done 判定用（不转发） | ❌ |
 
-白名单可扩展：未来需要 thinking（reasoning-delta）/ 用量（usage）/ 标题时，后端加回即可（格式零改动）。
+白名单可扩展：未来需要 thinking（reasoning-delta）/ 用量（usage）/ 标题时，加回即可（格式零改动）。
 
-### 4.3 传输适配层职责（sse_passthrough.py）
+### 4.3 事件层职责（event_layer.py）
 
 | 职责 | 说明 |
 |---|---|
-| 事件过滤 | 白名单（§4.2）：非白名单事件只后端消费，不写 SSE |
+| 事件过滤 | 白名单（§4.2）：非白名单事件只后端消费，不写 SSE（初期唯一职责） |
 | SSE 帧包装 | `event: <type>\ndata: <json>\n\n`（白名单事件原样透传 type + data） |
 | 认证 | 请求鉴权通过才建立流 |
 | user_id 绑定 | 会话与用户绑定（§6 注入用） |
 | done 判定 | `turn/end`（reason.kind）或 `session.status=idle` 兜底 → 关流 |
 | 错误处理 | runtime 崩溃（TransportClosedError）→ SSE error 帧 + 日志；**不暴露内部错误详情**（v1 规则沿用：只写「请重试」，traceback 记 error.log） |
 | 断连 | 前端断开 → 取消 run（cancel 语义） |
+| 扩展点（预留） | 翻译/改写按需加入：管道式结构（filter → [改写] → frame），初期改写环节为空 |
 
-### 4.4 明确不做
+### 4.4 明确不做（初期）
 
-- ❌ text-delta→token 等瘦身翻译（v1 契约退役；事件结构原样）
-- ❌ 事件字段删减/改写（只按事件/子类型粒度过滤，不改 payload 内容）
+- ❌ v1 瘦身翻译（text-delta→token 契约退役；白名单事件结构原样）
+- ❌ 事件字段删减/改写（初期只按事件/子类型粒度过滤；改写属于扩展点，有需求再启用）
 - ❌ reasoning-delta 转发（thinking 暂不展示，前端无消费方——白名单外过滤，未来需要再加回）
 
 ## 5. 会话策略：MySQL PersistenceBackend + get-or-load-or-create（2026-08-23 用户定）
@@ -308,7 +311,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ## 9. API 设计（v2 变更）
 
-### 9.1 /ai/chat（SSE 过滤透传后）
+### 9.1 /ai/chat（事件层输出后）
 
 - 请求：不变（认证 + 消息 + 会话 id）
 - 响应事件集：**DSH 事件白名单子集**（§4.2），不再是 v1 的 token/done/error
@@ -392,7 +395,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发；新增 thinking
 
 | 里程碑 | 内容 | 依赖 |
 |---|---|---|
-| **M1 骨架** | dsh/ 家目录 + SDK 拉起 runtime + SSE 透传 + 最短对话（每请求新 session，过渡会话） | spike 1d/1e、2a-2h |
+| **M1 骨架** | dsh/ 家目录 + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session，过渡会话） | spike 1d/1e、2a-2h |
 | **M2 工具桥** | MCP server（首批工具）+ user_id 注入机制验证 | spike 3/3b |
 | **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
 | **M4 前端 v2 + 部署** | 小程序事件消费改造（v2 直接替换 v1）+ Docker + 云托管 | §10、§11 |
