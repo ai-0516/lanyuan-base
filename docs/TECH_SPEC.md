@@ -278,7 +278,7 @@ backend/
 ├── alembic/                    # 数据库迁移
 │   └── versions/
 ├── alembic.ini
-├── requirements.txt
+├── pyproject.toml            # Python 依赖（PEP 621 单源，含 uv.lock）
 ├── Dockerfile
 └── docker-compose.yml
 ```
@@ -764,7 +764,7 @@ App (app.js)
 ├── fastapi-app              # Uvicorn 多 workers
 │   ├── app/                 # FastAPI 应用代码
 │   ├── Dockerfile           # 云托管构建入口
-│   └── requirements.txt     # Python 依赖
+│   └── pyproject.toml       # Python 依赖（PEP 621 单源，含 uv.lock）
 └── 环境变量 (云托管自动注入):
     ├── MYSQL_URL            # 云数据库连接 (CloudBase 自动注入)
     ├── DEEPSEEK_API_KEY     # DeepSeek API Key
@@ -820,12 +820,12 @@ MVP 阶段评估了以下部署方案：
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+# 依赖声明单源 = pyproject.toml（PEP 621），Docker/CI/开发统一
+COPY pyproject.toml .
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
+RUN pip install --no-cache-dir .
 
 EXPOSE 80
 CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80
@@ -833,7 +833,7 @@ CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80
 
 ### 7.8 依赖清单
 
-**Python 包 (requirements.txt)**
+**Python 包 (pyproject.toml)**
 
 ```
 fastapi>=0.115.0

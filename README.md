@@ -56,7 +56,7 @@ lanyuan-base/
 │   ├── tests/                  # 自动化测试（95 条）
 │   ├── seed_data.py            # 种子数据脚本
 │   ├── Dockerfile              # 微信云托管部署
-│   └── requirements.txt        # Python 依赖
+│   └── pyproject.toml          # Python 依赖（PEP 621 单源，含 uv.lock）
 ├── miniprogram/                # 微信小程序（54 文件）
 │   ├── app.js / .json / .wxss  # 全局入口
 │   ├── pages/                  # 7 个页面
@@ -114,8 +114,8 @@ cd backend
 # 创建虚拟环境
 python3 -m venv .venv && source .venv/bin/activate
 
-# 安装依赖
-uv pip install -r requirements.txt
+# 安装依赖（依赖声明单源 = backend/pyproject.toml）
+uv sync
 
 # 数据库迁移
 alembic upgrade head

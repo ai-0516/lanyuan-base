@@ -43,6 +43,10 @@ class DshRuntime:
             logger.info("DSH runtime 启动（runtime_bin=%s）", DSH_DIR / "bin" / "dsh-jsonrpc-agent.js")
         return self._harness
 
+    def start(self) -> None:
+        """预热并常驻 runtime（lifespan startup 调用，TECH_SPEC §3.1）。"""
+        _ = self.harness
+
     def _create(self) -> DeepSeekHarness:
         config = DeepSeekHarnessConfig(
             provider="deepseek-official",
@@ -53,12 +57,14 @@ class DshRuntime:
             env=_runtime_env(),
             request_timeout_seconds=180,
         )
-        return DeepSeekHarness(config).__enter__()
+        harness = DeepSeekHarness(config)
+        harness.start()
+        return harness
 
     def close(self) -> None:
         if self._harness is not None:
             try:
-                self._harness.__exit__(None, None, None)
+                self._harness.close()
             finally:
                 self._harness = None
             logger.info("DSH runtime 已关闭")

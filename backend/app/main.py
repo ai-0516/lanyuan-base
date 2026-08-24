@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
     await init_db()
     # v2 DSH runtime 预热（TECH_SPEC §3.1：worker 启动即常驻，首次请求无 spawn 延迟）
-    dsh_runtime.harness  # noqa: B018 触发启动（DeepSeekHarness.__enter__）
+    dsh_runtime.start()
     yield
     dsh_runtime.close()
     await close_db()
