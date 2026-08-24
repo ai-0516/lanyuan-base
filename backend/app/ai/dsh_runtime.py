@@ -27,6 +27,11 @@ def _runtime_env() -> dict:
     env.setdefault("DSH_CORDIS_CONFIG", str(DSH_DIR / "cordis-lanyuan.yml"))
     env.setdefault("DSH_HOME", str(DSH_DIR / ".dsh-home"))
     env.setdefault("DSH_SESSION_ROOT", str(DSH_DIR / ".sessions"))
+    # MCP 工具桥（§6.2）：MCP server 进程路径（backend venv python + 脚本 + cwd）
+    backend_dir = Path(__file__).resolve().parents[1]
+    env.setdefault("LANYUAN_MCP_PYTHON", str(backend_dir / ".venv" / "bin" / "python"))
+    env.setdefault("LANYUAN_MCP_MAIN", str(backend_dir / "tools" / "mcp_server" / "main.py"))
+    env.setdefault("LANYUAN_MCP_CWD", str(backend_dir))
     return env
 
 

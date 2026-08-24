@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @lanyuan/dsh-agent-spine build",
+    "build": "pnpm --filter @lanyuan/dsh-agent-spine --filter @lanyuan/dsh-lanyuan-bridge build",
     "install:all": "pnpm install",
     "prepare": "pnpm run build"
   },
@@ -29,9 +29,9 @@
     "@deepseek-ai/dsh-llm-deepseek": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.1-rc.2",
     "@deepseek-ai/dsh-session-checkpoint-policy": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
     "@deepseek-ai/schemastery": "3.18.1",
-    "@lanyuan/dsh-agent-spine": "file:./spine"
+    "@lanyuan/dsh-agent-spine": "file:./spine",
+    "@lanyuan/dsh-lanyuan-bridge": "file:./lanyuan-bridge"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
