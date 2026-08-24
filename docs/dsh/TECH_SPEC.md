@@ -360,7 +360,7 @@ DSH runtime
 **@lanyuan/dsh-agent-spine 实现要点**：
 - 照 `packages/examples/agent-spine-demo/src/index.ts`（295 行）搬组装逻辑：agent 创建、回合调度（dsh-agent-loop）、LLM 路由、session、标题
 - 依赖 core 包（全 0.1.1-rc.2 已确认）：`dsh-agent` / `dsh-agent-loop` / `dsh-llm` / `dsh-session` / `dsh-session-title` / `dsh-scope` / `dsh-invariants` / `dsh-tools` / `dsh-system-prompt` / `dsh-llm-retry` / `dsh-home-paths`——**声明方式：根 package.json dependencies 显式声明（宿主）+ spine/package.json peerDependencies（插件惯例，避免重复安装）**
-- 可裁剪：goal / round-driver / skill / jobs / bash 等 lanyuan 不需要的组件（社区问答场景无 goal 模式）——对应 core 包也不用声明
+- 可裁剪：goal / round-driver / skill / bash 等 lanyuan 不需要的组件（社区问答场景无 goal 模式）——对应 core 包也不用声明；**例外：`dsh-jobs-local` 保留**（官方 agent 无条件 mount jobs 组件，裁剪会破坏组装，§7.1b 已声明）
 - 独立 npm 包目录（tsc → dist），与 mysql-persistence 同套路
 
 **自写 bin 实现要点**：

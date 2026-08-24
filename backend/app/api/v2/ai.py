@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.ai.dsh_runtime import dsh_runtime
-from app.ai.event_layer import format_sse, should_forward
+from app.ai.event_layer import format_sse, is_done_event, should_forward
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ async def _stream_chat(prompt: str):
                 event = n.payload.get("event") or {}
                 if should_forward(event):
                     yield format_sse(event)
-                    if event.get("type") == "turn/end":
+                    if is_done_event(event):
                         break
             elif n.method == "session.status" and n.payload.get("status") == "idle":
                 # done 兜底（§4.3；正常路径 turn/end 已 break）

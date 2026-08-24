@@ -10,6 +10,7 @@
 """
 
 import sys
+import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/
@@ -33,7 +34,11 @@ def main() -> None:
             else:
                 filtered.append(event.get("type", "?"))
 
-    result = dsh_runtime.run("你好，简单介绍一下你自己", "verify-m1", on_notification)
+    # 随机 session_id：避免重复运行踩 spike 2 的 id collision（新 runtime 进程
+    # + 磁盘已有同 id 日志；review #92 建议 3）
+    session_id = f"verify-{uuid.uuid4().hex[:8]}"
+    print(f"[info] session_id: {session_id}")
+    result = dsh_runtime.run("你好，简单介绍一下你自己", session_id, on_notification)
     print(f"[result] finish_reason={result.finish_reason}")
     print(f"[result] final_response={result.final_response!r}")
 
@@ -46,6 +51,21 @@ def main() -> None:
         for e in forwarded
         if e.get("type") == "assistant/chunk"
     )
+    # 空回复自动重试一次（deepseek-v4-flash 偶发空回复；review #92 建议 7）
+    if not text.strip():
+        print("[warn] 首轮空回复，重试一次…")
+        forwarded.clear()
+        filtered.clear()
+        result = dsh_runtime.run("你好，简单介绍一下你自己", session_id, on_notification)
+        types = [e.get("type") for e in forwarded]
+        text = "".join(
+            (e.get("data") or {}).get("chunk", {}).get("text", "")
+            for e in forwarded
+            if e.get("type") == "assistant/chunk"
+        )
+        print(f"[retry text-delta 拼装] {len(text)} 字符")
+        print(f"[retry text] {text[:120]!r}")
+
     print(f"[text-delta 拼装] {len(text)} 字符")
     print(f"[text] {text[:120]!r}")
     assert "turn/end" in types, "缺 turn/end（done 判定失败）"
