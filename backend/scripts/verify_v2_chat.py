@@ -9,8 +9,6 @@
       .venv/bin/python verify_v2_chat.py
 """
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -53,7 +51,12 @@ def main() -> None:
     assert "turn/end" in types, "缺 turn/end（done 判定失败）"
     assert text.strip(), "无正文输出"
     assert "tool/call" not in types and "tool/result" not in types, "tool 事件不应转发"
-    assert not any(t == "assistant/chunk" and (e.get("data") or {}).get("chunk", {}).get("type") != "text-delta" for t, e in zip(types, forwarded)), "非 text-delta chunk 不应转发"
+    bad = [
+        e.get("data", {}).get("chunk", {}).get("type")
+        for t, e in zip(types, forwarded)
+        if t == "assistant/chunk" and e.get("data", {}).get("chunk", {}).get("type") != "text-delta"
+    ]
+    assert not bad, f"非 text-delta chunk 不应转发: {bad}"
     print("\n✅ M1 全链路验证通过")
 
 
