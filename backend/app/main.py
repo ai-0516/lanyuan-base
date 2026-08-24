@@ -11,7 +11,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.core.database import init_db, close_db
 from app.logger import setup_logging
+from app.ai.dsh_runtime import dsh_runtime
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
+from app.api.v2 import ai as v2_ai
 from app.api.response import api_exception_handler, api_success, validation_exception_handler
 
 
@@ -19,7 +21,10 @@ from app.api.response import api_exception_handler, api_success, validation_exce
 async def lifespan(app: FastAPI):
     setup_logging()
     await init_db()
+    # v2 DSH runtime 预热（TECH_SPEC §3.1：worker 启动即常驻，首次请求无 spawn 延迟）
+    dsh_runtime.start()
     yield
+    dsh_runtime.close()
     await close_db()
 
 
@@ -47,6 +52,9 @@ app.include_router(profile.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(memory.router, prefix="/api/v1")
 app.include_router(upload.router, prefix="/api/v1")
+
+# v2（DSH 重写 agent，TECH_SPEC §9.1）
+app.include_router(v2_ai.router, prefix="/api/v2")
 
 
 @app.get("/api/health")

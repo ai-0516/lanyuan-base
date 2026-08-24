@@ -33,12 +33,16 @@ htmlcov/
 # Logs
 backend/logs/
 
-# uv
-backend/uv.lock
-
 # WeChat Mini Program
 miniprogram/node_modules/
 miniprogram/miniprogram_npm/
 
 # Environment
 .env
+
+# v2 DSH runtime（dsh/ 家目录）
+dsh/node_modules/
+dsh/spine/node_modules/
+dsh/.sessions/
+dsh/.dsh-home/
+dsh/spine/lib/

@@ -28,7 +28,9 @@ jobs:
           enable-cache: false
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          uv sync
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Ruff lint
         run: ruff check .
@@ -49,7 +51,9 @@ jobs:
           enable-cache: false
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          uv sync
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Run tests with coverage
         shell: bash
@@ -151,12 +155,11 @@ jobs:
           enable-cache: false
 
       - name: Install dependencies
-        # 自建 venv + 激活 PATH（#59 修复）：setup-uv 的 VIRTUAL_ENV 与 pip 目标环境
-        # 不一致（pip 装到 python3.12 user site，python 命令是 3.11）→ 显式统一
+        # uv sync 建 .venv 并装 pyproject 依赖（含 dev 组）；激活 PATH（#59 修复保留：
+        # setup-uv 的 VIRTUAL_ENV 与 pip 目标环境不一致的历史问题由 uv sync 天然规避）
         run: |
-          uv venv .venv
+          uv sync
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-          uv pip install --python .venv/bin/python -r requirements.txt
 
       # 无 LLM 类评测（#59）：不需要 LLM key，CI 可直接跑；有 LLM 类（--llm 门控）不挂 CI
       - name: Run no-LLM evals (pytest -m eval)
