@@ -32,7 +32,6 @@ main 仓库 `/home/ubuntu/workspace/lanyuan-base` 与 worktree 路径相似（�
 
 merge 条件：
 1. `gh pr view N --json reviewDecision` == **APPROVED**（main ruleset 2 approve 满足，author 不能自批）
-2. 用户（Human）口头说「可以 merge」也是信号（此时 reviewDecision 通常已 APPROVED）
 
 - ⚠️ dev-lead 说「已 Approve / 可以 merge 了」**不算** merge 信号，只是 review 结论（PR #30 事故）
 - ⚠️ **不特定等 snxly 的 approve**：snxly 可能先 approve、dev-lead 后 approve——以 reviewDecision 整体条件为准，避免早 merge
