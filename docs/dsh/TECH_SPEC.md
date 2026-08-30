@@ -249,8 +249,18 @@ DSH runtime
 | 工具 | 说明 |
 |---|---|
 | `search_history` | **给 LLM 的搜索 tool**（前端不做搜索页/API，2026-08-23 定）；数据源 SQLite FTS5 投影（§8.3，v1 #42 MySQL FTS 卡点解放） |
-| `get_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号） |
-| 其余 v1 工具按需迁移 | 发帖/评论/记忆类（里程碑内逐个搬） |
+| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号；MCP 工具名 = v1 注册名，自动注册见 §6.4b） |
+| 其余 v1 工具按需迁移 | 发帖/评论/记忆类（自动注册后已全部可见；逐个验证） |
+
+### 6.4b 工具自动注册（M2 review 定：endpoint 对 MCP 无感）
+
+MCP server **自动注册全部 v1 @tool**（不写白名单、不列工具名）：
+
+- v1 侧：`@tool` 装饰器静默注册进全局 registry（endpoint 函数本身无感，与 v1 同语义）
+- MCP 侧：import v1 模块触发注册 → 遍历 `registry.all` 自动生成 MCP 包装（`_make_mcp_tool`）——main.py 零工具引用，**MCP 工具名 = v1 注册名**（单一真源）
+- schema 同源：签名/类型/默认值/docstring 从 v1 函数还原（跳过 Depends 注入参数；Pydantic model 参数展平，对齐 v1 _flatten_model）
+- 执行：`_call_v1` → `td.execute(db, user_id, args)`（注入 + 解包 + formatter 删减）→ json.loads 结构化返回；db 生命周期对齐 FastAPI get_db（请求级 commit/rollback，写操作正确落库）
+- 新增 v1 @tool 即自动进入 v1/v2 两个 LLM 消费方，无额外步骤
 
 ## 7. dsh/ 家目录
 

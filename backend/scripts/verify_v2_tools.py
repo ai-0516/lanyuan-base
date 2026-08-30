@@ -2,7 +2,7 @@
 
 验证点：
 1. 6 插件配置（含 lanyuan-bridge）runtime 正常拉起，MCP server 被 spawn
-2. agent 真实调用业务工具（mcp__lanyuan__search_history / get_profile）
+2. agent 真实调用业务工具（mcp__lanyuan__search_history / get_my_profile，§6.4b 自动注册）
 3. user_id 注入链路通（session id `v2-{user_id}-{uuid}` → 桥插件 _meta →
    MCP server）——MCP server 无 _meta 必抛 PermissionError，工具成功执行即证明注入通
 4. 事件层：tool/call、tool/result 在后端事件流可见（白名单外不转发前端）
@@ -68,7 +68,7 @@ def main() -> None:
     try:
         result = harness.run(
             "用户想回忆过去聊过的事情：请先搜索他的历史对话（search_history），"
-            "再获取他的基本资料（get_profile），然后简单总结两句。",
+            "再获取他的基本资料（get_my_profile），然后简单总结两句。",
             session_id=session_id,
         )
         print(f"[result] finish_reason={result.finish_reason}")
