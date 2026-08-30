@@ -210,10 +210,10 @@ lanyuan-base/
 FastAPI 进程（uvicorn worker）
   ├─ /api/v2/ai/chat: DSH runtime（Node 子进程）→ 桥插件（HTTP client）
   └─ /mcp: MCP server 挂载（fastmcp streamable-http，§6.2）
-       └─ 自动注册全部 v1 @tool（§6.4b，连 MySQL）
+       └─ 业务工具（@mcp_tool 原生注册，§6.4b，连 MySQL）
 ```
 
-- 工具注册名：`mcp__<serverName>__<rawName>`（`mcp__lanyuan__search_history`）
+- 工具注册名：`mcp__<serverName>__<rawName>`（如 `mcp__lanyuan__get_my_profile`）
 - transport：**streamable-http 挂载 FastAPI /mcp**（M2 review 定：MCP server 能力独立于 DSH runtime——DSH 只是 HTTP client，工具/API 同进程、同认证/事务体系；`http_app(path="/")` 避免与 mount 前缀叠加 404）
 - 桥插件连接：`StreamableHTTPClientTransport`（MCP SDK 正式库）消费 `LANYUAN_MCP_URL`；启动窗口内**有界重试**（FastAPI lifespan 预热 DSH runtime 时尚未 listen，重试等 /mcp 就绪；超过窗口抛错 = 装配失败不静默缺工具）
 - 崩溃恢复：MCP server 随 FastAPI 生命周期（同进程）；DSH runtime 崩溃重启 → cordis 重新装配 → 桥重连 /mcp
@@ -246,19 +246,26 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 
 | 工具 | 说明 |
 |---|---|
-| `search_history` | **给 LLM 的搜索 tool**（前端不做搜索页/API，2026-08-23 定）；数据源 SQLite FTS5 投影（§8.3，v1 #42 MySQL FTS 卡点解放） |
-| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号；MCP 工具名 = v1 注册名，自动注册见 §6.4b） |
-| 其余 v1 工具按需迁移 | 发帖/评论/记忆类（自动注册后已全部可见；逐个验证） |
+| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号；@mcp_tool 原生注册，§6.4b） |
+| ~~`search_history`~~ | **不迁移**——v2 历史搜索由 DSH session-query 能力覆盖（§6.4b） |
+| 其余 v1 工具 | 不自动进 MCP（v1 @tool 体系退役）；需要的工具用 @mcp_tool 逐个定义 |
 
-### 6.4b 工具自动注册（M2 review 定：endpoint 对 MCP 无感）
+### 6.4b 工具注册（M2 review 定案：@mcp_tool 原生注册，不依赖 v1 @tool）
 
-MCP server **自动注册全部 v1 @tool**（不写白名单、不列工具名）：
+MCP server **完全不再 import v1 模块**——工具用 `@mcp_tool` 装饰器原生注册（§6.4）：
 
-- v1 侧：`@tool` 装饰器静默注册进全局 registry（endpoint 函数本身无感，与 v1 同语义）
-- MCP 侧：import v1 模块触发注册 → 遍历 `registry.all` 自动生成 MCP 包装（`_make_mcp_tool`）——main.py 零工具引用，**MCP 工具名 = v1 注册名**（单一真源）
-- schema 同源：签名/类型/默认值/docstring 从 v1 函数还原（跳过 Depends 注入参数；Pydantic model 参数展平，对齐 v1 _flatten_model）
-- 执行：`_call_v1` → `td.execute(db, user_id, args)`（注入 + 解包 + formatter 删减）→ json.loads 结构化返回；db 生命周期对齐 FastAPI get_db（请求级 commit/rollback，写操作正确落库）
-- 新增 v1 @tool 即自动进入 v1/v2 两个 LLM 消费方，无额外步骤
+```python
+@mcp_tool  # tools/mcp_server/tools.py：装饰器执行即注册进 mcp（无注册表遍历）
+async def get_my_profile(user_id: int = None, db: AsyncSession = None) -> dict:
+    """业务参数进 MCP schema；user_id/db 是注入参数（LLM 不可见）"""
+    ...  # 纯业务逻辑，返回结构化 dict（隐私字段自己控制不返回）
+```
+
+- 注入参数按参数名识别（`user_id`/`db`）：user_id 来自 `_meta`（§6.3），db 由装饰器注入
+  async_session_factory 会话（请求级 commit/rollback，对齐 get_db 契约）——工具函数只写业务
+- 返回**结构化 dict**（fastmcp 序列化），无 v1 的 api_success/formatter 逆向
+- v1 @tool 体系退役后 MCP 侧零影响；**search_history 不迁移**——v2 历史搜索由
+  DSH session-query 能力覆盖，业务工具仅保留数据类（get_my_profile 等）
 
 ## 7. dsh/ 家目录
 
@@ -425,7 +432,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 9.3 搜索能力
 
-**前端不做搜索 API/搜索页**（2026-08-23 用户定）——搜索是给 LLM 的 tool（`search_history`，§6.4），数据源 SQLite FTS5 投影（§8.3）。
+**前端不做搜索 API/搜索页**（2026-08-23 用户定）——搜索是给 LLM 的能力：v1 用 `search_history` tool，v2 由 DSH session-query 覆盖（§6.4b 定：不迁移业务工具）。
 
 ## 10. 前端 v2（小程序）
 

@@ -2,7 +2,7 @@
 
 验证点：
 1. FastAPI 启动并挂载 /mcp（MCP server 随 FastAPI 生命周期，§6.2）
-2. agent 真实调用业务工具（mcp__lanyuan__search_history / get_my_profile，§6.4b 自动注册）
+2. agent 真实调用业务工具（mcp__lanyuan__get_my_profile，§6.4b @mcp_tool 原生注册）
 3. user_id 注入链路通（session id `v2-{user_id}-{uuid}` → 桥插件 _meta → MCP
    server，HTTP 传输透传 _meta）——无 _meta 必抛 PermissionError，成功即证明注入通
 4. 事件层：tool/call、tool/result 在后端事件流可见（白名单外不转发前端）
@@ -86,8 +86,7 @@ def main() -> None:
     session_id = f"v2-{USER_ID}-{uuid.uuid4()}"
     try:
         result = dsh_runtime.run(
-            "用户想回忆过去聊过的事情：请先搜索他的历史对话（search_history），"
-            "再获取他的基本资料（get_my_profile），然后简单总结两句。",
+            "用户想了解自己的账号信息：请获取他的基本资料（get_my_profile），然后简单总结两句。",
             session_id=session_id,
         )
         print(f"[result] finish_reason={result.finish_reason}")
@@ -104,7 +103,9 @@ def main() -> None:
             print(f"  [tool/result] keys={list(d.keys())} content={str(content)[:300]}")
 
         assert result.finish_reason == "completed", f"finish_reason={result.finish_reason}"
-        assert any(n.startswith("mcp__lanyuan__") for n in names), f"未调用业务工具: {names}"
+        # @mcp_tool 原生注册（§6.4b）：search_history 不迁移（v2 历史搜索用 DSH
+        # session-query），业务工具只有 get_my_profile
+        assert any(n == "mcp__lanyuan__get_my_profile" for n in names), f"未调用 get_my_profile: {names}"
         # tool/result 无 isError = 工具成功执行 = MCP server 侧拿到 _meta.user_id
         # （无 _meta 时 MCP server 抛 PermissionError → isError=true）
         errors = [e for e in tool_results if (e.get("data") or {}).get("isError")]

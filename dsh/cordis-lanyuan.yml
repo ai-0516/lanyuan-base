@@ -25,8 +25,8 @@
   name: '@deepseek-ai/dsh-session-checkpoint-policy'
 
 # 业务工具桥（§6.2）：自写插件经 streamable-http 消费挂载在 FastAPI /mcp 的
-# MCP server（§6.4b 自动注册全部 v1 @tool，如 mcp__lanyuan__search_history /
-# get_my_profile）；user_id 由桥插件从 session id 解析并注入 callTool 的 _meta（§6.3）
+# MCP server（§6.4b @mcp_tool 原生注册，如 mcp__lanyuan__get_my_profile）；
+# user_id 由桥插件从 session id 解析并注入 callTool 的 _meta（§6.3）
 - id: lanyuan-bridge
   name: '@lanyuan/dsh-lanyuan-bridge'
   config:

@@ -1,11 +1,11 @@
-"""M2 工具桥单测：user_id 注入（§6.3）+ MCP server 自动注册 v1 @tool（§6.4）
+"""M2 工具桥单测：user_id 注入（§6.3）+ @mcp_tool 原生注册（§6.4b）
 
 覆盖：
-- _user_id：从 callTool `_meta` 提取（Meta 是 pydantic 模型，extra=allow）
+- _user_id_from_meta：从 callTool `_meta` 提取（Meta 是 pydantic 模型，extra=allow）
 - 无 _meta / 无 user_id 字段 → PermissionError（桥层未注入 = 拒绝执行）
-- 工具自动注册：MCP schema 与 v1 ToolDef schema 全量一致（无 user_id/db）
-- get_my_profile / search_history / update_my_profile：_meta 身份 → v1 复用链
-  （ToolDef.execute 注入 + formatter 删减 + 请求级 commit）
+- get_my_profile（@mcp_tool）：_meta 身份 → user_id 注入 → 业务函数执行 → 结构化返回
+  （隐私字段不返回；写操作请求级 commit——对齐 get_db 契约）
+- schema：业务参数进 MCP schema，注入参数（user_id/db）不暴露
 """
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from tools.mcp_server.main import _MCP_TOOLS, _user_id, mcp
+import tools.mcp_server.tools  # noqa: F401  # 触发 @mcp_tool 注册（get_my_profile）
+from tools.mcp_server.decorator import _REGISTERED_TOOLS, _user_id_from_meta, mcp
 
 
 def _ctx_with_meta(meta):
@@ -27,25 +28,25 @@ class TestUserIdExtraction:
     def test_user_id_from_meta(self):
         # MCP SDK 的 Meta 是 pydantic 模型（extra=allow）：user_id 作为额外属性
         meta = SimpleNamespace(user_id=42)
-        assert _user_id(_ctx_with_meta(meta)) == 42
+        assert _user_id_from_meta(_ctx_with_meta(meta)) == 42
 
     def test_user_id_missing_meta(self):
         with pytest.raises(PermissionError):
-            _user_id(_ctx_with_meta(None))
+            _user_id_from_meta(_ctx_with_meta(None))
 
     def test_user_id_meta_without_field(self):
         # _meta 存在但无 user_id 字段（如只有 progressToken）
         meta = SimpleNamespace(progressToken="p1")
         with pytest.raises(PermissionError):
-            _user_id(_ctx_with_meta(meta))
+            _user_id_from_meta(_ctx_with_meta(meta))
 
     def test_user_id_string_coerced(self):
         meta = SimpleNamespace(user_id="7")
-        assert _user_id(_ctx_with_meta(meta)) == 7
+        assert _user_id_from_meta(_ctx_with_meta(meta)) == 7
 
 
 def _make_user(user_id: int, nickname: str) -> User:
-    """真实 User model 实例（SQLAlchemy 分支要求 _sa_instance_state/__table__，v1 formatter 契约）"""
+    """真实 User model 实例（get_my_profile 查询对应用户）"""
     return User(
         id=user_id,
         nickname=nickname,
@@ -54,7 +55,7 @@ def _make_user(user_id: int, nickname: str) -> User:
         bio="",
         show_building=True,
         show_room=False,
-        avatar="data:base64...",  # 隐私字段：formatter 必须删减（#69）
+        avatar="data:base64...",  # 隐私字段：工具不返回
         openid="o_test",
         unionid="u_test",
         unit="5",
@@ -62,28 +63,12 @@ def _make_user(user_id: int, nickname: str) -> User:
     )
 
 
-class _FakeScalars:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def first(self):
-        return self._rows[0] if self._rows else None
-
-    def all(self):
-        return self._rows
-
-
 class FakeScalarResult:
-    """execute 替身：rows 为 list，统一从 rows 取 scalar_one_or_none / scalars"""
-
     def __init__(self, rows):
         self._rows = rows if isinstance(rows, list) else [rows]
 
     def scalar_one_or_none(self):
         return self._rows[0] if self._rows else None
-
-    def scalars(self):
-        return _FakeScalars(self._rows)
 
 
 class FakeSession:
@@ -102,12 +87,6 @@ class FakeSession:
     async def execute(self, stmt):
         return self._execute_result
 
-    async def add(self, obj):
-        pass
-
-    async def flush(self):
-        pass
-
     async def commit(self):
         self.committed = True
 
@@ -118,101 +97,65 @@ class FakeSession:
 class TestGetMyProfile:
     @pytest.mark.asyncio
     async def test_profile_uses_user_id_from_meta(self):
-        """user_id 来自 _meta（桥层注入），复用 v1 get_my_profile 查询对应用户"""
+        """user_id 来自 _meta（桥层注入）→ @mcp_tool 注入业务函数 → 查询对应用户"""
         fake = FakeSession(FakeScalarResult([_make_user(42, "桥接用户")]))
-        with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
-            result = await _MCP_TOOLS["get_my_profile"](ctx=_ctx_with_meta(SimpleNamespace(user_id=42)))
+        with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
+            result = await _REGISTERED_TOOLS["get_my_profile"](
+                ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
+            )
 
         assert result["id"] == 42
         assert result["nickname"] == "桥接用户"
+        assert fake.committed, "应请求级 commit（对齐 FastAPI get_db 契约）"
 
     @pytest.mark.asyncio
-    async def test_profile_ignores_model_arguments(self):
-        """工具签名无 user_id 参数——即使有人构造带 user_id 的 arguments 也无法注入（工具只收 ctx）"""
-        fake = FakeSession(FakeScalarResult([_make_user(9, "本人")]))
-        with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
-            result = await _MCP_TOOLS["get_my_profile"](ctx=_ctx_with_meta(SimpleNamespace(user_id=9)))
-        assert result["id"] == 9
-
-    @pytest.mark.asyncio
-    async def test_profile_rejects_without_meta(self):
-        with pytest.raises(PermissionError):
-            await _MCP_TOOLS["get_my_profile"](ctx=_ctx_with_meta(None))
-
-    @pytest.mark.asyncio
-    async def test_profile_strips_private_fields_via_v1_formatter(self):
-        """隐私字段删减由 v1 formatter 完成（#69）：avatar/openid/unionid/unit/room 不返回"""
+    async def test_profile_strips_private_fields(self):
+        """隐私字段（avatar/openid/unionid/unit/room）由工具自身控制不返回"""
         fake = FakeSession(FakeScalarResult([_make_user(42, "桥接用户")]))
-        with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
-            result = await _MCP_TOOLS["get_my_profile"](ctx=_ctx_with_meta(SimpleNamespace(user_id=42)))
+        with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
+            result = await _REGISTERED_TOOLS["get_my_profile"](
+                ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
+            )
 
         for private in ("avatar", "openid", "unionid", "unit", "room"):
             assert private not in result, f"{private} 不应出现在工具结果中"
         assert result["community"] == "兰园"
 
-
-class TestSearchHistory:
     @pytest.mark.asyncio
-    async def test_search_history_via_v1(self):
-        """search_history 复用 v1：_meta 注入 user_id → v1 查询（空结果）→ 结构化返回"""
-        fake = FakeSession(FakeScalarResult([]))
-        with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
-            result = await _MCP_TOOLS["search_history"](
-                query="地暖", ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
-            )
-
-        assert result == {"results": [], "total": 0}
-
-    @pytest.mark.asyncio
-    async def test_search_history_rejects_without_meta(self):
+    async def test_profile_rejects_without_meta(self):
         with pytest.raises(PermissionError):
-            await _MCP_TOOLS["search_history"](query="地暖", ctx=_ctx_with_meta(None))
+            await _REGISTERED_TOOLS["get_my_profile"](ctx=_ctx_with_meta(None))
 
-
-class TestUpdateMyProfile:
     @pytest.mark.asyncio
-    async def test_update_model_flattened(self):
-        """Pydantic model 参数展平（对齐 v1 _flatten_model）：字段直接进 schema，model 参数不暴露"""
+    async def test_original_fn_returned_by_decorator(self):
+        """@mcp_tool 返回原函数（无感语义）——工具函数可被其他消费方直接调用"""
+        from tools.mcp_server.tools import get_my_profile
+
+        assert callable(get_my_profile)
+        assert get_my_profile.__name__ == "get_my_profile"
+
+
+class TestMcpToolSchema:
+    """@mcp_tool 注册（§6.4b）：业务参数进 schema，注入参数不暴露"""
+
+    @pytest.mark.asyncio
+    async def test_tools_list_has_only_registered_tools(self):
         tools = {t.name: t for t in await mcp.list_tools()}
-        p = tools["update_my_profile"].parameters
-        assert {"nickname", "avatar", "bio", "show_room"} <= set(p["properties"]), "model 字段未展平"
-        assert "data" not in p["properties"], "model 参数不应暴露"
-        assert "db" not in p["properties"], "Depends 参数不应暴露"
-        assert p.get("required", []) == [], "update 全字段可选（UserUpdate 全默认 None）"
+        assert set(tools) == {"get_my_profile"}, f"应只有 @mcp_tool 注册的工具: {list(tools)}"
 
     @pytest.mark.asyncio
-    async def test_update_executes_via_v1_with_commit(self):
-        """写操作链：_meta 身份 → v1 update 执行 → 请求级 commit（对齐 get_db）"""
-        fake = FakeSession(FakeScalarResult([_make_user(42, "老昵称")]))
-        with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
-            result = await _MCP_TOOLS["update_my_profile"](
-                nickname="新昵称", ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
-            )
-
-        assert result["nickname"] == "新昵称", "v1 formatter 应输出更新后资料"
-        assert fake.committed, "写操作应请求级 commit（对齐 FastAPI get_db 契约）"
-
-
-class TestV1ReuseSchema:
-    """自动注册（§6.4）：MCP tools/list 与 v1 ToolDef schema 全量一致，无身份参数"""
-
-    @pytest.mark.asyncio
-    async def test_mcp_tools_list_matches_v1_schema(self):
-        from app.harness.tool_registry import registry
-
-        v1_by_name = {td.name: td for td in registry.all}
+    async def test_schema_excludes_injected_params(self):
         tools = {t.name: t for t in await mcp.list_tools()}
-        assert tools, "MCP 未注册任何工具"
-        for mcp_name, mcp_tool in tools.items():
-            v1_td = v1_by_name.get(mcp_name)
-            assert v1_td is not None, f"MCP 工具无 v1 来源: {mcp_name}"
-            v1_params = v1_td.schema["function"]["parameters"]
-            mcp_params = mcp_tool.parameters
-            assert set(mcp_params["properties"]) == set(v1_params["properties"]), f"{mcp_name} 参数不一致"
-            assert mcp_params.get("required", []) == v1_params.get("required", []), f"{mcp_name} required 不一致"
-            # Depends 注入参数不暴露（身份/db 由编排层注入，v1 schema 里没有的 MCP 也没有）
-            assert "db" not in mcp_params["properties"], f"{mcp_name} 暴露 db 参数"
-            assert "current_user_id" not in mcp_params["properties"], f"{mcp_name} 暴露注入身份参数"
+        params = tools["get_my_profile"].parameters
+        assert "user_id" not in params["properties"], "注入参数 user_id 不应暴露"
+        assert "db" not in params["properties"], "注入参数 db 不应暴露"
+        assert params.get("required", []) == [], "get_my_profile 无业务参数"
+
+    @pytest.mark.asyncio
+    async def test_registered_tools_match_mcp(self):
+        """_REGISTERED_TOOLS 与 mcp.list_tools 一致（注册真源同步）"""
+        tools = {t.name for t in await mcp.list_tools()}
+        assert set(_REGISTERED_TOOLS) == tools
 
 
 class TestMountHttp:
