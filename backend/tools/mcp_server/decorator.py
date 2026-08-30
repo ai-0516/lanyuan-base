@@ -32,6 +32,7 @@ from typing import Any, Callable, get_type_hints
 from fastapi.params import Depends as DependsClass
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
+from pydantic import BaseModel
 
 from app.core.database import async_session_factory
 
@@ -59,14 +60,17 @@ def _dep_name(default: Any) -> str:
     return ""
 
 
-def _classify(fn_sig: inspect.Signature) -> tuple[list[inspect.Parameter], str | None, str | None]:
-    """签名 → (业务参数, db 注入参数名, user_id 注入参数名)
+def _classify(fn_sig: inspect.Signature, hints: dict) -> tuple[list[inspect.Parameter], tuple[str, type[BaseModel]] | None, str | None, str | None]:
+    """签名 → (业务参数, Pydantic model 参数, db 注入参数名, user_id 注入参数名)
 
     注入识别与 v1 @tool 一致：Depends(get_db) → db 会话注入；
     Depends(get_current_user) → user_id 注入（MCP 模式来自 _meta）。
     Depends 参数一律不进 MCP schema（LLM 不可见）。
+    Pydantic model 参数（如 PostCreate）单独返回——schema 展平为独立字段
+    （同 v1 _flatten_model），执行时按字段重建 model 实例。
     """
     business: list[inspect.Parameter] = []
+    model_param: tuple[str, type[BaseModel]] | None = None
     db_param = user_param = None
     for pname, param in fn_sig.parameters.items():
         default = param.default
@@ -77,8 +81,12 @@ def _classify(fn_sig: inspect.Signature) -> tuple[list[inspect.Parameter], str |
             elif dep == "get_current_user":
                 user_param = pname
             continue
+        hint = hints.get(pname, param.annotation)
+        if isinstance(hint, type) and issubclass(hint, BaseModel):
+            model_param = (pname, hint)
+            continue
         business.append(param)
-    return business, db_param, user_param
+    return business, model_param, db_param, user_param
 
 
 def _unwrap(result: Any) -> Any:
@@ -138,9 +146,10 @@ def mcp_tool(fn: Callable | None = None, *, name: str | None = None,
         fn_sig = inspect.signature(f)
         hints = get_type_hints(f)
 
-        business, db_param, user_param = _classify(fn_sig)
+        business, model_param, db_param, user_param = _classify(fn_sig, hints)
 
-        # ── 签名 → MCP schema（Depends 注入参数剔除；必填在前，组内保持函数顺序） ──
+        # ── 签名 → MCP schema（Depends 注入参数剔除；Pydantic model 展平；
+        #    必填在前，组内保持函数顺序） ──
         sig_required: list[inspect.Parameter] = []
         sig_optional: list[inspect.Parameter] = []
         annotations: dict[str, Any] = {}
@@ -158,15 +167,45 @@ def mcp_tool(fn: Callable | None = None, *, name: str | None = None,
                     pname, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation, default=param.default,
                 ))
             annotations[pname] = annotation
+
+        # Pydantic model 参数 → 字段展平为独立参数（同 v1 _flatten_model；
+        # 字段重名跳过——v1 语义）
+        model_fields_set: set[str] = set()
+        if model_param is not None:
+            _mname, model_cls = model_param
+            for fname, finfo in model_cls.model_fields.items():
+                if fname in annotations:
+                    continue
+                if finfo.is_required():
+                    sig_required.append(inspect.Parameter(
+                        fname, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=finfo.annotation,
+                    ))
+                else:
+                    default = finfo.get_default(call_default_factory=True)
+                    sig_optional.append(inspect.Parameter(
+                        fname, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=finfo.annotation, default=default,
+                    ))
+                annotations[fname] = finfo.annotation
+                model_fields_set.add(fname)
+
         sig_optional.append(inspect.Parameter(
             "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Context, default=None,
         ))
         annotations["ctx"] = Context
 
+        business_names = [p.name for p in business]
+
         # ── 包装执行：_meta 身份 + db 会话（请求级 commit）→ 调 endpoint 函数 ──
         async def wrapped(ctx: Context = None, **kwargs: Any) -> Any:  # type: ignore[assignment]
             user_id = _user_id_from_meta(ctx)
-            call_kwargs: dict[str, Any] = dict(kwargs)
+            call_kwargs: dict[str, Any] = {}
+            if model_param is not None:
+                mname, mcls = model_param
+                model_data = {k: v for k, v in kwargs.items() if k in model_fields_set}
+                call_kwargs[mname] = mcls(**model_data)
+            for pname in business_names:
+                if pname in kwargs:
+                    call_kwargs[pname] = kwargs[pname]
             async with async_session_factory() as db:
                 try:
                     if user_param is not None:

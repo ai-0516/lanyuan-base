@@ -91,7 +91,7 @@ lanyuan-base/
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
 │       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
 │       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
-│       └── tools/mcp_server/      # MCP 基础设施（@mcp_tool 装饰器 + http_app 挂载，§6.1/§6.4b；工具定义在 app/api/v2/ endpoint 上）
+│       └── tools/mcp_server/      # MCP 基础设施（@mcp_tool 装饰器 + http_app 挂载，§6.1/§6.4b；工具定义在 app/api/v1/ 业务 endpoint 上，@tool 旁叠加）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
     ├── package.json               # 正式包依赖 + file: 本地插件 + bin 入口
@@ -246,26 +246,19 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 
 | 工具 | 说明 |
 |---|---|
-| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/简介/开关；v2 = v1-copy + support-mcp——formatter 删隐私 avatar/openid/unit/room，§6.4b；endpoint `/api/v2/user/me`） |
+| **19 个业务工具**（profile 3：get_my_profile/update_my_profile/get_user_public；posts 6；comments 3；notifications 3；memory 4） | 全部 `@mcp_tool` 注册（@tool 旁叠加，§6.4b）；endpoint 路径不变（/api/v1/*，v1/v2 仅限 /ai/chat） |
 | ~~`search_history`~~ | **不迁移**——v2 历史搜索由 DSH session-query 能力覆盖（§6.4b） |
-| 其余 v1 工具 | 不自动进 MCP（v1 @tool 体系退役）；需要的工具用 @mcp_tool 逐个定义 |
 
-### 6.4b 工具注册（M2 review 定案：@mcp_tool 原生注册，不依赖 v1 @tool）
+### 6.4b 工具注册（M2 review 定案：@mcp_tool 写在业务 endpoint 上，@tool 旁叠加）
 
-**v2 = v1-copy + support-mcp（2026-08-30 用户定）**：`@mcp_tool` 用法与 v1 `@tool`
-**完全一致**（含 `result_formatter`）——业务代码逐字复制 v1（endpoint + Depends
-注入 + api_success + formatter），装饰器从 @tool 换成 @mcp_tool，写在 v2
-endpoint 上（如 `app/api/v2/profile.py`），装饰器执行即注册进 mcp（无注册表
-遍历/无 v1 依赖）：
+**v1/v2 仅限 /ai/chat（2026-08-30 用户定）**——业务 endpoint（用户/帖子/评论/通知/
+记忆）不属于 v1/v2 之争，文件永存、路径不变；`@mcp_tool` **直接写在业务 endpoint
+的 @tool 旁边**（同一函数双注册，装饰器均返回原函数，FastAPI 无感）：
 
 ```python
-def _format_get_my_profile(data) -> str:
-    """删减：avatar（base64 头像）、openid/unionid（微信身份标识）、unit/room（房号隐私）。"""
-    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
-
-
 @router.get("/user/me")
-@mcp_tool(result_formatter=_format_get_my_profile)
+@mcp_tool(result_formatter=_format_get_my_profile)   # 注册进 MCP server（v2 agent 用）
+@tool(result_formatter=_format_get_my_profile)       # 注册进 v1 ToolRegistry（v1 agent 用）
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
@@ -275,18 +268,23 @@ async def get_my_profile(
     return api_success(user)  # model 原样（HTTP 消费，同 v1）
 ```
 
+- **双注册语义**：@tool 与 @mcp_tool 签名一致（name + result_formatter）、各自注册到
+  自己的体系——短期两者共存（v1 agent 用 @tool、v2 agent 用 @mcp_tool）；后期删 @tool
+  机制（装饰器行 + tool_registry）即完成切换，业务文件不动、@mcp_tool 保留
 - 注入识别与 v1 @tool 一致：`Depends(get_db)` → db 会话注入，`Depends(get_current_user)`
   → user_id 注入（LLM 不可见）。HTTP 模式 FastAPI Depends 正常解析；MCP 模式
   user_id 来自 `_meta`（§6.3），db 由装饰器注入 async_session_factory 会话
-  （请求级 commit/rollback，对齐 get_db 契约）——工具函数只写业务
+  （请求级 commit/rollback，对齐 get_db 契约）
 - **MCP 模式执行链**（同 v1 ToolDef.execute）：解包 api_success → `_to_dict`
-  （model→dict，跳过 created_at/updated_at）→ result_formatter 输出（JSON
-  字符串，LLM 读 formatter 投影）；无 formatter 时直接返回解包后的 data
-  （结构化 dict）。HTTP 模式 = v1 语义（本人资料全量，前端展示需要）
-- 隐私保护承担者与 v1 一致：**formatter 删减**（`result_formatter` 参数），
-  不是函数体——v1-copy 逐字复制即继承
-- v1 @tool 体系退役后 MCP 侧零影响；**search_history 不迁移**——v2 历史搜索由
-  DSH session-query 能力覆盖，业务工具仅保留数据类（get_my_profile 等）
+  （model→dict，跳过 created_at/updated_at）→ result_formatter 输出（JSON 字符串，
+  LLM 读 formatter 投影）；无 formatter 时直接返回解包后的 data（结构化 dict）
+- **Pydantic model 参数展平**（同 v1 _flatten_model）：create_post 的 content/images
+  等展平为独立字段进 schema，执行时按字段重建 model 实例
+- 隐私保护承担者与 v1 一致：**formatter 删减**（`result_formatter` 参数）
+- **search_history 不迁移**——v2 历史搜索由 DSH session-query 能力覆盖；
+  其余 19 个业务工具全部 @mcp_tool 注册（M2 review 用户定：工具面全量铺开）
+- MCP server（tools/mcp_server/main.py）不 import 业务模块——注册由 app.main
+  import 业务文件触发（装饰器执行即注册，无注册表遍历/无 v1 依赖）
 
 ## 7. dsh/ 家目录
 
@@ -449,11 +447,10 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 9.2 其余 API
 
-维持 `/api/v1` 不变（v1 TECH_SPEC §4）——业务 API（用户/帖子/评论/通知/上传等）
-不迁移、不重写；v2 仅新增两处：
-- `POST /api/v2/ai/chat`（§9.1）
-- **工具端点**（§6.4b 工具=endpoint）：`GET /api/v2/user/me`（get_my_profile——
-  HTTP 形态可自检/调试/供前端消费；主消费方是 MCP 工具）
+维持 `/api/v1` 不变（v1 TECH_SPEC §4）——**业务 API（用户/帖子/评论/通知/记忆）
+不属于 v1/v2 之争（2026-08-30 用户定）**：文件永存、路径不变，`@mcp_tool` 直接
+挂在业务 endpoint 上（@tool 旁叠加，§6.4b）——**不新增 v2 业务端点**；
+v2 只新增 `POST /api/v2/ai/chat`（§9.1）。
 
 ### 9.3 搜索能力
 

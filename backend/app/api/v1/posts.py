@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
+from tools.mcp_server.decorator import mcp_tool
 from app.schemas.post import PostCreate
 from app.services import post_service
 
@@ -43,6 +44,7 @@ def _format_unlike_post(data) -> str:
 
 
 @router.get("")
+@mcp_tool(result_formatter=_format_list_posts)
 @tool(result_formatter=_format_list_posts)
 async def list_posts(
     page: int = 1,
@@ -56,6 +58,7 @@ async def list_posts(
 
 
 @router.post("")
+@mcp_tool(result_formatter=_format_create_post)
 @tool(result_formatter=_format_create_post)
 async def create_post(
     data: PostCreate,
@@ -68,6 +71,7 @@ async def create_post(
 
 
 @router.get("/{post_id}")
+@mcp_tool(result_formatter=_format_get_post)
 @tool(result_formatter=_format_get_post)
 async def get_post(
     post_id: int,
@@ -83,6 +87,7 @@ async def get_post(
 
 
 @router.delete("/{post_id}")
+@mcp_tool(result_formatter=_format_delete_post)
 @tool(result_formatter=_format_delete_post)
 async def delete_post(
     post_id: int,
@@ -97,6 +102,7 @@ async def delete_post(
 
 
 @router.post("/{post_id}/like")
+@mcp_tool(result_formatter=_format_like_post)
 @tool(result_formatter=_format_like_post)
 async def like_post(
     post_id: int,
@@ -111,6 +117,7 @@ async def like_post(
 
 
 @router.delete("/{post_id}/like")
+@mcp_tool(result_formatter=_format_unlike_post)
 @tool(result_formatter=_format_unlike_post)
 async def unlike_post(
     post_id: int,
