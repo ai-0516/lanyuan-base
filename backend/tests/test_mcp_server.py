@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from tools.mcp_server.main import _user_id, get_profile, search_history
+from tools.mcp_server.main import _user_id, get_profile, mcp, search_history
 
 
 def _ctx_with_meta(meta):
@@ -144,7 +144,7 @@ class TestSearchHistory:
         fake = FakeSession(FakeScalarResult([]))
         with patch("tools.mcp_server.main.async_session_factory", return_value=fake):
             result = await search_history(
-                "地暖", ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
+                query="地暖", ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
             )
 
         assert result == {"results": [], "total": 0}
@@ -152,4 +152,23 @@ class TestSearchHistory:
     @pytest.mark.asyncio
     async def test_search_history_rejects_without_meta(self):
         with pytest.raises(PermissionError):
-            await search_history("地暖", ctx=_ctx_with_meta(None))
+            await search_history(query="地暖", ctx=_ctx_with_meta(None))
+
+
+class TestV1ReuseSchema:
+    """动态注册（§6.4）：MCP schema 与 v1 ToolDef schema 同源，无身份参数"""
+
+    @pytest.mark.asyncio
+    async def test_mcp_tools_list_matches_v1_schema(self):
+        from app.harness.tool_registry import registry
+
+        tools = {t.name: t for t in await mcp.list_tools()}
+        for mcp_name, v1_name in (("search_history", "search_history"), ("get_profile", "get_my_profile")):
+            v1_td = registry.get(v1_name)
+            assert v1_td is not None, f"v1 工具未注册: {v1_name}"
+            v1_params = v1_td.schema["function"]["parameters"]
+            mcp_params = tools[mcp_name].parameters
+            assert set(mcp_params["properties"]) == set(v1_params["properties"]), f"{mcp_name} 参数不一致"
+            assert mcp_params.get("required", []) == v1_params.get("required", []), f"{mcp_name} required 不一致"
+            assert "user_id" not in mcp_params["properties"], f"{mcp_name} 暴露身份参数"
+            assert "db" not in mcp_params["properties"], f"{mcp_name} 暴露 db 参数"

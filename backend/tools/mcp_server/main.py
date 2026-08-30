@@ -7,18 +7,22 @@
 桥插件在 callTool 请求 `_meta` 中注入的 user_id（桥层强制绑定，LLM 无法伪造）。
 任何工具实现不得信任模型输入中的身份字段——本文件统一从 `_meta` 提取。
 
-工具实现**复用 v1 @tool**（§6.4：业务实现单份，MCP 层只做身份适配）：
-import app.api.v1.* 触发 @tool 注册 → registry.get(name) 取 ToolDef → td.execute(db,
-user_id, args) 完成 Depends 注入（db/user_id）+ api_success 解包 + result_formatter
-删减，返回的是删减后的 JSON 文本（v1 formatter 契约 #69：保留 JSON 结构）→
-json.loads 还原为 MCP 结构化返回。
+工具**自动注册 v1 @tool**（§6.4：业务实现单份，本文件不写工具逻辑）：
+import app.api.v1.* 触发 @tool 注册进全局 registry → _make_mcp_tool 按 §6.4
+白名单为每个 v1 工具生成 MCP 包装（签名/类型/默认值/docstring 从 v1 函数还原，
+schema 与 v1 ToolDef 同源）→ 执行走 _call_v1：td.execute(db, user_id, args)
+完成 Depends 注入 + api_success 解包 + result_formatter 删减（输出删减后 JSON
+文本，#69 契约保留 JSON 结构）→ json.loads 还原为 MCP 结构化返回。
+新增 v1 工具后只需在 _make_mcp_tool 调用处加一行白名单注册。
 
 启动：.venv/bin/python backend/tools/mcp_server/main.py（cwd=backend/，桥插件指定）
 """
 from __future__ import annotations
 
+import inspect
 import json
 import sys
+from typing import Any, Callable, get_type_hints
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # backend/
@@ -27,11 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # backend/
 import app.api.v1.ai  # noqa: E402,F401  # search_history
 import app.api.v1.profile  # noqa: E402,F401  # get_my_profile
 
+from fastapi.params import Depends as DependsClass  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.server.context import Context  # noqa: E402
 
 from app.core.database import async_session_factory  # noqa: E402
-from app.harness.tool_registry import registry  # noqa: E402
+from app.harness.tool_registry import ToolDef, registry  # noqa: E402
 
 mcp = FastMCP("lanyuan")
 
@@ -49,10 +54,10 @@ def _user_id(ctx: Context) -> int:
     return int(uid)
 
 
-# ── v1 工具复用（业务逻辑单份，MCP 层只做身份适配 + 结构化还原） ──
+# ── v1 @tool 自动注册（§6.4：业务实现单份，MCP 层只做身份适配 + 结构化还原） ──
 
 
-async def _call_v1(tool_name: str, ctx: Context, args: dict) -> dict:
+async def _call_v1(td: ToolDef, ctx: Context, args: dict) -> dict:
     """调用 v1 @tool 工具：ToolDef.execute 注入 db/user_id + 解包 + formatter 删减。
 
     v1 formatter 契约（tool_registry.py，#69）：输出是删减后的 JSON 文本（保留 JSON
@@ -60,42 +65,61 @@ async def _call_v1(tool_name: str, ctx: Context, args: dict) -> dict:
     由 v1 formatter 完成，这里不做二次清洗。
     """
     user_id = _user_id(ctx)
-    td = registry.get(tool_name)
-    if td is None:
-        raise RuntimeError(f"v1 工具未注册: {tool_name}")
     async with async_session_factory() as db:
         text = await td.execute(db, user_id, args)
         return json.loads(text)
 
 
-@mcp.tool()
-async def search_history(
-    query: str,
-    limit: int = 3,
-    window: int = 5,
-    sort: str = "relevance",
-    ctx: Context = None,  # type: ignore[assignment]  # fastmcp 注入，不进 schema
-) -> dict:
-    """搜索用户过往对话历史。当用户提到过去聊过的内容、或需要回忆更早
-    对话细节时使用。返回命中的消息及其上下文窗口（最多 limit 条命中，
-    每条带前后 window 条上下文）。
+def _make_mcp_tool(mcp_name: str, v1_name: str) -> Callable:
+    """为 v1 @tool 生成 MCP 包装函数并注册（§6.4 白名单注册）。
 
-    语义说明：返回的 total = **合并后片段数**（segment 数）——同一会话内
-    窗口重叠的连续命中合并为一个片段（同会话连续命中只返回一条窗口；
-    跨会话命中各自独立），因此 total 可能小于实际命中条数。
+    签名/类型/默认值从 v1 函数签名还原（跳过 Depends 注入参数），docstring 用
+    v1 的——MCP schema 与 v1 ToolDef schema 同源，LLM 看到的与 v1 一致。
+    注：v1 中 Pydantic model 参数（如 update_my_profile 的 UserUpdate）fastmcp 侧
+    为嵌套 object 而非 v1 的字段展平——M2 白名单无此类工具，迁移时再处理。
     """
-    return await _call_v1("search_history", ctx, {
-        "query": query,
-        "limit": limit,
-        "window": window,
-        "sort": sort,
-    })
+    td = registry.get(v1_name)
+    if td is None:
+        raise RuntimeError(f"v1 工具未注册: {v1_name}")
+
+    fn_sig = inspect.signature(td.fn)
+    hints = get_type_hints(td.fn)
+
+    async def wrapped(ctx: Context = None, **kwargs: Any) -> dict:  # type: ignore[assignment]
+        return await _call_v1(td, ctx, kwargs)
+
+    sig_params: list[inspect.Parameter] = []
+    annotations: dict[str, Any] = {}
+    for pname, param in fn_sig.parameters.items():
+        if param.default is not inspect.Parameter.empty and isinstance(param.default, DependsClass):
+            continue  # Depends 注入参数（db/user_id）：不暴露给 LLM
+        annotation = hints.get(pname, param.annotation)
+        if annotation is inspect.Parameter.empty:
+            annotation = str
+        sig_params.append(inspect.Parameter(
+            pname,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=annotation,
+            default=param.default if param.default is not inspect.Parameter.empty else inspect.Parameter.empty,
+        ))
+        annotations[pname] = annotation
+    sig_params.append(inspect.Parameter(
+        "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Context, default=None,
+    ))
+    annotations["ctx"] = Context
+
+    wrapped.__name__ = mcp_name
+    wrapped.__doc__ = td.description
+    wrapped.__signature__ = inspect.Signature(sig_params)  # type: ignore[attr-defined]
+    wrapped.__annotations__ = annotations
+
+    mcp.add_tool(wrapped)
+    return wrapped
 
 
-@mcp.tool()
-async def get_profile(ctx: Context = None) -> dict:  # type: ignore[assignment]
-    """获取当前用户的基本资料（昵称、小区、楼栋、简介等；房号/头像为隐私不返回）。"""
-    return await _call_v1("get_my_profile", ctx, {})
+# §6.4 首批工具白名单（MCP 工具名 → v1 注册名；新增 v1 工具迁移时在此加一行）
+search_history = _make_mcp_tool("search_history", "search_history")
+get_profile = _make_mcp_tool("get_profile", "get_my_profile")
 
 
 if __name__ == "__main__":
