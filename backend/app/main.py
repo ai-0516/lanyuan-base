@@ -15,6 +15,9 @@ from app.logger import setup_logging
 from app.ai.dsh_runtime import dsh_runtime
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
 from app.api.v2 import ai as v2_ai
+# v2 工具=endpoint 模块（§6.4b：@mcp_tool 写在 endpoint 上）——import 即触发
+# @mcp_tool 注册进 mcp（必须在 tools.mcp_server.main 的 mcp_app 构建前 import）
+from app.api.v2 import profile as v2_profile
 from app.api.response import api_exception_handler, api_success, validation_exception_handler
 # v2 MCP server（§6.2：挂载 /mcp，streamable-http）——lifespan 需合并（fastmcp
 # StreamableHTTPSessionManager 依赖 lifespan 初始化，官方要求显式传入父 app）
@@ -63,6 +66,8 @@ app.include_router(upload.router, prefix="/api/v1")
 
 # v2（DSH 重写 agent，TECH_SPEC §9.1）
 app.include_router(v2_ai.router, prefix="/api/v2")
+# v2 工具=endpoint（§6.4b：get_my_profile 双形态——HTTP /api/v2/user/me + MCP 工具）
+app.include_router(v2_profile.router, prefix="/api/v2")
 
 # ── v2 MCP server 挂载（§6.2：业务工具 MCP server，streamable-http） ──
 # MCP server 能力独立于 DSH runtime（DSH 桥经 HTTP 消费）；工具/API 同进程

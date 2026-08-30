@@ -1,10 +1,12 @@
-"""M2 工具桥单测：user_id 注入（§6.3）+ @mcp_tool 原生注册（§6.4b）
+"""M2 工具桥单测：user_id 注入（§6.3）+ @mcp_tool 原生注册（§6.4b，工具=endpoint）
 
 覆盖：
 - _user_id_from_meta：从 callTool `_meta` 提取（Meta 是 pydantic 模型，extra=allow）
 - 无 _meta / 无 user_id 字段 → PermissionError（桥层未注入 = 拒绝执行）
-- get_my_profile（@mcp_tool）：_meta 身份 → user_id 注入 → 业务函数执行 → 结构化返回
-  （隐私字段不返回；写操作请求级 commit——对齐 get_db 契约）
+- get_my_profile（@mcp_tool 写在 v2 endpoint 上）：_meta 身份 → user_id 注入 →
+  业务函数执行 → api_success 解包 → 结构化 dict（隐私字段不返回；请求级 commit）
+- 双形态：HTTP 模式走 FastAPI Depends（统一响应格式 api_success）；MCP 模式
+  走 _meta 注入（LLM 看到 data）
 - schema：业务参数进 MCP schema，注入参数（user_id/db）不暴露
 """
 from __future__ import annotations
@@ -15,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-import tools.mcp_server.tools  # noqa: F401  # 触发 @mcp_tool 注册（get_my_profile）
+import app.api.v2.profile  # noqa: F401  # 触发 @mcp_tool 注册（get_my_profile）
 from tools.mcp_server.decorator import _REGISTERED_TOOLS, _user_id_from_meta, mcp
 
 
@@ -97,7 +99,8 @@ class FakeSession:
 class TestGetMyProfile:
     @pytest.mark.asyncio
     async def test_profile_uses_user_id_from_meta(self):
-        """user_id 来自 _meta（桥层注入）→ @mcp_tool 注入业务函数 → 查询对应用户"""
+        """user_id 来自 _meta（桥层注入）→ @mcp_tool 注入业务函数 → 查询对应用户
+        api_success 包装被解包（LLM 看到结构化 data）"""
         fake = FakeSession(FakeScalarResult([_make_user(42, "桥接用户")]))
         with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
             result = await _REGISTERED_TOOLS["get_my_profile"](
@@ -106,6 +109,7 @@ class TestGetMyProfile:
 
         assert result["id"] == 42
         assert result["nickname"] == "桥接用户"
+        assert "code" not in result, "api_success 包装应被解包（LLM 看 data）"
         assert fake.committed, "应请求级 commit（对齐 FastAPI get_db 契约）"
 
     @pytest.mark.asyncio
@@ -127,9 +131,69 @@ class TestGetMyProfile:
             await _REGISTERED_TOOLS["get_my_profile"](ctx=_ctx_with_meta(None))
 
     @pytest.mark.asyncio
-    async def test_original_fn_returned_by_decorator(self):
-        """@mcp_tool 返回原函数（无感语义）——工具函数可被其他消费方直接调用"""
-        from tools.mcp_server.tools import get_my_profile
+    async def test_profile_none_user_returns_none_data(self):
+        """查询无果 = 正常结果（data=None，不是业务失败）"""
+        fake = FakeSession(FakeScalarResult([]))
+        with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
+            result = await _REGISTERED_TOOLS["get_my_profile"](
+                ctx=_ctx_with_meta(SimpleNamespace(user_id=999))
+            )
+        assert result is None
+
+
+class TestHttpEndpoint:
+    """双形态验证：@mcp_tool 写在 endpoint 上 → HTTP 模式走 FastAPI Depends"""
+
+    @staticmethod
+    def _make_client(user, current_user_id: int = 42, override_auth: bool = True):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.api.deps import get_current_user, get_db
+        from app.api.v2 import profile as v2_profile
+
+        app = FastAPI()
+        app.include_router(v2_profile.router, prefix="/api/v2")
+
+        fake = FakeSession(FakeScalarResult([user]) if user else FakeScalarResult([]))
+
+        async def _fake_db():
+            yield fake
+
+        if override_auth:
+            app.dependency_overrides[get_current_user] = lambda: current_user_id
+        app.dependency_overrides[get_db] = _fake_db
+        return TestClient(app), fake
+
+    def test_http_me_returns_api_success(self):
+        """HTTP GET /api/v2/user/me → 统一响应格式（code=0 + data），隐私字段不返回"""
+        client, _ = self._make_client(_make_user(42, "HTTP 用户"))
+        resp = client.get("/api/v2/user/me")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["code"] == 0
+        assert body["data"]["nickname"] == "HTTP 用户"
+        for private in ("avatar", "openid", "unionid", "unit", "room"):
+            assert private not in body["data"]
+
+    def test_http_me_requires_auth(self):
+        """endpoint 带 Depends(get_current_user)：无 Token → 401（FastAPI 原生行为）"""
+        client, _ = self._make_client(_make_user(42, "HTTP 用户"), override_auth=False)
+        resp = client.get("/api/v2/user/me")
+        assert resp.status_code == 401
+
+    def test_http_me_none_user(self):
+        """用户不存在 → code=0 + data=null（查询无果是正常结果）"""
+        client, _ = self._make_client(None, current_user_id=999)
+        resp = client.get("/api/v2/user/me")
+        body = resp.json()
+        assert body["code"] == 0
+        assert body["data"] is None
+
+    def test_original_fn_returned_by_decorator(self):
+        """@mcp_tool 返回原函数（无感语义）——endpoint 函数可被 FastAPI 正常使用"""
+        from app.api.v2.profile import get_my_profile
 
         assert callable(get_my_profile)
         assert get_my_profile.__name__ == "get_my_profile"

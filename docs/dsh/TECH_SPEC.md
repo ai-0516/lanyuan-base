@@ -91,7 +91,7 @@ lanyuan-base/
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
 │       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
 │       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
-│       └── tools/mcp_server/      # Python 业务工具 MCP server（挂载 FastAPI /mcp，§6.1）
+│       └── tools/mcp_server/      # MCP 基础设施（@mcp_tool 装饰器 + http_app 挂载，§6.1/§6.4b；工具定义在 app/api/v2/ endpoint 上）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
     ├── package.json               # 正式包依赖 + file: 本地插件 + bin 入口
@@ -246,24 +246,35 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 
 | 工具 | 说明 |
 |---|---|
-| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号；@mcp_tool 原生注册，§6.4b） |
+| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/简介；房号/头像隐私不返回；@mcp_tool 写在 v2 endpoint `/api/v2/user/me`，§6.4b） |
 | ~~`search_history`~~ | **不迁移**——v2 历史搜索由 DSH session-query 能力覆盖（§6.4b） |
 | 其余 v1 工具 | 不自动进 MCP（v1 @tool 体系退役）；需要的工具用 @mcp_tool 逐个定义 |
 
 ### 6.4b 工具注册（M2 review 定案：@mcp_tool 原生注册，不依赖 v1 @tool）
 
-MCP server **完全不再 import v1 模块**——工具用 `@mcp_tool` 装饰器原生注册（§6.4）：
+**工具=endpoint（2026-08-30 用户定）**：`@mcp_tool` 用法与 v1 `@tool` 一致——直接
+写在 v2 endpoint 上（@router 与 @mcp_tool 叠加，如 `app/api/v2/profile.py`），
+装饰器执行即注册进 mcp（无注册表遍历/无 v1 依赖）：
 
 ```python
-@mcp_tool  # tools/mcp_server/tools.py：装饰器执行即注册进 mcp（无注册表遍历）
-async def get_my_profile(user_id: int = None, db: AsyncSession = None) -> dict:
-    """业务参数进 MCP schema；user_id/db 是注入参数（LLM 不可见）"""
-    ...  # 纯业务逻辑，返回结构化 dict（隐私字段自己控制不返回）
+@router.get("/user/me")
+@mcp_tool
+async def get_my_profile(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """业务描述进 MCP schema；db/user_id 是注入参数（LLM 不可见）"""
+    ...
+    return api_success({...})  # 统一响应格式（HTTP 消费）
 ```
 
-- 注入参数按参数名识别（`user_id`/`db`）：user_id 来自 `_meta`（§6.3），db 由装饰器注入
-  async_session_factory 会话（请求级 commit/rollback，对齐 get_db 契约）——工具函数只写业务
-- 返回**结构化 dict**（fastmcp 序列化），无 v1 的 api_success/formatter 逆向
+- 注入识别与 v1 @tool 一致：`Depends(get_db)` → db 会话注入，`Depends(get_current_user)`
+  → user_id 注入（LLM 不可见）。HTTP 模式 FastAPI Depends 正常解析；MCP 模式
+  user_id 来自 `_meta`（§6.3），db 由装饰器注入 async_session_factory 会话
+  （请求级 commit/rollback，对齐 get_db 契约）——工具函数只写业务
+- 返回 `api_success(...)`（统一响应格式，HTTP 消费）；MCP 模式装饰器自动解包
+  data（LLM 看到结构化 dict，同 v1 ToolDef.execute 语义）；隐私字段工具自身
+  控制不返回
 - v1 @tool 体系退役后 MCP 侧零影响；**search_history 不迁移**——v2 历史搜索由
   DSH session-query 能力覆盖，业务工具仅保留数据类（get_my_profile 等）
 
@@ -428,7 +439,11 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 9.2 其余 API
 
-维持 `/api/v1` 不变（v1 TECH_SPEC §4）——v2 只新增 `/api/v2/ai/chat`，其余业务 API（用户/帖子/评论/通知/上传等）不迁移、不重写。
+维持 `/api/v1` 不变（v1 TECH_SPEC §4）——业务 API（用户/帖子/评论/通知/上传等）
+不迁移、不重写；v2 仅新增两处：
+- `POST /api/v2/ai/chat`（§9.1）
+- **工具端点**（§6.4b 工具=endpoint）：`GET /api/v2/user/me`（get_my_profile——
+  HTTP 形态可自检/调试/供前端消费；主消费方是 MCP 工具）
 
 ### 9.3 搜索能力
 

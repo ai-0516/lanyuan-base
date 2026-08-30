@@ -3,9 +3,11 @@
 **挂载在 FastAPI（app.main /mcp 端点，M2 review 定）**——MCP server 能力独立于
 DSH runtime（DSH 只是 HTTP client），工具/API 同进程、同认证/事务体系。
 
-工具注册（§6.4b）：**@mcp_tool 原生注册，不依赖 v1 @tool**——import tools 模块
-触发装饰器注册（工具即注册，无注册表遍历/无 v1 依赖）。v1 工具体系退役后
-MCP 侧零影响；v1 的 search_history 不迁移（v2 历史搜索用 DSH session-query）。
+工具注册（§6.4b）：**@mcp_tool 原生注册，不依赖 v1 @tool**——工具定义在 v2
+endpoint 上（app/api/v2/profile.py，@router + @mcp_tool 叠加，用法同 v1 @tool），
+app.main import v2 模块时装饰器执行即注册（工具即注册，无注册表遍历/无 v1
+依赖）。v1 工具体系退役后 MCP 侧零影响；v1 的 search_history 不迁移（v2 历史
+搜索用 DSH session-query）。
 
 身份设计（§6.3）：工具签名不含 user_id/db（LLM 不可见）；`user_id` 由 @mcp_tool
 从 callTool 请求 `_meta` 注入（桥层强制绑定，LLM 无法伪造；`_meta` 是 MCP 协议
@@ -23,7 +25,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # backend/
 
 from tools.mcp_server.decorator import mcp  # noqa: E402
-from tools.mcp_server import tools as _tools  # noqa: E402,F401  # 触发 @mcp_tool 注册
 
 # streamable-http ASGI app（§6.2：挂载到 FastAPI /mcp 端点）。
 # path="/"：fastmcp 默认 streamable_http_path=/mcp，与 FastAPI mount 前缀叠加
