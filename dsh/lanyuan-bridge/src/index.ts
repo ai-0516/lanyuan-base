@@ -138,9 +138,4 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     }
     disposers.push(ctx.tools.register(definition))
   }
-
-  ctx.effect(() => () => {
-    for (const dispose of disposers) dispose()
-    void client.close()
-  })
 }

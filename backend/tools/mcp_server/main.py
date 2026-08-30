@@ -7,26 +7,31 @@
 桥插件在 callTool 请求 `_meta` 中注入的 user_id（桥层强制绑定，LLM 无法伪造）。
 任何工具实现不得信任模型输入中的身份字段——本文件统一从 `_meta` 提取。
 
-首批工具（§6.4）：search_history / get_profile，复用 v1 @tool 的执行逻辑
-（backend/app/api/v1/ai.py / profile.py）；FTS5 投影（§8.3）依赖 M3 persistence，
-M2 沿用 v1 LIKE 实现。
+工具实现**复用 v1 @tool**（§6.4：业务实现单份，MCP 层只做身份适配）：
+import app.api.v1.* 触发 @tool 注册 → registry.get(name) 取 ToolDef → td.execute(db,
+user_id, args) 完成 Depends 注入（db/user_id）+ api_success 解包 + result_formatter
+删减，返回的是删减后的 JSON 文本（v1 formatter 契约 #69：保留 JSON 结构）→
+json.loads 还原为 MCP 结构化返回。
 
 启动：.venv/bin/python backend/tools/mcp_server/main.py（cwd=backend/，桥插件指定）
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # backend/
 
+# import 触发 v1 @tool 注册（@tool 装饰器在模块顶层执行，注册进全局 registry）
+import app.api.v1.ai  # noqa: E402,F401  # search_history
+import app.api.v1.profile  # noqa: E402,F401  # get_my_profile
+
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.server.context import Context  # noqa: E402
-from sqlalchemy import func, or_, select  # noqa: E402
 
 from app.core.database import async_session_factory  # noqa: E402
-from app.models.conversation import Conversation, Message  # noqa: E402
-from app.models.user import User  # noqa: E402
+from app.harness.tool_registry import registry  # noqa: E402
 
 mcp = FastMCP("lanyuan")
 
@@ -44,49 +49,23 @@ def _user_id(ctx: Context) -> int:
     return int(uid)
 
 
-# ── search_history：搜索用户过往对话历史（复用 v1 ai.py 逻辑，PR #51） ──
-
-_MAX_SNIPPET = 4000  # 窗口内单条消息截断长度（防 payload 爆炸，对齐 Hermes）
+# ── v1 工具复用（业务逻辑单份，MCP 层只做身份适配 + 结构化还原） ──
 
 
-def _truncate(content: str | None, limit: int = _MAX_SNIPPET) -> str:
-    """截断消息内容到 limit 字符"""
-    if not content:
-        return ""
-    return content[:limit] + "…" if len(content) > limit else content
+async def _call_v1(tool_name: str, ctx: Context, args: dict) -> dict:
+    """调用 v1 @tool 工具：ToolDef.execute 注入 db/user_id + 解包 + formatter 删减。
 
-
-def _merge_overlapping_hits(hits: list[Message], window: int) -> list[list[Message]]:
-    """把窗口重叠的命中合并为连续片段（PR #51 review）
-
-    为什么需要合并：每条命中会带 ±window 条的上下文窗口（context_window）。
-    同一会话内相邻的两条命中（消息 id 差 ≤ 2×window）的窗口必然重叠——
-    如果各自独立成 result，同一批消息会重复出现在多个 result 里（浪费
-    token，且 LLM 看到的内容互相矛盾）。合并后一个片段对应一个 result，
-    context_window 取整个区间，天然去重。
-
-    段序如何保持：片段按「段内首条 hit 在 hits 中的原始下标」升序排列，
-    保证输出顺序与用户请求的 sort（newest/oldest/relevance）一致。
+    v1 formatter 契约（tool_registry.py，#69）：输出是删减后的 JSON 文本（保留 JSON
+    结构），json.loads 还原即 MCP 结构化返回——删减（如 avatar/openid/unit/room）
+    由 v1 formatter 完成，这里不做二次清洗。
     """
-    by_conv: dict[int, list[tuple[int, Message]]] = {}
-    for idx, hit in enumerate(hits):
-        by_conv.setdefault(hit.conversation_id, []).append((idx, hit))
-
-    segments: list[tuple[int, list[Message]]] = []
-    for conv_hits in by_conv.values():
-        conv_hits.sort(key=lambda t: t[1].id)
-        for idx, hit in conv_hits:
-            can_merge = bool(
-                segments
-                and segments[-1][1][-1].conversation_id == hit.conversation_id
-                and hit.id - segments[-1][1][-1].id <= 2 * window
-            )
-            if can_merge:
-                segments[-1][1].append(hit)
-            else:
-                segments.append((idx, [hit]))
-
-    return [seg for _, seg in sorted(segments, key=lambda t: t[0])]
+    user_id = _user_id(ctx)
+    td = registry.get(tool_name)
+    if td is None:
+        raise RuntimeError(f"v1 工具未注册: {tool_name}")
+    async with async_session_factory() as db:
+        text = await td.execute(db, user_id, args)
+        return json.loads(text)
 
 
 @mcp.tool()
@@ -105,123 +84,18 @@ async def search_history(
     窗口重叠的连续命中合并为一个片段（同会话连续命中只返回一条窗口；
     跨会话命中各自独立），因此 total 可能小于实际命中条数。
     """
-    user_id = _user_id(ctx)
-    # 关键词拆词：空格分隔，任一命中即返回（OR，PR #51 review——AND 容易什么都搜不到）
-    keywords = [kw for kw in query.strip().split() if kw]
-    if not keywords:
-        return {"results": [], "total": 0}
-
-    def _escape_like(s: str) -> str:
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-    async with async_session_factory() as db:
-        # 当前活跃会话（用户最新）——其内容 agent 上下文已有，排除减少噪音
-        latest = (
-            await db.execute(
-                select(Conversation)
-                .where(Conversation.user_id == user_id)
-                .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
-                .limit(1)
-            )
-        ).scalars().first()
-        current_conv_id = latest.id if latest else None
-
-        stmt = (
-            select(Message)
-            .join(Conversation, Message.conversation_id == Conversation.id)
-            .where(
-                Conversation.user_id == user_id,
-                Message.role.in_(["user", "assistant"]),
-                Message.content.isnot(None),
-            )
-        )
-        if keywords:
-            stmt = stmt.where(or_(*[
-                Message.content.like(f"%{_escape_like(kw)}%", escape="\\")
-                for kw in keywords
-            ]))
-        if current_conv_id is not None:
-            stmt = stmt.where(Message.conversation_id != current_conv_id)
-        stmt = stmt.order_by(Message.id.asc() if sort == "oldest" else Message.id.desc()).limit(limit)
-        hits = (await db.execute(stmt)).scalars().all()
-
-        segments = _merge_overlapping_hits(hits, window)
-
-        results = []
-        for seg in segments:
-            seg_min, seg_max = seg[0].id - window, seg[-1].id + window
-            anchor = seg[0]
-
-            context_msgs = (
-                await db.execute(
-                    select(Message)
-                    .where(
-                        Message.conversation_id == anchor.conversation_id,
-                        Message.id >= seg_min,
-                        Message.id <= seg_max,
-                    )
-                    .order_by(Message.id.asc())
-                )
-            ).scalars().all()
-
-            before_total = await db.scalar(
-                select(func.count()).select_from(Message).where(
-                    Message.conversation_id == anchor.conversation_id, Message.id < seg_min
-                )
-            )
-            after_total = await db.scalar(
-                select(func.count()).select_from(Message).where(
-                    Message.conversation_id == anchor.conversation_id, Message.id > seg_max
-                )
-            )
-
-            results.append({
-                "message_id": anchor.id,
-                "role": anchor.role,
-                "content": _truncate(anchor.content),
-                "created_at": anchor.created_at.isoformat() if anchor.created_at else "",
-                "conversation_id": anchor.conversation_id,
-                "messages_before": before_total or 0,
-                "messages_after": after_total or 0,
-                "context_window": [
-                    {
-                        "message_id": m.id,
-                        "role": m.role,
-                        "content": _truncate(m.content),
-                        "created_at": m.created_at.isoformat() if m.created_at else "",
-                    }
-                    for m in context_msgs
-                ],
-            })
-
-        return {"results": results, "total": len(results)}
-
-
-# ── get_profile：当前用户资料（复用 v1 profile.py + formatter 删减原则） ──
-
-def _strip_private(data: dict) -> dict:
-    """删减：avatar（base64 头像）、openid/unionid（微信身份标识）、unit/room（房号隐私）。
-    其余字段（昵称/小区/楼栋/简介/开关）原样保留。"""
-    return {k: v for k, v in data.items() if k not in {"avatar", "openid", "unionid", "unit", "room"}}
+    return await _call_v1("search_history", ctx, {
+        "query": query,
+        "limit": limit,
+        "window": window,
+        "sort": sort,
+    })
 
 
 @mcp.tool()
 async def get_profile(ctx: Context = None) -> dict:  # type: ignore[assignment]
     """获取当前用户的基本资料（昵称、小区、楼栋、简介等；房号/头像为隐私不返回）。"""
-    user_id = _user_id(ctx)
-    async with async_session_factory() as db:
-        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-    if user is None:
-        raise ValueError(f"用户不存在: {user_id}")
-    return _strip_private({
-        "id": user.id,
-        "nickname": user.nickname,
-        "community": user.community,
-        "building": user.building,
-        "bio": user.bio,
-        "show_building": user.show_building,
-        "show_room": user.show_room,
-    })
+    return await _call_v1("get_my_profile", ctx, {})
 
 
 if __name__ == "__main__":
