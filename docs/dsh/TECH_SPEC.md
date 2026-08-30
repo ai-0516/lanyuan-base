@@ -75,7 +75,7 @@ FastAPI (uvicorn, --workers 1 起步)
        ├─ 生命周期: lifespan startup 启动 / shutdown 关闭
        ├─ 崩溃重启: catch TransportClosedError → close() + start()（4b 实验：直接 start() 无效）
        └─ 环境变量: 显式管理 DSH_SESSION_ROOT / DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验）
-  └─ MCP server 子进程（每 worker 一个，Python，stdio）
+  └─ MCP server 挂载（§6.1：tools/mcp_server/main.py 的 mcp_app，/mcp 端点，streamable-http）
 ```
 
 - 进程内多 session 并发：Node 异步事件循环，通知按 sessionId 过滤（实验 4a：3 session 并发互不干扰）
@@ -91,8 +91,7 @@ lanyuan-base/
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
 │       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
 │       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
-│       │   └── mcp_bridge.py      # MCP server 进程管理（spawn/健康检查）
-│       └── tools/mcp_server/      # Python 业务工具 MCP server（复用 @tool schema）
+│       └── tools/mcp_server/      # Python 业务工具 MCP server（挂载 FastAPI /mcp，§6.1）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
     ├── package.json               # 正式包依赖 + file: 本地插件 + bin 入口
@@ -205,19 +204,20 @@ lanyuan-base/
 
 ## 6. MCP 工具桥
 
-### 6.1 架构（实验 3/3b 验证 + M2 定案）
+### 6.1 架构（实验 3/3b 验证 + M2 定案；M2 review 传输层定案：stdio → streamable-http 挂载）
 
 ```
-DSH runtime
-  └─ @lanyuan/dsh-lanyuan-bridge 插件（自写桥插件，§6.3 机制定案）
-       spawn → Python MCP server（fastmcp，stdio，每 worker 常驻）
-                 └─ 业务工具（复用 @tool schema + 执行逻辑，连 MySQL）
+FastAPI 进程（uvicorn worker）
+  ├─ /api/v2/ai/chat: DSH runtime（Node 子进程）→ 桥插件（HTTP client）
+  └─ /mcp: MCP server 挂载（fastmcp streamable-http，§6.2）
+       └─ 自动注册全部 v1 @tool（§6.4b，连 MySQL）
 ```
 
 - 工具注册名：`mcp__<serverName>__<rawName>`（`mcp__lanyuan__search_history`）
-- stdio transport（v2 用 stdio）
-- 崩溃恢复：DSH runtime 崩溃重启 → cordis 重新装配 → 桥插件重新 spawn MCP server（随 runtime 生命周期，无需独立重连循环）
-- 配置模板 = `spike/npm-dsh/cordis-mcp.yml`（已验证，M2 改为自写桥插件条目）
+- transport：**streamable-http 挂载 FastAPI /mcp**（M2 review 定：MCP server 能力独立于 DSH runtime——DSH 只是 HTTP client，工具/API 同进程、同认证/事务体系；`http_app(path="/")` 避免与 mount 前缀叠加 404）
+- 桥插件连接：`StreamableHTTPClientTransport`（MCP SDK 正式库）消费 `LANYUAN_MCP_URL`；启动窗口内**有界重试**（FastAPI lifespan 预热 DSH runtime 时尚未 listen，重试等 /mcp 就绪；超过窗口抛错 = 装配失败不静默缺工具）
+- 崩溃恢复：MCP server 随 FastAPI 生命周期（同进程）；DSH runtime 崩溃重启 → cordis 重新装配 → 桥重连 /mcp
+- 启动时序：lifespan 合并 `mcp_app.lifespan`（fastmcp session manager 依赖）；DSH 预热改后台任务（避免「预热依赖 listen、listen 依赖 lifespan 完成」死锁；首请求前未完成则懒启动兜底，DshRuntime 加锁跨线程安全）
 
 ### 6.2 配置模板（v2 cordis-lanyuan.yml 的 bridge 部分）
 
@@ -226,13 +226,11 @@ DSH runtime
   name: '@lanyuan/dsh-lanyuan-bridge'
   config:
     serverName: lanyuan
-    command: !!js process.env.LANYUAN_MCP_PYTHON ?? './.venv/bin/python'
-    args: [!!js (process.env.LANYUAN_MCP_MAIN ?? '') + '']
-    cwd: !!js process.env.LANYUAN_MCP_CWD ?? ''
+    url: !!js process.env.LANYUAN_MCP_URL ?? 'http://127.0.0.1:8000/mcp/'
     toolCallTimeoutMs: 60000
 ```
 
-路径由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_PYTHON/MAIN/CWD` 指向 backend venv / 脚本 / cwd，cwd 使 MCP server 的 settings 能读到 .env）。
+URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI 部署端口绑定；生产云托管环境变量覆盖）。
 
 ### 6.3 user_id 注入（安全设计，防 LLM 伪造越权）——M2 定案
 
@@ -329,7 +327,7 @@ MCP server **自动注册全部 v1 @tool**（不写白名单、不列工具名�
 | 包 | 干什么 | 为什么需要 | 何时引入 |
 |---|---|---|---|
 | `@lanyuan/dsh-agent-spine`（`file:./spine`） | 自写 agent 骨架：agent 创建、回合调度、LLM 路由、session、标题 | 官方骨架是 examples 包（不依赖，§7.4）；内部依赖 core 包 dsh-agent / dsh-agent-loop / dsh-llm / dsh-session / dsh-session-title / dsh-scope / dsh-invariants / dsh-home-paths（0.1.1-rc.2 已确认） | M1 |
-| `@lanyuan/dsh-lanyuan-bridge`（`file:./lanyuan-bridge`） | 工具桥插件：spawn 业务 MCP server、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
+| `@lanyuan/dsh-lanyuan-bridge`（`file:./lanyuan-bridge`） | 工具桥插件：HTTP 消费挂载在 FastAPI /mcp 的 MCP server（StreamableHTTPClientTransport）、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
 | `@lanyuan/dsh-session-persistence-mysql`（`file:./mysql-persistence`） | MySQL 持久化 backend（8 hook，§5.2/§8.2） | v2 会话真源 = MySQL；官方无网络数据库 backend（框架空白） | M3 |
 | `@lanyuan/dsh-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
 

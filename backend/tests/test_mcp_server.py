@@ -213,3 +213,16 @@ class TestV1ReuseSchema:
             # Depends 注入参数不暴露（身份/db 由编排层注入，v1 schema 里没有的 MCP 也没有）
             assert "db" not in mcp_params["properties"], f"{mcp_name} 暴露 db 参数"
             assert "current_user_id" not in mcp_params["properties"], f"{mcp_name} 暴露注入身份参数"
+
+
+class TestMountHttp:
+    """MCP server 挂载 FastAPI /mcp（§6.2，streamable-http）"""
+
+    def test_app_mounts_mcp(self):
+        """app.main 挂载 /mcp 端点（http_app path=/ 修正：mount 前缀不叠加）"""
+        from starlette.routing import Mount
+
+        from app.main import app
+
+        mounts = [r for r in app.routes if isinstance(r, Mount)]
+        assert any(m.path == "/mcp" for m in mounts), "/mcp 未挂载"

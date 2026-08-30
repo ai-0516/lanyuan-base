@@ -1,27 +1,30 @@
-"""lanyuan 业务工具 MCP server（TECH_SPEC §6）：fastmcp，stdio transport
+"""lanyuan 业务工具 MCP server（TECH_SPEC §6）：fastmcp，streamable-http transport
 
-由 DSH runtime 侧桥插件（@lanyuan/dsh-lanyuan-bridge）spawn，每 worker 常驻一个。
+**挂载在 FastAPI（app.main /mcp 端点，M2 review 定）**——MCP server 能力独立于
+DSH runtime（DSH 只是 HTTP client），工具/API 同进程、同认证/事务体系。
+
 工具注册名经桥插件映射为 mcp__lanyuan__<rawName>（§6.1）。
 
 身份设计（§6.3）：工具签名**不含** user_id 参数（LLM 不可见）；执行时身份来自
 桥插件在 callTool 请求 `_meta` 中注入的 user_id（桥层强制绑定，LLM 无法伪造）。
-任何工具实现不得信任模型输入中的身份字段——本文件统一从 `_meta` 提取。
+`_meta` 是 MCP 协议层字段（RequestParams._meta），与传输方式无关（stdio/HTTP 均
+透传）。任何工具实现不得信任模型输入中的身份字段——本文件统一从 `_meta` 提取。
 
 工具**自动注册全部 v1 @tool**（§6.4：endpoint 对 MCP 无感，与 @tool 同语义）：
 import app.api.v1.* 触发 @tool 装饰器静默注册进全局 registry（v1 侧零感知）→
-本文件遍历 registry.all 自动生成 MCP 包装并注册（main.py 零工具引用）——
+遍历 registry.all 自动生成 MCP 包装并注册（main.py 零工具引用）——
 MCP 工具名 = v1 注册名（单一真源），新增 v1 @tool 自动进入两个 LLM 消费方。
 
 _make_mcp_tool：签名/类型/默认值从 v1 函数签名还原（跳过 Depends 注入参数
-db/user_id；Pydantic model 参数展平为独立字段，对齐 v1 _flatten_model），
-docstring 用 v1 的——MCP schema 与 v1 ToolDef schema 同源。
+db/user_id；Pydantic model 参数展平，对齐 v1 _flatten_model），docstring 用 v1 的。
 
 _call_v1：td.execute(db, user_id, args) 完成 Depends 注入 + api_success 解包 +
 result_formatter 删减（输出删减后 JSON 文本，#69 契约保留 JSON 结构）→
 json.loads 还原为 MCP 结构化返回；db 生命周期对齐 FastAPI get_db（请求级
 commit/rollback——v1 工具依赖该契约，写操作才正确落库）。
 
-启动：.venv/bin/python backend/tools/mcp_server/main.py（cwd=backend/，桥插件指定）
+挂载：app.main `app.mount("/mcp", mcp_app)`；DSH 桥 StreamableHTTPClientTransport
+连接 LANYUAN_MCP_URL（§6.2）。
 """
 from __future__ import annotations
 
@@ -162,6 +165,7 @@ _MCP_TOOLS: dict[str, Callable] = {}
 for _td in registry.all:
     _MCP_TOOLS[_td.name] = _make_mcp_tool(_td)
 
-
-if __name__ == "__main__":
-    mcp.run()  # stdio transport
+# streamable-http ASGI app（§6.2：挂载到 FastAPI /mcp 端点）。
+# path="/"：fastmcp 默认 streamable_http_path=/mcp，与 FastAPI mount 前缀叠加
+# 会 404（实测）——挂载后请求 /mcp/ → strip 前缀 → 子 app 根路径命中
+mcp_app = mcp.http_app(path="/", transport="streamable-http")

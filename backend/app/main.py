@@ -1,5 +1,6 @@
 """FastAPI 应用入口"""
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,16 +16,23 @@ from app.ai.dsh_runtime import dsh_runtime
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
 from app.api.v2 import ai as v2_ai
 from app.api.response import api_exception_handler, api_success, validation_exception_handler
+# v2 MCP server（§6.2：挂载 /mcp，streamable-http）——lifespan 需合并（fastmcp
+# StreamableHTTPSessionManager 依赖 lifespan 初始化，官方要求显式传入父 app）
+from tools.mcp_server.main import mcp_app  # noqa: E402
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     await init_db()
-    # v2 DSH runtime 预热（TECH_SPEC §3.1：worker 启动即常驻，首次请求无 spawn 延迟）
-    dsh_runtime.start()
-    yield
-    dsh_runtime.close()
+    # fastmcp session manager 初始化（挂载子 app 的 lifespan 需显式合并）
+    async with mcp_app.lifespan(app):
+        # v2 DSH runtime 预热（§3.1）。HTTP 模式：MCP server 挂 FastAPI，桥连接
+        # 需要 FastAPI 已 listen（lifespan 完成后）——预热改后台任务避免启动
+        # 死锁（桥重试窗口内 listen 后自动连上）；首请求前未完成则懒启动兜底
+        asyncio.create_task(asyncio.to_thread(dsh_runtime.start))
+        yield
+        dsh_runtime.close()
     await close_db()
 
 
@@ -55,6 +63,10 @@ app.include_router(upload.router, prefix="/api/v1")
 
 # v2（DSH 重写 agent，TECH_SPEC §9.1）
 app.include_router(v2_ai.router, prefix="/api/v2")
+
+# ── v2 MCP server 挂载（§6.2：业务工具 MCP server，streamable-http） ──
+# MCP server 能力独立于 DSH runtime（DSH 桥经 HTTP 消费）；工具/API 同进程
+app.mount("/mcp", mcp_app, name="mcp")
 
 
 @app.get("/api/health")

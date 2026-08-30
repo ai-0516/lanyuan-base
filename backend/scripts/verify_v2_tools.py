@@ -1,18 +1,20 @@
-"""M2 全链路验证：业务工具桥（TECH_SPEC §6）
+"""M2 全链路验证：业务工具桥（TECH_SPEC §6，streamable-http 挂载 FastAPI）
 
 验证点：
-1. 6 插件配置（含 lanyuan-bridge）runtime 正常拉起，MCP server 被 spawn
+1. FastAPI 启动并挂载 /mcp（MCP server 随 FastAPI 生命周期，§6.2）
 2. agent 真实调用业务工具（mcp__lanyuan__search_history / get_my_profile，§6.4b 自动注册）
-3. user_id 注入链路通（session id `v2-{user_id}-{uuid}` → 桥插件 _meta →
-   MCP server）——MCP server 无 _meta 必抛 PermissionError，工具成功执行即证明注入通
+3. user_id 注入链路通（session id `v2-{user_id}-{uuid}` → 桥插件 _meta → MCP
+   server，HTTP 传输透传 _meta）——无 _meta 必抛 PermissionError，成功即证明注入通
 4. 事件层：tool/call、tool/result 在后端事件流可见（白名单外不转发前端）
 
 运行：unset DSH_SESSION_ROOT DSH_HOME DSH_CWD && export DEEPSEEK_API_KEY=***
       .venv/bin/python scripts/verify_v2_tools.py
+（verify 起 FastAPI 承载 MCP server；lifespan 预热 dsh_runtime，verify 复用其单例）
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -21,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/
 
 from sqlalchemy import select  # noqa: E402
 
-from app.ai.dsh_runtime import DSH_DIR, _LLM_MODEL, _runtime_env  # noqa: E402
+from app.ai.dsh_runtime import DSH_DIR  # noqa: E402
 from app.core.database import async_session_factory  # noqa: E402
 from app.models.user import User  # noqa: E402
 
@@ -50,23 +52,40 @@ def main() -> None:
     print(f"[info] runtime_bin: {DSH_DIR / 'bin/dsh-jsonrpc-agent.js'}")
     print(f"[info] cordis: {DSH_DIR / 'cordis-lanyuan.yml'}")
 
-    from deepseek_harness import DeepSeekHarness, DeepSeekHarnessConfig
+    # 起 FastAPI（挂载 /mcp，streamable-http）承载 MCP server（§6.2）。
+    # lifespan 默认 auto：fastmcp 的 StreamableHTTPSessionManager 依赖 lifespan
+    # 初始化（lifespan=off 会 500）；lifespan 同时预热 dsh_runtime（§3.1），
+    # verify 复用其单例发对话，不自建 harness（避免双 runtime 争用 DSH_HOME）。
+    import threading
+    import time
+    import urllib.request
 
-    env = _runtime_env()
+    import uvicorn
+
+    from app.main import app
+
+    mcp_port = int(os.environ.get("VERIFY_MCP_PORT", "8765"))
+    os.environ["LANYUAN_MCP_URL"] = f"http://127.0.0.1:{mcp_port}/mcp/"
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=mcp_port,
+                                           log_level="warning"))
+    threading.Thread(target=server.run, daemon=True).start()
+    for _ in range(40):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{mcp_port}/api/health", timeout=1)
+            print(f"[info] FastAPI 就绪（/mcp 挂载，port={mcp_port}）")
+            break
+        except Exception:
+            time.sleep(0.5)
+    else:
+        raise RuntimeError("FastAPI 启动超时")
+
+    # FastAPI lifespan（auto）会预热 dsh_runtime（§3.1）——verify 复用该单例发对话，
+    # 不自建 harness（避免两个 DSH runtime 争用 DSH_HOME/sessions）
+    from app.ai.dsh_runtime import dsh_runtime
+
     session_id = f"v2-{USER_ID}-{uuid.uuid4()}"
-
-    config = DeepSeekHarnessConfig(
-        provider="deepseek-official",
-        model=_LLM_MODEL,
-        runtime_bin=str(DSH_DIR / "bin" / "dsh-jsonrpc-agent.js"),
-        cordis=str(DSH_DIR / "cordis-lanyuan.yml"),
-        env=env,
-        request_timeout_seconds=180,
-    )
-    harness = DeepSeekHarness(config)
-    harness.start()
     try:
-        result = harness.run(
+        result = dsh_runtime.run(
             "用户想回忆过去聊过的事情：请先搜索他的历史对话（search_history），"
             "再获取他的基本资料（get_my_profile），然后简单总结两句。",
             session_id=session_id,
@@ -92,7 +111,7 @@ def main() -> None:
         assert not errors, f"存在工具失败（疑似 user_id 注入失败）: {errors}"
         print("\n✅ M2 工具桥全链路验证通过（工具调用 + user_id 注入链路 OK）")
     finally:
-        harness.close()
+        dsh_runtime.close()
 
 
 if __name__ == "__main__":
