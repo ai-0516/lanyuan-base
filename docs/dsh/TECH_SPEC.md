@@ -246,35 +246,45 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 
 | 工具 | 说明 |
 |---|---|
-| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/简介；房号/头像隐私不返回；@mcp_tool 写在 v2 endpoint `/api/v2/user/me`，§6.4b） |
+| `get_my_profile` | 当前用户资料（昵称/社区/楼栋/简介/开关；v2 = v1-copy + support-mcp——formatter 删隐私 avatar/openid/unit/room，§6.4b；endpoint `/api/v2/user/me`） |
 | ~~`search_history`~~ | **不迁移**——v2 历史搜索由 DSH session-query 能力覆盖（§6.4b） |
 | 其余 v1 工具 | 不自动进 MCP（v1 @tool 体系退役）；需要的工具用 @mcp_tool 逐个定义 |
 
 ### 6.4b 工具注册（M2 review 定案：@mcp_tool 原生注册，不依赖 v1 @tool）
 
-**工具=endpoint（2026-08-30 用户定）**：`@mcp_tool` 用法与 v1 `@tool` 一致——直接
-写在 v2 endpoint 上（@router 与 @mcp_tool 叠加，如 `app/api/v2/profile.py`），
-装饰器执行即注册进 mcp（无注册表遍历/无 v1 依赖）：
+**v2 = v1-copy + support-mcp（2026-08-30 用户定）**：`@mcp_tool` 用法与 v1 `@tool`
+**完全一致**（含 `result_formatter`）——业务代码逐字复制 v1（endpoint + Depends
+注入 + api_success + formatter），装饰器从 @tool 换成 @mcp_tool，写在 v2
+endpoint 上（如 `app/api/v2/profile.py`），装饰器执行即注册进 mcp（无注册表
+遍历/无 v1 依赖）：
 
 ```python
+def _format_get_my_profile(data) -> str:
+    """删减：avatar（base64 头像）、openid/unionid（微信身份标识）、unit/room（房号隐私）。"""
+    return dumps(strip_keys(data, {"avatar", "openid", "unionid", "unit", "room"}))
+
+
 @router.get("/user/me")
-@mcp_tool
+@mcp_tool(result_formatter=_format_get_my_profile)
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
     """业务描述进 MCP schema；db/user_id 是注入参数（LLM 不可见）"""
     ...
-    return api_success({...})  # 统一响应格式（HTTP 消费）
+    return api_success(user)  # model 原样（HTTP 消费，同 v1）
 ```
 
 - 注入识别与 v1 @tool 一致：`Depends(get_db)` → db 会话注入，`Depends(get_current_user)`
   → user_id 注入（LLM 不可见）。HTTP 模式 FastAPI Depends 正常解析；MCP 模式
   user_id 来自 `_meta`（§6.3），db 由装饰器注入 async_session_factory 会话
   （请求级 commit/rollback，对齐 get_db 契约）——工具函数只写业务
-- 返回 `api_success(...)`（统一响应格式，HTTP 消费）；MCP 模式装饰器自动解包
-  data（LLM 看到结构化 dict，同 v1 ToolDef.execute 语义）；隐私字段工具自身
-  控制不返回
+- **MCP 模式执行链**（同 v1 ToolDef.execute）：解包 api_success → `_to_dict`
+  （model→dict，跳过 created_at/updated_at）→ result_formatter 输出（JSON
+  字符串，LLM 读 formatter 投影）；无 formatter 时直接返回解包后的 data
+  （结构化 dict）。HTTP 模式 = v1 语义（本人资料全量，前端展示需要）
+- 隐私保护承担者与 v1 一致：**formatter 删减**（`result_formatter` 参数），
+  不是函数体——v1-copy 逐字复制即继承
 - v1 @tool 体系退役后 MCP 侧零影响；**search_history 不迁移**——v2 历史搜索由
   DSH session-query 能力覆盖，业务工具仅保留数据类（get_my_profile 等）
 

@@ -82,26 +82,55 @@ def _classify(fn_sig: inspect.Signature) -> tuple[list[inspect.Parameter], str |
 
 
 def _unwrap(result: Any) -> Any:
-    """api_success 包装 → data（MCP LLM 看到结构化数据，同 v1 ToolDef.execute）"""
+    """api_success 包装 → data（同 v1 ToolDef.execute 解包语义）"""
     if isinstance(result, dict) and "code" in result and "data" in result:
         return result["data"]
     return result
 
 
-def mcp_tool(fn: Callable | None = None, *, name: str | None = None) -> Callable:
+def _to_dict(result: Any) -> Any:
+    """Pydantic/SQLAlchemy model → dict（result_formatter 契约：收到的一定是 dict/None/标量）
+
+    同 v1 tool_registry._to_dict 逻辑：SQLAlchemy model 跳过 created_at/updated_at
+    （onupdate 会触发异步懒加载 MissingGreenlet）。不 import v1 模块（§6.4b
+    零 v1 依赖）——MCP server 独立于 v1 工具体系，仅内联等价逻辑。
+    """
+    if hasattr(result, "model_dump"):
+        return result.model_dump()
+    if hasattr(result, "dict"):
+        return result.dict()
+    if hasattr(result, "_sa_instance_state") and hasattr(result, "__table__"):
+        return {
+            c.name: getattr(result, c.name)
+            for c in result.__table__.columns
+            if c.name not in ("created_at", "updated_at")
+        }
+    if isinstance(result, list):
+        return [_to_dict(item) for item in result]
+    return result
+
+
+def mcp_tool(fn: Callable | None = None, *, name: str | None = None,
+             result_formatter: Callable[[Any], str] | None = None) -> Callable:
     """@mcp_tool 装饰器：注册 MCP 业务工具（§6.4b），用法同 v1 @tool
 
-    用法：
+    用法（v2 = v1-copy + support-mcp，2026-08-30 用户定——业务代码逐字复制
+    v1，装饰器换 @mcp_tool）：
         @router.get("/user/me")
-        @mcp_tool
+        @mcp_tool(result_formatter=_format_get_my_profile)
         async def get_my_profile(
             db: AsyncSession = Depends(get_db),
             user_id: int = Depends(get_current_user),
         ):
             ...
+            return api_success(user)  # model 原样，formatter 删隐私
 
     签名中的 Depends(get_db)/Depends(get_current_user) 参数为注入参数
     （LLM 不可见）；其余参数进 schema。返回原函数（endpoint 无感）。
+
+    result_formatter：同 v1 @tool 语义——MCP 模式下解包 api_success → _to_dict
+    （model→dict）→ formatter 输出（JSON 字符串，LLM 读 formatter 投影）；
+    无 formatter 时直接返回解包后的 data（结构化 dict）。
     """
 
     def _register(f: Callable) -> Callable:
@@ -146,7 +175,10 @@ def mcp_tool(fn: Callable | None = None, *, name: str | None = None) -> Callable
                         call_kwargs[db_param] = db
                     result = await f(**call_kwargs)
                     await db.commit()
-                    return _unwrap(result)
+                    result = _unwrap(result)
+                    if result_formatter is not None:
+                        return result_formatter(_to_dict(result))
+                    return result
                 except Exception:
                     await db.rollback()
                     raise

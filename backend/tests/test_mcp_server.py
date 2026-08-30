@@ -3,14 +3,16 @@
 覆盖：
 - _user_id_from_meta：从 callTool `_meta` 提取（Meta 是 pydantic 模型，extra=allow）
 - 无 _meta / 无 user_id 字段 → PermissionError（桥层未注入 = 拒绝执行）
-- get_my_profile（@mcp_tool 写在 v2 endpoint 上）：_meta 身份 → user_id 注入 →
-  业务函数执行 → api_success 解包 → 结构化 dict（隐私字段不返回；请求级 commit）
-- 双形态：HTTP 模式走 FastAPI Depends（统一响应格式 api_success）；MCP 模式
-  走 _meta 注入（LLM 看到 data）
+- get_my_profile（@mcp_tool 写在 v2 endpoint 上，v2 = v1-copy + support-mcp）：
+  _meta 身份 → user_id 注入 → 业务函数执行 → api_success 解包 → _to_dict →
+  result_formatter 输出（JSON 字符串，LLM 读 formatter 投影，同 v1 ToolDef.execute）
+- 双形态：HTTP 模式走 FastAPI Depends（api_success(model)，同 v1 语义——本人
+  资料含头像等全量字段）；MCP 模式 formatter 删隐私
 - schema：业务参数进 MCP schema，注入参数（user_id/db）不暴露
 """
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -100,30 +102,32 @@ class TestGetMyProfile:
     @pytest.mark.asyncio
     async def test_profile_uses_user_id_from_meta(self):
         """user_id 来自 _meta（桥层注入）→ @mcp_tool 注入业务函数 → 查询对应用户
-        api_success 包装被解包（LLM 看到结构化 data）"""
+        api_success 解包 + formatter 输出 JSON 字符串（同 v1 ToolDef.execute）"""
         fake = FakeSession(FakeScalarResult([_make_user(42, "桥接用户")]))
         with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
             result = await _REGISTERED_TOOLS["get_my_profile"](
                 ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
             )
 
-        assert result["id"] == 42
-        assert result["nickname"] == "桥接用户"
-        assert "code" not in result, "api_success 包装应被解包（LLM 看 data）"
+        data = json.loads(result)
+        assert data["id"] == 42
+        assert data["nickname"] == "桥接用户"
+        assert "code" not in result, "api_success 包装应被解包（formatter 收到的是 data）"
         assert fake.committed, "应请求级 commit（对齐 FastAPI get_db 契约）"
 
     @pytest.mark.asyncio
     async def test_profile_strips_private_fields(self):
-        """隐私字段（avatar/openid/unionid/unit/room）由工具自身控制不返回"""
+        """隐私字段（avatar/openid/unionid/unit/room）由 formatter 删减（v1 同款）"""
         fake = FakeSession(FakeScalarResult([_make_user(42, "桥接用户")]))
         with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
             result = await _REGISTERED_TOOLS["get_my_profile"](
                 ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
             )
 
+        data = json.loads(result)
         for private in ("avatar", "openid", "unionid", "unit", "room"):
-            assert private not in result, f"{private} 不应出现在工具结果中"
-        assert result["community"] == "兰园"
+            assert private not in data, f"{private} 不应出现在工具结果中"
+        assert data["community"] == "兰园"
 
     @pytest.mark.asyncio
     async def test_profile_rejects_without_meta(self):
@@ -131,14 +135,14 @@ class TestGetMyProfile:
             await _REGISTERED_TOOLS["get_my_profile"](ctx=_ctx_with_meta(None))
 
     @pytest.mark.asyncio
-    async def test_profile_none_user_returns_none_data(self):
-        """查询无果 = 正常结果（data=None，不是业务失败）"""
+    async def test_profile_none_user_returns_null(self):
+        """查询无果 = 正常结果（formatter 输出 "null"，不是业务失败）"""
         fake = FakeSession(FakeScalarResult([]))
         with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake):
             result = await _REGISTERED_TOOLS["get_my_profile"](
                 ctx=_ctx_with_meta(SimpleNamespace(user_id=999))
             )
-        assert result is None
+        assert result == "null"
 
 
 class TestHttpEndpoint:
@@ -166,7 +170,7 @@ class TestHttpEndpoint:
         return TestClient(app), fake
 
     def test_http_me_returns_api_success(self):
-        """HTTP GET /api/v2/user/me → 统一响应格式（code=0 + data），隐私字段不返回"""
+        """HTTP GET /api/v2/user/me → 同 v1 语义：本人资料全量（含头像，前端需要）"""
         client, _ = self._make_client(_make_user(42, "HTTP 用户"))
         resp = client.get("/api/v2/user/me")
 
@@ -174,8 +178,7 @@ class TestHttpEndpoint:
         body = resp.json()
         assert body["code"] == 0
         assert body["data"]["nickname"] == "HTTP 用户"
-        for private in ("avatar", "openid", "unionid", "unit", "room"):
-            assert private not in body["data"]
+        assert body["data"]["avatar"] == "data:base64...", "HTTP 形态=本人资料，头像应返回（v1 同款，前端展示用）"
 
     def test_http_me_requires_auth(self):
         """endpoint 带 Depends(get_current_user)：无 Token → 401（FastAPI 原生行为）"""
