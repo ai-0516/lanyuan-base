@@ -242,6 +242,22 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 - 校验：`_meta` 缺失/无 user_id 字段 → `PermissionError` 拒绝执行（工具失败，LLM 可见错误不可见身份）；任何工具实现不得信任模型输入中的身份字段
 - **候选机制定案（§14 待确认项 2）**：`_meta` 透传 + 自写桥插件注入（官方 mcp-client callTool 无 `_meta` 扩展点 → 自写插件用 MCP SDK 正式库实现，注入点自由）
 
+**M3 演进（2026-08-31 用户定：身份查询插件）**：session_id 编码 user_id 是 **M2 过渡方案**——SDK 通道限制（`harness.run` 只接受 session_id，DSH 无请求级 middleware、sdk-jsonrpc-server 不透传自定义字段）下的唯一零侵入通道，**非终态设计**。M3 随会话持久化改为**身份查询插件**：
+
+```
+FastAPI（身份权威，JWT 验证处）：
+  session_id = v2-{纯 uuid}（不再编码 user_id）
+  → 记录映射 {session_id → owner_user_id}（并入 M3 sessions 表 owner 字段，§8.2）
+  → 内部身份端点 GET /api/internal/sessions/{id}/owner（internal token 防护）
+DSH 侧（扩展 @lanyuan/dsh-lanyuan-bridge）：
+  execute 时：session_id = exec.agent.session.id（纯 uuid）
+  → HTTP 查询内部身份端点 → user_id → 注入 _meta.user_id（§6.3 工具级不变）
+  → 查不到 → 拒绝（fail-closed）
+```
+
+- 收益：session_id 恢复纯会话标识（不再有字符串格式约定）；身份权威收归 FastAPI；M3 会话复用天然满足"同会话多轮身份一致"
+- 与 §5.2/§8.2（M3 会话持久化）绑定：映射表即 sessions 表 owner 字段，桥插件查询逻辑 M2→M3 零重做
+
 ### 6.4 首批工具清单（v1 既有 @tool 迁移）
 
 | 工具 | 说明 |
@@ -418,7 +434,8 @@ async def get_my_profile(
 ```
 sessions(id VARCHAR(64) PK, version, created_at, cwd, parent_session,
          seed_length, origin, delegation_depth, agent_preset,
-         incarnation CHAR(36), revision BIGINT)
+         incarnation CHAR(36), revision BIGINT,
+         owner_user_id BIGINT NULL)   -- M3 身份映射（§6.3 身份查询插件：session_id → owner）
 events(session_id, seq, type, time, data JSON, source_event_seqs JSON,
        surface_op, ignorable, PK(session_id, seq), FK → sessions CASCADE)
 persistence_state(singleton TINYINT PK, store_id CHAR(36))
@@ -541,7 +558,8 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
 | 1 | 微信云托管镜像大小限制 | 未实测 docker 构建 | M4 实测 |
-| 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | **已定案（M2）**：session_id 编码 user_id + 自写桥插件注入 callTool `_meta`（§6.3） | dev/M2 ✅ |
+| 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | **已定案（M2）**：session_id 编码 user_id + 自写桥插件注入 callTool `_meta`（§6.3）——**M2 过渡方案** | dev/M2 ✅ |
+| 3 | user_id 注入终态（session_id 编码退役） | **已定案（M3）**：身份查询插件——session_id 恢复纯 uuid，FastAPI 内部身份端点 + 桥插件查询，映射并入 sessions 表 owner_user_id（§6.3/§8.2） | 用户 2026-08-31 ✅ |
 
 ---
 
