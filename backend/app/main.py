@@ -18,6 +18,8 @@ from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload
 # 其他 endpoint 不变）——import v1 业务模块即触发 @mcp_tool 注册进 mcp
 # （必须在 tools.mcp_server.main 的 mcp_app 构建前 import，本文件顺序已保证）
 from app.api.v2 import ai as v2_ai
+# v2 M3 内部身份端点（§6.3：DSH 桥插件查 session owner，X-Lanyuan-Internal-Token 防护）
+from app.api.internal import router as internal_router
 from app.api.response import api_exception_handler, api_success, validation_exception_handler
 # v2 MCP server（§6.2：挂载 /mcp，streamable-http）——lifespan 需合并（fastmcp
 # StreamableHTTPSessionManager 依赖 lifespan 初始化，官方要求显式传入父 app）
@@ -67,6 +69,9 @@ app.include_router(upload.router, prefix="/api/v1")
 # v2（DSH 重写 agent，TECH_SPEC §9.1）——v2 只新增 /api/v2/ai/chat；
 # 业务工具 @mcp_tool 挂在 v1 业务 endpoint 上（v1/v2 仅限 /ai/chat）
 app.include_router(v2_ai.router, prefix="/api/v2")
+
+# v2 M3 内部端点（§6.3：DSH 子进程专用，不暴露给前端；token 防护在路由内）
+app.include_router(internal_router, prefix="/api")
 
 # ── v2 MCP server 挂载（§6.2：业务工具 MCP server，streamable-http） ──
 # MCP server 能力独立于 DSH runtime（DSH 桥经 HTTP 消费）；工具/API 同进程

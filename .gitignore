@@ -48,3 +48,5 @@ dsh/.sessions/
 dsh/.dsh-home/
 dsh/spine/lib/
 dsh/mcp-client/lib/
+dsh/mysql-persistence/lib/
+dsh/server/lib/

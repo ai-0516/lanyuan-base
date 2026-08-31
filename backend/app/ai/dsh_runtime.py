@@ -11,9 +11,11 @@ import logging
 import os
 import threading
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from deepseek_harness import DeepSeekHarness, DeepSeekHarnessConfig
 
+from app.config import settings
 from app.core.security import get_mcp_token
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,27 @@ _LLM_MODEL = os.environ.get("V2_LLM_MODEL", "deepseek-v4-flash")
 # MCP server 端点默认值（§6.2：与 FastAPI 部署端口绑定；生产云托管端口非 8000
 # 时用环境变量 LANYUAN_MCP_URL 覆盖——verify 脚本同源注入）
 LANYUAN_MCP_URL_DEFAULT = "http://127.0.0.1:8000/mcp/"
+
+
+def _mysql_env_from_database_url() -> dict:
+    """从 DATABASE_URL 推导 DSH 侧 MySQL 连接参数（§5.2：同库同凭据）。
+
+    生产 DATABASE_URL=`mysql+aiomysql://user:pass@host:port/db` → 拆成
+    LANYUAN_MYSQL_{HOST,PORT,USER,PASSWORD,DATABASE} 注入 DSH 子进程
+    （Node 侧 mysql2 经 cordis.yml env 引用读取）。非 mysql URL（SQLite
+    开发）返回空——开发需显式设置 LANYUAN_MYSQL_*（如指向本地 MySQL）。
+    """
+    url = settings.DATABASE_URL
+    if not url.startswith("mysql"):
+        return {}
+    parsed = urlparse(url)
+    return {
+        "LANYUAN_MYSQL_HOST": parsed.hostname or "127.0.0.1",
+        "LANYUAN_MYSQL_PORT": str(parsed.port or 3306),
+        "LANYUAN_MYSQL_USER": unquote(parsed.username or ""),
+        "LANYUAN_MYSQL_PASSWORD": unquote(parsed.password or ""),
+        "LANYUAN_MYSQL_DATABASE": (parsed.path or "/").lstrip("/").split("?", 1)[0],
+    }
 
 
 def _runtime_env() -> dict:
@@ -42,6 +65,10 @@ def _runtime_env() -> dict:
     # env LANYUAN_MCP_TOKEN（生产）优先，未配置则进程内自动生成注入（开发零配置）。
     # 缺失 token 的桥会被 server 401 拒绝（fail-closed，见 tools/mcp_server/security.py）
     env["LANYUAN_MCP_TOKEN"] = get_mcp_token()
+    # M3（§5.2）：MySQL PersistenceBackend 连接——显式 env 优先（开发 SQLite
+    # 库时手动指定），否则从 DATABASE_URL 推导（生产同库同凭据）
+    for key, value in _mysql_env_from_database_url().items():
+        env.setdefault(key, value)
     return env
 
 
