@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
+from tools.mcp_server.decorator import mcp_tool
 from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["通知"])
@@ -27,6 +28,7 @@ def _format_mark_all_read(data) -> str:
 
 
 @router.get("")
+@mcp_tool(result_formatter=_format_list_notifications)
 @tool(result_formatter=_format_list_notifications)
 async def list_notifications(
     db: AsyncSession = Depends(get_db),
@@ -38,6 +40,7 @@ async def list_notifications(
 
 
 @router.get("/count")
+@mcp_tool(name="notification_count", result_formatter=_format_notification_count)
 @tool(name="notification_count", result_formatter=_format_notification_count)
 async def notification_count(
     db: AsyncSession = Depends(get_db),
@@ -49,6 +52,7 @@ async def notification_count(
 
 
 @router.put("/read-all")
+@mcp_tool(result_formatter=_format_mark_all_read)
 @tool(result_formatter=_format_mark_all_read)
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),

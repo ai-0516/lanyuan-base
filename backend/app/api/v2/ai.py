@@ -33,11 +33,13 @@ class ChatRequestV2(BaseModel):
     message: str
 
 
-async def _stream_chat(prompt: str):
+async def _stream_chat(prompt: str, user_id: int):
     """事件层过滤 → SSE 帧（2b 验证过的队列模式）"""
     loop = asyncio.get_running_loop()
     q: asyncio.Queue = asyncio.Queue()
-    session_id = f"v2-{uuid.uuid4()}"  # 过渡期每请求新 session（§5.1）
+    # 过渡期每请求新 session（§5.1）；session_id 编码 user_id（`v2-{user_id}-{uuid}`，
+    # §6.3：DSH 侧桥插件从 session id 解析并注入工具调用 _meta——LLM 永不提供身份）
+    session_id = f"v2-{user_id}-{uuid.uuid4()}"
 
     def on_notification(n) -> None:
         loop.call_soon_threadsafe(q.put_nowait, n)
@@ -78,7 +80,7 @@ async def chat(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="消息不能为空")
 
     return StreamingResponse(
-        _stream_chat(data.message.strip()),
+        _stream_chat(data.message.strip(), user_id),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

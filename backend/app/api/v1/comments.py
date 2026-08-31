@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
+from tools.mcp_server.decorator import mcp_tool
 from app.schemas.comment import CommentCreate
 from app.services import comment_service
 
@@ -28,6 +29,7 @@ def _format_delete_comment(data) -> str:
 
 
 @router.get("/posts/{post_id}/comments")
+@mcp_tool(result_formatter=_format_list_comments)
 @tool(result_formatter=_format_list_comments)
 async def list_comments(
     post_id: int,
@@ -40,6 +42,7 @@ async def list_comments(
 
 
 @router.post("/posts/{post_id}/comments")
+@mcp_tool(result_formatter=_format_create_comment)
 @tool(result_formatter=_format_create_comment)
 async def create_comment(
     post_id: int,
@@ -53,6 +56,7 @@ async def create_comment(
 
 
 @router.delete("/comments/{comment_id}")
+@mcp_tool(result_formatter=_format_delete_comment)
 @tool(result_formatter=_format_delete_comment)
 async def delete_comment(
     comment_id: int,

@@ -1,10 +1,16 @@
-# spine 为本地 workspace 成员（@lanyuan/dsh-agent-spine，零 examples 依赖 §7.4）
-# —— prepare/build 的 --filter 依赖 workspace 匹配；file:./spine 依赖同步保留
+# spine / mcp-client 为本地 workspace 成员（@lanyuan/dsh-agent-spine、
+# @lanyuan/dsh-mcp-client，零 examples 依赖 §7.4）
+# —— prepare/build 的 --filter 依赖 workspace 匹配；file:./* 依赖同步保留
 packages:
   - spine
+  - mcp-client
 
 allowBuilds:
-  # 仅激活依赖链引用的原生包需要构建：
+  # 显式声明（pnpm 11：未显式声明的 build scripts 使 install 失败）：
   # koffi —— @deepseek-ai/dsh-session-persistence-jsonl（sessions 插件，激活）依赖
-  # 其余（subprocess-local/node-pty/genai/protobufjs）不在激活链，占位符清除
+  # 其余 4 个不在激活链（dsh 聚合包传递依赖），声明 false 忽略
   koffi: true
+  '@deepseek-ai/dsh-subprocess-local': false
+  '@google/genai': false
+  node-pty: false
+  protobufjs: false

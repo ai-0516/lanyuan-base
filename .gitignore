@@ -43,6 +43,8 @@ miniprogram/miniprogram_npm/
 # v2 DSH runtime（dsh/ 家目录）
 dsh/node_modules/
 dsh/spine/node_modules/
+dsh/mcp-client/node_modules/
 dsh/.sessions/
 dsh/.dsh-home/
 dsh/spine/lib/
+dsh/mcp-client/lib/

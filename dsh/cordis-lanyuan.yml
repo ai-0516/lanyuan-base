@@ -1,7 +1,7 @@
-# lanyuan v2 runtime 配置（M1：5 插件，能力裁剪）
+# lanyuan v2 runtime 配置（M2：6 插件，能力裁剪）
 # 基于 spike cordis-jsonrpc.yml（8 插件）裁剪：去掉 subprocess/bash/fs-local
 # spine 为本地 @lanyuan/dsh-agent-spine（零 examples 依赖，§7.4）
-# M2 追加 mcp-lanyuan 条目（业务工具桥）
+# M2 追加 mcp-client 条目（业务工具 MCP client，§6：自写插件注入 user_id）
 - id: sdk-jsonrpc-server
   name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
 
@@ -23,3 +23,17 @@
 
 - id: session-checkpoints
   name: '@deepseek-ai/dsh-session-checkpoint-policy'
+
+# 业务工具 MCP client（§6.2）：自写插件（@lanyuan/dsh-mcp-client，替代官方
+# dsh-mcp-client）经 streamable-http 消费挂载在 FastAPI /mcp 的 MCP server
+# （§6.4b @mcp_tool 原生注册，如 mcp__lanyuan__get_my_profile）；
+# user_id 由插件从 session id 解析并注入 callTool 的 _meta（§6.3）。
+# 认证（PR #94 review 修复）：请求带 X-Lanyuan-Internal-Token，密钥来自 env
+# LANYUAN_MCP_TOKEN（FastAPI 侧 dsh_runtime 注入 DSH 子进程 env，未配置时
+# 进程内自动生成同值）——缺失则插件拒绝连接（fail-closed）
+- id: lanyuan-mcp-client
+  name: '@lanyuan/dsh-mcp-client'
+  config:
+    serverName: lanyuan
+    url: !!js process.env.LANYUAN_MCP_URL ?? 'http://127.0.0.1:8000/mcp/'
+    toolCallTimeoutMs: 60000

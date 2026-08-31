@@ -18,6 +18,7 @@ from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
 from app.harness.memory import VALID_TYPES, MemoryLimitError
 from app.harness.tool_registry import dumps, strip_keys, tool
+from tools.mcp_server.decorator import mcp_tool
 from app.services import memory_service
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ def _format_memory_delete(data) -> str:
 
 
 @router.get("")
+@mcp_tool(name="memory_list", result_formatter=_format_memory_list)
 @tool(name="memory_list", result_formatter=_format_memory_list)
 async def list_memories(
     db: AsyncSession = Depends(get_db),
@@ -76,6 +78,7 @@ async def list_memories(
 
 
 @router.post("")
+@mcp_tool(name="memory_add", result_formatter=_format_memory_add)
 @tool(name="memory_add", result_formatter=_format_memory_add)
 async def add_memory(
     data: MemoryCreate,
@@ -105,6 +108,7 @@ async def add_memory(
 
 
 @router.get("/{memory_id}")
+@mcp_tool(name="memory_get", result_formatter=_format_memory_get)
 @tool(name="memory_get", result_formatter=_format_memory_get)
 async def get_memory(
     memory_id: int,
@@ -120,6 +124,7 @@ async def get_memory(
 
 
 @router.delete("/{memory_id}")
+@mcp_tool(name="memory_delete", result_formatter=_format_memory_delete)
 @tool(name="memory_delete", result_formatter=_format_memory_delete)
 async def delete_memory(
     memory_id: int,

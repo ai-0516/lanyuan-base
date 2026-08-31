@@ -75,7 +75,7 @@ FastAPI (uvicorn, --workers 1 起步)
        ├─ 生命周期: lifespan startup 启动 / shutdown 关闭
        ├─ 崩溃重启: catch TransportClosedError → close() + start()（4b 实验：直接 start() 无效）
        └─ 环境变量: 显式管理 DSH_SESSION_ROOT / DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验）
-  └─ MCP server 子进程（每 worker 一个，Python，stdio）
+  └─ MCP server 挂载（§6.1：tools/mcp_server/main.py 的 mcp_app，/mcp 端点，streamable-http）
 ```
 
 - 进程内多 session 并发：Node 异步事件循环，通知按 sessionId 过滤（实验 4a：3 session 并发互不干扰）
@@ -91,8 +91,7 @@ lanyuan-base/
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
 │       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
 │       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
-│       │   └── mcp_bridge.py      # MCP server 进程管理（spawn/健康检查）
-│       └── tools/mcp_server/      # Python 业务工具 MCP server（复用 @tool schema）
+│       └── tools/mcp_server/      # MCP 基础设施（@mcp_tool 装饰器 + http_app 挂载，§6.1/§6.4b；工具定义在 app/api/v1/ 业务 endpoint 上，@tool 旁叠加）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
     ├── package.json               # 正式包依赖 + file: 本地插件 + bin 入口
@@ -205,48 +204,115 @@ lanyuan-base/
 
 ## 6. MCP 工具桥
 
-### 6.1 架构（实验 3/3b 验证）
+### 6.1 架构（实验 3/3b 验证 + M2 定案；M2 review 传输层定案：stdio → streamable-http 挂载）
 
 ```
-DSH runtime
-  └─ @deepseek-ai/dsh-mcp-client 插件（cordis.yml 一个实例 = 一个 server）
-       spawn → Python MCP server（fastmcp，stdio）
-                 └─ 业务工具（复用 @tool schema + 执行逻辑，连 MySQL）
+FastAPI 进程（uvicorn worker）
+  ├─ /api/v2/ai/chat: DSH runtime（Node 子进程）→ 桥插件（HTTP client）
+  └─ /mcp: MCP server 挂载（fastmcp streamable-http，§6.2）
+       └─ 业务工具（@mcp_tool 原生注册，§6.4b，连 MySQL）
 ```
 
-- 工具注册名：`mcp__<serverName>__<rawName>`（`mcp__lanyuan__search_history`）
-- 支持 stdio / streamable-http 两种 transport（v2 用 stdio）
-- 断线自动重连（指数退避，默认开）、崩溃 supervisor 重启、HMR 热更新
-- 配置模板 = `spike/npm-dsh/cordis-mcp.yml`（已验证）
+- 工具注册名：`mcp__<serverName>__<rawName>`（如 `mcp__lanyuan__get_my_profile`）
+- transport：**streamable-http 挂载 FastAPI /mcp**（M2 review 定：MCP server 能力独立于 DSH runtime——DSH 只是 HTTP client，工具/API 同进程、同认证/事务体系；`http_app(path="/")` 避免与 mount 前缀叠加 404）
+- 桥插件连接：`StreamableHTTPClientTransport`（MCP SDK 正式库）消费 `LANYUAN_MCP_URL`；启动窗口内**有界重试**（FastAPI lifespan 预热 DSH runtime 时尚未 listen，重试等 /mcp 就绪；超过窗口抛错 = 装配失败不静默缺工具）
+- **认证（PR #94 review 修复）**：`http_app(middleware=[McpAuthMiddleware])`——内部共享密钥 header（`X-Lanyuan-Internal-Token`，env `LANYUAN_MCP_TOKEN`），所有请求（含 GET 初始化）在 streamable-http 路由前校验，未认证 401（tools/list 也在门内）。密钥由 FastAPI 侧 `_runtime_env()` 注入 DSH 子进程 env（显式 env 优先，未配置进程内自动生成同值）；桥插件缺失密钥 → 拒绝连接（fail-closed）。**外部 client 无法直连 /mcp**（§6.3 信任前提收紧）
+- 崩溃恢复：MCP server 随 FastAPI 生命周期（同进程）；DSH runtime 崩溃重启 → cordis 重新装配 → 桥重连 /mcp
+- 启动时序：lifespan 合并 `mcp_app.lifespan`（fastmcp session manager 依赖）；DSH 预热改后台任务（避免「预热依赖 listen、listen 依赖 lifespan 完成」死锁；首请求前未完成则懒启动兜底，DshRuntime 加锁跨线程安全）
 
-### 6.2 配置模板（v2 cordis-lanyuan.yml 的 mcp 部分）
+### 6.2 配置模板（v2 cordis-lanyuan.yml 的 bridge 部分）
 
 ```yaml
-- id: mcp-lanyuan
-  name: '@deepseek-ai/dsh-mcp-client'
+- id: lanyuan-mcp-client
+  name: '@lanyuan/dsh-mcp-client'
   config:
     serverName: lanyuan
-    transport: stdio
-    command: /path/to/backend/.venv/bin/python
-    args: ['/path/to/backend/tools/mcp_server/main.py']
+    url: !!js process.env.LANYUAN_MCP_URL ?? 'http://127.0.0.1:8000/mcp/'
+    toolCallTimeoutMs: 60000
 ```
 
-### 6.3 user_id 注入（安全设计，防 LLM 伪造越权）
+URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI 部署端口绑定；生产云托管环境变量覆盖）。
+
+**认证（PR #94 review 修复）**：请求带 `X-Lanyuan-Internal-Token`，密钥来自 env `LANYUAN_MCP_TOKEN`
+（FastAPI 侧 `_runtime_env()` 注入 DSH 子进程 env——显式 env 优先，未配置进程内自动生成同值）；
+桥插件缺失密钥 → 拒绝连接（fail-closed）。生产部署时可在环境变量显式固定（FastAPI 与 DSH 共享）。
+
+### 6.3 user_id 注入（安全设计，防 LLM 伪造越权）——M2 定案
 
 **原则（已定）**：身份由桥层强制绑定，LLM 永不提供/自填身份。
 
-- 请求级：FastAPI 认证后，把 `user_id` 绑定到 DSH 请求上下文（短期注入方案：随会话元数据传递）
-- 工具级：MCP server 端工具签名**不含** user_id 参数（LLM 不可见）；执行时身份来自桥层绑定而非 LLM 参数
-- 候选机制（实现时验证，见 §14）：MCP `callTool` 的 `_meta` 扩展透传 / DSH 侧本地插件在调用路径注入
-- 校验：任何工具实现不得信任模型输入中的身份字段
+**信任前提（PR #94 review 修复）**：`_meta.user_id` 只在**已通过传输层内部认证**的
+client 上采信——`/mcp` 挂内部共享密钥中间件（§6.1），唯一持有密钥的是本进程 DSH
+子进程（桥），外部 client 直连 /mcp 在传输层即被 401 拒绝（此前无认证时任何网络
+可达者都可伪造 `_meta.user_id` 冒充任意用户，review 实测越权）。桥层注入 user_id
+的取值来自 session id（非模型输入），传输层认证保证「能到达工具的 client 只有桥」，
+两层共同构成身份边界。
+
+- 请求级：FastAPI 认证后，session_id 编码 user_id——`v2-{user_id}-{uuid4()}`（§5.1 过渡期每请求新 session）
+- 桥层：自写 MCP client 插件 `@lanyuan/dsh-mcp-client`（官方 dsh-mcp-client 的自写重写）的 executor 从 `exec.agent.session.id` 解析 user_id，注入 callTool 请求的 `_meta.user_id`（MCP 协议 `RequestParams._meta`，官方 mcp-client 不携带故自写）
+- 工具级：MCP server 端工具签名**不含** user_id 参数（LLM 不可见，tools/list 确认）；执行时从 `ctx.request_context.meta.user_id` 提取（fastmcp 的 Meta 是 pydantic 模型，extra=allow）
+- 校验：`_meta` 缺失/无 user_id 字段 → `PermissionError` 拒绝执行（工具失败，LLM 可见错误不可见身份）；任何工具实现不得信任模型输入中的身份字段
+- **候选机制定案（§14 待确认项 2）**：`_meta` 透传 + 自写桥插件注入（官方 mcp-client callTool 无 `_meta` 扩展点 → 自写插件用 MCP SDK 正式库实现，注入点自由）
+
+**M3 演进（2026-08-31 用户定：身份查询插件）**：session_id 编码 user_id 是 **M2 过渡方案**——SDK 通道限制（`harness.run` 只接受 session_id，DSH 无请求级 middleware、sdk-jsonrpc-server 不透传自定义字段）下的唯一零侵入通道，**非终态设计**。M3 随会话持久化改为**身份查询插件**：
+
+```
+FastAPI（身份权威，JWT 验证处）：
+  session_id = v2-{纯 uuid}（不再编码 user_id）
+  → 记录映射 {session_id → owner_user_id}（并入 M3 sessions 表 owner 字段，§8.2）
+  → 内部身份端点 GET /api/internal/sessions/{id}/owner（internal token 防护）
+DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
+  execute 时：session_id = exec.agent.session.id（纯 uuid）
+  → HTTP 查询内部身份端点 → user_id → 注入 _meta.user_id（§6.3 工具级不变）
+  → 查不到 → 拒绝（fail-closed）
+```
+
+- 收益：session_id 恢复纯会话标识（不再有字符串格式约定）；身份权威收归 FastAPI；M3 会话复用天然满足"同会话多轮身份一致"
+- 与 §5.2/§8.2（M3 会话持久化）绑定：映射表即 sessions 表 owner 字段，桥插件查询逻辑 M2→M3 零重做
 
 ### 6.4 首批工具清单（v1 既有 @tool 迁移）
 
 | 工具 | 说明 |
 |---|---|
-| `search_history` | **给 LLM 的搜索 tool**（前端不做搜索页/API，2026-08-23 定）；数据源 SQLite FTS5 投影（§8.3，v1 #42 MySQL FTS 卡点解放） |
-| `get_profile` | 当前用户资料（昵称/社区/楼栋/单元/房号） |
-| 其余 v1 工具按需迁移 | 发帖/评论/记忆类（里程碑内逐个搬） |
+| **19 个业务工具**（profile 3：get_my_profile/update_my_profile/get_user_public；posts 6；comments 3；notifications 3；memory 4） | 全部 `@mcp_tool` 注册（@tool 旁叠加，§6.4b）；endpoint 路径不变（/api/v1/*，v1/v2 仅限 /ai/chat） |
+| ~~`search_history`~~ | **不迁移**——v2 历史搜索由 DSH session-query 能力覆盖（§6.4b） |
+
+### 6.4b 工具注册（M2 review 定案：@mcp_tool 写在业务 endpoint 上，@tool 旁叠加）
+
+**v1/v2 仅限 /ai/chat（2026-08-30 用户定）**——业务 endpoint（用户/帖子/评论/通知/
+记忆）不属于 v1/v2 之争，文件永存、路径不变；`@mcp_tool` **直接写在业务 endpoint
+的 @tool 旁边**（同一函数双注册，装饰器均返回原函数，FastAPI 无感）：
+
+```python
+@router.get("/user/me")
+@mcp_tool(result_formatter=_format_get_my_profile)   # 注册进 MCP server（v2 agent 用）
+@tool(result_formatter=_format_get_my_profile)       # 注册进 v1 ToolRegistry（v1 agent 用）
+async def get_my_profile(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    """业务描述进 MCP schema；db/user_id 是注入参数（LLM 不可见）"""
+    ...
+    return api_success(user)  # model 原样（HTTP 消费，同 v1）
+```
+
+- **双注册语义**：@tool 与 @mcp_tool 签名一致（name + result_formatter）、各自注册到
+  自己的体系——短期两者共存（v1 agent 用 @tool、v2 agent 用 @mcp_tool）；后期删 @tool
+  机制（装饰器行 + tool_registry）即完成切换，业务文件不动、@mcp_tool 保留
+- 注入识别与 v1 @tool 一致：`Depends(get_db)` → db 会话注入，`Depends(get_current_user)`
+  → user_id 注入（LLM 不可见）。HTTP 模式 FastAPI Depends 正常解析；MCP 模式
+  user_id 来自 `_meta`（§6.3），db 由装饰器注入 async_session_factory 会话
+  （请求级 commit/rollback，对齐 get_db 契约）
+- **MCP 模式执行链**（同 v1 ToolDef.execute）：解包 api_success → `_to_dict`
+  （model→dict，跳过 created_at/updated_at）→ result_formatter 输出（JSON 字符串，
+  LLM 读 formatter 投影）；无 formatter 时直接返回解包后的 data（结构化 dict）
+- **Pydantic model 参数展平**（同 v1 _flatten_model）：create_post 的 content/images
+  等展平为独立字段进 schema，执行时按字段重建 model 实例
+- 隐私保护承担者与 v1 一致：**formatter 删减**（`result_formatter` 参数）
+- **search_history 不迁移**——v2 历史搜索由 DSH session-query 能力覆盖；
+  其余 19 个业务工具全部 @mcp_tool 注册（M2 review 用户定：工具面全量铺开）
+- MCP server（tools/mcp_server/main.py）不 import 业务模块——注册由 app.main
+  import 业务文件触发（装饰器执行即注册，无注册表遍历/无 v1 依赖）
 
 ## 7. dsh/ 家目录
 
@@ -309,13 +375,13 @@ DSH runtime
 | `@deepseek-ai/dsh-subprocess-local` | ~~能力·执行~~ **裁剪** | 本地子进程服务（bash 执行器的底层） | **不需要**：唯一消费者是 bash（已裁）；mcp-client 自己 spawn（只复用 dsh-subprocess 的 env scrub 定义，不走此服务） | 将来需要 agent 跑命令再加回 |
 | `@deepseek-ai/dsh-bash-local` | ~~能力·执行~~ **裁剪** | bash 执行器（agent 跑 shell 命令） | **不需要**：社区问答助手无 shell 场景；spine 配置 `toolBash: false` 即不 mount（index.ts:250-253） | 将来需要再加回 + 开配置 |
 | `@deepseek-ai/dsh-fs-local` | ~~能力·文件~~ **裁剪** | 文件系统服务（ctx.fs） | **不需要**：fs 的消费者 = workspaceContext + skill filesystem，均可关（`workspaceContext: false`、`skills.enabled: false`）；关后无人消费 | 将来需要 agent 读写文件再加回 |
-| `@deepseek-ai/dsh-mcp-client` | 工具桥 | MCP 客户端桥：spawn 外部 MCP server、listTools、注册进 ctx.tools | 没有它 Python 业务工具进不了 DSH 工具表——**v2 工具桥的核心** | 工具名 mcp__lanyuan__*（§6） |
 
-**本地插件（3，file: 依赖零 publish）**：
+**本地插件（3→4，file: 依赖零 publish）**：
 
 | 包 | 干什么 | 为什么需要 | 何时引入 |
 |---|---|---|---|
 | `@lanyuan/dsh-agent-spine`（`file:./spine`） | 自写 agent 骨架：agent 创建、回合调度、LLM 路由、session、标题 | 官方骨架是 examples 包（不依赖，§7.4）；内部依赖 core 包 dsh-agent / dsh-agent-loop / dsh-llm / dsh-session / dsh-session-title / dsh-scope / dsh-invariants / dsh-home-paths（0.1.1-rc.2 已确认） | M1 |
+| `@lanyuan/dsh-mcp-client`（`file:./mcp-client`） | MCP client 插件（官方 dsh-mcp-client 的自写重写）：HTTP 消费挂载在 FastAPI /mcp 的 MCP server（StreamableHTTPClientTransport）、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
 | `@lanyuan/dsh-session-persistence-mysql`（`file:./mysql-persistence`） | MySQL 持久化 backend（8 hook，§5.2/§8.2） | v2 会话真源 = MySQL；官方无网络数据库 backend（框架空白） | M3 |
 | `@lanyuan/dsh-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
 
@@ -380,7 +446,8 @@ DSH runtime
 ```
 sessions(id VARCHAR(64) PK, version, created_at, cwd, parent_session,
          seed_length, origin, delegation_depth, agent_preset,
-         incarnation CHAR(36), revision BIGINT)
+         incarnation CHAR(36), revision BIGINT,
+         owner_user_id BIGINT NULL)   -- M3 身份映射（§6.3 身份查询插件：session_id → owner）
 events(session_id, seq, type, time, data JSON, source_event_seqs JSON,
        surface_op, ignorable, PK(session_id, seq), FK → sessions CASCADE)
 persistence_state(singleton TINYINT PK, store_id CHAR(36))
@@ -409,11 +476,14 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 9.2 其余 API
 
-维持 `/api/v1` 不变（v1 TECH_SPEC §4）——v2 只新增 `/api/v2/ai/chat`，其余业务 API（用户/帖子/评论/通知/上传等）不迁移、不重写。
+维持 `/api/v1` 不变（v1 TECH_SPEC §4）——**业务 API（用户/帖子/评论/通知/记忆）
+不属于 v1/v2 之争（2026-08-30 用户定）**：文件永存、路径不变，`@mcp_tool` 直接
+挂在业务 endpoint 上（@tool 旁叠加，§6.4b）——**不新增 v2 业务端点**；
+v2 只新增 `POST /api/v2/ai/chat`（§9.1）。
 
 ### 9.3 搜索能力
 
-**前端不做搜索 API/搜索页**（2026-08-23 用户定）——搜索是给 LLM 的 tool（`search_history`，§6.4），数据源 SQLite FTS5 投影（§8.3）。
+**前端不做搜索 API/搜索页**（2026-08-23 用户定）——搜索是给 LLM 的能力：v1 用 `search_history` tool，v2 由 DSH session-query 覆盖（§6.4b 定：不迁移业务工具）。
 
 ## 10. 前端 v2（小程序）
 
@@ -474,6 +544,9 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 ### 12.2 安全
 
 - user_id 桥层强制注入（§6.3），LLM 永不提供身份
+- **/mcp 传输层内部认证（PR #94 review 修复）**：内部共享密钥 header
+  （`X-Lanyuan-Internal-Token`，env `LANYUAN_MCP_TOKEN`），未认证请求 401——
+  外部 client 无法直连 /mcp 伪造 `_meta.user_id` 冒充用户（此前实测可越权改他人资料/冒充发帖）
 - 密钥：DEEPSEEK_API_KEY 走凭证 seam/env，不硬编码、不进 git
 - 错误信息不外泄（内部详情只进 error.log）
 
@@ -500,7 +573,8 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
 | 1 | 微信云托管镜像大小限制 | 未实测 docker 构建 | M4 实测 |
-| 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | 原则已定（§6.3），机制实现时 spike 验证 | dev/M2 |
+| 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | **已定案（M2）**：session_id 编码 user_id + 自写桥插件注入 callTool `_meta`（§6.3）——**M2 过渡方案** | dev/M2 ✅ |
+| 3 | user_id 注入终态（session_id 编码退役） | **已定案（M3）**：身份查询插件——session_id 恢复纯 uuid，FastAPI 内部身份端点 + 桥插件查询，映射并入 sessions 表 owner_user_id（§6.3/§8.2） | 用户 2026-08-31 ✅ |
 
 ---
 

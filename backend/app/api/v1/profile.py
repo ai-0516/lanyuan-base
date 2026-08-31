@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
+from tools.mcp_server.decorator import mcp_tool
 from app.models.user import User
 from app.schemas.user import UserPublic, UserUpdate
 
@@ -30,6 +31,7 @@ def _format_get_user_public(data) -> str:
 
 
 @router.get("/user/me")
+@mcp_tool(result_formatter=_format_get_my_profile)
 @tool(result_formatter=_format_get_my_profile)
 async def get_my_profile(
     db: AsyncSession = Depends(get_db),
@@ -42,6 +44,7 @@ async def get_my_profile(
 
 
 @router.put("/user/me")
+@mcp_tool(result_formatter=_format_update_my_profile)
 @tool(result_formatter=_format_update_my_profile)
 async def update_my_profile(
     data: UserUpdate,
@@ -64,6 +67,7 @@ async def update_my_profile(
 
 
 @router.get("/users/{user_id}")
+@mcp_tool(result_formatter=_format_get_user_public)
 @tool(result_formatter=_format_get_user_public)
 async def get_user_public(
     user_id: int,
