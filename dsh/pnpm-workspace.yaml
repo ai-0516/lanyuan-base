@@ -1,9 +1,9 @@
-# spine / lanyuan-bridge 为本地 workspace 成员（@lanyuan/dsh-agent-spine、
-# @lanyuan/dsh-lanyuan-bridge，零 examples 依赖 §7.4）
+# spine / mcp-client 为本地 workspace 成员（@lanyuan/dsh-agent-spine、
+# @lanyuan/dsh-mcp-client，零 examples 依赖 §7.4）
 # —— prepare/build 的 --filter 依赖 workspace 匹配；file:./* 依赖同步保留
 packages:
   - spine
-  - lanyuan-bridge
+  - mcp-client
 
 allowBuilds:
   # 显式声明（pnpm 11：未显式声明的 build scripts 使 install 失败）：

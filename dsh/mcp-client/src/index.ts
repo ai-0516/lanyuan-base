@@ -1,5 +1,5 @@
 /**
- * lanyuan 工具桥插件（TECH_SPEC §6）：HTTP 消费挂载在 FastAPI 的 MCP server
+ * lanyuan MCP client 插件（TECH_SPEC §6）：官方 @deepseek-ai/dsh-mcp-client 的自写重写
  * （streamable-http，M2 review 定案）+ 注册 ToolRuntime + callTool 注入 user_id
  * （§6.3 身份强制绑定，LLM 永不提供身份）。
  *
@@ -13,7 +13,7 @@
  * 安全边界（§6.3）：工具签名不含身份参数（LLM 零可见）；注入值来自
  * session id 而非模型输入（LLM 无法伪造）；MCP server 端只信 `_meta`。
  *
- * @module @lanyuan/dsh-lanyuan-bridge
+ * @module @lanyuan/dsh-mcp-client
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -23,10 +23,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
 
-export const name = 'lanyuan-bridge'
+export const name = 'lanyuan-mcp-client'
 export const inject = ['tools']
 
-/** MCP server（挂载在 FastAPI）的连接配置（cordis-lanyuan.yml 的 lanyuan-bridge 条目）。 */
+/** MCP server（挂载在 FastAPI）的连接配置（cordis-lanyuan.yml 的 lanyuan-mcp-client 条目）。 */
 export interface Config {
   /** 工具命名空间：工具注册为 `mcp__<serverName>__<rawName>`（§6.1）。 */
   serverName: string
@@ -67,7 +67,7 @@ async function connectWithRetry(config: Config): Promise<Client> {
   const RETRY_INTERVAL_MS = 1000
   let lastError: unknown
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const client = new Client({ name: 'lanyuan-bridge', version: '0.1.0' }, { capabilities: {} })
+    const client = new Client({ name: 'lanyuan-mcp-client', version: '0.1.0' }, { capabilities: {} })
     const transport = new StreamableHTTPClientTransport(new URL(config.url))
     try {
       await client.connect(transport)
@@ -79,13 +79,13 @@ async function connectWithRetry(config: Config): Promise<Client> {
     }
   }
   throw new Error(
-    `lanyuan-bridge(${config.serverName}): MCP server 连接失败（${config.url}，重试 ${MAX_RETRIES} 次后放弃）`,
+    `lanyuan-mcp-client(${config.serverName}): MCP server 连接失败（${config.url}，重试 ${MAX_RETRIES} 次后放弃）`,
     { cause: lastError },
   )
 }
 
 export async function apply(ctx: Context, config: Config): Promise<void> {
-  const label = `lanyuan-bridge(${config.serverName})`
+  const label = `lanyuan-mcp-client(${config.serverName})`
 
   // ⚠️ ctx.effect 必须在 active 上下文注册（await 之前）——cordis 的 async apply
   // Promise 不是 startup work，await 后调用会抛 INACTIVE_EFFECT。disposer 闭包
@@ -95,7 +95,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
     void client?.close()
-  }, 'lanyuan-bridge.connection')
+  }, 'lanyuan-mcp-client.connection')
 
   client = await connectWithRetry(config)
 

@@ -222,8 +222,8 @@ FastAPI 进程（uvicorn worker）
 ### 6.2 配置模板（v2 cordis-lanyuan.yml 的 bridge 部分）
 
 ```yaml
-- id: lanyuan-bridge
-  name: '@lanyuan/dsh-lanyuan-bridge'
+- id: lanyuan-mcp-client
+  name: '@lanyuan/dsh-mcp-client'
   config:
     serverName: lanyuan
     url: !!js process.env.LANYUAN_MCP_URL ?? 'http://127.0.0.1:8000/mcp/'
@@ -237,7 +237,7 @@ URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI �
 **原则（已定）**：身份由桥层强制绑定，LLM 永不提供/自填身份。
 
 - 请求级：FastAPI 认证后，session_id 编码 user_id——`v2-{user_id}-{uuid4()}`（§5.1 过渡期每请求新 session）
-- 桥层：自写桥插件 `@lanyuan/dsh-lanyuan-bridge` 的 executor 从 `exec.agent.session.id` 解析 user_id，注入 callTool 请求的 `_meta.user_id`（MCP 协议 `RequestParams._meta`，官方 mcp-client 不携带故自写）
+- 桥层：自写 MCP client 插件 `@lanyuan/dsh-mcp-client`（官方 dsh-mcp-client 的自写重写）的 executor 从 `exec.agent.session.id` 解析 user_id，注入 callTool 请求的 `_meta.user_id`（MCP 协议 `RequestParams._meta`，官方 mcp-client 不携带故自写）
 - 工具级：MCP server 端工具签名**不含** user_id 参数（LLM 不可见，tools/list 确认）；执行时从 `ctx.request_context.meta.user_id` 提取（fastmcp 的 Meta 是 pydantic 模型，extra=allow）
 - 校验：`_meta` 缺失/无 user_id 字段 → `PermissionError` 拒绝执行（工具失败，LLM 可见错误不可见身份）；任何工具实现不得信任模型输入中的身份字段
 - **候选机制定案（§14 待确认项 2）**：`_meta` 透传 + 自写桥插件注入（官方 mcp-client callTool 无 `_meta` 扩展点 → 自写插件用 MCP SDK 正式库实现，注入点自由）
@@ -249,7 +249,7 @@ FastAPI（身份权威，JWT 验证处）：
   session_id = v2-{纯 uuid}（不再编码 user_id）
   → 记录映射 {session_id → owner_user_id}（并入 M3 sessions 表 owner 字段，§8.2）
   → 内部身份端点 GET /api/internal/sessions/{id}/owner（internal token 防护）
-DSH 侧（扩展 @lanyuan/dsh-lanyuan-bridge）：
+DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
   execute 时：session_id = exec.agent.session.id（纯 uuid）
   → HTTP 查询内部身份端点 → user_id → 注入 _meta.user_id（§6.3 工具级不变）
   → 查不到 → 拒绝（fail-closed）
@@ -369,7 +369,7 @@ async def get_my_profile(
 | 包 | 干什么 | 为什么需要 | 何时引入 |
 |---|---|---|---|
 | `@lanyuan/dsh-agent-spine`（`file:./spine`） | 自写 agent 骨架：agent 创建、回合调度、LLM 路由、session、标题 | 官方骨架是 examples 包（不依赖，§7.4）；内部依赖 core 包 dsh-agent / dsh-agent-loop / dsh-llm / dsh-session / dsh-session-title / dsh-scope / dsh-invariants / dsh-home-paths（0.1.1-rc.2 已确认） | M1 |
-| `@lanyuan/dsh-lanyuan-bridge`（`file:./lanyuan-bridge`） | 工具桥插件：HTTP 消费挂载在 FastAPI /mcp 的 MCP server（StreamableHTTPClientTransport）、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
+| `@lanyuan/dsh-mcp-client`（`file:./mcp-client`） | MCP client 插件（官方 dsh-mcp-client 的自写重写）：HTTP 消费挂载在 FastAPI /mcp 的 MCP server（StreamableHTTPClientTransport）、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
 | `@lanyuan/dsh-session-persistence-mysql`（`file:./mysql-persistence`） | MySQL 持久化 backend（8 hook，§5.2/§8.2） | v2 会话真源 = MySQL；官方无网络数据库 backend（框架空白） | M3 |
 | `@lanyuan/dsh-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
 

@@ -1,5 +1,5 @@
 {
-  "name": "@lanyuan/dsh-lanyuan-bridge",
+  "name": "@lanyuan/dsh-mcp-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
