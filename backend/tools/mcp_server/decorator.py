@@ -60,7 +60,9 @@ def _dep_name(default: Any) -> str:
     return ""
 
 
-def _classify(fn_sig: inspect.Signature, hints: dict) -> tuple[list[inspect.Parameter], tuple[str, type[BaseModel]] | None, str | None, str | None]:
+def _classify(
+    fn_sig: inspect.Signature, hints: dict
+) -> tuple[list[inspect.Parameter], tuple[str, type[BaseModel]] | None, str | None, str | None]:
     """签名 → (业务参数, Pydantic model 参数, db 注入参数名, user_id 注入参数名)
 
     注入识别与 v1 @tool 一致：Depends(get_db) → db 会话注入；

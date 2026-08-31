@@ -24,9 +24,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # backend/
 
+from starlette.middleware import Middleware
+
 from tools.mcp_server.decorator import mcp  # noqa: E402
+from tools.mcp_server.security import McpAuthMiddleware  # noqa: E402
 
 # streamable-http ASGI app（§6.2：挂载到 FastAPI /mcp 端点）。
 # path="/"：fastmcp 默认 streamable_http_path=/mcp，与 FastAPI mount 前缀叠加
 # 会 404（实测）——挂载后请求 /mcp/ → strip 前缀 → 子 app 根路径命中
-mcp_app = mcp.http_app(path="/", transport="streamable-http")
+# middleware：M2 review 安全修复——/mcp 无认证 + _meta.user_id 可伪造 → 越权
+# （devlead review 实测）。内部共享密钥校验（桥插件请求带 X-Lanyuan-Internal-Token，
+# dsh_runtime 注入 DSH 子进程 env），未认证请求 401（tools/list 也在门内）
+mcp_app = mcp.http_app(
+    path="/",
+    transport="streamable-http",
+    middleware=[Middleware(McpAuthMiddleware)],
+)

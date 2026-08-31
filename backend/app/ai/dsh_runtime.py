@@ -14,12 +14,18 @@ from pathlib import Path
 
 from deepseek_harness import DeepSeekHarness, DeepSeekHarnessConfig
 
+from app.core.security import get_mcp_token
+
 logger = logging.getLogger(__name__)
 
 # backend/app/ai/ → 仓库根 → dsh/
 DSH_DIR = Path(__file__).resolve().parents[3] / "dsh"
 
 _LLM_MODEL = os.environ.get("V2_LLM_MODEL", "deepseek-v4-flash")
+
+# MCP server 端点默认值（§6.2：与 FastAPI 部署端口绑定；生产云托管端口非 8000
+# 时用环境变量 LANYUAN_MCP_URL 覆盖——verify 脚本同源注入）
+LANYUAN_MCP_URL_DEFAULT = "http://127.0.0.1:8000/mcp/"
 
 
 def _runtime_env() -> dict:
@@ -30,7 +36,12 @@ def _runtime_env() -> dict:
     env.setdefault("DSH_SESSION_ROOT", str(DSH_DIR / ".sessions"))
     # MCP 工具桥（§6.2）：MCP server 挂载在 FastAPI /mcp（streamable-http），
     # 桥插件经 HTTP 消费——URL 与 FastAPI 部署端口绑定（外部可覆盖）
-    env.setdefault("LANYUAN_MCP_URL", "http://127.0.0.1:8000/mcp/")
+    env.setdefault("LANYUAN_MCP_URL", LANYUAN_MCP_URL_DEFAULT)
+    # MCP 内部认证（PR #94 review 修复）：/mcp 内部共享密钥——桥插件所有请求带
+    # X-Lanyuan-Internal-Token。与 FastAPI 进程内 get_mcp_token() 同值：显式
+    # env LANYUAN_MCP_TOKEN（生产）优先，未配置则进程内自动生成注入（开发零配置）。
+    # 缺失 token 的桥会被 server 401 拒绝（fail-closed，见 tools/mcp_server/security.py）
+    env["LANYUAN_MCP_TOKEN"] = get_mcp_token()
     return env
 
 

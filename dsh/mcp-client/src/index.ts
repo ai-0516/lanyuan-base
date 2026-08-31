@@ -10,8 +10,12 @@
  * 解析 user_id，注入 callTool 的 `_meta.user_id`（MCP 协议 RequestParams._meta，
  * 与传输方式无关，HTTP 同样透传）。
  *
- * 安全边界（§6.3）：工具签名不含身份参数（LLM 零可见）；注入值来自
- * session id 而非模型输入（LLM 无法伪造）；MCP server 端只信 `_meta`。
+ * 安全边界（§6.3 + PR #94 review 修复）：工具签名不含身份参数（LLM 零可见）；
+ * 注入值来自 session id 而非模型输入（LLM 无法伪造）；传输层加**内部共享密钥**
+ * （X-Lanyuan-Internal-Token，env LANYUAN_MCP_TOKEN，由 FastAPI 侧 dsh_runtime
+ * 注入 DSH 子进程 env）——MCP server 只放行持有密钥的 client（本桥），外部
+ * client 无法直连 /mcp 伪造 `_meta.user_id` 冒充用户（review 实测越权修复）。
+ * 密钥缺失 → 拒绝连接（fail-closed，不携带密钥的 client 本就不该被放行）。
  *
  * @module @lanyuan/dsh-mcp-client
  */
@@ -61,14 +65,19 @@ function extractText(content: unknown[]): string {
 
 /** 启动窗口内的连接重试（MCP server 与 FastAPI 同进程同生命周期：lifespan 预热
  * DSH runtime 时 FastAPI 尚未 listen，首次 connect 必然 ECONNREFUSED——有界重试
- * 等 MCP 端点就绪；超过窗口仍未就绪则抛错（装配失败，runtime 不会静默缺工具）。 */
-async function connectWithRetry(config: Config): Promise<Client> {
+ * 等 MCP 端点就绪；超过窗口仍未就绪则抛错（装配失败，runtime 不会静默缺工具）。
+ * authToken：MCP 内部认证密钥（PR #94 review 修复），所有请求（含 GET 初始化）
+ * 带 X-Lanyuan-Internal-Token，server 端校验（tools/mcp_server/security.py）。 */
+async function connectWithRetry(config: Config, authToken: string): Promise<Client> {
   const MAX_RETRIES = 30
   const RETRY_INTERVAL_MS = 1000
   let lastError: unknown
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const client = new Client({ name: 'lanyuan-mcp-client', version: '0.1.0' }, { capabilities: {} })
-    const transport = new StreamableHTTPClientTransport(new URL(config.url))
+    const transport = new StreamableHTTPClientTransport(
+      new URL(config.url),
+      { requestInit: { headers: { 'X-Lanyuan-Internal-Token': authToken } } },
+    )
     try {
       await client.connect(transport)
       return client
@@ -87,6 +96,15 @@ async function connectWithRetry(config: Config): Promise<Client> {
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const label = `lanyuan-mcp-client(${config.serverName})`
 
+  // MCP 内部认证密钥（PR #94 review 修复）：server 端只放行持有
+  // X-Lanyuan-Internal-Token 的 client（tools/mcp_server/security.py）。
+  // token 由 FastAPI 侧 dsh_runtime 注入 DSH 子进程 env（LANYUAN_MCP_TOKEN，
+  // 未配置时进程内自动生成同值注入）；缺失 → 拒绝连接（fail-closed）
+  const authToken = process.env.LANYUAN_MCP_TOKEN
+  if (!authToken) {
+    throw new Error(`${label}: 缺少 LANYUAN_MCP_TOKEN（MCP 内部认证密钥），拒绝连接`)
+  }
+
   // ⚠️ ctx.effect 必须在 active 上下文注册（await 之前）——cordis 的 async apply
   // Promise 不是 startup work，await 后调用会抛 INACTIVE_EFFECT。disposer 闭包
   // 引用后续填充的 client/disposers。
@@ -97,7 +115,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     void client?.close()
   }, 'lanyuan-mcp-client.connection')
 
-  client = await connectWithRetry(config)
+  client = await connectWithRetry(config, authToken)
 
   const { tools } = await client.listTools()
   for (const tool of tools) {

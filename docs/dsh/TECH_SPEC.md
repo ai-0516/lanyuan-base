@@ -216,6 +216,7 @@ FastAPI 进程（uvicorn worker）
 - 工具注册名：`mcp__<serverName>__<rawName>`（如 `mcp__lanyuan__get_my_profile`）
 - transport：**streamable-http 挂载 FastAPI /mcp**（M2 review 定：MCP server 能力独立于 DSH runtime——DSH 只是 HTTP client，工具/API 同进程、同认证/事务体系；`http_app(path="/")` 避免与 mount 前缀叠加 404）
 - 桥插件连接：`StreamableHTTPClientTransport`（MCP SDK 正式库）消费 `LANYUAN_MCP_URL`；启动窗口内**有界重试**（FastAPI lifespan 预热 DSH runtime 时尚未 listen，重试等 /mcp 就绪；超过窗口抛错 = 装配失败不静默缺工具）
+- **认证（PR #94 review 修复）**：`http_app(middleware=[McpAuthMiddleware])`——内部共享密钥 header（`X-Lanyuan-Internal-Token`，env `LANYUAN_MCP_TOKEN`），所有请求（含 GET 初始化）在 streamable-http 路由前校验，未认证 401（tools/list 也在门内）。密钥由 FastAPI 侧 `_runtime_env()` 注入 DSH 子进程 env（显式 env 优先，未配置进程内自动生成同值）；桥插件缺失密钥 → 拒绝连接（fail-closed）。**外部 client 无法直连 /mcp**（§6.3 信任前提收紧）
 - 崩溃恢复：MCP server 随 FastAPI 生命周期（同进程）；DSH runtime 崩溃重启 → cordis 重新装配 → 桥重连 /mcp
 - 启动时序：lifespan 合并 `mcp_app.lifespan`（fastmcp session manager 依赖）；DSH 预热改后台任务（避免「预热依赖 listen、listen 依赖 lifespan 完成」死锁；首请求前未完成则懒启动兜底，DshRuntime 加锁跨线程安全）
 
@@ -232,9 +233,20 @@ FastAPI 进程（uvicorn worker）
 
 URL 由 FastAPI 侧 `_runtime_env()` 注入（`LANYUAN_MCP_URL`，与 FastAPI 部署端口绑定；生产云托管环境变量覆盖）。
 
+**认证（PR #94 review 修复）**：请求带 `X-Lanyuan-Internal-Token`，密钥来自 env `LANYUAN_MCP_TOKEN`
+（FastAPI 侧 `_runtime_env()` 注入 DSH 子进程 env——显式 env 优先，未配置进程内自动生成同值）；
+桥插件缺失密钥 → 拒绝连接（fail-closed）。生产部署时可在环境变量显式固定（FastAPI 与 DSH 共享）。
+
 ### 6.3 user_id 注入（安全设计，防 LLM 伪造越权）——M2 定案
 
 **原则（已定）**：身份由桥层强制绑定，LLM 永不提供/自填身份。
+
+**信任前提（PR #94 review 修复）**：`_meta.user_id` 只在**已通过传输层内部认证**的
+client 上采信——`/mcp` 挂内部共享密钥中间件（§6.1），唯一持有密钥的是本进程 DSH
+子进程（桥），外部 client 直连 /mcp 在传输层即被 401 拒绝（此前无认证时任何网络
+可达者都可伪造 `_meta.user_id` 冒充任意用户，review 实测越权）。桥层注入 user_id
+的取值来自 session id（非模型输入），传输层认证保证「能到达工具的 client 只有桥」，
+两层共同构成身份边界。
 
 - 请求级：FastAPI 认证后，session_id 编码 user_id——`v2-{user_id}-{uuid4()}`（§5.1 过渡期每请求新 session）
 - 桥层：自写 MCP client 插件 `@lanyuan/dsh-mcp-client`（官方 dsh-mcp-client 的自写重写）的 executor 从 `exec.agent.session.id` 解析 user_id，注入 callTool 请求的 `_meta.user_id`（MCP 协议 `RequestParams._meta`，官方 mcp-client 不携带故自写）
@@ -532,6 +544,9 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 ### 12.2 安全
 
 - user_id 桥层强制注入（§6.3），LLM 永不提供身份
+- **/mcp 传输层内部认证（PR #94 review 修复）**：内部共享密钥 header
+  （`X-Lanyuan-Internal-Token`，env `LANYUAN_MCP_TOKEN`），未认证请求 401——
+  外部 client 无法直连 /mcp 伪造 `_meta.user_id` 冒充用户（此前实测可越权改他人资料/冒充发帖）
 - 密钥：DEEPSEEK_API_KEY 走凭证 seam/env，不硬编码、不进 git
 - 错误信息不外泄（内部详情只进 error.log）
 

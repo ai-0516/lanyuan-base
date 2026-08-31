@@ -27,7 +27,10 @@
 # 业务工具 MCP client（§6.2）：自写插件（@lanyuan/dsh-mcp-client，替代官方
 # dsh-mcp-client）经 streamable-http 消费挂载在 FastAPI /mcp 的 MCP server
 # （§6.4b @mcp_tool 原生注册，如 mcp__lanyuan__get_my_profile）；
-# user_id 由插件从 session id 解析并注入 callTool 的 _meta（§6.3）
+# user_id 由插件从 session id 解析并注入 callTool 的 _meta（§6.3）。
+# 认证（PR #94 review 修复）：请求带 X-Lanyuan-Internal-Token，密钥来自 env
+# LANYUAN_MCP_TOKEN（FastAPI 侧 dsh_runtime 注入 DSH 子进程 env，未配置时
+# 进程内自动生成同值）——缺失则插件拒绝连接（fail-closed）
 - id: lanyuan-mcp-client
   name: '@lanyuan/dsh-mcp-client'
   config:

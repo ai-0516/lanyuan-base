@@ -294,3 +294,116 @@ class TestMountHttp:
 
         mounts = [r for r in app.routes if isinstance(r, Mount)]
         assert any(m.path == "/mcp" for m in mounts), "/mcp 未挂载"
+
+
+class TestMcpAuth:
+    """MCP 端点内部认证（PR #94 review 修复：/mcp 无认证 + _meta.user_id 可伪造
+    → 任意网络可达者冒充任意用户调用 19 个业务工具，devlead review 实测越权）
+
+    方案：内部共享密钥 header（X-Lanyuan-Internal-Token）——桥插件（DSH 子进程）
+    所有请求携带，server 中间件校验（tools/mcp_server/security.py），未认证 401
+    （tools/list 也在门内）；_meta.user_id 信任前提收紧为「持有密钥的 client」。
+    """
+
+    @staticmethod
+    def _client():
+        """独立 FastAPI 只挂 mcp_app（避免 app.main lifespan 触发 DSH 预热子进程）"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from tools.mcp_server.main import mcp_app
+
+        host = FastAPI(lifespan=mcp_app.lifespan)
+        host.mount("/mcp", mcp_app, name="mcp")
+        return TestClient(host)
+
+    # streamable-http 握手/JSON-RPC 所需请求头
+    _H = {"Accept": "text/event-stream, application/json", "Content-Type": "application/json"}
+
+    def test_mcp_rejects_without_token(self):
+        """无凭证直连 /mcp → 401（review 实测的攻击路径：tools/list 裸奔）"""
+        with self._client() as client:
+            assert client.post("/mcp/", headers=self._H, json={
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
+            }).status_code == 401
+
+    def test_mcp_rejects_wrong_token(self):
+        """错误密钥 → 401（伪造 token 不通过）"""
+        with self._client() as client:
+            h = {**self._H, "X-Lanyuan-Internal-Token": "forged-token"}
+            assert client.post("/mcp/", headers=h, json={
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
+            }).status_code == 401
+
+    def test_mcp_rejects_unauthenticated_session_init(self):
+        """GET 初始化（SSE 握手）同样在门内：无 token → 401"""
+        with self._client() as client:
+            assert client.get("/mcp/", headers=self._H).status_code == 401
+
+    def test_mcp_allows_with_correct_token(self):
+        """持有内部密钥（桥插件身份）→ 完整握手放行：GET 初始化拿 session-id → tools/list 200
+        （真实桥 = MCP SDK client 先 GET 再 POST；认证门在两者之前）"""
+        from app.core.security import get_mcp_token
+
+        with self._client() as client:
+            h = {**self._H, "X-Lanyuan-Internal-Token": get_mcp_token()}
+            init = client.get("/mcp/", headers=h)
+            assert init.status_code != 401, "认证门应放行持有密钥的 client"
+            session_id = init.headers.get("mcp-session-id")
+            resp = client.post("/mcp/", headers={**h, "mcp-session-id": session_id}, json={
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
+            })
+            assert resp.status_code == 200, resp.text[:200]
+
+
+class TestMcpToken:
+    """内部共享密钥生成/校验（app.core.security）"""
+
+    def test_get_mcp_token_auto_generates(self, monkeypatch):
+        """未配置 env → 进程内自动生成随机密钥（零配置开发，fail-closed 默认安全）"""
+        from app.core import security
+
+        monkeypatch.setattr(security, "_mcp_token", None)
+        monkeypatch.delenv("LANYUAN_MCP_TOKEN", raising=False)
+        t1 = security.get_mcp_token()
+        assert len(t1) >= 32, "自动生成的密钥应有足够熵"
+        assert security.get_mcp_token() == t1, "进程内只生成一次（FastAPI 中间件与 DSH env 注入同值）"
+
+    def test_get_mcp_token_prefers_env(self, monkeypatch):
+        """显式配置（生产）→ env 值优先"""
+        from app.core import security
+
+        monkeypatch.setattr(security, "_mcp_token", None)
+        monkeypatch.setenv("LANYUAN_MCP_TOKEN", "prod-token-abc")
+        assert security.get_mcp_token() == "prod-token-abc"
+
+    def test_verify_mcp_token(self, monkeypatch):
+        """常量时间比较：None/空/错误 → False，正确 → True"""
+        from app.core import security
+
+        monkeypatch.setattr(security, "_mcp_token", None)
+        monkeypatch.setenv("LANYUAN_MCP_TOKEN", "secret-1")
+        assert security.verify_mcp_token("secret-1")
+        assert not security.verify_mcp_token(None)
+        assert not security.verify_mcp_token("")
+        assert not security.verify_mcp_token("secret-2")
+
+
+class TestDshRuntimeEnv:
+    """DSH 子进程 env 注入（PR #94 review 修复：桥插件拿到与 FastAPI 同值的密钥）"""
+
+    def test_runtime_env_injects_mcp_token(self):
+        """LANYUAN_MCP_TOKEN 注入 = FastAPI 进程内 get_mcp_token() 同值
+        （桥插件凭此过 /mcp 认证；server 中间件校验同一来源）"""
+        from app.ai.dsh_runtime import _runtime_env
+        from app.core.security import get_mcp_token
+
+        env = _runtime_env()
+        assert env["LANYUAN_MCP_TOKEN"] == get_mcp_token()
+
+    def test_runtime_env_mcp_url_default_constant(self):
+        """URL 默认值收敛为常量（与 verify 脚本同源；生产 LANYUAN_MCP_URL 覆盖）"""
+        from app.ai.dsh_runtime import LANYUAN_MCP_URL_DEFAULT, _runtime_env
+
+        assert _runtime_env()["LANYUAN_MCP_URL"] == LANYUAN_MCP_URL_DEFAULT
+        assert LANYUAN_MCP_URL_DEFAULT.endswith("/mcp/")
