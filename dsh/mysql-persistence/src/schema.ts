@@ -7,8 +7,10 @@
  * 翻译自官方 SqliteStore 的 schema（schema-17），MySQL 差异：
  * - data / source_event_seqs 用 JSON 列（mysql2 自动 JSON.stringify/parse）
  * - ignorable 用 TINYINT(1)
- * - 不做 SQLite 的 user_version/application_id 严格校验（MySQL 无等价物），
- *   建表用 CREATE TABLE IF NOT EXISTS 幂等自建（§8.2 结构即真源）
+ * - 不做 SQLite 的 user_version/application_id 严格校验（MySQL 无等价物）
+ *
+ * 表结构真源 = backend/alembic migration（c2f7a9d4e5b6，PR #97 review 定案：
+ * 生产建表统一走 alembic，本文件 DDL 仅供 mysql-persistence 单测自建表用）。
  * @module @lanyuan/dsh-session-persistence-mysql/schema
  */
 
@@ -41,7 +43,8 @@ export interface EventRow {
   ignorable: number | null
 }
 
-/** 建表 DDL（幂等；sessions.owner_user_id 为 M3 身份映射列，§8.2/§6.3）。
+/** 建表 DDL（PR #97 review 定案：仅供测试自建表用；生产表由 backend/alembic
+ * migration 统一管理——c2f7a9d4e5b6，store 不再执行建表，两处必须同步）。
  * 数组 = 单语句（mysql2 默认 multipleStatements=false，多语句需拆条执行）。 */
 export const SCHEMA_DDL = `
 CREATE TABLE IF NOT EXISTS sessions (

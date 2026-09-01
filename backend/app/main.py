@@ -70,8 +70,9 @@ app.include_router(upload.router, prefix="/api/v1")
 # 业务工具 @mcp_tool 挂在 v1 业务 endpoint 上（v1/v2 仅限 /ai/chat）
 app.include_router(v2_ai.router, prefix="/api/v2")
 
-# v2 M3 内部端点（§6.3：DSH 子进程专用，不暴露给前端；token 防护在路由内）
-app.include_router(internal_router, prefix="/api")
+# v2 M3 内部端点（§6.3：DSH 子进程专用，不暴露给前端；token 防护在路由内）。
+# PR #97 review 定案：v2 相关端点统一挂 /api/v2（完整路径 /api/v2/internal/...）
+app.include_router(internal_router, prefix="/api/v2")
 
 # ── v2 MCP server 挂载（§6.2：业务工具 MCP server，streamable-http） ──
 # MCP server 能力独立于 DSH runtime（DSH 桥经 HTTP 消费）；工具/API 同进程

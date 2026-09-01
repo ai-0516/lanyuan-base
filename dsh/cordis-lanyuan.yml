@@ -2,13 +2,15 @@
 # 基于 spike cordis-jsonrpc.yml（8 插件）裁剪：去掉 subprocess/bash/fs-local
 # spine 为本地 @lanyuan/dsh-agent-spine（零 examples 依赖，§7.4）
 # M2 追加 mcp-client 条目（业务工具 MCP client，§6：自写插件注入 user_id）
-# M3 变更（§5.2/§5.3）：sessions 条目（jsonl persistence）disabled——
-#   由 @lanyuan/dsh-session-persistence-mysql 替换（同 sessionPersistence 服务
-#   key，同时激活会冲突）；sdk-jsonrpc-server 由 @lanyuan/dsh-server 替换
-#   （get-or-load-or-create，§5.3）。连接参数经 env 注入（§5.4：不继承 shell
-#   残留、密码不进 git），backend 侧 dsh_runtime 显式注入 LANYUAN_MYSQL_*
+# M3 变更（§5.2/§5.3）：sessions 条目（jsonl persistence）disabled——由
+#   @lanyuan/dsh-session-persistence-mysql 替换（同 sessionPersistence 服务
+#   key，同时激活会冲突）；sdk-jsonrpc-server 由 @lanyuan/dsh-sdk-jsonrpc-server
+#   替换（get-or-load-or-create，§5.3，包名对齐官方只改前缀）
+# PR #97 review：v2 会话三表由 backend/alembic 管理（插件不再自建表）；
+# 连接参数纯 env 引用（不写死 fallback）——backend 侧 dsh_runtime 从
+# DATABASE_URL 推导注入 LANYUAN_MYSQL_*（§5.4），缺失即装配失败（fail-fast）
 - id: sdk-jsonrpc-server
-  name: '@lanyuan/dsh-server'
+  name: '@lanyuan/dsh-sdk-jsonrpc-server'
 
 - id: agent-core
   name: '@lanyuan/dsh-agent-spine'
@@ -30,17 +32,19 @@
     root: !!js process.env.DSH_SESSION_ROOT ?? './.sessions'
 
 # M3：MySQL PersistenceBackend（§5.2，sessions/events/persistence_state 三表）。
-# 连接 env 由 backend dsh_runtime 从 DATABASE_URL 推导注入（LANYUAN_MYSQL_*，
-# 生产云托管同库同凭据）；password 经 env 引用，不进 git
+# 表结构由 backend/alembic 管理（PR #97 review：插件不再自建表）；连接参数纯
+# env 引用——由 backend dsh_runtime 从 DATABASE_URL 推导注入（LANYUAN_MYSQL_*，
+# §5.4 生产云托管同库同凭据），密码不进 git；env 缺失 → 装配失败（fail-fast，
+# 不写死默认值——M3 起 v2 会话必须 MySQL，SQLite 开发场景不成立）
 - id: mysql-persistence
   name: '@lanyuan/dsh-session-persistence-mysql'
   config:
-    host: !!js process.env.LANYUAN_MYSQL_HOST ?? '127.0.0.1'
+    host: !!js process.env.LANYUAN_MYSQL_HOST
     # env 值是字符串（dsh_runtime 从 DATABASE_URL 推导注入），显式转 number
-    port: !!js Number(process.env.LANYUAN_MYSQL_PORT ?? 3306)
-    user: !!js process.env.LANYUAN_MYSQL_USER ?? 'lanyuan'
-    password: !!js process.env.LANYUAN_MYSQL_PASSWORD ?? ''
-    database: !!js process.env.LANYUAN_MYSQL_DATABASE ?? 'lanyuan'
+    port: !!js Number(process.env.LANYUAN_MYSQL_PORT)
+    user: !!js process.env.LANYUAN_MYSQL_USER
+    password: !!js process.env.LANYUAN_MYSQL_PASSWORD
+    database: !!js process.env.LANYUAN_MYSQL_DATABASE
 
 - id: session-checkpoints
   name: '@deepseek-ai/dsh-session-checkpoint-policy'
@@ -50,7 +54,7 @@
 # （§6.4b @mcp_tool 原生注册，如 mcp__lanyuan__get_my_profile）；
 # user_id 由插件解析并注入 callTool 的 _meta（§6.3）。M3 演进（§6.3 定案）：
 # session_id 恢复纯 uuid（不再编码 user_id），execute 时查询 FastAPI 内部
-# 身份端点 GET /api/internal/sessions/{id}/owner 得 owner_user_id →
+# 身份端点 GET /api/v2/internal/sessions/{id}/owner 得 owner_user_id →
 # 注入 _meta；查不到 → 拒绝（fail-closed）。
 # 认证（PR #94 review 修复）：请求带 X-Lanyuan-Internal-Token，密钥来自 env
 # LANYUAN_MCP_TOKEN（FastAPI 侧 dsh_runtime 注入 DSH 子进程 env，未配置时

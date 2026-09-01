@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @lanyuan/dsh-agent-spine --filter @lanyuan/dsh-mcp-client --filter @lanyuan/dsh-session-persistence-mysql --filter @lanyuan/dsh-server build",
+    "build": "pnpm --filter @lanyuan/dsh-agent-spine --filter @lanyuan/dsh-mcp-client --filter @lanyuan/dsh-session-persistence-mysql --filter @lanyuan/dsh-sdk-jsonrpc-server build",
     "install:all": "pnpm install",
     "prepare": "pnpm run build"
   },
@@ -33,7 +33,7 @@
     "@lanyuan/dsh-agent-spine": "file:./spine",
     "@lanyuan/dsh-mcp-client": "file:./mcp-client",
     "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",
-    "@lanyuan/dsh-server": "file:./server"
+    "@lanyuan/dsh-sdk-jsonrpc-server": "file:./server"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

@@ -1,16 +1,16 @@
-"""v2 AI 对话 API：POST /api/v2/ai/chat（SSE 事件流，TECH_SPEC §9.1）
+"""v2 AI 对话 API（SSE 事件流，TECH_SPEC §9.1）+ v2 会话统一创建点
 
 与 v1 /api/v1/ai/chat 区分：响应是 DSH 事件白名单子集（§4.2），
 不再是 v1 的 token/done/error。
 
-M3（issue #90）会话演进（§5.1 退役 / §5.3 落地）：
-- 过渡期「每请求新 session（uuid，无注入）」退役 → 正常对话复用 session：
-  - 请求带 session_id → 复用/恢复（DSH 侧 get-or-load-or-create）
-  - 不带 → 生成 `v2-{纯 uuid}`（§6.3：不再编码 user_id）
-- session id 经响应头 `X-Session-Id` 回传（前端下轮携带；事件流保持
-  DSH 事件原样，§4.1 不做事件改写）
-- FastAPI 是身份权威：record_session_owner 写 sessions 表 owner 映射
-  （§8.2），DSH 侧桥插件经内部身份端点查 owner（§6.3）
+M3（issue #90）会话演进（§5.1 退役 / §5.3 落地；PR #97 review 定案）：
+- **前端先创建 session**：POST /api/v2/ai/session（ai_service.get_or_create_session_v2，
+  统一创建点）→ 返回 session_id；对话请求必须携带（不带 → 422）
+- 对话复用：DSH 侧 get-or-load-or-create（内存复用 / 持久化 resume / 兜底 create），
+  同 id 续写；session id 纯 uuid（§6.3：不再编码 user_id）
+- FastAPI 是身份权威：owner 映射在创建时写入 sessions 表 owner_user_id（§8.2），
+  DSH 侧桥插件经内部身份端点 GET /api/v2/internal/sessions/{id}/owner 查 owner（§6.3）
+- session id 经响应头 `X-Session-Id` 回传（事件流保持 DSH 事件原样，§4.1 不改写）
 """
 
 from __future__ import annotations
@@ -18,15 +18,15 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.ai.dsh_runtime import dsh_runtime
 from app.ai.event_layer import format_sse, is_done_event, should_forward
-from app.ai.session_service import new_session_id, record_session_owner
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.services.ai_service import get_or_create_session_v2
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -42,9 +42,9 @@ SSE_HEADERS = {
 
 class ChatRequestV2(BaseModel):
     message: str
-    # M3：会话复用。带 session_id → DSH 侧 get-or-load-or-create（内存复用 /
-    # 持久化恢复 / 新建）；不带 → 服务端生成（响应头 X-Session-Id 回传）
-    session_id: str | None = None
+    # M3（PR #97 review 定案）：前端先经 POST /api/v2/ai/session 创建 session，
+    # 对话请求必须携带 session_id（服务端不再生成）
+    session_id: str
 
 
 async def _stream_chat(prompt: str, session_id: str, user_id: int):
@@ -80,6 +80,21 @@ async def _stream_chat(prompt: str, session_id: str, user_id: int):
         await asyncio.gather(run_task, return_exceptions=True)
 
 
+@router.post("/session")
+async def create_session(
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v2 会话统一创建点（PR #97 review 定案）：前端先调用拿 session_id，再发对话。
+
+    语义 = ai_service.get_or_create_session_v2：该用户已有 session 复用最近一条，
+    没有则新建（sessions 表 + owner 映射）。不在这里做任何 DSH 侧操作——
+    agent 状态由首次对话时 DSH get-or-load-or-create 物化。
+    """
+    session_id = await get_or_create_session_v2(db, user_id)
+    return {"session_id": session_id}
+
+
 @router.post("/chat")
 async def chat(
     data: ChatRequestV2,
@@ -87,14 +102,12 @@ async def chat(
     db: AsyncSession = Depends(get_db),
 ):
     if not data.message.strip():
-        from fastapi import HTTPException, status
-
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="消息不能为空")
 
-    # M3：会话 id = 纯 uuid（§6.3），复用则沿用请求带的（id 即身份，§5.3）
-    session_id = (data.session_id or "").strip() or new_session_id()
-    # FastAPI 身份权威：owner 映射写入 sessions 表（幂等，同 session 多轮复用）
-    await record_session_owner(db, session_id, user_id)
+    # M3：session_id 必填（前端先创建，§5.3 统一创建点）；id 即身份（§6.3）
+    session_id = data.session_id.strip()
+    if not session_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="缺少 session_id")
 
     return StreamingResponse(
         _stream_chat(data.message.strip(), session_id, user_id),

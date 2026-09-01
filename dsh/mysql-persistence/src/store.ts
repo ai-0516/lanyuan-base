@@ -24,9 +24,6 @@ import {
 } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import {
-  SCHEMA_DDL,
-  SCHEMA_EVENTS_DDL,
-  SCHEMA_PERSISTENCE_STATE_DDL,
   type EventRow,
   type SessionRow,
   decodeEventRow,
@@ -77,7 +74,7 @@ export class MysqlStore implements PersistenceBackend<number> {
 
   constructor(private readonly options: MysqlStoreOptions) { }
 
-  /** 懒建连接池 + 幂等建表（§8.2 表结构即真源，IF NOT EXISTS 零迁移）。 */
+  /** 懒建连接池（表由 backend/alembic 管理，store 不建表——PR #97 review）。 */
   open(): Promise<void> {
     this.ready ??= this.openPool()
     return this.ready
@@ -100,24 +97,10 @@ export class MysqlStore implements PersistenceBackend<number> {
       waitForConnections: true,
       queueLimit: 0,
     })
-    await this.ensureSchema()
+    // persistence_state 表由 alembic 建；缺失 → 明确报错（fail-fast，部署需先
+    // `alembic upgrade head`，见 TECH_SPEC §8.2「表结构真源」）
     this.storeIdentity = await this.resolveStoreIdentity()
     this.opened = true
-  }
-
-  /** 幂等建表（三表，§8.2）。openPool 内部调用——直接用已建的 pool（不能走
-   * connection()：它会触发 open() → ready ??= openPool() 无限递归）。
-   * 单语句逐条执行（mysql2 默认 multipleStatements=false）。 */
-  private async ensureSchema(): Promise<void> {
-    if (this.pool === undefined) throw new Error('mysql store pool is not open')
-    const conn = await this.pool.getConnection()
-    try {
-      for (const ddl of [SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL]) {
-        await conn.query(ddl)
-      }
-    } finally {
-      conn.release()
-    }
   }
 
   /** 读/建 persistence_state 单例，产出 storeIdentity（§8.2）。 */

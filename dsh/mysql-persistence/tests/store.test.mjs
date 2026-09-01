@@ -10,8 +10,9 @@
 import { after, before, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import mysql from 'mysql2/promise'
 import { MysqlStore } from '../lib/types/store.js'
-import { decodeSessionRow, rowToMeta } from '../lib/types/schema.js'
+import { SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL, decodeSessionRow, rowToMeta } from '../lib/types/schema.js'
 
 const HOST = process.env.LANYUAN_TEST_MYSQL_HOST ?? '127.0.0.1'
 const PORT = Number(process.env.LANYUAN_TEST_MYSQL_PORT ?? 3306)
@@ -42,9 +43,25 @@ async function resetTables(store) {
   conn.release()
 }
 
+/** 建三表（PR #97 review：生产表由 backend/alembic 管理，store 不建表——
+ * 测试库 lanyuan_test 由本 hook 显式建表，DDL 与 alembic migration 同源）。
+ * ⚠️ 须在 store.open() 之前执行（open → resolveStoreIdentity 依赖
+ * persistence_state 表存在），故用独立连接不走 store.connection()。 */
+async function createTables() {
+  const conn = await mysql.createConnection({ host: HOST, port: PORT, user: USER, password: PASSWORD, database: DATABASE })
+  try {
+    for (const ddl of [SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL]) {
+      await conn.query(ddl)
+    }
+  } finally {
+    await conn.end()
+  }
+}
+
 let store
 
 before(async () => {
+  await createTables()
   store = makeStore()
   await store.open()
   await resetTables(store)

@@ -14,7 +14,7 @@
  * 官方 rc.5 缺口（§5.3）：`getOrCreateSession` 只查内存——本文件补上
  * 持久化恢复分支（「发现框架空白」叙事；Python SDK 零改动，服务端策略）。
  *
- * @module @lanyuan/dsh-server/server
+ * @module @lanyuan/dsh-sdk-jsonrpc-server/server
  */
 
 import type { Context } from '@deepseek-ai/cordis'

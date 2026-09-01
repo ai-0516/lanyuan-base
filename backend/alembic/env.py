@@ -25,10 +25,11 @@ from app.core.database import Base
 
 target_metadata = Base.metadata
 
-# ── 优先从 .env 读取 DATABASE_URL ──
+# ── DATABASE_URL 注入顺序：进程 env 优先，.env 文件次之 ──
+# （verify 脚本/CI 用进程 env 传测试库 URL；开发机默认读 backend/.env）
 env_path = Path(__file__).parent.parent / ".env"
-db_url = None
-if env_path.exists():
+db_url = os.environ.get("DATABASE_URL")
+if db_url is None and env_path.exists():
     with open(env_path) as f:
         for line in f:
             line = line.strip()

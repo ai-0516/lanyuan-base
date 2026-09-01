@@ -2,18 +2,19 @@
 
 验证点（issue #90 验收）：
 1. MySQL 三表落库（sessions = header 物化 + incarnation/revision；events = 事件日志；
-   persistence_state = store 身份）
+   persistence_state = store 身份；表由 alembic migration 建，PR #97 review 定案）
 2. 同 session 多请求复用（turn 递增正常）
 3. 崩溃/重启后恢复：close runtime → 同一 session id → 完整上下文（含首轮内容，
    「地暖 22°C 类历史」验收语义）
-4. 身份查询链路（§6.3 M3）：session_id 纯 uuid → FastAPI 内部端点查 owner →
-   注入工具调用 _meta（无映射 fail-closed 拒绝）
+4. 身份查询链路（§6.3 M3）：session_id 纯 uuid → FastAPI 内部端点
+   GET /api/v2/internal/sessions/{id}/owner 查 owner → 注入工具调用 _meta
+   （无映射 fail-closed 拒绝）
+5. 会话统一创建点（PR #97 review 定案）：get_or_create_session_v2（复用最近
+   会话或新建 + owner 映射）→ DSH 首次对话 resume 空 session 正常物化 agent
 
 运行（DATABASE_URL 必须指向 MySQL——v2 会话表是 MySQL 三表）：
-  unset DSH_SESSION_ROOT DSH_HOME DSH_CWD
-  export DATABASE_URL=mysql+aiomysql://lanyuan_test:lanyuan_test_pw_2026@127.0.0.1:3306/lanyuan_test
-  export DEEPSEEK_API_KEY=***
-  .venv/bin/python scripts/verify_v2_m3.py
+  bash scripts/verify_v2_m3.sh   # 从 gateway 进程自动取 DEEPSEEK_API_KEY
+（等价手动：DATABASE_URL=... DEEPSEEK_API_KEY=... .venv/bin/python scripts/verify_v2_m3.py）
 （verify 起 FastAPI 承载 /mcp + 内部端点；lifespan 预热 dsh_runtime，复用其单例）
 """
 from __future__ import annotations
@@ -34,10 +35,47 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/
 
 from sqlalchemy import text  # noqa: E402
 
-from app.ai.session_service import new_session_id, record_session_owner  # noqa: E402
+from app.services.ai_service import get_or_create_session_v2  # noqa: E402
 from app.core.database import async_session_factory  # noqa: E402
 
 USER_ID = 1
+
+
+def run_alembic_upgrade() -> None:
+    """alembic upgrade head（v2 会话三表，§8.2）。进程内调用
+    （DATABASE_URL 已指向 MySQL 测试库，env.py 进程 env 优先）。
+
+    幂等策略：
+    - 库已在 head → 跳过（alembic_version 匹配当前 head）
+    - 否则先 stamp 到 v1 head（5a1b2c3d4e5f）：lanyuan_test 库的 v1 表由
+      init_db create_all 管理（历史，无 alembic_version），不 stamp 会撞
+      initial_schema 的 CREATE TABLE；stamp 后 upgrade 只跑 v2 增量。
+    """
+    from alembic import command
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine, text
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    head = ScriptDirectory.from_config(cfg).get_heads()[0]
+
+    sync_url = _MYSQL_URL.replace("mysql+aiomysql", "mysql+pymysql")
+    engine = create_engine(sync_url)
+    try:
+        with engine.connect() as conn:
+            if engine.dialect.has_table(conn, "alembic_version"):
+                current = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            else:
+                current = None
+    finally:
+        engine.dispose()
+    if current == head:
+        return  # 已最新（幂等，重复运行安全）
+
+    command.stamp(cfg, "5a1b2c3d4e5f")
+    command.upgrade(cfg, "head")
 
 
 async def init_and_ensure_user() -> None:
@@ -90,11 +128,16 @@ async def main() -> None:
     # Base.metadata——init_db 的 create_all 依赖它们（否则 metadata 空建不出表）
     from app.main import app
 
+    # v2 会话三表由 alembic 管理（PR #97 review 定案：表结构真源 = migration，
+    # DSH 插件不再自建表）——verify 前先 upgrade head 建表（DATABASE_URL 已指
+    # lanyuan_test；alembic env.py 支持进程 env 优先）
+    await asyncio.to_thread(run_alembic_upgrade)
+
     await init_and_ensure_user()
     print(f"[info] DATABASE_URL={_MYSQL_URL.split('@')[-1]}")
     print(f"[info] cordis: {Path(__file__).resolve().parents[2] / 'dsh' / 'cordis-lanyuan.yml'}")
 
-    # 起 FastAPI（挂载 /mcp + /api/internal，§6.2/§6.3）。⚠️ 与 verify 同一
+    # 起 FastAPI（挂载 /mcp + /api/v2/internal，§6.2/§6.3）。⚠️ 与 verify 同一
     # event loop（aiomysql engine 绑定 loop，uvicorn 线程会跨 loop 炸）——
     # 用 create_task(server.serve()) 而非独立线程；dsh_runtime.run 走
     # to_thread，run 期间 loop 空闲，DSH 桥才能连上 /mcp + 内部端点。
@@ -121,13 +164,11 @@ async def main() -> None:
 
     from app.ai.dsh_runtime import dsh_runtime
 
-    # M3：session id = 纯 uuid（§6.3，不再编码 user_id）
-    session_id = new_session_id()
-    print(f"[info] session_id: {session_id}（纯 uuid，owner 映射写 sessions 表）")
-
-    # 模拟 chat 请求：FastAPI 身份权威写 owner 映射（幂等）
+    # M3（PR #97 review 定案）：session 统一创建点 = get_or_create_session_v2
+    # （模拟前端先调 POST /api/v2/ai/session；复用最近会话或新建 + owner 映射）
     async with async_session_factory() as db:
-        await record_session_owner(db, session_id, USER_ID)
+        session_id = await get_or_create_session_v2(db, USER_ID)
+    print(f"[info] session_id: {session_id}（纯 uuid，get_or_create_session_v2 统一创建）")
 
     turn_counts: list[int] = []
 

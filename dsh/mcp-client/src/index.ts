@@ -11,8 +11,10 @@
  * user_id——`v2-{user_id}-{uuid}` 编码是 M2 过渡方案，SDK 通道限制下的
  * 零侵入通道，非终态）。身份权威收归 FastAPI：execute 时用
  * `exec.agent.session.id`（纯 uuid）HTTP 查询内部身份端点
- * `GET /api/internal/sessions/{id}/owner`（同 FastAPI 进程，X-Lanyuan-Internal-Token
- * 防护）→ 得 owner_user_id → 注入 _meta.user_id；查不到 → 拒绝（fail-closed）。
+ * `GET /api/v2/internal/sessions/{id}/owner`（同 FastAPI 进程，
+ * X-Lanyuan-Internal-Token 防护）→ 得 owner_user_id → 注入 _meta.user_id；
+ * 查不到 → 拒绝（fail-closed）。PR #97 review：owner 查询结果按 session
+ * 缓存（同 session 多轮工具调用只查一次——owner 映射幂等不变）。
  *
  * 安全边界（§6.3 + PR #94 review 修复）：工具签名不含身份参数（LLM 零可见）；
  * 注入值来自 session id + FastAPI 权威映射而非模型输入（LLM 无法伪造）；传输层加
@@ -96,10 +98,29 @@ async function connectWithRetry(config: Config, authToken: string): Promise<Clie
  * 身份查询（§6.3 M3）：session id（纯 uuid）→ FastAPI 内部身份端点 →
  * owner_user_id。fail-closed：HTTP 错误 / 404（无映射）/ 解析失败 → 抛错，
  * 工具拒绝执行（LLM 可见错误不可见身份）。
+ *
+ * PR #97 review：按 session 缓存结果（owner 映射幂等不变，同 session 的
+ * 多轮工具调用只查一次）；Promise 级缓存天然合并并发；失败不缓存（下次
+ * 重试，避免瞬时故障永久锁定）。
  */
+const ownerCache = new Map<string, Promise<number>>()
+
 async function resolveUserId(sessionId: string, config: Config, authToken: string): Promise<number> {
+  const cached = ownerCache.get(sessionId)
+  if (cached !== undefined) return cached
+  const pending = fetchOwner(sessionId, config, authToken)
+  ownerCache.set(sessionId, pending)
+  try {
+    return await pending
+  } catch (error) {
+    ownerCache.delete(sessionId)
+    throw error
+  }
+}
+
+async function fetchOwner(sessionId: string, config: Config, authToken: string): Promise<number> {
   const origin = new URL(config.url).origin
-  const base = config.internalApiBase || `${origin}/api/internal`
+  const base = config.internalApiBase || `${origin}/api/v2/internal`
   const response = await fetch(`${base}/sessions/${encodeURIComponent(sessionId)}/owner`, {
     headers: { 'X-Lanyuan-Internal-Token': authToken },
   })

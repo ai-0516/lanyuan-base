@@ -6,7 +6,7 @@
  * 保持命名导出（name/inject/Config/apply，无 default export）——
  * Loader unwrapExports 依赖该形态（官方 postmortem 0001 教训）。
  *
- * @module @lanyuan/dsh-server
+ * @module @lanyuan/dsh-sdk-jsonrpc-server
  */
 
 import type { Context } from '@deepseek-ai/cordis'

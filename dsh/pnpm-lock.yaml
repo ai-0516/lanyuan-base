@@ -77,7 +77,7 @@ importers:
       '@lanyuan/dsh-mcp-client':
         specifier: file:./mcp-client
         version: link:mcp-client
-      '@lanyuan/dsh-server':
+      '@lanyuan/dsh-sdk-jsonrpc-server':
         specifier: file:./server
         version: link:server
       '@lanyuan/dsh-session-persistence-mysql':
