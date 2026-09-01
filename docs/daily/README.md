@@ -24,6 +24,9 @@
 | [08-07](2026-08-07.md) | LLM Adapter 方案调研与定案（#15）+ TECH_SPEC | pi-ai 多厂商抽象调研（canonical block 消息 / 两段式转换）、D1 block 风格 / D2 一段式 / D3 LLM_* 配置、Message 表列式存储无需迁移、LLMAdapter 抽象类（review 采纳） |
 | [08-09](2026-08-09.md) | evals 评测体系调研与落地（#55/#56/#57）+ max_tokens 调研 | 三轮调研吸收 8 设计点、架子优先策略、运行形态两档（--llm 门控）、报告器独立包零依赖、harness 复用 agent 循环 + mock 冒烟 |
 | [08-10](2026-08-10.md) | dev-server 事故排查：帖子接口 500 + error.log 未记录（#64 → PR #65） | 连接池僵尸连接（Lost connection 2013）、SQLAlchemy 异常自带 detail=[] 致 hasattr 误判、fastapi.HTTPException 是独立子类、starlette 1.3.1 ServerErrorMiddleware 总是 re-raise、pool_pre_ping/recycle 保活 |
+| [08-30](2026-08-30.md) | v2 M2 工具桥（#94）：自写 lanyuan-bridge + fastmcp MCP server + user_id 注入 | @mcp_tool 双注册、streamable-http 挂载、MCP 能力独立对外 |
+| [08-31](2026-08-31.md) | v2 M2 review 修复：/mcp 内部共享密钥认证（PR #94 第二轮） | MCP 认证 fail-closed、LANYUAN_MCP_TOKEN 注入、verify 脚本 |
+| [09-01](2026-09-01.md) | v2 M3 review 修复：会话统一创建点 + alembic 管表（PR #97） | get_or_create_session_v2 统一创建、表真源迁移 alembic、userId 缓存 |
 
 ---
 

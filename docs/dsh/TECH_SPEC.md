@@ -74,7 +74,7 @@ FastAPI (uvicorn, --workers 1 起步)
        │    └─ DSH runtime 子进程（Node，stdio JSON-RPC）
        ├─ 生命周期: lifespan startup 启动 / shutdown 关闭
        ├─ 崩溃重启: catch TransportClosedError → close() + start()（4b 实验：直接 start() 无效）
-       └─ 环境变量: 显式管理 DSH_SESSION_ROOT / DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验）
+       └─ 环境变量: 显式管理 DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验；M3 起 jsonl 条目已删，DSH_SESSION_ROOT 不再注入）
   └─ MCP server 挂载（§6.1：tools/mcp_server/main.py 的 mcp_app，/mcp 端点，streamable-http）
 ```
 
@@ -90,7 +90,7 @@ lanyuan-base/
 │       ├── ai/                    # v2 DSH 集成层（替换 harness/）
 │       │   ├── dsh_runtime.py     # 包装层：生命周期/重启/事件订阅
 │       │   ├── event_layer.py     # 事件层（薄）：初期白名单过滤，扩展点预留（§4）
-│       │   ├── session_service.py # 会话组装（短期注入）/ MySQL 读写
+│       │   └── services/ai_service.py  # v2 会话统一创建点 get_or_create_session_v2（§5.3/§9.1，PR #97 review 合并）
 │       └── tools/mcp_server/      # MCP 基础设施（@mcp_tool 装饰器 + http_app 挂载，§6.1/§6.4b；工具定义在 app/api/v1/ 业务 endpoint 上，@tool 旁叠加）
 ├── miniprogram/                   # 前端 v2（消费 DSH 事件集）
 └── dsh/                           # DSH 运行时一体化家目录（删除即卸载）
@@ -182,25 +182,31 @@ lanyuan-base/
   - `loadStoredFrom?`：实现（`WHERE seq >= ?`）
   - TornMarker 用 number（MySQL 事务原子提交，torn 罕见）
   - 不做 chunk 打包 codec（行数非瓶颈）
-- 两个前提：cordis.yml 禁用默认 jsonl persistence（`disabled: true`）；运行时不重建（npm install 是部署步骤）
+- 两个前提：cordis.yml 已移除默认 jsonl persistence（PR #97 snxly review：直接删插件条目而非 `disabled: true`）；运行时不重建（npm install 是部署步骤）
 
 ### 5.3 get-or-load-or-create（M3，v2 会话组成部分）
 
 - 官方 rc.5 缺口确认：`handleRequest` 仅 initialize/session/prompt/shutdown；`getOrCreateSession` 只查内存（"发现框架空白"叙事）
+- **统一创建点（PR #97 review 定案）**：session 的创建（id 生成 + owner 映射）由
+  FastAPI 侧 `ai_service.get_or_create_session_v2` 统一负责（前端先调
+  `POST /api/v2/ai/session` 拿 session_id，再带 id 发对话请求，§9.1）；
+  DSH 侧只负责把已创建的 session「物化」为 live agent——不再承担创建职责
 - 设计（已定稿）：不在协议加新方法，在 `session/prompt` 内部扩展：
   ```
   prompt(id) → 内存有？用内存的
-             : 持久化有？load 成 live session（核心 log-seed 重放）
-             : 都没有？新建
+             : 持久化有？resume 成 live session（核心 log-seed 重放；
+               「前端创建未对话」的空 session 也能 resume——loadStored 返回
+               header + 空 events，空 agent 首次 followup 正常，实测验证）
+             : 都没有？create（极端兜底：session 不在 DB 的异常路径）
   ```
 - Python SDK 零改动（服务端策略）；collision 守卫保留为 load 失败兜底
 - 三个边界：并发写 owner 机制 + workers=1/session 亲和；无条件 load（id 即身份）；load 语义界定写文档
-- 实现 = 本地 `@lanyuan/dsh-server` 插件替换官方 sdk-jsonrpc-server（同 mysql-persistence 套路）
+- 实现 = 本地 `@lanyuan/dsh-sdk-jsonrpc-server` 插件替换官方 sdk-jsonrpc-server（同 mysql-persistence 套路）
 - 恢复后「每请求新 session（无注入）」退役：正常对话复用 session（省 token、日志即历史），重启后首请求自动恢复
 
 ### 5.4 环境变量管理（2g 实验教训）
 
-`DSH_SESSION_ROOT` 残留会静默改变落盘位置并间接导致 id collision 误判。backend 启动时显式设置/清除全部 DSH 环境变量，不继承 shell 残留。
+`DSH_SESSION_ROOT` 残留曾会静默改变 jsonl 落盘位置并间接导致 id collision 误判。M3 起 jsonl persistence 条目已移除（snxly review），`DSH_SESSION_ROOT` 无消费方，backend 不再注入（dsh_runtime 只管理 DSH_HOME / DSH_CWD / LANYUAN_*）。backend 启动时显式设置/清除全部 DSH 环境变量，不继承 shell 残留。
 
 ## 6. MCP 工具桥
 
@@ -258,9 +264,10 @@ client 上采信——`/mcp` 挂内部共享密钥中间件（§6.1），唯一�
 
 ```
 FastAPI（身份权威，JWT 验证处）：
-  session_id = v2-{纯 uuid}（不再编码 user_id）
+  session_id = {纯 uuid}（不再编码 user_id）
   → 记录映射 {session_id → owner_user_id}（并入 M3 sessions 表 owner 字段，§8.2）
-  → 内部身份端点 GET /api/internal/sessions/{id}/owner（internal token 防护）
+  → 内部身份端点 GET /api/v2/internal/sessions/{id}/owner（internal token 防护；
+     PR #97 review：v2 端点统一挂 /api/v2，mcp-client 结果按 session 缓存）
 DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
   execute 时：session_id = exec.agent.session.id（纯 uuid）
   → HTTP 查询内部身份端点 → user_id → 注入 _meta.user_id（§6.3 工具级不变）
@@ -268,6 +275,11 @@ DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
 ```
 
 - 收益：session_id 恢复纯会话标识（不再有字符串格式约定）；身份权威收归 FastAPI；M3 会话复用天然满足"同会话多轮身份一致"
+- **入口归属校验（PR #97 dev-lead review）**：`POST /api/v2/ai/chat` 在进入 DSH
+  前校验 `sessions.owner_user_id == 调用者 JWT user_id`（§9.1）——session_id 本身
+  不构成身份凭证，授权以 JWT 为准；越权/无映射 → 403（fail-closed）。与本节
+  桥层注入形成闭环：**入口（FastAPI 校验调用者身份）+ 执行（桥按 session 查
+  owner 注入工具身份）**两层都以 DB owner 映射为真源，任何一层都不信任模型输入
 - 与 §5.2/§8.2（M3 会话持久化）绑定：映射表即 sessions 表 owner 字段，桥插件查询逻辑 M2→M3 零重做
 
 ### 6.4 首批工具清单（v1 既有 @tool 迁移）
@@ -347,7 +359,7 @@ async def get_my_profile(
     // ④ 本地插件（file:，零 publish）：
     "@lanyuan/dsh-agent-spine": "file:./spine",
     "@lanyuan/dsh-session-persistence-mysql": "file:./mysql-persistence",  // 中期
-    "@lanyuan/dsh-server": "file:./server"                // 中期
+    "@lanyuan/dsh-sdk-jsonrpc-server": "file:./server"                // 中期
   },
   "devDependencies": { "typescript": "^5.x" },  // 编译本地插件（spine/mysql-persistence）
   "bin": { "dsh-jsonrpc-agent": "bin/dsh-jsonrpc-agent.js" }
@@ -368,7 +380,7 @@ async def get_my_profile(
 |---|---|---|---|---|
 | `@deepseek-ai/dsh` | 启动·核心 | runtime 核心聚合：cordis 装配、dsh CLI、plugin 管理、agent loop / session / surface 等一切核心机制 | 整个 runtime 的地基；所有插件 peer-depend 它 | cordis.yml 无直接条目，但 pnpm 严格模式要求显式声明 |
 | `@deepseek-ai/dsh-app-boot` | 启动·核心 | app bin 的共享 boot 胶水：.env 加载、fail-loud 守卫、config 解析、Loader boot 序列 | 自写 runtime bin 的底层依赖（`boot()` 是唯一干活函数） | 替代官方 demo bin 后引入（§7.4） |
-| `@deepseek-ai/dsh-sdk-jsonrpc-server` | 协议层 | stdio JSON-RPC 服务端插件：initialize / session/prompt / shutdown | 没有它 SDK 无法与 runtime 通信，对话链路断 | **中期被本地 @lanyuan/dsh-server 替换（get-or-load-or-create）** |
+| `@deepseek-ai/dsh-sdk-jsonrpc-server` | 协议层 | stdio JSON-RPC 服务端插件：initialize / session/prompt / shutdown | 没有它 SDK 无法与 runtime 通信，对话链路断 | **中期被本地 @lanyuan/dsh-sdk-jsonrpc-server 替换（get-or-load-or-create）** |
 | `@deepseek-ai/dsh-llm-deepseek` | 骨架·模型 | DeepSeek chat-completions 适配器（LLM seam 的实现） | 没有它 agent 没有模型通道，无法生成回复 | 模型 = deepseek-v4-flash |
 | `@deepseek-ai/dsh-session-persistence-jsonl` | 会话·持久化 | JSONL 会话日志落盘 backend（崩溃恢复/审计/回放） | 没有它会话不落盘，进程内多轮无日志 | **中期换自写 mysql 插件（disabled 默认 jsonl）** |
 | `@deepseek-ai/dsh-session-checkpoint-policy` | 会话·持久化 | 语义化持久化时机：`llm/stream` 前 / 顶层 `tools/execute` 前 / `agent/pre-step` 前强制 `sessions.flush()`（源码 83 行，三个边界监听） | 去掉后靠 write-behind 自动兜底（200ms deadline）——崩溃最多丢 200ms 缓冲；**但工具副作用可能先执行后落盘**（副作用无日志 → 恢复不一致/审计缺口）；且失去 fail-closed 保护。对「日志即历史/审计」的 v2 会话模型**必须保留** | 与 persistence 配套 |
@@ -383,7 +395,7 @@ async def get_my_profile(
 | `@lanyuan/dsh-agent-spine`（`file:./spine`） | 自写 agent 骨架：agent 创建、回合调度、LLM 路由、session、标题 | 官方骨架是 examples 包（不依赖，§7.4）；内部依赖 core 包 dsh-agent / dsh-agent-loop / dsh-llm / dsh-session / dsh-session-title / dsh-scope / dsh-invariants / dsh-home-paths（0.1.1-rc.2 已确认） | M1 |
 | `@lanyuan/dsh-mcp-client`（`file:./mcp-client`） | MCP client 插件（官方 dsh-mcp-client 的自写重写）：HTTP 消费挂载在 FastAPI /mcp 的 MCP server（StreamableHTTPClientTransport）、listTools、注册进 ctx.tools、callTool 注入 user_id（§6.3） | 官方 mcp-client 的 callTool 无 `_meta` 扩展点（user_id 注入无落点）；自写用 MCP SDK 正式库（`@modelcontextprotocol/sdk`，非 examples）实现，executor 注入点自由 | M2 |
 | `@lanyuan/dsh-session-persistence-mysql`（`file:./mysql-persistence`） | MySQL 持久化 backend（8 hook，§5.2/§8.2） | v2 会话真源 = MySQL；官方无网络数据库 backend（框架空白） | M3 |
-| `@lanyuan/dsh-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
+| `@lanyuan/dsh-sdk-jsonrpc-server`（`file:./server`） | JSON-RPC server 插件：getOrCreateSession → get-or-load-or-create | 官方 server 缺口（rc.5 确认只查内存）→ 服务端恢复策略（§5.3） | M3 |
 
 **bin 入口（1，自写）**：
 
@@ -453,6 +465,9 @@ events(session_id, seq, type, time, data JSON, source_event_seqs JSON,
 persistence_state(singleton TINYINT PK, store_id CHAR(36))
 ```
 
+- 表结构真源 = **backend/alembic migration**（PR #97 review 定案：v2 会话三表由
+  alembic 统一管理，`c2f7a9d4e5b6`；DSH 插件不再自建表，`dsh/mysql-persistence/
+  src/schema.ts` 的 DDL 仅供单测自建表用，两处必须同步）
 - revision 格式：`${storeIdentity}:incarnation:${incarnation}:revision:${revision}`，storeIdentity=`mysql:${host}:${db}:store:${store_id}`
 - data/source_event_seqs 用 JSON 列
 
@@ -469,7 +484,18 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 ### 9.1 /api/v2/ai/chat（v2 专属路径，与 v1 区分）
 
 - **路径：`POST /api/v2/ai/chat`**（2026-08-23 用户定——v2 响应事件集与 v1 完全不同（DSH 事件 vs token/done），同路径返回不同格式易混淆；v2 用版本化路径 `/api/v2`，v1 的 `/api/v1/ai/chat` 保留给旧前端/兼容期）
-- 请求：认证（JWT）+ 消息 + 会话 id（过渡期每次新 uuid；M3 get-or-load-or-create 后复用/恢复）
+- **会话创建：`POST /api/v2/ai/session`**（PR #97 review 定案：前端先创建 session，
+  再发起对话——`ai_service.get_or_create_session_v2` 为统一创建点，复用该用户
+  最近 session 或新建 `{uuid}` + owner 映射；返回 `{session_id}`）
+- 请求：认证（JWT）+ 消息 + 会话 id（**必填**，由 /api/v2/ai/session 先获取；
+  DSH 侧 get-or-load-or-create 复用/恢复/物化）
+- **归属校验（PR #97 dev-lead review）**：chat 入口校验 `session owner == 调用者`
+  （sessions 表 owner_user_id）——不匹配或 owner 缺失 → 403（统一 403 防 session
+  枚举）。否则调用者 B 持 A 的 session_id 可 resume A 的会话上下文，且工具执行
+  身份来自 session owner（get_my_profile/记忆等均为 A 的），即横向越权
+  （PR #94 /mcp 同类修复）。**威胁模型取舍**：session_id 不是无条件 bearer 凭证——
+  必须由 JWT 验证过的调用者身份授权；创建点（POST /api/v2/ai/session）写入
+  owner 映射，绕过创建点直接构造 id 的请求会被 403 拒绝（fail-closed）。
 - 响应事件集：**DSH 事件白名单子集**（§4.2），不再是 v1 的 token/done/error
 - `done` 语义：`turn/end`（reason.kind）→ 前端关流；`session.status=idle` 兜底（后端消费，不转发）
 - 错误：runtime 崩溃 → `error` 帧（文案「请重试」，详情只进日志）
@@ -561,7 +587,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 |---|---|---|
 | **M1 骨架** | dsh/ 家目录 + 自写 spine/bin + SDK 拉起 runtime + 事件层（过滤）+ 最短对话（每请求新 session **无注入**）——**含裁剪验证**：无 bash/subprocess/fs 配置跑通对话 + MCP 工具桥（§7.1b 三个能力包去掉后实测） | spike 1d/1e、2a-2h |
 | **M2 工具桥** | MCP server（首批工具）+ user_id 注入机制验证 | spike 3/3b |
-| **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
+| **M3 会话** | **MySQL PersistenceBackend 插件 + @lanyuan/dsh-sdk-jsonrpc-server（get-or-load-or-create）** | MySQL 落地清单 + §5.2/5.3 |
 | **M4 前端 v2 + 部署** | 小程序事件消费改造（v2 直接替换 v1）+ Docker + 云托管 | §10、§11 |
 
 每个里程碑独立 PR + dev-lead review；实现顺序串行（一个功能块一个 issue）。

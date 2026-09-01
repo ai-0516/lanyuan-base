@@ -9,8 +9,10 @@
 import json
 import logging
 import secrets
+import time
+import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import settings
 from app.harness import context, context_compact, memory, session
@@ -226,3 +228,81 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
     except Exception:
         logger.exception("持久化/log 异常: session_id=%s user_id=%s", session_id, user_id)
         # 持久化失败不影响已发出的 SSE 事件，仅记录日志
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v2 会话（TECH_SPEC §5/§6.3/§8.2，issue #90 → PR #97 review 定案）
+#
+# 统一创建点 = get_or_create_session_v2（前端先调 POST /api/v2/ai/session 拿
+# session_id，再带 id 发对话请求）。session id = 纯 uuid（不再编码 user_id），
+# owner 映射写 MySQL sessions 表 owner_user_id（FastAPI 是身份权威：JWT 验证处）。
+# DSH 侧只负责把已创建的 session「物化」为 live agent（get-or-load-or-create：
+# 内存复用 / 持久化 resume / 兜底 create），不再承担 session 创建职责。
+#
+# 表由 backend/alembic 统一管理（v2 会话三表 migration c2f7a9d4e5b6）；
+# 本文件只读写不建表。
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def new_session_id() -> str:
+    """生成 v2 纯 uuid session id（§6.3：id 即身份；snxly review：无 v2- 前缀）。"""
+    return str(uuid.uuid4())
+
+
+async def record_session_owner(db, session_id: str, user_id: int) -> None:
+    """写/更新 owner 映射（INSERT ... ON DUPLICATE KEY UPDATE，幂等）。
+
+    FastAPI 是身份权威：创建 session 时 upsert（同 session 多轮复用只一行）；
+    DSH 插件的 header upsert 不覆盖 owner_user_id（两写入方互不干扰，§8.2）。
+    created_at 写真实毫秒时间戳——get_or_create_session_v2 按它取「用户最近会话」。
+    """
+    await db.execute(
+        text(
+            "INSERT INTO sessions (id, version, created_at, incarnation, revision, owner_user_id)\n"
+            "VALUES (:sid, 0, :created_at, :incarnation, 0, :owner) AS new\n"
+            "ON DUPLICATE KEY UPDATE owner_user_id = new.owner_user_id"
+        ),
+        {
+            "sid": session_id,
+            "created_at": int(time.time() * 1000),
+            "incarnation": str(uuid.uuid4()),
+            "owner": user_id,
+        },
+    )
+    await db.commit()
+
+
+async def get_session_owner(db, session_id: str) -> int | None:
+    """查 owner 映射（内部身份端点用）；无行/无 owner → None。"""
+    result = await db.execute(
+        text("SELECT owner_user_id FROM sessions WHERE id = :sid"),
+        {"sid": session_id},
+    )
+    row = result.first()
+    if row is None or row[0] is None:
+        return None
+    return int(row[0])
+
+
+async def get_or_create_session_v2(db, user_id: int) -> str:
+    """v2 会话统一创建点（TECH_SPEC §5.3/§9.1，PR #97 review 定案）。
+
+    前端发起对话前先调用（POST /api/v2/ai/session）：
+    - 该用户已有 session → 复用最近一条（created_at DESC，v1 get_or_create 同款语义）
+    - 没有 → 新建 `{uuid}` 并写 owner 映射（sessions 表）
+
+    返回 session_id；DSH 侧首次对话 resume 空 session 即新建 agent 状态。
+    """
+    result = await db.execute(
+        text(
+            "SELECT id FROM sessions WHERE owner_user_id = :uid "
+            "ORDER BY created_at DESC LIMIT 1"
+        ),
+        {"uid": user_id},
+    )
+    row = result.first()
+    if row is not None:
+        return str(row[0])
+    session_id = new_session_id()
+    await record_session_owner(db, session_id, user_id)
+    return session_id

@@ -5,17 +5,23 @@
  *
  * MCP server 挂载在 FastAPI /mcp 端点（backend/tools/mcp_server/main.py），
  * 能力独立于 DSH runtime（DSH 只是众多 MCP client 之一）；本插件经
- * StreamableHTTPClientTransport 连接，executor 从 `exec.agent.session.id`
- * （格式 `v2-{user_id}-{uuid}`，FastAPI 侧编码，§5.1 过渡期每请求新 session）
- * 解析 user_id，注入 callTool 的 `_meta.user_id`（MCP 协议 RequestParams._meta，
- * 与传输方式无关，HTTP 同样透传）。
+ * StreamableHTTPClientTransport 连接，executor 注入 callTool 的 `_meta.user_id`。
+ *
+ * M3 演进（§6.3 定案，issue #90）：session_id 恢复**纯 uuid**（不再编码
+ * user_id——`v2-{user_id}-{uuid}` 编码是 M2 过渡方案，SDK 通道限制下的
+ * 零侵入通道，非终态）。身份权威收归 FastAPI：execute 时用
+ * `exec.agent.session.id`（纯 uuid）HTTP 查询内部身份端点
+ * `GET /api/v2/internal/sessions/{id}/owner`（同 FastAPI 进程，
+ * X-Lanyuan-Internal-Token 防护）→ 得 owner_user_id → 注入 _meta.user_id；
+ * 查不到 → 拒绝（fail-closed）。PR #97 review：owner 查询结果按 session
+ * 缓存（同 session 多轮工具调用只查一次——owner 映射幂等不变）。
  *
  * 安全边界（§6.3 + PR #94 review 修复）：工具签名不含身份参数（LLM 零可见）；
- * 注入值来自 session id 而非模型输入（LLM 无法伪造）；传输层加**内部共享密钥**
- * （X-Lanyuan-Internal-Token，env LANYUAN_MCP_TOKEN，由 FastAPI 侧 dsh_runtime
- * 注入 DSH 子进程 env）——MCP server 只放行持有密钥的 client（本桥），外部
- * client 无法直连 /mcp 伪造 `_meta.user_id` 冒充用户（review 实测越权修复）。
- * 密钥缺失 → 拒绝连接（fail-closed，不携带密钥的 client 本就不该被放行）。
+ * 注入值来自 session id + FastAPI 权威映射而非模型输入（LLM 无法伪造）；传输层加
+ * **内部共享密钥**（X-Lanyuan-Internal-Token，env LANYUAN_MCP_TOKEN，由 FastAPI
+ * 侧 dsh_runtime 注入 DSH 子进程 env）——MCP server 只放行持有密钥的 client
+ * （本桥），外部 client 无法直连 /mcp 伪造 `_meta.user_id` 冒充用户
+ * （review 实测越权修复）。密钥缺失 → 拒绝连接（fail-closed）。
  *
  * @module @lanyuan/dsh-mcp-client
  */
@@ -38,21 +44,16 @@ export interface Config {
   url: string
   /** 单次工具调用的超时（毫秒）。 */
   toolCallTimeoutMs: number
+  /** FastAPI 内部 API 根（§6.3 身份端点）；默认从 url 同源推导。 */
+  internalApiBase?: string
 }
 
 export const Config = z.object({
   serverName: z.string().required(),
   url: z.string().required(),
   toolCallTimeoutMs: z.number().default(60000),
+  internalApiBase: z.string().default(''),
 }) as unknown as z<Config>
-
-/** session_id 格式：`v2-{user_id}-{uuid4()}`（backend/app/api/v2/ai.py 编码，§5.1）。 */
-const SESSION_ID_PATTERN = /^v2-(\d+)-/
-
-function parseUserId(sessionId: string): number | null {
-  const m = SESSION_ID_PATTERN.exec(sessionId)
-  return m ? Number(m[1]) : null
-}
 
 /** MCP content 数组 → 纯文本（LLM 可读的最简投影）。 */
 function extractText(content: unknown[]): string {
@@ -91,6 +92,61 @@ async function connectWithRetry(config: Config, authToken: string): Promise<Clie
     `lanyuan-mcp-client(${config.serverName}): MCP server 连接失败（${config.url}，重试 ${MAX_RETRIES} 次后放弃）`,
     { cause: lastError },
   )
+}
+
+/**
+ * 身份查询（§6.3 M3）：session id（纯 uuid）→ FastAPI 内部身份端点 →
+ * owner_user_id。fail-closed：HTTP 错误 / 404（无映射）/ 解析失败 → 抛错，
+ * 工具拒绝执行（LLM 可见错误不可见身份）。
+ *
+ * PR #97 review：按 session 缓存结果（owner 映射幂等不变，同 session 的
+ * 多轮工具调用只查一次）；Promise 级缓存天然合并并发；失败不缓存（下次
+ * 重试，避免瞬时故障永久锁定）。
+ *
+ * PR #97 dev-lead review：模块级 Map 永不清理会随 session 数增长——加
+ * 简单上限，溢出删最旧插入项（owner 映射不变，访问刷新无意义，近似 LRU）。
+ */
+const OWNER_CACHE_MAX = 1000
+const ownerCache = new Map<string, Promise<number>>()
+
+function rememberOwner(sessionId: string, pending: Promise<number>): void {
+  if (ownerCache.size >= OWNER_CACHE_MAX) {
+    const oldest = ownerCache.keys().next().value
+    if (oldest !== undefined) ownerCache.delete(oldest)
+  }
+  ownerCache.set(sessionId, pending)
+}
+
+async function resolveUserId(sessionId: string, config: Config, authToken: string): Promise<number> {
+  const cached = ownerCache.get(sessionId)
+  if (cached !== undefined) return cached
+  const pending = fetchOwner(sessionId, config, authToken)
+  rememberOwner(sessionId, pending)
+  try {
+    return await pending
+  } catch (error) {
+    ownerCache.delete(sessionId)
+    throw error
+  }
+}
+
+async function fetchOwner(sessionId: string, config: Config, authToken: string): Promise<number> {
+  const origin = new URL(config.url).origin
+  const base = config.internalApiBase || `${origin}/api/v2/internal`
+  const response = await fetch(`${base}/sessions/${encodeURIComponent(sessionId)}/owner`, {
+    headers: { 'X-Lanyuan-Internal-Token': authToken },
+  })
+  if (!response.ok) {
+    throw new Error(
+      `lanyuan-mcp-client(${config.serverName}): 身份查询失败（HTTP ${response.status}，session=${sessionId}），拒绝执行`,
+    )
+  }
+  const body = (await response.json()) as { owner_user_id?: unknown }
+  const owner = body.owner_user_id
+  if (typeof owner !== 'number' || !Number.isSafeInteger(owner) || owner <= 0) {
+    throw new Error(`lanyuan-mcp-client(${config.serverName}): 身份查询返回非法 owner，拒绝执行`)
+  }
+  return owner
 }
 
 export async function apply(ctx: Context, config: Config): Promise<void> {
@@ -138,10 +194,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
         },
       },
       execute: async (args, exec) => {
-        const userId = parseUserId(exec.agent?.session.id ?? '')
-        if (userId === null) {
-          throw new Error(`${label}: 无法从 session id 解析 user_id（桥层身份绑定失败）`)
-        }
+        // M3（§6.3）：session id = 纯 uuid（不再解析编码），身份权威在 FastAPI
+        const sessionId = exec.agent?.session.id ?? ''
+        const userId = await resolveUserId(String(sessionId), config, authToken)
         const argsObj = (
           typeof args === 'object' && args !== null ? args : {}
         ) as Record<string, unknown>

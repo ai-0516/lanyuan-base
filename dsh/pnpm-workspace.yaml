@@ -1,15 +1,21 @@
-# spine / mcp-client 为本地 workspace 成员（@lanyuan/dsh-agent-spine、
-# @lanyuan/dsh-mcp-client，零 examples 依赖 §7.4）
+# spine / mcp-client / mysql-persistence / server 为本地 workspace 成员
+# （@lanyuan/dsh-agent-spine、@lanyuan/dsh-mcp-client、
+#  @lanyuan/dsh-session-persistence-mysql、@lanyuan/dsh-sdk-jsonrpc-server，
+#  零 examples 依赖 §7.4；mysql-persistence/server 为 M3 新增，§5.2/§5.3）
 # —— prepare/build 的 --filter 依赖 workspace 匹配；file:./* 依赖同步保留
 packages:
   - spine
   - mcp-client
+  - mysql-persistence
+  - server
 
 allowBuilds:
   # 显式声明（pnpm 11：未显式声明的 build scripts 使 install 失败）：
   # koffi —— @deepseek-ai/dsh-session-persistence-jsonl（sessions 插件，激活）依赖
+  # esbuild —— vitest 依赖（mysql-persistence 单测，M3）
   # 其余 4 个不在激活链（dsh 聚合包传递依赖），声明 false 忽略
   koffi: true
+  esbuild: true
   '@deepseek-ai/dsh-subprocess-local': false
   '@google/genai': false
   node-pty: false
