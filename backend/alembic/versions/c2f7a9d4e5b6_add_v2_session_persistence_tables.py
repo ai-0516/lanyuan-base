@@ -44,6 +44,13 @@ def upgrade() -> None:
         mysql_charset='utf8mb4',
         mysql_collate='utf8mb4_unicode_ci',
     )
+    # PR #97 dev-lead review：get_or_create_session_v2 按 (owner_user_id,
+    # created_at DESC) 查「用户最近会话」——补索引避免每用户全表扫描
+    op.create_index(
+        'ix_sessions_owner_user_id_created_at',
+        'sessions',
+        ['owner_user_id', 'created_at'],
+    )
     op.create_table(
         'events',
         sa.Column('session_id', sa.String(length=64), nullable=False),
@@ -72,6 +79,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index('ix_sessions_owner_user_id_created_at', table_name='sessions')
     op.drop_table('persistence_state')
     op.drop_table('events')
     op.drop_table('sessions')

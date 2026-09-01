@@ -89,3 +89,53 @@ class TestV2SessionEndpoint:
     async def test_requires_auth(self, client: AsyncClient):
         resp = await client.post("/api/v2/ai/session")
         assert resp.status_code == 401
+
+
+class TestV2ChatOwnership:
+    """POST /api/v2/ai/chat 归属校验（PR #97 dev-lead review：调用者必须持有
+    session owner 身份，否则可 resume 他人会话上下文 + 工具以他人身份执行）。
+
+    owner 查询的 MySQL 读写不在此测（SQLite 测试库无 v2 表）——mock 掉
+    get_session_owner；真实路径由 scripts/verify_v2_m3.py 集成验证覆盖。
+    """
+
+    @pytest.fixture
+    def override_auth(self):
+        from app.api.deps import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: 7
+        yield
+        app.dependency_overrides.pop(get_current_user, None)
+
+    def _post(self, client: AsyncClient, session_id: str):
+        return client.post(
+            "/api/v2/ai/chat",
+            json={"message": "你好", "session_id": session_id},
+        )
+
+    async def test_owner_is_caller_passes(self, client: AsyncClient, override_auth):
+        """owner == 调用者（7）→ 通过校验，进入 SSE 流（200）。
+
+        _stream_chat 被 mock（归属校验是本测试目标；DSH 真实对话由
+        scripts/verify_v2_m3.py 集成验证覆盖，这里避免真跑 DSH runtime）。
+        """
+        async def fake_stream(*args, **kwargs):
+            yield "event: done\ndata: {}\n\n"
+
+        with patch("app.api.v2.ai.get_session_owner", return_value=7), \
+                patch("app.api.v2.ai._stream_chat", new=fake_stream):
+            resp = await self._post(client, "v2-abc")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+
+    async def test_owner_mismatch_403(self, client: AsyncClient, override_auth):
+        """owner != 调用者（他人 session）→ 403 拒绝（横向越权）。"""
+        with patch("app.api.v2.ai.get_session_owner", return_value=42):
+            resp = await self._post(client, "v2-others")
+        assert resp.status_code == 403
+
+    async def test_owner_missing_403(self, client: AsyncClient, override_auth):
+        """session 无 owner 映射（绕过统一创建点 / 不存在）→ 403 拒绝（fail-closed）。"""
+        with patch("app.api.v2.ai.get_session_owner", return_value=None):
+            resp = await self._post(client, "v2-ghost")
+        assert resp.status_code == 403

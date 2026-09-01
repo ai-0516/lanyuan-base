@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   incarnation      CHAR(36)     NOT NULL,
   revision         BIGINT       NOT NULL DEFAULT 0,
   owner_user_id    BIGINT       NULL,
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  KEY ix_sessions_owner_user_id_created_at (owner_user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `
 

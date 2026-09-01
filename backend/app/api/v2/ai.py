@@ -26,7 +26,7 @@ from app.ai.dsh_runtime import dsh_runtime
 from app.ai.event_layer import format_sse, is_done_event, should_forward
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.services.ai_service import get_or_create_session_v2
+from app.services.ai_service import get_or_create_session_v2, get_session_owner
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,18 @@ async def chat(
     session_id = data.session_id.strip()
     if not session_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="缺少 session_id")
+
+    # M3（PR #97 dev-lead review）：session 归属校验——owner 必须是调用者本人。
+    # 前端先经 POST /api/v2/ai/session 创建（owner 映射必然存在）；owner 缺失
+    # （绕过统一创建点）或非本人 → 403 拒绝（统一 403，防 session 枚举）。
+    # 否则调用者 B 持 A 的 session_id 可 resume A 会话上下文，且工具以 A 身份
+    # 执行（get_my_profile/记忆等均为 A 的）——横向越权（PR #94 /mcp 同类修复）。
+    owner = await get_session_owner(db, session_id)
+    if owner is None or owner != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="session 不存在或无权访问",
+        )
 
     return StreamingResponse(
         _stream_chat(data.message.strip(), session_id, user_id),

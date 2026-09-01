@@ -275,6 +275,11 @@ DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
 ```
 
 - 收益：session_id 恢复纯会话标识（不再有字符串格式约定）；身份权威收归 FastAPI；M3 会话复用天然满足"同会话多轮身份一致"
+- **入口归属校验（PR #97 dev-lead review）**：`POST /api/v2/ai/chat` 在进入 DSH
+  前校验 `sessions.owner_user_id == 调用者 JWT user_id`（§9.1）——session_id 本身
+  不构成身份凭证，授权以 JWT 为准；越权/无映射 → 403（fail-closed）。与本节
+  桥层注入形成闭环：**入口（FastAPI 校验调用者身份）+ 执行（桥按 session 查
+  owner 注入工具身份）**两层都以 DB owner 映射为真源，任何一层都不信任模型输入
 - 与 §5.2/§8.2（M3 会话持久化）绑定：映射表即 sessions 表 owner 字段，桥插件查询逻辑 M2→M3 零重做
 
 ### 6.4 首批工具清单（v1 既有 @tool 迁移）
@@ -484,6 +489,13 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
   最近 session 或新建 `v2-{uuid}` + owner 映射；返回 `{session_id}`）
 - 请求：认证（JWT）+ 消息 + 会话 id（**必填**，由 /api/v2/ai/session 先获取；
   DSH 侧 get-or-load-or-create 复用/恢复/物化）
+- **归属校验（PR #97 dev-lead review）**：chat 入口校验 `session owner == 调用者`
+  （sessions 表 owner_user_id）——不匹配或 owner 缺失 → 403（统一 403 防 session
+  枚举）。否则调用者 B 持 A 的 session_id 可 resume A 的会话上下文，且工具执行
+  身份来自 session owner（get_my_profile/记忆等均为 A 的），即横向越权
+  （PR #94 /mcp 同类修复）。**威胁模型取舍**：session_id 不是无条件 bearer 凭证——
+  必须由 JWT 验证过的调用者身份授权；创建点（POST /api/v2/ai/session）写入
+  owner 映射，绕过创建点直接构造 id 的请求会被 403 拒绝（fail-closed）。
 - 响应事件集：**DSH 事件白名单子集**（§4.2），不再是 v1 的 token/done/error
 - `done` 语义：`turn/end`（reason.kind）→ 前端关流；`session.status=idle` 兜底（后端消费，不转发）
 - 错误：runtime 崩溃 → `error` 帧（文案「请重试」，详情只进日志）

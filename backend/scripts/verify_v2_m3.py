@@ -25,10 +25,15 @@ import sys
 from pathlib import Path
 
 # ⚠️ 在 import app.* 之前设置（settings 读取 env 建 engine）
-_MYSQL_URL = os.environ.get(
-    "DATABASE_URL",
-    "mysql+aiomysql://lanyuan_test:lanyuan_test_pw_2026@127.0.0.1:3306/lanyuan_test",
-)
+# 测试库凭据不进 git（dev-lead review）：DATABASE_URL 必须由环境注入
+# （verify_v2_m3.sh 用 LANYUAN_TEST_MYSQL_PASSWORD 拼装），缺失 fail-fast
+_MYSQL_URL = os.environ.get("DATABASE_URL")
+if _MYSQL_URL is None:
+    raise SystemExit(
+        "未设置 DATABASE_URL（v2 会话三表是 MySQL 结构，必须指向 MySQL 测试库）。\n"
+        "请用 bash scripts/verify_v2_m3.sh 运行（自动从 LANYUAN_TEST_MYSQL_PASSWORD 拼装），"
+        "或手动 export DATABASE_URL=mysql+aiomysql://user:pass@host:port/lanyuan_test"
+    )
 os.environ["DATABASE_URL"] = _MYSQL_URL
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/

@@ -259,8 +259,8 @@ async def record_session_owner(db, session_id: str, user_id: int) -> None:
     await db.execute(
         text(
             "INSERT INTO sessions (id, version, created_at, incarnation, revision, owner_user_id)\n"
-            "VALUES (:sid, 0, :created_at, :incarnation, 0, :owner)\n"
-            "ON DUPLICATE KEY UPDATE owner_user_id = VALUES(owner_user_id)"
+            "VALUES (:sid, 0, :created_at, :incarnation, 0, :owner) AS new\n"
+            "ON DUPLICATE KEY UPDATE owner_user_id = new.owner_user_id"
         ),
         {
             "sid": session_id,

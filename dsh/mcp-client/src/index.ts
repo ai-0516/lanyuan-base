@@ -102,14 +102,26 @@ async function connectWithRetry(config: Config, authToken: string): Promise<Clie
  * PR #97 review：按 session 缓存结果（owner 映射幂等不变，同 session 的
  * 多轮工具调用只查一次）；Promise 级缓存天然合并并发；失败不缓存（下次
  * 重试，避免瞬时故障永久锁定）。
+ *
+ * PR #97 dev-lead review：模块级 Map 永不清理会随 session 数增长——加
+ * 简单上限，溢出删最旧插入项（owner 映射不变，访问刷新无意义，近似 LRU）。
  */
+const OWNER_CACHE_MAX = 1000
 const ownerCache = new Map<string, Promise<number>>()
+
+function rememberOwner(sessionId: string, pending: Promise<number>): void {
+  if (ownerCache.size >= OWNER_CACHE_MAX) {
+    const oldest = ownerCache.keys().next().value
+    if (oldest !== undefined) ownerCache.delete(oldest)
+  }
+  ownerCache.set(sessionId, pending)
+}
 
 async function resolveUserId(sessionId: string, config: Config, authToken: string): Promise<number> {
   const cached = ownerCache.get(sessionId)
   if (cached !== undefined) return cached
   const pending = fetchOwner(sessionId, config, authToken)
-  ownerCache.set(sessionId, pending)
+  rememberOwner(sessionId, pending)
   try {
     return await pending
   } catch (error) {

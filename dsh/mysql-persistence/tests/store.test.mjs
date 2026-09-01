@@ -17,7 +17,11 @@ import { SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL, decodeSess
 const HOST = process.env.LANYUAN_TEST_MYSQL_HOST ?? '127.0.0.1'
 const PORT = Number(process.env.LANYUAN_TEST_MYSQL_PORT ?? 3306)
 const USER = process.env.LANYUAN_TEST_MYSQL_USER ?? 'lanyuan_test'
-const PASSWORD = process.env.LANYUAN_TEST_MYSQL_PASSWORD ?? 'lanyuan_test_pw_2026'
+// 测试库凭据不进 git（PR #97 dev-lead review）：密码必须 env 注入，缺失 fail-fast
+const PASSWORD = process.env.LANYUAN_TEST_MYSQL_PASSWORD
+if (!PASSWORD) {
+  throw new Error('LANYUAN_TEST_MYSQL_PASSWORD 未设置（lanyuan_test 测试库密码，凭据不进 git，请 export）')
+}
 const DATABASE = process.env.LANYUAN_TEST_MYSQL_DATABASE ?? 'lanyuan_test'
 
 function makeStore() {
