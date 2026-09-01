@@ -44,9 +44,12 @@ miniprogram/miniprogram_npm/
 dsh/node_modules/
 dsh/spine/node_modules/
 dsh/mcp-client/node_modules/
+dsh/mysql-persistence/node_modules/
+dsh/server/node_modules/
 dsh/.sessions/
 dsh/.dsh-home/
 dsh/spine/lib/
 dsh/mcp-client/lib/
 dsh/mysql-persistence/lib/
+dsh/mysql-persistence/.vite/
 dsh/server/lib/
