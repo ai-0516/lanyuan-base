@@ -40,12 +40,10 @@ miniprogram/miniprogram_npm/
 # Environment
 .env
 
+# 依赖安装产物（任何层级统一忽略）
+node_modules/
+
 # v2 DSH runtime（dsh/ 家目录）
-dsh/node_modules/
-dsh/spine/node_modules/
-dsh/mcp-client/node_modules/
-dsh/mysql-persistence/node_modules/
-dsh/server/node_modules/
 dsh/.sessions/
 dsh/.dsh-home/
 dsh/spine/lib/
