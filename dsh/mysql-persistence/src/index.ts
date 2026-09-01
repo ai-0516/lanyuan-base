@@ -3,8 +3,8 @@
  * 两层架构：PersistenceCoordinator 编排层全复用（@deepseek-ai/dsh-session-persistence
  * 官方包），物理层 8 hook 只写 MySQL store（./store.ts）。
  *
- * 激活方式（cordis-lanyuan.yml）：jsonl persistence 条目 `disabled: true`，
- * 本插件替换之（同服务 key `sessionPersistence`，激活两个会冲突）。
+ * 激活方式（cordis-lanyuan.yml）：jsonl persistence 条目已移除（snxly review：
+ * 直接删而非 disabled），本插件独占同服务 key `sessionPersistence`。
  *
  * 环境变量管理（§5.4 2g 教训）：连接参数经 env 显式注入 DSH 子进程
  * （LANYUAN_MYSQL_HOST/PORT/USER/PASSWORD/DATABASE），cordis.yml 用
@@ -31,8 +31,6 @@ import {
   type SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
 import { MysqlStore } from './store.js'
-
-export { SCHEMA_DDL } from './schema.js'
 
 /** 插件配置（host/port/user/password/database；密码经 cordis.yml env 引用）。 */
 export interface Config {

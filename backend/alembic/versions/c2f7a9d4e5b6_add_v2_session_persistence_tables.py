@@ -3,8 +3,9 @@
 v2 M3 review 修复（PR #97 snxly 意见）：v2 会话三表由 backend/alembic 统一管理，
 DSH 侧 mysql-persistence 插件不再自建表（删除 ensureSchema）。
 
-表结构 = TECH_SPEC §8.2（原 dsh/mysql-persistence/src/schema.ts SCHEMA_DDL 同源，
-改表两处必须同步——alembic 为生产真源，schema.ts DDL 仅测试自建用）。
+表结构 = TECH_SPEC §8.2（单一真源；PR #97 snxly review：schema.ts 已不持有
+DDL——避免多处维护同一个表结构，mysql-persistence 单测改为校验本 migration
+建好的表存在）。
 
 Revision ID: c2f7a9d4e5b6
 Revises: 5a1b2c3d4e5f

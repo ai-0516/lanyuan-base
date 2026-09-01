@@ -56,7 +56,8 @@ def _runtime_env() -> dict:
     env = dict(os.environ)
     env.setdefault("DSH_CORDIS_CONFIG", str(DSH_DIR / "cordis-lanyuan.yml"))
     env.setdefault("DSH_HOME", str(DSH_DIR / ".dsh-home"))
-    env.setdefault("DSH_SESSION_ROOT", str(DSH_DIR / ".sessions"))
+    # jsonl persistence 条目已删（snxly review），DSH_SESSION_ROOT 无消费方，
+    # 不再注入（DSH_HOME 已覆盖所有官方默认落盘路径的父目录）
     # MCP 工具桥（§6.2）：MCP server 挂载在 FastAPI /mcp（streamable-http），
     # 桥插件经 HTTP 消费——URL 与 FastAPI 部署端口绑定（外部可覆盖）
     env.setdefault("LANYUAN_MCP_URL", LANYUAN_MCP_URL_DEFAULT)

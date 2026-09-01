@@ -74,7 +74,7 @@ FastAPI (uvicorn, --workers 1 起步)
        │    └─ DSH runtime 子进程（Node，stdio JSON-RPC）
        ├─ 生命周期: lifespan startup 启动 / shutdown 关闭
        ├─ 崩溃重启: catch TransportClosedError → close() + start()（4b 实验：直接 start() 无效）
-       └─ 环境变量: 显式管理 DSH_SESSION_ROOT / DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验）
+       └─ 环境变量: 显式管理 DSH_HOME / DSH_CWD，不继承 shell 残留（2g 实验；M3 起 jsonl 条目已删，DSH_SESSION_ROOT 不再注入）
   └─ MCP server 挂载（§6.1：tools/mcp_server/main.py 的 mcp_app，/mcp 端点，streamable-http）
 ```
 
@@ -182,7 +182,7 @@ lanyuan-base/
   - `loadStoredFrom?`：实现（`WHERE seq >= ?`）
   - TornMarker 用 number（MySQL 事务原子提交，torn 罕见）
   - 不做 chunk 打包 codec（行数非瓶颈）
-- 两个前提：cordis.yml 禁用默认 jsonl persistence（`disabled: true`）；运行时不重建（npm install 是部署步骤）
+- 两个前提：cordis.yml 已移除默认 jsonl persistence（PR #97 snxly review：直接删插件条目而非 `disabled: true`）；运行时不重建（npm install 是部署步骤）
 
 ### 5.3 get-or-load-or-create（M3，v2 会话组成部分）
 
@@ -206,7 +206,7 @@ lanyuan-base/
 
 ### 5.4 环境变量管理（2g 实验教训）
 
-`DSH_SESSION_ROOT` 残留会静默改变落盘位置并间接导致 id collision 误判。backend 启动时显式设置/清除全部 DSH 环境变量，不继承 shell 残留。
+`DSH_SESSION_ROOT` 残留曾会静默改变 jsonl 落盘位置并间接导致 id collision 误判。M3 起 jsonl persistence 条目已移除（snxly review），`DSH_SESSION_ROOT` 无消费方，backend 不再注入（dsh_runtime 只管理 DSH_HOME / DSH_CWD / LANYUAN_*）。backend 启动时显式设置/清除全部 DSH 环境变量，不继承 shell 残留。
 
 ## 6. MCP 工具桥
 
@@ -264,7 +264,7 @@ client 上采信——`/mcp` 挂内部共享密钥中间件（§6.1），唯一�
 
 ```
 FastAPI（身份权威，JWT 验证处）：
-  session_id = v2-{纯 uuid}（不再编码 user_id）
+  session_id = {纯 uuid}（不再编码 user_id）
   → 记录映射 {session_id → owner_user_id}（并入 M3 sessions 表 owner 字段，§8.2）
   → 内部身份端点 GET /api/v2/internal/sessions/{id}/owner（internal token 防护；
      PR #97 review：v2 端点统一挂 /api/v2，mcp-client 结果按 session 缓存）
@@ -486,7 +486,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 - **路径：`POST /api/v2/ai/chat`**（2026-08-23 用户定——v2 响应事件集与 v1 完全不同（DSH 事件 vs token/done），同路径返回不同格式易混淆；v2 用版本化路径 `/api/v2`，v1 的 `/api/v1/ai/chat` 保留给旧前端/兼容期）
 - **会话创建：`POST /api/v2/ai/session`**（PR #97 review 定案：前端先创建 session，
   再发起对话——`ai_service.get_or_create_session_v2` 为统一创建点，复用该用户
-  最近 session 或新建 `v2-{uuid}` + owner 映射；返回 `{session_id}`）
+  最近 session 或新建 `{uuid}` + owner 映射；返回 `{session_id}`）
 - 请求：认证（JWT）+ 消息 + 会话 id（**必填**，由 /api/v2/ai/session 先获取；
   DSH 侧 get-or-load-or-create 复用/恢复/物化）
 - **归属校验（PR #97 dev-lead review）**：chat 入口校验 `session owner == 调用者`

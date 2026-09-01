@@ -180,7 +180,7 @@ async def check_chat_ownership_http(session_id: str, port: int) -> None:
 
         resp_none = await client.post(
             url, headers=owner_headers,
-            json={"message": "hi", "session_id": f"v2-{uuid.uuid4()}"},
+            json={"message": "hi", "session_id": str(uuid.uuid4())},
         )
         assert resp_none.status_code == 403, f"无映射应 403，实际 {resp_none.status_code}"
     print("[verify] chat 归属校验 HTTP：他人 403 / 无映射 403 ✓")

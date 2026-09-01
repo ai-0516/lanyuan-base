@@ -245,8 +245,8 @@ async def stream_chat(db, user_id: int, session_id: int, message: str):
 
 
 def new_session_id() -> str:
-    """生成 v2 纯 uuid session id（§6.3：id 即身份）。"""
-    return f"v2-{uuid.uuid4()}"
+    """生成 v2 纯 uuid session id（§6.3：id 即身份；snxly review：无 v2- 前缀）。"""
+    return str(uuid.uuid4())
 
 
 async def record_session_owner(db, session_id: str, user_id: int) -> None:
@@ -289,7 +289,7 @@ async def get_or_create_session_v2(db, user_id: int) -> str:
 
     前端发起对话前先调用（POST /api/v2/ai/session）：
     - 该用户已有 session → 复用最近一条（created_at DESC，v1 get_or_create 同款语义）
-    - 没有 → 新建 `v2-{uuid}` 并写 owner 映射（sessions 表）
+    - 没有 → 新建 `{uuid}` 并写 owner 映射（sessions 表）
 
     返回 session_id；DSH 侧首次对话 resume 空 session 即新建 agent 状态。
     """

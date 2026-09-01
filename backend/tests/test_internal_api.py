@@ -81,10 +81,10 @@ class TestV2SessionEndpoint:
         app.dependency_overrides.pop(get_current_user, None)
 
     async def test_create_session_returns_id(self, client: AsyncClient, override_auth):
-        with patch("app.api.v2.ai.get_or_create_session_v2", return_value="v2-abc"):
+        with patch("app.api.v2.ai.get_or_create_session_v2", return_value="11111111-2222-4333-8444-555555555555"):
             resp = await client.post("/api/v2/ai/session")
         assert resp.status_code == 200
-        assert resp.json() == {"session_id": "v2-abc"}
+        assert resp.json() == {"session_id": "11111111-2222-4333-8444-555555555555"}
 
     async def test_requires_auth(self, client: AsyncClient):
         resp = await client.post("/api/v2/ai/session")
@@ -124,18 +124,18 @@ class TestV2ChatOwnership:
 
         with patch("app.api.v2.ai.get_session_owner", return_value=7), \
                 patch("app.api.v2.ai._stream_chat", new=fake_stream):
-            resp = await self._post(client, "v2-abc")
+            resp = await self._post(client, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/event-stream")
 
     async def test_owner_mismatch_403(self, client: AsyncClient, override_auth):
         """owner != 调用者（他人 session）→ 403 拒绝（横向越权）。"""
         with patch("app.api.v2.ai.get_session_owner", return_value=42):
-            resp = await self._post(client, "v2-others")
+            resp = await self._post(client, "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
         assert resp.status_code == 403
 
     async def test_owner_missing_403(self, client: AsyncClient, override_auth):
         """session 无 owner 映射（绕过统一创建点 / 不存在）→ 403 拒绝（fail-closed）。"""
         with patch("app.api.v2.ai.get_session_owner", return_value=None):
-            resp = await self._post(client, "v2-ghost")
+            resp = await self._post(client, "cccccccc-dddd-4eee-8fff-000000000000")
         assert resp.status_code == 403

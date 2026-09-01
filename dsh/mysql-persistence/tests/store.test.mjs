@@ -3,8 +3,13 @@
  *
  * 跑法：node --test（Node 原生测试器，跑编译产物 lib/types）——vitest 与
  * mysql2（CJS 循环 require）不兼容（RangeError），原生 Node 直接 require
- * mysql2 正常（node -e 已验）。测试前清空三表（lanyuan_test 测试专用库，
- * 不触碰 lanyuan 生产库）；连接参数可用 LANYUAN_TEST_MYSQL_* 覆盖。
+ * mysql2 正常（node -e 已验）。
+ *
+ * 建表（snxly review：不重复维护 DDL）：三表由 backend/alembic 统一管理
+ * （migration c2f7a9d4e5b6）——测试前先对测试库跑 `alembic upgrade head`
+ * （verify_v2_m3.py 的 run_alembic_upgrade 会做），本文件 before hook 只校验
+ * 表存在（缺失 fail-fast 提示），然后 TRUNCATE 清空数据（lanyuan_test 测试
+ * 专用库，不触碰 lanyuan 生产库）；连接参数可用 LANYUAN_TEST_MYSQL_* 覆盖。
  */
 
 import { after, before, beforeEach, describe, it } from 'node:test'
@@ -12,7 +17,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import mysql from 'mysql2/promise'
 import { MysqlStore } from '../lib/types/store.js'
-import { SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL, decodeSessionRow, rowToMeta } from '../lib/types/schema.js'
+import { decodeSessionRow, rowToMeta } from '../lib/types/schema.js'
 
 const HOST = process.env.LANYUAN_TEST_MYSQL_HOST ?? '127.0.0.1'
 const PORT = Number(process.env.LANYUAN_TEST_MYSQL_PORT ?? 3306)
@@ -28,7 +33,7 @@ function makeStore() {
   return new MysqlStore({ host: HOST, port: PORT, user: USER, password: PASSWORD, database: DATABASE, poolSize: 2 })
 }
 
-function makeMeta(id = `v2-${randomUUID()}`) {
+function makeMeta(id = randomUUID()) {
   return { version: 0, id, createdAt: Date.now(), cwd: '/tmp' }
 }
 
@@ -47,15 +52,23 @@ async function resetTables(store) {
   conn.release()
 }
 
-/** 建三表（PR #97 review：生产表由 backend/alembic 管理，store 不建表——
- * 测试库 lanyuan_test 由本 hook 显式建表，DDL 与 alembic migration 同源）。
- * ⚠️ 须在 store.open() 之前执行（open → resolveStoreIdentity 依赖
- * persistence_state 表存在），故用独立连接不走 store.connection()。 */
-async function createTables() {
+/** 建表校验（snxly review：表结构单一真源 = backend/alembic migration
+ * c2f7a9d4e5b6，本文件不再持有/执行 DDL——测试库先跑 alembic upgrade head，
+ * 这里只确认三表存在，缺失即 fail-fast 提示，避免「表不存在」被误当代码回归）。
+ * 用独立连接不走 store.connection()（须在 store.open() 之前执行）。 */
+async function assertTablesExist() {
   const conn = await mysql.createConnection({ host: HOST, port: PORT, user: USER, password: PASSWORD, database: DATABASE })
   try {
-    for (const ddl of [SCHEMA_DDL, SCHEMA_EVENTS_DDL, SCHEMA_PERSISTENCE_STATE_DDL]) {
-      await conn.query(ddl)
+    const [rows] = await conn.query(
+      "SELECT table_name AS tname FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('sessions', 'events', 'persistence_state')",
+    )
+    const found = new Set(rows.map((r) => r.tname))
+    const missing = ['sessions', 'events', 'persistence_state'].filter((t) => !found.has(t))
+    if (missing.length > 0) {
+      throw new Error(
+        `测试库缺少 v2 会话三表（${missing.join(', ')}）——表由 backend/alembic 管理，` +
+          '请先对测试库执行 alembic upgrade head（或跑 scripts/verify_v2_m3.sh，其内部会自动 upgrade）',
+      )
     }
   } finally {
     await conn.end()
@@ -65,7 +78,7 @@ async function createTables() {
 let store
 
 before(async () => {
-  await createTables()
+  await assertTablesExist()
   store = makeStore()
   await store.open()
   await resetTables(store)
@@ -157,8 +170,8 @@ describe('读 hook（loadStoredFrom / revision / list）', () => {
   })
 
   it('不存在的 id → loadStored/readStoredRevision 返回 undefined', async () => {
-    assert.equal(await store.loadStored(`v2-${randomUUID()}`), undefined)
-    assert.equal(await store.readStoredRevision(`v2-${randomUUID()}`), undefined)
+    assert.equal(await store.loadStored(randomUUID()), undefined)
+    assert.equal(await store.readStoredRevision(randomUUID()), undefined)
   })
 
   it('list/listSnapshots 列出已物化 sessions（含 header 与 revision）', async () => {
@@ -199,15 +212,15 @@ describe('commitRepair（torn 修复）', () => {
 describe('schema 编解码', () => {
   it('decodeSessionRow 映射所有列（含 owner_user_id）', () => {
     const row = decodeSessionRow({
-      id: 'v2-x', version: 1, created_at: 123, cwd: '/tmp', parent_session: null,
+      id: '11111111-2222-4333-8444-555555555555', version: 1, created_at: 123, cwd: '/tmp', parent_session: null,
       seed_length: null, origin: null, delegation_depth: null, agent_preset: null,
       incarnation: 'abc', revision: 3, owner_user_id: 42,
     })
-    assert.equal(row.id, 'v2-x')
+    assert.equal(row.id, '11111111-2222-4333-8444-555555555555')
     assert.equal(row.revision, 3)
     assert.equal(row.ownerUserId, 42)
     const meta = rowToMeta(row)
-    assert.equal(meta.id, 'v2-x')
+    assert.equal(meta.id, '11111111-2222-4333-8444-555555555555')
     assert.equal(meta.createdAt, 123)
     assert.equal(meta.cwd, '/tmp')
   })

@@ -10,7 +10,8 @@
  * - 不做 SQLite 的 user_version/application_id 严格校验（MySQL 无等价物）
  *
  * 表结构真源 = backend/alembic migration（c2f7a9d4e5b6，PR #97 review 定案：
- * 生产建表统一走 alembic，本文件 DDL 仅供 mysql-persistence 单测自建表用）。
+ * 生产建表统一走 alembic；本文件只做行编解码，不持有 DDL——snxly review：
+ * 避免多处维护同一个表结构（测试建表由 alembic 负责，store.test.mjs 校验表存在）。
  * @module @lanyuan/dsh-session-persistence-mysql/schema
  */
 
@@ -43,51 +44,12 @@ export interface EventRow {
   ignorable: number | null
 }
 
-/** 建表 DDL（PR #97 review 定案：仅供测试自建表用；生产表由 backend/alembic
- * migration 统一管理——c2f7a9d4e5b6，store 不再执行建表，两处必须同步）。
- * 数组 = 单语句（mysql2 默认 multipleStatements=false，多语句需拆条执行）。 */
-export const SCHEMA_DDL = `
-CREATE TABLE IF NOT EXISTS sessions (
-  id               VARCHAR(64)  NOT NULL,
-  version          BIGINT       NOT NULL DEFAULT 0,
-  created_at       BIGINT       NOT NULL DEFAULT 0,
-  cwd              VARCHAR(1024) NULL,
-  parent_session   VARCHAR(64)  NULL,
-  seed_length      BIGINT       NULL,
-  origin           VARCHAR(64)  NULL,
-  delegation_depth BIGINT       NULL,
-  agent_preset     VARCHAR(256) NULL,
-  incarnation      CHAR(36)     NOT NULL,
-  revision         BIGINT       NOT NULL DEFAULT 0,
-  owner_user_id    BIGINT       NULL,
-  PRIMARY KEY (id),
-  KEY ix_sessions_owner_user_id_created_at (owner_user_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-`
-
-export const SCHEMA_EVENTS_DDL = `
-CREATE TABLE IF NOT EXISTS events (
-  session_id        VARCHAR(64) NOT NULL,
-  seq               BIGINT      NOT NULL,
-  type              VARCHAR(128) NOT NULL,
-  time              BIGINT      NOT NULL,
-  data              JSON        NULL,
-  source_event_seqs JSON        NULL,
-  surface_op        VARCHAR(64) NULL,
-  ignorable         TINYINT     NULL,
-  PRIMARY KEY (session_id, seq),
-  CONSTRAINT fk_events_session FOREIGN KEY (session_id)
-    REFERENCES sessions(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-`
-
-export const SCHEMA_PERSISTENCE_STATE_DDL = `
-CREATE TABLE IF NOT EXISTS persistence_state (
-  singleton TINYINT  NOT NULL,
-  store_id  CHAR(36) NOT NULL,
-  PRIMARY KEY (singleton)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-`
+/**
+ * 建表 DDL 不在此处（snxly review：避免多处维护同一个表结构）。
+ * 表结构单一真源 = backend/alembic migration c2f7a9d4e5b6（PR #97 review 定案：
+ * store 不执行建表；mysql-persistence 单测在 alembic 建好的测试库上跑，
+ * store.test.mjs 的 before hook 校验三表存在，缺失即 fail-fast 提示先跑 alembic）。
+ */
 
 /** mysql2 行（snake_case 列名）→ SessionRow。 */
 export function decodeSessionRow(row: Record<string, unknown>): SessionRow {

@@ -2,10 +2,11 @@
 # 基于 spike cordis-jsonrpc.yml（8 插件）裁剪：去掉 subprocess/bash/fs-local
 # spine 为本地 @lanyuan/dsh-agent-spine（零 examples 依赖，§7.4）
 # M2 追加 mcp-client 条目（业务工具 MCP client，§6：自写插件注入 user_id）
-# M3 变更（§5.2/§5.3）：sessions 条目（jsonl persistence）disabled——由
-#   @lanyuan/dsh-session-persistence-mysql 替换（同 sessionPersistence 服务
-#   key，同时激活会冲突）；sdk-jsonrpc-server 由 @lanyuan/dsh-sdk-jsonrpc-server
-#   替换（get-or-load-or-create，§5.3，包名对齐官方只改前缀）
+# M3 变更（§5.2/§5.3）：jsonl persistence 条目已移除（snxly review：直接删
+#   而非 disabled）——由 @lanyuan/dsh-session-persistence-mysql 替换（独占
+#   sessionPersistence 服务 key）；sdk-jsonrpc-server 由
+#   @lanyuan/dsh-sdk-jsonrpc-server 替换（get-or-load-or-create，§5.3，
+#   包名对齐官方只改前缀）
 # PR #97 review：v2 会话三表由 backend/alembic 管理（插件不再自建表）；
 # 连接参数纯 env 引用（不写死 fallback）——backend 侧 dsh_runtime 从
 # DATABASE_URL 推导注入 LANYUAN_MYSQL_*（§5.4），缺失即装配失败（fail-fast）
@@ -22,14 +23,6 @@
 
 - id: llm-deepseek
   name: '@deepseek-ai/dsh-llm-deepseek'
-
-# M3：jsonl persistence 退役（§5.2 前提一：cordis.yml 禁用默认 jsonl）——
-# 由 mysql-persistence 条目接管（同服务 key 不能双激活）
-- id: sessions
-  name: '@deepseek-ai/dsh-session-persistence-jsonl'
-  disabled: true
-  config:
-    root: !!js process.env.DSH_SESSION_ROOT ?? './.sessions'
 
 # M3：MySQL PersistenceBackend（§5.2，sessions/events/persistence_state 三表）。
 # 表结构由 backend/alembic 管理（PR #97 review：插件不再自建表）；连接参数纯
