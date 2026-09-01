@@ -11,6 +11,9 @@
    （无映射 fail-closed 拒绝）
 5. 会话统一创建点（PR #97 review 定案）：get_or_create_session_v2（复用最近
    会话或新建 + owner 映射）→ DSH 首次对话 resume 空 session 正常物化 agent
+6. chat 归属校验 HTTP 端到端（PR #97 dev-lead 第三轮建议）：真实 FastAPI 进程 +
+   真实 MySQL owner 映射——owner 本人 200 放行 / 他人 403 / 无映射 403
+   （HTTP POST /api/v2/ai/chat，不再是 dsh_runtime.run 直调绕过入口）
 
 运行（DATABASE_URL 必须指向 MySQL——v2 会话表是 MySQL 三表）：
   bash scripts/verify_v2_m3.sh   # 从 gateway 进程自动取 DEEPSEEK_API_KEY
@@ -22,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import uuid
 from pathlib import Path
 
 # ⚠️ 在 import app.* 之前设置（settings 读取 env 建 engine）
@@ -126,6 +130,60 @@ async def check_mysql_tables(session_id: str) -> None:
         print(f"[mysql] sessions: incarnation={incarnation[:8]}… revision={revision} owner={owner}")
         print(f"[mysql] events: {event_count} 条事件落库")
         assert (await db.execute(text("SELECT COUNT(*) FROM persistence_state"))).scalar_one() == 1
+
+
+async def check_chat_ownership_http(session_id: str, port: int) -> None:
+    """⑥ chat 归属校验 HTTP 端到端（PR #97 dev-lead 第三轮建议）。
+
+    真实 FastAPI 进程（uvicorn:port）+ 真实 MySQL owner 映射：
+    - owner 本人（USER_ID）→ 200 放行：归属校验在 chat handler 内、
+      StreamingResponse 返回**之前**完成（HTTP 200 本身即放行证明）；随即
+      关闭连接不消费流，避免多跑一轮完整对话（_stream_chat finally 会
+      cancel 后台 run_task，to_thread 线程自身跑完、结果丢弃，无副作用）
+    - 他人（USER_ID+1）→ 403（进流前拒绝，零 LLM 成本）
+    - 无映射（随机 uuid）→ 403
+    """
+    import httpx
+
+    from app.core.security import create_access_token
+
+    url = f"http://127.0.0.1:{port}/api/v2/ai/chat"
+    owner_headers = {"Authorization": f"Bearer {create_access_token(USER_ID)}"}
+    other_headers = {"Authorization": f"Bearer {create_access_token(USER_ID + 1)}"}
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        # ① owner 本人 → 200 放行：归属校验在 chat handler 内、
+        #    StreamingResponse 返回**之前**完成（HTTP 200 本身即放行证明）。
+        #    消费完整 SSE 流到 turn/end：一是顺带验证真实对话链路走 HTTP 入口
+        #    正常（不再 dsh_runtime.run 直调），二是避免提前关闭连接导致
+        #    _stream_chat finally cancel 掉 to_thread 的 DSH run——线程不可
+        #    中断会继续跑完整对话，在 server 关闭后打 /mcp 产生幽灵 500 噪音
+        seen_turn_end = False
+        async with client.stream(
+            "POST", url, headers=owner_headers,
+            json={"message": "请回复：OK", "session_id": session_id},
+        ) as resp:
+            assert resp.status_code == 200, f"owner 本人应 200 放行，实际 {resp.status_code}"
+            assert resp.headers.get("content-type", "").startswith("text/event-stream")
+            async for line in resp.aiter_lines():
+                if line.startswith("data: ") and '"type": "turn/end"' in line:
+                    seen_turn_end = True
+                    break
+        assert seen_turn_end, "HTTP chat 流未收到 turn/end（对话未正常完成）"
+        print("[verify] chat 归属校验 HTTP：owner 本人 → 200 放行 + 完整对话链路 ✓")
+
+        resp_other = await client.post(
+            url, headers=other_headers,
+            json={"message": "hi", "session_id": session_id},
+        )
+        assert resp_other.status_code == 403, f"他人应 403，实际 {resp_other.status_code}"
+
+        resp_none = await client.post(
+            url, headers=owner_headers,
+            json={"message": "hi", "session_id": f"v2-{uuid.uuid4()}"},
+        )
+        assert resp_none.status_code == 403, f"无映射应 403，实际 {resp_none.status_code}"
+    print("[verify] chat 归属校验 HTTP：他人 403 / 无映射 403 ✓")
 
 
 async def main() -> None:
@@ -236,7 +294,12 @@ async def main() -> None:
         assert not errors, f"工具失败（身份查询/注入链路问题）: {errors}"
         print(f"[verify] 身份查询链路：session_id（纯 uuid）→ 内部端点 → _meta.user_id={USER_ID} ✓")
 
-        print("\n✅ M3 会话验证全部通过（MySQL 落库 / 会话复用 / 崩溃恢复 / 身份查询）")
+        # ── ⑥ chat 归属校验 HTTP 端到端（dev-lead 第三轮建议）──
+        # 前 5 步的对话都走 dsh_runtime.run 直调（绕过 HTTP 入口），本步补齐
+        # 真实 HTTP POST /api/v2/ai/chat 的归属校验断言（200/403/403）
+        await check_chat_ownership_http(session_id, mcp_port)
+
+        print("\n✅ M3 会话验证全部通过（MySQL 落库 / 会话复用 / 崩溃恢复 / 身份查询 / chat 归属校验）")
     finally:
         dsh_runtime.close()
         server_task.cancel()
