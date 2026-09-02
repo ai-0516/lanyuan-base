@@ -335,3 +335,27 @@ class TestV2HistoryApi:
     async def test_requires_auth(self, client):
         resp = await client.get("/api/v2/ai/session/cccccccc-dddd-4eee-8fff-000000000000/messages")
         assert resp.status_code == 401
+
+    async def test_limit_clamped(self, client, override_auth):
+        """limit clamp 边界（PR #98 review 建议）：0/负 → 1，>50 → 50。
+
+        FakeDB.captured 记录 SQL 参数：turn/start 查询的 LIMIT 参数 =
+        clamp(limit)+1（多取 1 条判断 has_more）。
+        """
+        db = FakeDB(_sample_events())
+        with patch("app.api.v2.ai.get_session_owner", return_value=7):
+            app.dependency_overrides[get_db] = lambda: db
+            try:
+                for raw, expected_sql_limit in [(0, 2), (-5, 2), (51, 51)]:
+                    db.captured = {}
+                    resp = await client.get(
+                        "/api/v2/ai/session/cccccccc-dddd-4eee-8fff-000000000000/messages",
+                        params={"limit": raw},
+                    )
+                    assert resp.status_code == 200
+                    # clamp(0)=1→SQL LIMIT 2；clamp(-5)=1→2；clamp(51)=50→51
+                    assert db.captured["limit"] == expected_sql_limit, (
+                        f"limit={raw} 未按 clamp 语义传递，SQL LIMIT 参数={db.captured['limit']}"
+                    )
+            finally:
+                app.dependency_overrides.pop(get_db, None)

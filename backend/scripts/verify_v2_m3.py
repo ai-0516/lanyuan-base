@@ -14,6 +14,8 @@
 6. chat 归属校验 HTTP 端到端（PR #97 dev-lead 第三轮建议）：真实 FastAPI 进程 +
    真实 MySQL owner 映射——owner 本人 200 放行 / 他人 403 / 无映射 403
    （HTTP POST /api/v2/ai/chat，不再是 dsh_runtime.run 直调绕过入口）
+7. M4 历史列表端点（PR #98 dev-lead review 建议）：真实 MySQL 投影路径防回归——
+   GET /api/v2/ai/session/{id}/messages owner 200 + 投影非空 / 他人 403
 
 运行（DATABASE_URL 必须指向 MySQL——v2 会话表是 MySQL 三表）：
   bash scripts/verify_v2_m3.sh   # 从 gateway 进程自动取 DEEPSEEK_API_KEY
@@ -186,6 +188,39 @@ async def check_chat_ownership_http(session_id: str, port: int) -> None:
     print("[verify] chat 归属校验 HTTP：他人 403 / 无映射 403 ✓")
 
 
+async def check_messages_endpoint(session_id: str, port: int) -> None:
+    """⑦ M4 历史列表端点真实 MySQL 路径（PR #98 review 建议：防回归）。
+
+    前 6 步已在 events 表落真实对话事件 → GET /messages 走真实 SQL
+    （turn/start 窗口 + 事件窗口 + 投影）：
+    - owner 本人 → 200 + 投影消息非空 + 契约字段（messages/has_more/cursor）
+    - 他人 → 403（归属校验）
+    """
+    import httpx
+
+    from app.core.security import create_access_token
+
+    url = f"http://127.0.0.1:{port}/api/v2/ai/session/{session_id}/messages"
+    owner_headers = {"Authorization": f"Bearer {create_access_token(USER_ID)}"}
+    other_headers = {"Authorization": f"Bearer {create_access_token(USER_ID + 1)}"}
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url, headers=owner_headers)
+        assert resp.status_code == 200, f"owner 本人应 200，实际 {resp.status_code}"
+        body = resp.json()
+        assert isinstance(body.get("messages"), list) and body["messages"], \
+            "真实 MySQL 投影消息为空（前 6 步对话事件未投影出来？）"
+        # 契约字段：倒序（最新在前）+ has_more bool + cursor int
+        assert body["messages"][0]["role"] == "assistant"
+        assert isinstance(body.get("has_more"), bool)
+        assert isinstance(body.get("cursor"), int)
+        print(f"[verify] messages 端点真实 MySQL：owner 200，投影 {len(body['messages'])} 条 ✓")
+
+        resp_other = await client.get(url, headers=other_headers)
+        assert resp_other.status_code == 403, f"他人应 403，实际 {resp_other.status_code}"
+    print("[verify] messages 端点真实 MySQL：他人 403 ✓")
+
+
 async def main() -> None:
     # ⚠️ 先 import app.main：业务 model（users 等）在 import 时注册进
     # Base.metadata——init_db 的 create_all 依赖它们（否则 metadata 空建不出表）
@@ -299,7 +334,12 @@ async def main() -> None:
         # 真实 HTTP POST /api/v2/ai/chat 的归属校验断言（200/403/403）
         await check_chat_ownership_http(session_id, mcp_port)
 
-        print("\n✅ M3 会话验证全部通过（MySQL 落库 / 会话复用 / 崩溃恢复 / 身份查询 / chat 归属校验）")
+        # ── ⑦ M4 历史列表端点（PR #98 review 建议）：真实 MySQL 投影路径 ──
+        # 前 6 步已在 events 表落真实对话事件 → GET /messages 走真实 SQL
+        await check_messages_endpoint(session_id, mcp_port)
+
+        print("\n✅ M3 会话验证全部通过（MySQL 落库 / 会话复用 / 崩溃恢复 / "
+              "身份查询 / chat 归属校验 / M4 messages 端点）")
     finally:
         dsh_runtime.close()
         server_task.cancel()

@@ -36,9 +36,10 @@ Page({
       const res = await request('POST', V2_BASE_URL + '/ai/session');
       const sessionId = res.session_id;
       this.setData({ sessionId });
-      // 首次加载历史（空列表也算——判断是否新会话）
-      await this.loadHistory(true);
-      if (this.data.messages.length === 0) {
+      // 首次加载历史（空列表也算——判断是否新会话；加载失败返回 false
+      // 不触发 greeting——避免网络抖动时给已有会话注入 Hi，PR #98 review 建议）
+      const historyLoaded = await this.loadHistory(true);
+      if (historyLoaded && this.data.messages.length === 0) {
         this.silentGreeting(sessionId);
       }
       this.scrollToBottom();
@@ -54,8 +55,8 @@ Page({
    */
   async loadHistory(initial = false) {
     const { messages, historyLoading, hasMoreHistory, sessionId, lastCursor } = this.data;
-    if (historyLoading || !hasMoreHistory || !sessionId) return;
-    if (!initial && messages.length === 0) return;
+    if (historyLoading || !hasMoreHistory || !sessionId) return false;
+    if (!initial && messages.length === 0) return false;
 
     this.setData({ historyLoading: true });
     try {
@@ -70,9 +71,13 @@ Page({
         lastCursor: cursor || lastCursor,
         historyLoading: false,
       });
+      return true;
     } catch (err) {
       console.error('加载历史消息失败', err);
       this.setData({ historyLoading: false });
+      // 返回 false：调用方（initSession）据此区分「加载成功但空」与「加载失败」
+      // ——失败时不触发 silentGreeting，避免给已有会话注入 Hi（PR #98 review 建议）
+      return false;
     }
   },
 
@@ -139,8 +144,15 @@ Page({
       data: { session_id: sessionId, message },
       enableChunked: true,
       responseType: 'text',
-      success: () => {
-        // 流已结束（在 onChunkReceived 中处理）
+      success: (res) => {
+        // 非 2xx（403 session 已删/401 token 过期/422 参数错）：后端不会发
+        // error 帧（错误在 HTTP 响应而非 SSE 流）——必须显式收尾，否则
+        // isLoading 卡死无提示（PR #98 review 建议）
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          console.error('流式请求 HTTP 错误', res.statusCode);
+          this.handleStreamError();
+        }
+        // 2xx：流已正常结束（在 onChunkReceived 中处理）
       },
       fail: (err) => {
         console.error('流式请求失败', err);

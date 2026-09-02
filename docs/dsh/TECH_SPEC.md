@@ -575,7 +575,11 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
   - CMD：`alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1`
   - 必需 env：DEEPSEEK_API_KEY、DATABASE_URL（MySQL，DSH 侧由 dsh_runtime
     推导注入 LANYUAN_MYSQL_*）；可选：LANYUAN_MCP_TOKEN（未配置进程内自动
-    生成）、LANYUAN_MCP_URL（与部署端口绑定）、V2_LLM_MODEL
+    生成）、LANYUAN_MCP_URL、DSH_DIR、V2_LLM_MODEL
+  - **部署端口绑定（PR #98 review 修复）**：CMD 监听 80 → Dockerfile 显式
+    `ENV LANYUAN_MCP_URL=http://127.0.0.1:80/mcp/`（默认 8000 与部署端口
+    不一致会断 MCP 工具桥）+ `ENV DSH_DIR=/app/dsh`（镜像打平 backend 层级
+    后 parents[3] 推导失效，显式注入 dsh 家目录；云托管可配）
 
 ### 11.2 体积（实验 5 数据）
 

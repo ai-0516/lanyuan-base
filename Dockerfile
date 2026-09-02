@@ -22,6 +22,7 @@ WORKDIR /build
 
 # 先 COPY 清单文件（利用 layer 缓存：依赖不变时跳过 install）
 COPY dsh/package.json dsh/pnpm-lock.yaml dsh/pnpm-workspace.yaml ./
+COPY dsh/cordis-lanyuan.yml ./cordis-lanyuan.yml
 COPY dsh/spine ./spine
 COPY dsh/mcp-client ./mcp-client
 COPY dsh/mysql-persistence ./mysql-persistence
@@ -64,6 +65,15 @@ COPY backend/tools ./tools/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
+# PR #98 review 修复（阻塞①③）：
+# - DSH_DIR 显式注入：镜像 `COPY backend/app ./app/` 打平 backend 层级后，
+#   dsh_runtime 的 parents[3] 推导失效（容器内 /app/app/ai/... 而非本机
+#   backend/app/ai/...）——dsh 家目录在 /app/dsh，必须显式指定（云托管可配）
+# - LANYUAN_MCP_URL 与 CMD 部署端口(80) 绑定：默认 8000 在容器内无服务，
+#   不覆盖则 MCP 工具桥必断（chat 可用但工具不可用）
+ENV DSH_DIR=/app/dsh
+ENV LANYUAN_MCP_URL=http://127.0.0.1:80/mcp/
+
 # 微信云托管端口约定（容器默认监听 80，平台转发）
 EXPOSE 80
 
@@ -71,6 +81,6 @@ EXPOSE 80
 # lifespan 拉起 DSH runtime + MCP server）
 # 必需 env（云托管注入）：DEEPSEEK_API_KEY / DATABASE_URL（MySQL）
 # 可选 env：LANYUAN_MCP_TOKEN（未配置进程内自动生成同值）、
-#   LANYUAN_MCP_URL（默认 http://127.0.0.1:8000/mcp/，与部署端口绑定）、
-#   V2_LLM_MODEL（默认 deepseek-v4-flash）
+#   LANYUAN_MCP_URL（上方 ENV 已绑定 80；业务侧 dsh_runtime 默认 8000）、
+#   DSH_DIR（上方 ENV 已注入 /app/dsh）、V2_LLM_MODEL（默认 deepseek-v4-flash）
 CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1

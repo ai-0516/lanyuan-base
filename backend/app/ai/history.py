@@ -85,7 +85,10 @@ def project_messages(events: list[dict]) -> list[dict]:
             if chunk.get("type") != "text-delta":
                 continue
             if cur is None:
-                # 兜底：无 step/start 的 text-delta（正常流程不会出现，防御性初始化）
+                # 无 step/start 的 text-delta：正常 DSH 事件流无此路径（agent-loop
+                # 源码 548/621 行：step/start 先于 assistant/chunk append，PR #98
+                # review 查证）；保留为 events 表异常历史数据（中断残留/旧版本）
+                # 的兜底——投影对脏数据优雅降级（与 _as_dict 同哲学），不抛崩溃
                 cur = {"role": "assistant", "content": "", "seq": ev.get("seq"), "time": ev.get("time")}
             cur["content"] += chunk.get("text", "")
         elif etype == "turn/end":
