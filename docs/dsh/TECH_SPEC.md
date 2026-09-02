@@ -487,6 +487,9 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 - **会话创建：`POST /api/v2/ai/session`**（PR #97 review 定案：前端先创建 session，
   再发起对话——`ai_service.get_or_create_session_v2` 为统一创建点，复用该用户
   最近 session 或新建 `{uuid}` + owner 映射；返回 `{session_id}`）
+- **历史列表（M4 新增）：`GET /api/v2/ai/session/{session_id}/messages`**
+  （§10.4 数据源 = DSH session 日志派生；before_seq 游标 + 倒序 + has_more；
+  归属校验与 /chat 一致——非 owner 403）
 - 请求：认证（JWT）+ 消息 + 会话 id（**必填**，由 /api/v2/ai/session 先获取；
   DSH 侧 get-or-load-or-create 复用/恢复/物化）
 - **归属校验（PR #97 dev-lead review）**：chat 入口校验 `session owner == 调用者`
@@ -539,6 +542,20 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 
 - 数据源 = **DSH session 日志派生**（M3 起：MySQL events → 消息序列，或 FTS5 投影）；v1 旧对话不展示（§8.1 C 定案）
 - v1 conversation/message 表不再读取
+- **API（M4 落地）**：`GET /api/v2/ai/session/{session_id}/messages?before_seq=&limit=`
+  （§9.1 新增，与 v1 /api/v1/ai/messages 同款分页契约：游标 + 倒序 + has_more）
+  - 投影规则（`backend/app/ai/history.py`，与前端流式消费语义一致 §10.1）：
+    `user/message` → 用户气泡；`step/start` + `assistant/chunk(text-delta)` → assistant
+    气泡；纯工具步骤/空回复丢弃；reasoning-delta 不投影
+  - **分页 = turn 级**（同轮不拆分）：游标 cursor = 本页最旧 turn/start 的 seq
+    （加载更早 = 取 seq < cursor 的 turn）；`limit` = 每页最多 turn 数。为什么
+    不用消息/事件 seq 游标：DSH 真实事件序是 turn/start → step/start →
+    user/message → chunk → turn/end——assistant 段起始 seq 小于同轮 user 消息
+    seq，按 seq 分页会把一轮对话拆到不同页（回复先于提问）
+  - `events.data` 经 text() 原生查询是 **str**（MySQL/SQLite 驱动均不反序列化
+    JSON 列）——投影层显式 json.loads（`_as_dict`），ORM 类型化查询返回 dict
+    时兼容
+  - 归属校验与 /chat 一致（owner 必须是调用者，403 防 session 枚举）
 
 ## 11. 部署（微信云托管）
 
@@ -548,6 +565,17 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 - 构建：`pnpm install`（dsh/ 目录）→ tsc 编译本地插件（中期）→ backend 依赖安装
 - 启动：uvicorn（workers=1 起步）+ lifespan 拉起 DSH runtime
 - 环境变量：DEEPSEEK_API_KEY（凭证 seam）、DSH_*（显式设置）
+- **Dockerfile（M4 落地，仓库根 `Dockerfile`）**：多阶段构建
+  - 阶段 1（dsh-builder）：`node:20-slim` + corepack pnpm →
+    `pnpm install --frozen-lockfile`（file: 本地插件 install 自动跑 prepare tsc
+    编译到 lib/，再显式 `pnpm run build` 兜底）
+  - 阶段 2（runtime）：`python:3.12-slim` + Node 20 二进制（COPY 自 node 官方镜像）
+    → uv sync（--frozen --no-dev --no-install-project，与 CI/开发同源）→ COPY
+    dsh/ 家目录（pnpm 产物）+ backend（app/ + alembic/ + tools/，含 MCP server）
+  - CMD：`alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1`
+  - 必需 env：DEEPSEEK_API_KEY、DATABASE_URL（MySQL，DSH 侧由 dsh_runtime
+    推导注入 LANYUAN_MYSQL_*）；可选：LANYUAN_MCP_TOKEN（未配置进程内自动
+    生成）、LANYUAN_MCP_URL（与部署端口绑定）、V2_LLM_MODEL
 
 ### 11.2 体积（实验 5 数据）
 

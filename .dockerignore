@@ -1,0 +1,13 @@
+# Docker 构建上下文排除（v2 生产镜像，仓库根 Dockerfile）
+.git
+.worktrees
+**/__pycache__
+**/*.pyc
+*.db
+backend/.venv
+**/node_modules
+logs/
+uploads/
+docs/
+spike/
+test_lanyuan.db

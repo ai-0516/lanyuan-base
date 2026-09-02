@@ -8,6 +8,12 @@
 /** API 基础地址（开发时可切换为局域网 IP） */
 const BASE_URL = 'http://localhost:8000/api/v1'
 
+/**
+ * v2 AI API 基础地址（TECH_SPEC §9：v2 只新增 /api/v2/ai/*，业务 API 维持
+ * /api/v1 不变——仅 ai-chat 页消费 v2 事件集）
+ */
+const V2_BASE_URL = 'http://localhost:8000/api/v2'
+
 /** 服务器根地址（用于拼接静态资源完整 URL） */
 const SERVER_HOST = 'http://localhost:8000'
 
@@ -88,6 +94,7 @@ function fullUrl(path) {
 
 module.exports = {
   BASE_URL,
+  V2_BASE_URL,
   SERVER_HOST,
   fullUrl,
   REQUEST_TIMEOUT,
