@@ -24,10 +24,12 @@ from pydantic import BaseModel
 
 from app.ai.dsh_runtime import dsh_runtime
 from app.ai.event_layer import format_sse, is_done_event, should_forward
+from app.ai.history import project_messages
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.services.ai_service import get_or_create_session_v2, get_session_owner
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,79 @@ async def create_session(
     """
     session_id = await get_or_create_session_v2(db, user_id)
     return {"session_id": session_id}
+
+
+@router.get("/session/{session_id}/messages")
+async def session_messages(
+    session_id: str,
+    before_seq: int | None = None,
+    limit: int = 20,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v2 历史列表（TECH_SPEC §10.4：数据源 = DSH session 日志派生，v1 表不读）。
+
+    MySQL events 表（append-only 事件日志）→ 用户视图消息序列
+    （app.ai.history.project_messages 投影：user/message → 用户气泡、
+    step/start + text-delta → assistant 气泡，纯工具步骤/空回复丢弃）。
+
+    **分页契约（turn 级，同轮不拆分）**：
+    - `before_seq`：turn 游标（上次返回的 cursor = 本页最旧 turn/start 的 seq；
+      加载更早 = 取 seq < cursor 的 turn）
+    - `limit`：每页最多取多少个 turn（默认 20 轮；1 个 turn 产出 1-3 条消息）
+    - 返回 `messages` 倒序（最新在前）+ `cursor` + `has_more`
+    - **为什么按 turn 分页**：DSH 真实事件序是 turn/start → step/start →
+      user/message → chunk → turn/end——assistant 段的起始 seq 小于同轮
+      user 消息的 seq，任何「事件 seq / 消息 seq」游标都会把一轮对话拆到
+      不同页（回复先于提问）。turn/start..turn/end 是完整边界，按 turn 取
+      事件窗口投影，一轮对话必然成对出现。
+
+    归属校验与 /chat 一致（owner 必须是调用者，否则 403——防 session 枚举）。
+    """
+    limit = max(1, min(limit, 50))
+    owner = await get_session_owner(db, session_id)
+    if owner is None or owner != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="session 不存在或无权访问",
+        )
+
+    # 1. 本页 turn 起点们（cursor 前 limit 个 turn/start；取 limit+1 判断 has_more）
+    stmt = (
+        "SELECT seq FROM events WHERE session_id = :sid AND type = 'turn/start' "
+    )
+    params: dict = {"sid": session_id, "limit": limit + 1}
+    if before_seq is not None:
+        stmt += "AND seq < :cursor "
+        params["cursor"] = before_seq
+    stmt += "ORDER BY seq DESC LIMIT :limit"
+    starts = [row[0] for row in (await db.execute(text(stmt), params)).all()]
+    if not starts:
+        return {"messages": [], "cursor": before_seq, "has_more": False}
+
+    has_more = len(starts) > limit
+    starts = starts[:limit]
+    earliest = starts[-1]  # 本页最旧 turn 起点（新 cursor）
+
+    # 2. 取 [earliest, 上界) 的事件（升序投影；上界 = cursor 或最新）
+    stmt = (
+        "SELECT seq, type, time, data FROM events "
+        "WHERE session_id = :sid AND seq >= :earliest "
+    )
+    params = {"sid": session_id, "earliest": earliest}
+    if before_seq is not None:
+        stmt += "AND seq < :cursor "
+        params["cursor"] = before_seq
+    stmt += "ORDER BY seq ASC"
+    rows = (await db.execute(text(stmt), params)).mappings().all()
+
+    # 3. 投影（事件升序 → UI 顺序），倒序返回（最新在前，对齐 v1）
+    msgs = project_messages([dict(r) for r in rows])
+    return {
+        "messages": list(reversed(msgs)),
+        "cursor": earliest,
+        "has_more": has_more,
+    }
 
 
 @router.post("/chat")

@@ -1,42 +1,23 @@
-const { request, BASE_URL } = require('../../utils/request');
+const { request } = require('../../utils/request');
+const { V2_BASE_URL } = require('../../utils/constants');
 const app = getApp();
 
 Page({
   data: {
-    messages: [],           // 消息列表 [{id, role, content, nodes, time}]
+    messages: [],           // 消息列表 [{role, content, nodes, time, seq?}]
     inputValue: '',         // 输入框内容
     canSend: false,         // 输入框是否有内容（WXML 不能调 trim()）
     isLoading: false,       // 是否正在加载 AI 回复
-    sessionId: '',          // 当前会话 ID
+    sessionId: '',          // 当前会话 ID（v2 纯 uuid，POST /api/v2/ai/session 获取）
     userAvatar: '',         // 用户头像
     lastMsgId: 'msg-end',   // 滚动定位锚点
-    hasMoreHistory: true,   // 是否还有更早历史（#48 下拉加载）
+    hasMoreHistory: true,   // 是否还有更早历史（触顶加载）
     historyLoading: false,  // 历史加载防抖
-  },
-
-  /** 是否展示该消息（#48：tool 结果 + tool_call 消息不渲染）
-   *  tool 角色（压缩摘要等 AI 内部结果）不对用户展示；
-   *  assistant 的 tool_calls 消息 content 为空（纯工具调用轮次），无可显示文字
-   */
-  _shouldShow(msg) {
-    if (msg.role === 'tool') return false;
-    if (msg.role === 'assistant' && msg.tool_calls) return false;
-    return true;
-  },
-
-  /** 格式化消息为渲染结构（保留 id 供历史分页游标） */
-  _formatMessage(msg) {
-    return {
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      nodes: msg.role === 'assistant' ? app.towxml(msg.content || '', 'markdown', { theme: 'light' }) : [],
-      time: this.formatTime(msg.created_at),
-    };
+    lastCursor: '',         // 历史分页游标（turn/start seq，加载更早 = before_seq）
   },
 
   onLoad() {
-    // 进入页面时获取/创建会话
+    // 进入页面时获取/复用会话
     this.initSession();
   },
 
@@ -45,60 +26,76 @@ Page({
     this.scrollToBottom();
   },
 
-  /** 初始化 AI 会话 */
+  /** 初始化 AI 会话（v2：TECH_SPEC §9.1 统一创建点）
+   *  1. POST /api/v2/ai/session → {session_id}（复用用户最近会话或新建）
+   *  2. 历史列表从 DSH 日志派生加载（§10.4，GET /session/{id}/messages）
+   *  3. 无历史（全新用户）→ silentGreeting 自动打招呼
+   */
   async initSession() {
     try {
-      const res = await request('POST', '/ai/session');
-      const { session_id, messages } = res;
-      // 格式化历史消息（过滤 tool 角色 + tool_call 消息，AI 内部过程不对用户展示）
-      const formatted = (messages || [])
-        .filter(msg => this._shouldShow(msg))
-        .map(msg => this._formatMessage(msg));
-      this.setData({
-        sessionId: session_id,
-        messages: formatted,
-        hasMoreHistory: true,
-      });
-      this.scrollToBottom();
-
-      // 新会话：自动发 Hi 让 AI 打招呼（不显示 Hi 气泡）
-      if ((messages || []).length === 0) {
-        this.silentGreeting(session_id);
+      const res = await request('POST', V2_BASE_URL + '/ai/session');
+      const sessionId = res.session_id;
+      this.setData({ sessionId });
+      // 首次加载历史（空列表也算——判断是否新会话；加载失败返回 false
+      // 不触发 greeting——避免网络抖动时给已有会话注入 Hi，PR #98 review 建议）
+      const historyLoaded = await this.loadHistory(true);
+      if (historyLoaded && this.data.messages.length === 0) {
+        this.silentGreeting(sessionId);
       }
+      this.scrollToBottom();
     } catch (err) {
       console.error('获取 AI 会话失败', err);
       wx.showToast({ title: '会话创建失败', icon: 'none' });
     }
   },
 
-  /** 触顶加载更早历史（#48，TECH_SPEC 8.5 方案 B：默认最新 + 下拉加载） */
-  async loadHistory() {
-    const { messages, historyLoading, hasMoreHistory } = this.data;
-    if (historyLoading || !hasMoreHistory || messages.length === 0) return;
+  /** 触顶加载更早历史（§10.4：数据源 = DSH session 日志派生，v1 表不读）
+   *  游标 = turn/start 事件 seq（后端按 turn 分页——同轮 user+assistant 成对，
+   *  DSH 事件序 step/start 先于 user/message，按消息 seq 分页会拆散一轮对话）
+   */
+  async loadHistory(initial = false) {
+    const { messages, historyLoading, hasMoreHistory, sessionId, lastCursor } = this.data;
+    if (historyLoading || !hasMoreHistory || !sessionId) return false;
+    if (!initial && messages.length === 0) return false;
 
     this.setData({ historyLoading: true });
     try {
-      const beforeId = messages[0].id;
-      const res = await request('GET', `/ai/messages?before_id=${beforeId}&limit=20`);
-      const { messages: older, has_more } = res;
-      // 后端返回 id 倒序（最新在前）→ 反转成时间正序，prepend 到列表头部
-      const formatted = (older || []).reverse()
-        .filter(msg => this._shouldShow(msg))
-        .map(msg => this._formatMessage(msg));
+      const qs = lastCursor ? `?before_seq=${lastCursor}&limit=20` : '?limit=20';
+      const res = await request('GET', `${V2_BASE_URL}/ai/session/${sessionId}/messages${qs}`);
+      const { messages: older, has_more, cursor } = res;
+      // 后端返回倒序（最新在前）→ 反转成时间正序，prepend 到列表头部
+      const formatted = (older || []).reverse().map(m => this._formatHistoryMessage(m));
       this.setData({
         messages: [...formatted, ...messages],
         hasMoreHistory: has_more,
+        lastCursor: cursor || lastCursor,
         historyLoading: false,
       });
+      return true;
     } catch (err) {
       console.error('加载历史消息失败', err);
       this.setData({ historyLoading: false });
+      // 返回 false：调用方（initSession）据此区分「加载成功但空」与「加载失败」
+      // ——失败时不触发 silentGreeting，避免给已有会话注入 Hi（PR #98 review 建议）
+      return false;
     }
   },
 
-  /** 新会话：自动发送 Hi，但只显示 AI 回复 */
+  /** 格式化历史消息为渲染结构（v2：无 id/tool_calls 字段，time = events.time 毫秒） */
+  _formatHistoryMessage(m) {
+    return {
+      role: m.role,
+      content: m.content,
+      nodes: m.role === 'assistant' ? app.towxml(m.content || '', 'markdown', { theme: 'light' }) : [],
+      time: this.formatTime(m.time),
+    };
+  },
+
+  /** 新会话：自动发 Hi 让 AI 打招呼
+   *  注意（v2 事件流单一数据源）：Hi 会作为 user/message 事件渲染成用户气泡
+   *  （服务端记录了这条消息，前端以事件流为真源展示——v1「不显示 Hi」行为退役）
+   */
   silentGreeting(sessionId) {
-    // AI 气泡由 message:start 事件创建（#22），这里只置 loading 状态
     this.setData({ isLoading: true });
     this.streamChat(sessionId, 'Hi');
   },
@@ -112,36 +109,33 @@ Page({
     });
   },
 
-  /** 发送消息 */
+  /** 发送消息（v2：用户气泡由 user/message 事件渲染，前端不做本地乐观渲染 §10.1） */
   async onSend() {
     const { inputValue, sessionId, isLoading } = this.data;
     if (!inputValue.trim() || isLoading || !sessionId) return;
 
-    // 1. 添加用户消息到列表（AI 气泡由 message:start 事件创建，#22）
-    const userMsg = {
-      role: 'user',
-      content: inputValue.trim(),
-      time: this.formatTime(Date.now()),
-    };
-    const newMessages = [...this.data.messages, userMsg];
     this.setData({
-      messages: newMessages,
       inputValue: '',
+      canSend: false,
       isLoading: true,
     });
-    this.scrollToBottom();
-
-    // 2. 发起 SSE 流式请求
-    this.streamChat(sessionId, userMsg.content);
+    this.streamChat(sessionId, inputValue.trim());
   },
 
-  /** SSE 流式聊天 */
+  /** SSE 流式聊天（v2：DSH 事件分发，v1 5 事件 token/done/error/message:start/retry_wait 全部退役）
+   *  事件映射（TECH_SPEC §10.1）：
+   *    turn/start       → 回合边界（重置回合状态，不建气泡）
+   *    user/message     → 用户气泡（单一数据源）
+   *    step/start       → 开新 AI 气泡（若上一个气泡为空则先删——纯工具步骤无文字）
+   *    assistant/chunk  → text-delta 追加当前气泡
+   *    turn/end         → 回合收尾（done / reason=error 错误态；最终气泡仍空则丢弃）
+   *    error 帧         → 后端错误（runtime 崩溃等，「请重试」）
+   */
   streamChat(sessionId, message) {
-    const app = getApp();
     const token = wx.getStorageSync('token') || '';
 
     const task = wx.request({
-      url: `${BASE_URL}/ai/chat`,
+      url: `${V2_BASE_URL}/ai/chat`,
       method: 'POST',
       header: {
         'Content-Type': 'application/json',
@@ -150,8 +144,15 @@ Page({
       data: { session_id: sessionId, message },
       enableChunked: true,
       responseType: 'text',
-      success: () => {
-        // 流已结束（在 onChunkReceived 中处理）
+      success: (res) => {
+        // 非 2xx（403 session 已删/401 token 过期/422 参数错）：后端不会发
+        // error 帧（错误在 HTTP 响应而非 SSE 流）——必须显式收尾，否则
+        // isLoading 卡死无提示（PR #98 review 建议）
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          console.error('流式请求 HTTP 错误', res.statusCode);
+          this.handleStreamError();
+        }
+        // 2xx：流已正常结束（在 onChunkReceived 中处理）
       },
       fail: (err) => {
         console.error('流式请求失败', err);
@@ -180,27 +181,12 @@ Page({
       buffer = lines.pop() || ''; // 保留不完整的行
 
       for (const line of lines) {
-        // 记录事件类型
         if (line.startsWith('event: ')) {
           currentEvent = line.slice(7).trim();
         }
-        if (line.startsWith('event: done')) {
-          // 流结束
-          this.setData({ isLoading: false });
-          this.scrollToBottom();
-          return;
-        }
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6);
-          // message:start 事件：多轮调用的新一轮 AI 回复开始，
-          // 结束当前气泡、新开一个（issue #22：多轮多条 message 不拼成一条）
-          if (currentEvent === 'message:start') {
-            this.startNewAiBubble();
-            currentEvent = '';
-            continue;
-          }
-          // error 事件：显示后端错误文案（如「Agent 循环超过上限」），
-          // 不能硬编码固定文案——_MAX_TURNS 超限等场景后端有具体提示
+          // error 帧：后端错误（runtime 崩溃等），文案不硬编码——后端给什么显示什么
           if (currentEvent === 'error') {
             let msg = 'AI 回复被中断，请重试';
             try {
@@ -208,40 +194,92 @@ Page({
               if (typeof parsed === 'string') msg = parsed;
               else msg = parsed.message || parsed.error || msg;
             } catch (e) {
-              // 非 JSON 原文
               if (dataStr) msg = dataStr;
             }
             this.handleStreamError(msg);
-            currentEvent = '';
             return;
           }
-          // retry_wait 事件：重试等待提示（#78 独立事件，不进回复内容，
-          // 重试成功后的首个 token 会替换掉提示与首轮残留）
-          if (currentEvent === 'retry_wait') {
-            this._retryPending = true;
-            this.showRetryWaiting();
-            currentEvent = '';
-            continue;
-          }
-          // 重试成功后的完整回复：清掉等待文案与首轮失败前流出的部分，
-          // 从完整回复重新开始（消除「部分+提示+完整」三段拼接，#78）
-          if (this._retryPending) this.resetAiBubbleForRetry();
+          // 白名单事件：{type, data}（event_layer 透传 DSH 原样，§4.1）
           try {
-            const parsed = JSON.parse(dataStr);
-            // parsed 可能是 {"content":"..."} 或 裸字符串 "内容"（token 事件）
-            const content = parsed.content || parsed.data || parsed;
-            if (content) this.appendToAiBubble(content);
-          } catch {
-            // 非 JSON 数据，直接追加
-            this.appendToAiBubble(dataStr);
+            const payload = JSON.parse(dataStr);
+            this.dispatchEvent(currentEvent, payload.data || {});
+          } catch (e) {
+            // 非 JSON 数据：忽略（白名单事件必为 JSON）
+            console.warn('[ai-chat] 忽略非 JSON SSE 数据:', dataStr);
           }
         }
       }
     });
   },
 
-  /** 追加内容到 AI 气泡（打字机效果） */
+  /** DSH 事件分发（§10.1 映射表） */
+  dispatchEvent(type, data) {
+    switch (type) {
+      case 'turn/start':
+        // 回合边界（一次 user_prompt 处理开始）：重置回合状态，不建气泡
+        this._turnEnded = false;
+        break;
+      case 'user/message':
+        // 用户气泡数据源（事件流单一数据源，前端不做本地乐观渲染）
+        this.appendUserBubble(this.extractUserContent(data.content));
+        break;
+      case 'step/start':
+        // 气泡边界：承接 v1 message:start 粒度（step = 一次 LLM 调用）
+        this.startNewAiBubble();
+        break;
+      case 'assistant/chunk':
+        // text-delta 追加当前气泡（后端已过滤，只会收到 text-delta）
+        this.appendToAiBubble((data.chunk || {}).text || '');
+        break;
+      case 'turn/end':
+        this.finishTurn(data);
+        break;
+      default:
+        // 白名单外事件不应到达（防御）
+        console.warn('[ai-chat] 未知事件类型:', type);
+    }
+  },
+
+  /** user/message content 提取（真实 DSH 事件 = content block 数组
+   *  [{"type": "text", "text": "..."}]；兼容裸字符串形态）
+   */
+  extractUserContent(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter(b => b && b.type === 'text')
+        .map(b => b.text || '')
+        .join('');
+    }
+    return content ? String(content) : '';
+  },
+
+  /** 用户气泡（user/message 事件驱动）
+   *  真实 DSH 事件序：turn/start → step/start → user/message（agent.ts 先开
+   *  LLM 调用再 append 用户消息）——step/start 已先建空气泡，用户气泡要插入
+   *  到它前面（UI 上用户消息在前，chunk 才能追加到最后的 AI 气泡）
+   */
+  appendUserBubble(content) {
+    const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    const userMsg = {
+      role: 'user',
+      content,
+      nodes: [],
+      time: this.formatTime(Date.now()),
+    };
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+      messages.splice(messages.length - 1, 0, userMsg);
+    } else {
+      messages.push(userMsg);
+    }
+    this.setData({ messages });
+    this.scrollToBottom();
+  },
+
+  /** 追加内容到 AI 气泡（打字机效果，assistant/chunk text-delta 驱动） */
   appendToAiBubble(text) {
+    if (!text) return;
     const messages = [...this.data.messages];
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.role === 'assistant') {
@@ -252,35 +290,15 @@ Page({
     }
   },
 
-  /** 重试等待提示：把当前 AI 气泡替换为等待文案（#78） */
-  showRetryWaiting() {
-    const messages = [...this.data.messages];
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant') {
-      lastMsg.content = 'AI 正在飞速思考中……';
-      lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
-      this.setData({ messages });
-      this.scrollToBottom();
-    }
-  },
-
-  /** 重试成功后的完整回复：清空当前 AI 气泡（去掉等待文案与首轮残留，#78） */
-  resetAiBubbleForRetry() {
-    this._retryPending = false;
-    const messages = [...this.data.messages];
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant') {
-      lastMsg.content = '';
-      lastMsg.nodes = [];
-      this.setData({ messages });
-    }
-  },
-
-  /** 新开一条 AI 气泡（message:start 事件驱动，#22）
-   *  纯 tool_call 轮次无 token 不发 message:start，前端不建气泡（无文字可显示）
+  /** 新开一条 AI 气泡（step/start 事件驱动，§10.1：每次 LLM 调用一条气泡）
+   *  若上一个气泡为空则先删——纯工具步骤无文字不显示
    */
   startNewAiBubble() {
     const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+      messages.pop();
+    }
     messages.push({
       role: 'assistant',
       content: '',
@@ -291,8 +309,27 @@ Page({
     this.scrollToBottom();
   },
 
+  /** 回合收尾（turn/end 事件驱动，§10.1）
+   *  - reason.kind=error → 错误态（文案「请重试」）
+   *  - 正常收尾：最终气泡仍空则丢弃（纯工具回合/空回复不显示）
+   */
+  finishTurn(data) {
+    const reason = data.reason || {};
+    if (reason.kind === 'error') {
+      this.handleStreamError();
+      return;
+    }
+    const messages = [...this.data.messages];
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+      messages.pop();
+    }
+    this.setData({ messages, isLoading: false });
+    this.scrollToBottom();
+  },
+
   /** 处理流式错误
-   *  message: 错误文案（后端 error 事件的 data；缺省用通用文案）
+   *  message: 错误文案（后端 error 帧的 data；缺省用通用文案「请重试」语义）
    *  注意：必须同时重建 nodes——WXML 对 AI 气泡只渲染 <towxml nodes="{{item.nodes}}"/>，
    *  只改 content 不改 nodes 会导致气泡空白（issue #19 根因）。
    */
@@ -355,20 +392,18 @@ Page({
   },
 
   /** 格式化时间
-   *  后端 func.now() 受数据库时区影响（SQLite 返回 UTC，MySQL 返回 session 时区），
-   *  但无论如何结果都是"后端认为的本地时间"。
-   *  作为简易方案，直接按字符串解析，不转时区。
+   *  v2：后端返回 events.time（毫秒时间戳，number）→ 直接构造本地时间
    */
   formatTime(timestamp) {
     if (!timestamp) return '';
-    // Unix 时间戳（number 类型，如 Date.now()）→ 直接构造
+    // Unix 毫秒时间戳（number 类型）→ 直接构造
     if (typeof timestamp === 'number') {
       const date = new Date(timestamp);
       const h = String(date.getHours()).padStart(2, '0');
       const m = String(date.getMinutes()).padStart(2, '0');
       return `${h}:${m}`;
     }
-    // ISO 字符串（后端 isoformat()）→ 取 HH:MM 部分直接显示
+    // ISO 字符串（兼容）→ 取 HH:MM 部分直接显示
     const match = String(timestamp).match(/(\d{2}):(\d{2})/);
     return match ? `${match[1]}:${match[2]}` : '';
   },

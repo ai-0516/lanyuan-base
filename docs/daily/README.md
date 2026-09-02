@@ -27,6 +27,7 @@
 | [08-30](2026-08-30.md) | v2 M2 工具桥（#94）：自写 lanyuan-bridge + fastmcp MCP server + user_id 注入 | @mcp_tool 双注册、streamable-http 挂载、MCP 能力独立对外 |
 | [08-31](2026-08-31.md) | v2 M2 review 修复：/mcp 内部共享密钥认证（PR #94 第二轮） | MCP 认证 fail-closed、LANYUAN_MCP_TOKEN 注入、verify 脚本 |
 | [09-01](2026-09-01.md) | v2 M3 review 修复：会话统一创建点 + alembic 管表（PR #97） | get_or_create_session_v2 统一创建、表真源迁移 alembic、userId 缓存 |
+| [09-02](2026-09-02.md) | v2 M4：前端 v2 + 部署（小程序事件消费改造 + Docker/云托管，Issue #91） | DSH 事件分发替代 v1 5 事件、历史列表从 DSH 日志派生、双运行时 Dockerfile |
 
 ---
 

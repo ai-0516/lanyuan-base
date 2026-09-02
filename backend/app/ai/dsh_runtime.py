@@ -20,8 +20,11 @@ from app.core.security import get_mcp_token
 
 logger = logging.getLogger(__name__)
 
-# backend/app/ai/ → 仓库根 → dsh/
-DSH_DIR = Path(__file__).resolve().parents[3] / "dsh"
+# backend/app/ai/ → 仓库根 → dsh/（本机布局）；容器内镜像打平 backend 层级
+# （Dockerfile `COPY backend/app ./app/`）parents[3] 不再指向仓库根——生产由
+# Dockerfile ENV DSH_DIR 显式注入（/app/dsh，云托管可配），本机开发无 env 时
+# 保持路径推导（PR #98 review 阻塞①修复）
+DSH_DIR = Path(os.environ["DSH_DIR"]) if os.environ.get("DSH_DIR") else Path(__file__).resolve().parents[3] / "dsh"
 
 _LLM_MODEL = os.environ.get("V2_LLM_MODEL", "deepseek-v4-flash")
 
