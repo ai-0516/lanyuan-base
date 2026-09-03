@@ -18,6 +18,7 @@
 
 import logging
 import logging.handlers
+import sys
 from pathlib import Path
 
 from app.config import settings
@@ -37,7 +38,10 @@ def setup_logging():
     root.handlers.clear()
 
     # ── Console Handler（所有环境） ──
-    console = logging.StreamHandler()
+    # 显式 sys.stdout：python logging 默认 StreamHandler 写 stderr，而容器平台
+    # （微信云托管等）日志采集默认只可靠采 stdout 流（stderr 需额外采集配置，
+    # 2026-09-03 云托管部署实测 stderr 日志不可见）→ 统一打 stdout 保证可观测。
+    console = logging.StreamHandler(sys.stdout)
     console.setLevel(level)
     console.setFormatter(_formatter())
     root.addHandler(console)
