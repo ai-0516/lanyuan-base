@@ -17,7 +17,9 @@
 # ══════════════════════════════════════════════════════════════════════
 
 # ── 阶段 1：dsh/ 家目录构建（pnpm install 全量 + 本地插件 tsc 编译） ──
-FROM node:20-slim AS dsh-builder
+# node:22（pnpm 11 需要 Node >= 22.13——node:20 报 ERR_UNKNOWN_BUILTIN_MODULE
+# node:sqlite，2026-09-03 docker 实测）
+FROM node:22-slim AS dsh-builder
 WORKDIR /build
 
 # 先 COPY 清单文件（利用 layer 缓存：依赖不变时跳过 install）
@@ -29,8 +31,10 @@ COPY dsh/mysql-persistence ./mysql-persistence
 COPY dsh/server ./server
 COPY dsh/bin ./bin
 
-# corepack 启用 pnpm（node:20-slim 自带 corepack）；--frozen-lockfile 按锁文件
-# 安装（与开发/CI 单一真源，lock 必须入库——否则部署必炸）
+# corepack 启用 pnpm（node:22-slim 自带 corepack）；--frozen-lockfile 按锁文件
+# 安装（与开发/CI 单一真源，lock 必须入库——否则部署必炸）。
+# pnpm 版本由 dsh/package.json 的 packageManager 字段固定（corepack 按字段下载
+# 对应版本，避免拉 latest 与 lock 生成版本不兼容）
 # file: 本地插件 install 时自动跑 prepare（tsc → lib/），再显式 build 兜底
 # （幂等；prepare 行为差异保险）
 RUN corepack enable \
@@ -40,11 +44,11 @@ RUN corepack enable \
 # ── 阶段 2：运行时（Python FastAPI + Node DSH runtime） ──
 FROM python:3.12-slim AS runtime
 
-# Node 20 二进制（DSH runtime 是 Node 子进程；从 node 官方镜像拷，避免 apt 旧版）
-COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node:20-slim /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node:20-slim /usr/local/bin/npx /usr/local/bin/npx
+# Node 22 二进制（DSH runtime 是 Node 子进程；从 node 官方镜像拷，避免 apt 旧版）
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node:22-slim /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node:22-slim /usr/local/bin/npx /usr/local/bin/npx
 
 WORKDIR /app
 

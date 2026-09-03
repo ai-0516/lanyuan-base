@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
     "build": "pnpm --filter @lanyuan/dsh-agent-spine --filter @lanyuan/dsh-mcp-client --filter @lanyuan/dsh-session-persistence-mysql --filter @lanyuan/dsh-sdk-jsonrpc-server build",
     "install:all": "pnpm install",
