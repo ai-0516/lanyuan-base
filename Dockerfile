@@ -45,14 +45,17 @@ RUN corepack enable \
 FROM python:3.12-slim AS runtime
 
 # Node 22 二进制（DSH runtime 是 Node 子进程；从 node 官方镜像拷，避免 apt 旧版）
+# 不拷 npm/npx（PR #99 review 修复）：runtime 启动链路（alembic + uvicorn + DSH
+# 由 node 直跑 bin）不依赖 npm；且镜像内 /usr/local/bin/npm 是 symlink
+# （→ ../lib/node_modules/npm/bin/npm-cli.js），COPY 对 symlink 源会解引用成普通
+# 文件，require 相对路径失效 → npm -v MODULE_NOT_FOUND（2026-09-03 docker 实测）
 COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
 COPY --from=node:22-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node:22-slim /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node:22-slim /usr/local/bin/npx /usr/local/bin/npx
 
 WORKDIR /app
 
-# ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
+# ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock：docker 内经 uv export
+# 生成 requirements 后 pip 安装（见下），CI/开发仍 uv sync） ──
 # pypi 源：docker 构建环境直连 pypi.org/simple 超时（实测 20s+），且 uv 直连下载
 # wheel（Fastly CDN）带宽 ~0.1MB/s 卡死。正解 = uv export 生成 requirements
 # （本地操作零网络）→ pip -i 清华安装（清华页面 href 重写 → wheel 全走清华，
