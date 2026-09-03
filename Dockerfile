@@ -58,13 +58,16 @@ WORKDIR /app
 # 生成 requirements 后 pip 安装（见下），CI/开发仍 uv sync） ──
 # pypi 源：docker 构建环境直连 pypi.org/simple 超时（实测 20s+），且 uv 直连下载
 # wheel（Fastly CDN）带宽 ~0.1MB/s 卡死。正解 = uv export 生成 requirements
-# （本地操作零网络）→ pip -i 清华安装（清华页面 href 重写 → wheel 全走清华，
+# （本地操作零网络）→ pip -i 镜像安装（镜像页面 href 重写 → wheel 全走镜像，
 # 实测 40s 装完 395M）。uv.lock 仍是依赖单一真源（uv export --frozen 读它）。
 # uv 锁 0.11.24 与开发环境一致（export 语法/行为稳定）。
+# ⚠️ 镜像选择：**mirrors.cloud.tencent.com**（微信云托管/腾讯云构建机专用，内网
+# 直达不限流）。清华 TUNA（pypi.tuna.tsinghua.edu.cn）对云厂商 IP 段 403
+# （2026-09-03 微信云托管部署实测：HTTP 403 Forbidden 下载 wheel 被拒）。
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple 'uv==0.11.24' \
+RUN pip install --no-cache-dir -i https://mirrors.cloud.tencent.com/pypi/simple 'uv==0.11.24' \
     && uv export --frozen --no-dev --no-install-project > /tmp/requirements.txt \
-    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /tmp/requirements.txt \
+    && pip install --no-cache-dir -i https://mirrors.cloud.tencent.com/pypi/simple -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
 # ── dsh/ 家目录（pnpm 产物 + 本地插件构建产物；删除即卸载 DSH） ──
