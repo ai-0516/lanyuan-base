@@ -566,10 +566,11 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 - 启动：uvicorn（workers=1 起步）+ lifespan 拉起 DSH runtime
 - 环境变量：DEEPSEEK_API_KEY（凭证 seam）、DSH_*（显式设置）
 - **Dockerfile（M4 落地，仓库根 `Dockerfile`）**：多阶段构建
-  - 阶段 1（dsh-builder）：`node:20-slim` + corepack pnpm →
+  - 阶段 1（dsh-builder）：`node:22-slim` + corepack pnpm →
     `pnpm install --frozen-lockfile`（file: 本地插件 install 自动跑 prepare tsc
     编译到 lib/，再显式 `pnpm run build` 兜底）
-  - 阶段 2（runtime）：`python:3.12-slim` + Node 20 二进制（COPY 自 node 官方镜像）
+  - 阶段 2（runtime）：`python:3.12-slim` + Node 22 二进制（COPY 自 node 官方镜像；
+    node:20 跑 pnpm 11 报 node:sqlite 缺失——2026-09-03 docker 实测）
     → uv sync（--frozen --no-dev --no-install-project，与 CI/开发同源）→ COPY
     dsh/ 家目录（pnpm 产物）+ backend（app/ + alembic/ + tools/，含 MCP server）
   - CMD：`alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1`
