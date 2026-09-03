@@ -53,15 +53,16 @@ COPY --from=node:22-slim /usr/local/bin/npx /usr/local/bin/npx
 WORKDIR /app
 
 # ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
-# pypi 源：docker 构建环境直连 pypi.org/simple 慢/超时（实测 15s+ 卡死），清华镜像
-# 直连 0.05s。uv.lock 显式锁定 pypi.org registry（103 处）——UV_DEFAULT_INDEX
-# 不替换 lock 显式 registry（uv 0.11/0.12 均实测无效，uv 仍连 pypi Fastly），
-# 正解 = sed 把 lock registry 替换为清华：wheel 哈希不变仍按 lock 校验
-# （--frozen 接受 URL 改动，实测 120s 全量完成）。uv 锁 0.11.24 与开发环境一致。
+# pypi 源：docker 构建环境直连 pypi.org/simple 超时（实测 20s+），且 uv 直连下载
+# wheel（Fastly CDN）带宽 ~0.1MB/s 卡死。正解 = uv export 生成 requirements
+# （本地操作零网络）→ pip -i 清华安装（清华页面 href 重写 → wheel 全走清华，
+# 实测 40s 装完 395M）。uv.lock 仍是依赖单一真源（uv export --frozen 读它）。
+# uv 锁 0.11.24 与开发环境一致（export 语法/行为稳定）。
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple 'uv==0.11.24' \
-    && sed -i 's|https://pypi.org/simple|https://pypi.tuna.tsinghua.edu.cn/simple|g' uv.lock \
-    && uv sync --frozen --no-dev --no-install-project
+    && uv export --frozen --no-dev --no-install-project > /tmp/requirements.txt \
+    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 # ── dsh/ 家目录（pnpm 产物 + 本地插件构建产物；删除即卸载 DSH） ──
 COPY --from=dsh-builder /build/ ./dsh/
@@ -73,7 +74,7 @@ COPY backend/alembic.ini .
 # tools/mcp_server 在 backend/tools/（main.py import tools.mcp_server.main）
 COPY backend/tools ./tools/
 
-ENV PATH="/app/.venv/bin:$PATH"
+# 依赖已 pip 装进系统 python（/usr/local），uvicorn 直接从 PATH 取，无需 venv PATH
 
 # PR #98 review 修复（阻塞①③）：
 # - DSH_DIR 显式注入：镜像 `COPY backend/app ./app/` 打平 backend 层级后，
