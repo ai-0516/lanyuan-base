@@ -53,15 +53,15 @@ COPY --from=node:22-slim /usr/local/bin/npx /usr/local/bin/npx
 WORKDIR /app
 
 # ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
-# pypi 源：docker 构建环境直连 pypi.org 不通（代理慢/超时卡死，2026-09-03 实测），
-# pip 与 uv 都指向清华镜像（uv 经 UV_DEFAULT_INDEX 替换 lock 中 pypi.org registry，
-# 包哈希仍按 uv.lock 校验，与 CI/开发同源）。
-# ⚠️ uv 版本必须锁 0.11.24（与开发/CI 一致）：uv 0.12 起 UV_DEFAULT_INDEX 不再
-# 替换 lock 显式 pypi.org registry（实测容器 uv 0.12.9 仍连 pypi.org 卡死）
+# pypi 源：docker 构建环境直连 pypi.org/simple 慢/超时（实测 15s+ 卡死），清华镜像
+# 直连 0.05s。uv.lock 显式锁定 pypi.org registry（103 处）——UV_DEFAULT_INDEX
+# 不替换 lock 显式 registry（uv 0.11/0.12 均实测无效，uv 仍连 pypi Fastly），
+# 正解 = sed 把 lock registry 替换为清华：wheel 哈希不变仍按 lock 校验
+# （--frozen 接受 URL 改动，实测 120s 全量完成）。uv 锁 0.11.24 与开发环境一致。
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple 'uv==0.11.24' \
-    && UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple \
-       uv sync --frozen --no-dev --no-install-project
+    && sed -i 's|https://pypi.org/simple|https://pypi.tuna.tsinghua.edu.cn/simple|g' uv.lock \
+    && uv sync --frozen --no-dev --no-install-project
 
 # ── dsh/ 家目录（pnpm 产物 + 本地插件构建产物；删除即卸载 DSH） ──
 COPY --from=dsh-builder /build/ ./dsh/
