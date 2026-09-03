@@ -53,9 +53,13 @@ COPY --from=node:22-slim /usr/local/bin/npx /usr/local/bin/npx
 WORKDIR /app
 
 # ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
+# pypi 源：docker 构建环境直连 pypi.org 不通（代理慢/超时卡死，2026-09-03 实测），
+# pip 与 uv 都指向清华镜像（uv 经 UV_DEFAULT_INDEX 替换 lock 中 pypi.org registry，
+# 包哈希仍按 uv.lock 校验，与 CI/开发同源）
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN pip install --no-cache-dir uv \
-    && uv sync --frozen --no-dev --no-install-project
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv \
+    && UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple \
+       uv sync --frozen --no-dev --no-install-project
 
 # ── dsh/ 家目录（pnpm 产物 + 本地插件构建产物；删除即卸载 DSH） ──
 COPY --from=dsh-builder /build/ ./dsh/
