@@ -55,9 +55,11 @@ WORKDIR /app
 # ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
 # pypi 源：docker 构建环境直连 pypi.org 不通（代理慢/超时卡死，2026-09-03 实测），
 # pip 与 uv 都指向清华镜像（uv 经 UV_DEFAULT_INDEX 替换 lock 中 pypi.org registry，
-# 包哈希仍按 uv.lock 校验，与 CI/开发同源）
+# 包哈希仍按 uv.lock 校验，与 CI/开发同源）。
+# ⚠️ uv 版本必须锁 0.11.24（与开发/CI 一致）：uv 0.12 起 UV_DEFAULT_INDEX 不再
+# 替换 lock 显式 pypi.org registry（实测容器 uv 0.12.9 仍连 pypi.org 卡死）
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv \
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple 'uv==0.11.24' \
     && UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple \
        uv sync --frozen --no-dev --no-install-project
 
