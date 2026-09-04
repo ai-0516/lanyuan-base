@@ -2,28 +2,14 @@
  * 网络请求工具函数
  * 封装 HTTP 请求，统一处理 baseURL、错误码和登录态
  *
- * 双调用模式（2026-09-04 路线2，按 envVersion 自动分流）：
- * - 本地开发（develop）      → wx.request + BASE_URL（http://localhost:8000）
- * - 线上（trial / release）  → wx.cloud.callContainer（微信云托管私有链路，
+ * 双调用模式（2026-09-04 路线2，constants.USE_CLOUD 显式开关——开发者工具
+ * 可改 true 直接联调云托管线上链路）：
+ * - USE_CLOUD=false（本地）→ wx.request + BASE_URL（http://localhost:8000）
+ * - USE_CLOUD=true（云托管）→ wx.cloud.callContainer（微信云托管私有链路，
  *   平台自动注入 x-wx-openid 等用户身份 header，免公网/免登录态交换）
  */
 
-const { BASE_URL, CLOUD_CONFIG } = require('./constants')
-
-/**
- * 是否为线上模式（wx.cloud.callContainer）
- * 微信 envVersion：develop（开发者工具/开发版）/ trial（体验版）/ release（正式版）
- * @returns {boolean}
- */
-function isCloudMode() {
-  try {
-    const { miniProgram } = wx.getAccountInfoSync()
-    return miniProgram.envVersion === 'trial' || miniProgram.envVersion === 'release'
-  } catch (e) {
-    // 极老基础库无 getAccountInfoSync → 按本地模式处理
-    return false
-  }
-}
+const { BASE_URL, CLOUD_CONFIG, USE_CLOUD } = require('./constants')
 
 /**
  * 将请求 URL 转为云托管容器内 path
@@ -89,7 +75,7 @@ function _doRequest({ url, method = 'GET', data, header }) {
       ...header
     };
 
-    if (isCloudMode()) {
+    if (USE_CLOUD) {
       // 线上：微信云托管私有链路（免公网，平台注入 x-wx-openid）
       // callContainer 需基础库 ≥2.19.1（wx.cloud 自 2.2.3 起提供，callContainer 更晚）；
       // 缺失时显式 reject 带可读错误（避免 TypeError 空指针，页面 toast 可展示）
@@ -144,4 +130,4 @@ function post(url, data, header) {
   return request({ url, method: 'POST', data, header });
 }
 
-module.exports = { request, get, post, BASE_URL, isCloudMode };
+module.exports = { request, get, post, BASE_URL };

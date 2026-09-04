@@ -9,18 +9,25 @@
 const BASE_URL = 'http://localhost:8000/api/v1'
 
 /**
- * 微信云托管配置（线上模式 / wx.cloud.callContainer，2026-09-04 路线2）
+ * 调用模式开关（2026-09-04 路线2）：true = 云托管模式 / false = 本地模式
+ * - false（默认）：wx.request + wx.connectSocket(ws://localhost) 连本地后端
+ * - true：wx.cloud.callContainer + wx.cloud.connectContainer 走微信云托管
+ *   私有链路（**开发者工具可手动改 true 直接联调云托管线上链路**，
+ *   无需等体验版；发布体验版/正式版前切回 false 或置 true 按部署需求）
+ */
+const USE_CLOUD = false
+
+/**
+ * 微信云托管配置（线上模式，USE_CLOUD=true 时生效）
  * - ENV：云托管环境 ID（控制台可见）
- * - SERVICE：云托管服务名（X-WX-SERVICE header 值）
- * 调用方式切换见 utils/request.js isCloudMode()（按 envVersion 自动分流：
- * develop → 本地直连；trial/release → callContainer）
+ * - SERVICE：云托管服务名（X-WX-SERVICE header 值 / connectContainer service）
+ * 说明：v1/v2 HTTP 走 callContainer、ai-chat WS 流式走 connectContainer
+ * （同一条微信私有链路）——都不需要公网域名，也不依赖 mp 后台域名配置；
+ * 「公网访问」可关闭 → WX_TRUST_OPENID_HEADER 信任门控部署前提成立
  */
 const CLOUD_CONFIG = {
   ENV: 'test-d2gizr8ena300c58e',
   SERVICE: 'lanyuan-base',
-  // 说明：v1/v2 HTTP 走 callContainer、ai-chat WS 流式走 connectContainer
-  // （同一条微信私有链路）——都不需要公网域名/HOST，也不依赖 mp 后台域名配置；
-  // 「公网访问」可关闭 → WX_TRUST_OPENID_HEADER 信任门控部署前提成立
 }
 
 /**
@@ -111,6 +118,7 @@ function fullUrl(path) {
 module.exports = {
   BASE_URL,
   V2_BASE_URL,
+  USE_CLOUD,
   CLOUD_CONFIG,
   SERVER_HOST,
   fullUrl,

@@ -1,5 +1,5 @@
-const { request, isCloudMode } = require('../../utils/request');
-const { V2_BASE_URL, CLOUD_CONFIG } = require('../../utils/constants');
+const { request } = require('../../utils/request');
+const { V2_BASE_URL, CLOUD_CONFIG, USE_CLOUD } = require('../../utils/constants');
 const app = getApp();
 
 Page({
@@ -133,9 +133,10 @@ Page({
    *   turn/start → 回合边界；user/message → 用户气泡；step/start → 新 AI 气泡；
    *   assistant/chunk → text-delta 追加；turn/end → 回合收尾；error 帧 → 错误收尾
    *
-   * 通道（2026-09-04 第 3 轮 review 修正——不走云托管公网域名）：
-   * - develop  → wx.connectSocket（ws://localhost，开发者工具连本地后端）
-   * - trial/release → wx.cloud.connectContainer（微信云托管私有链路，与
+   * 通道（2026-09-04 修正——不走云托管公网域名，用 constants.USE_CLOUD 显式
+   * 开关而非 envVersion 自动分流，开发者工具可置 true 直接联调云端）：
+   * - USE_CLOUD=false → wx.connectSocket（ws://localhost，连本地后端）
+   * - USE_CLOUD=true → wx.cloud.connectContainer（微信云托管私有链路，与
    *   callContainer 同源：免公网域名、免 mp 后台 socket 合法域名配置、不依赖
    *   「公网访问」开关 → WX_TRUST_OPENID_HEADER 信任门控部署前提（公网已关闭）
    *   可同时成立。socketTask 与 connectSocket 返回值同构，事件处理零差异；
@@ -146,9 +147,10 @@ Page({
     const token = wx.getStorageSync('token') || '';
 
     let socket;
-    if (isCloudMode()) {
-      // 线上：云托管私有链路（connectContainer 需基础库 ≥2.21.1；缺失时
-      // 显式可读提示，与 request.js callContainer 守卫同款语义）
+    if (USE_CLOUD) {
+      // 云托管：私有链路 connectContainer（需基础库 ≥2.21.1；缺失时
+      // 显式可读提示，与 request.js callContainer 守卫同款语义）——
+      // 开发者工具把 constants.USE_CLOUD 置 true 即可直接联调云端
       if (!wx.cloud || typeof wx.cloud.connectContainer !== 'function') {
         this.handleStreamError('云能力不可用：请升级微信基础库（≥2.21.1）后重试');
         return;

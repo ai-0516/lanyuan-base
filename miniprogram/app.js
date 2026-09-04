@@ -1,6 +1,6 @@
 const auth = require('./utils/auth')
 const http = require('./utils/request')
-const { isCloudMode } = require('./utils/request')
+const { USE_CLOUD } = require('./utils/constants')
 
 App({
   /** towxml Markdown 渲染 */
@@ -50,9 +50,10 @@ App({
       self.globalData.userInfo = null
     }
 
-    // 云托管调用初始化（仅线上模式需要；wx.cloud.init env 可留空——
-    // callContainer 的 config.env 已显式指定云托管环境 ID，见 constants CLOUD_CONFIG）
-    if (isCloudMode()) {
+    // 云托管调用初始化（USE_CLOUD=true 才需要；wx.cloud.init env 可留空——
+    // callContainer/connectContainer 的 config.env 已显式指定云托管环境 ID，
+    // 见 constants CLOUD_CONFIG）
+    if (USE_CLOUD) {
       if (!wx.cloud) {
         console.error('[App] 当前基础库不支持云能力（wx.cloud），请升级基础库 ≥2.2.3')
       } else {
