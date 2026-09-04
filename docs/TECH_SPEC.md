@@ -329,12 +329,10 @@ code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签
 3. 生成 JWT (含 user_id) → 返回
 4. 前端存储 token 到 wx.Storage
 ```
-> **安全门控（2026-09-04 review 修复）**：`x-wx-openid` 是普通 HTTP header，HTTP 层
-> 可伪造——云托管服务「公网访问」开着时，外部请求可直达容器并自带头冒充任意用户。
-> 因此后端**默认不信任**该 header（`WX_TRUST_OPENID_HEADER=false`，忽略之、走 code
-> 路径）。**开启前提：云托管服务公网访问已关闭**（公网关闭后无平台 header 的请求 =
-> 无身份来源，无法伪装）；开启后平台注入的 openid 还需通过格式校验（≤64 位
-> `[A-Za-z0-9_-]`，对齐 DB varchar(64)），非法值直接 400 拒绝、不落库。
+> **信任前提（2026-09-04 定案）**：`x-wx-openid` 由微信云托管私有链路（callContainer /
+> connectContainer）平台注入——**服务公网访问关闭**是信任前提（公网关闭后私有链路
+> 外部不可达，客户端无法伪造该 header）。后端直接信任 header 优先登录；header 值
+> 仍需格式校验（≤64 位 `[A-Za-z0-9_-]`，对齐 DB varchar(64)），非法值 400 拒绝、不落库。
 
 路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端 code2session 换
 openid（mock 配置下全 mock）：
@@ -541,7 +539,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| POST | `/auth/login` | 微信登录 | `{ code }`（云托管链路 `x-wx-openid` header 优先，但受 `WX_TRUST_OPENID_HEADER` 信任开关门控，默认忽略；非法格式 40013） | `{ token, user }` |
+| POST | `/auth/login` | 微信登录 | `{ code }`（云托管链路 `x-wx-openid` header 优先——公网访问关闭前提下平台注入可信；非法格式 40013） | `{ token, user }` |
 | GET | `/auth/check` | 检查 token 是否有效 | — | `{ valid: bool }` |
 
 ### 4.2 用户

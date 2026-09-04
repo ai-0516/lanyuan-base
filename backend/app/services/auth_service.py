@@ -21,8 +21,8 @@ async def login(
     """微信登录：查或创建用户，返回 JWT
 
     openid 两种来源：
-    - openid 参数（云托管 x-wx-openid header，2026-09-04 路线2；**信任门控在 API 层**：
-      auth.py 仅在 WX_TRUST_OPENID_HEADER=true 时解析 header 并做格式校验）
+    - openid 参数（云托管 x-wx-openid header，2026-09-04 路线2；平台注入可信，
+      格式校验在 API 层 auth.py 完成）
     - code 换 session（开发环境 / 传统链路）
     """
     # 平台注入 openid（云托管 callContainer）→ 跳过 code2session。
