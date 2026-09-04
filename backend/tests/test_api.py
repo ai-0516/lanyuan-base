@@ -78,6 +78,57 @@ async def test_login(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_login_with_wx_openid_header(client: AsyncClient):
+    """路线2：云托管 callContainer 注入 x-wx-openid → 免 code2session 直接登录
+
+    验证：openid 按 header 落库（而非 code mock 的 openid），且幂等复用同一用户
+    """
+    from sqlalchemy import select
+
+    from app.core.database import async_session_factory
+    from app.models.user import User
+
+    headers = {"x-wx-openid": "openid_callcontainer_001"}
+    # code 带任意值（甚至 mock_code）也必须被忽略——header 优先
+    resp1 = await client.post(
+        "/api/v1/auth/login", json={"code": "mock_code", "nickname": "云端用户"}, headers=headers
+    )
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["code"] == 0
+    assert "token" in data1["data"]
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(User).where(User.openid == "openid_callcontainer_001")
+        )
+        user = result.scalar_one_or_none()
+    assert user is not None, "应使用 header openid 建号（而非 mock_code 的 test_openid_0）"
+    assert user.nickname == "云端用户"
+
+    # 幂等：同一 openid 再登录 → 同一 user
+    resp2 = await client.post(
+        "/api/v1/auth/login", json={"code": "other_code"}, headers={"x-wx-openid": "openid_callcontainer_001"}
+    )
+    data2 = resp2.json()
+    assert data2["data"]["user"]["id"] == data1["data"]["user"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_login_header_blank_treated_as_absent(client: AsyncClient):
+    """空 header 值视为无 header → 走 code 路径（开发环境行为不回归）"""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"code": "test_user_blank_header"},
+        headers={"x-wx-openid": ""},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["code"] == 0
+    assert "token" in data["data"]
+
+
+@pytest.mark.asyncio
 async def test_login_same_user(client: AsyncClient):
     """同个 code 登录返回同一用户"""
     resp1 = await client.post("/api/v1/auth/login", json={"code": "same_user"})

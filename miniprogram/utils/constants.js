@@ -5,12 +5,25 @@
  * 修改 API 地址只需改此处 BASE_URL
  */
 
-/** API 基础地址（开发时可切换为局域网 IP） */
+/** API 基础地址（开发时可切换为局域网 IP）——仅本地开发模式（wx.request）使用 */
 const BASE_URL = 'http://localhost:8000/api/v1'
+
+/**
+ * 微信云托管配置（线上模式 / wx.cloud.callContainer，2026-09-04 路线2）
+ * - ENV：云托管环境 ID（控制台可见）
+ * - SERVICE：云托管服务名（X-WX-SERVICE header 值）
+ * 调用方式切换见 utils/request.js isCloudMode()（按 envVersion 自动分流：
+ * develop → 本地直连；trial/release → callContainer）
+ */
+const CLOUD_CONFIG = {
+  ENV: 'test-d2gizr8ena300c58e',
+  SERVICE: 'lanyuan-base',
+}
 
 /**
  * v2 AI API 基础地址（TECH_SPEC §9：v2 只新增 /api/v2/ai/*，业务 API 维持
  * /api/v1 不变——仅 ai-chat 页消费 v2 事件集）
+ * 注意：cloud 模式下 request.js 会把绝对 URL 转成容器内 path（/api/v2/...）
  */
 const V2_BASE_URL = 'http://localhost:8000/api/v2'
 
@@ -95,6 +108,7 @@ function fullUrl(path) {
 module.exports = {
   BASE_URL,
   V2_BASE_URL,
+  CLOUD_CONFIG,
   SERVER_HOST,
   fullUrl,
   REQUEST_TIMEOUT,
