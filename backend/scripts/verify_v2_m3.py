@@ -11,9 +11,10 @@
    （无映射 fail-closed 拒绝）
 5. 会话统一创建点（PR #97 review 定案）：get_or_create_session_v2（复用最近
    会话或新建 + owner 映射）→ DSH 首次对话 resume 空 session 正常物化 agent
-6. chat 归属校验 HTTP 端到端（PR #97 dev-lead 第三轮建议）：真实 FastAPI 进程 +
-   真实 MySQL owner 映射——owner 本人 200 放行 / 他人 403 / 无映射 403
-   （HTTP POST /api/v2/ai/chat，不再是 dsh_runtime.run 直调绕过入口）
+6. chat 归属校验 WS 端到端（PR #97 dev-lead 第三轮建议；2026-09-04 路线2 流式
+   通道 SSE HTTP → WebSocket 统一）：真实 FastAPI 进程 + 真实 MySQL owner
+   映射——owner 本人事件流放行（turn/end）/ 他人 4403 / 无映射 4403
+   （WS /api/v2/ai/chat/ws 首帧 token，不再是 dsh_runtime.run 直调绕过入口）
 7. M4 历史列表端点（PR #98 dev-lead review 建议）：真实 MySQL 投影路径防回归——
    GET /api/v2/ai/session/{id}/messages owner 200 + 投影非空 / 他人 403
 
@@ -134,58 +135,61 @@ async def check_mysql_tables(session_id: str) -> None:
         assert (await db.execute(text("SELECT COUNT(*) FROM persistence_state"))).scalar_one() == 1
 
 
-async def check_chat_ownership_http(session_id: str, port: int) -> None:
-    """⑥ chat 归属校验 HTTP 端到端（PR #97 dev-lead 第三轮建议）。
+async def check_chat_ownership_ws(session_id: str, port: int) -> None:
+    """⑥ chat 归属校验 WS 端到端（2026-09-04 路线2：SSE HTTP POST /chat 退役 →
+    WebSocket /chat/ws 统一流式通道；鉴权 = 首帧 token + 归属 = owner 映射）。
 
     真实 FastAPI 进程（uvicorn:port）+ 真实 MySQL owner 映射：
-    - owner 本人（USER_ID）→ 200 放行：归属校验在 chat handler 内、
-      StreamingResponse 返回**之前**完成（HTTP 200 本身即放行证明）；随即
-      关闭连接不消费流，避免多跑一轮完整对话（_stream_chat finally 会
-      cancel 后台 run_task，to_thread 线程自身跑完、结果丢弃，无副作用）
-    - 他人（USER_ID+1）→ 403（进流前拒绝，零 LLM 成本）
-    - 无映射（随机 uuid）→ 403
+    - owner 本人（USER_ID）→ 事件流放行，收到 turn/end（真实对话链路 +
+      归属校验通过的双重证明）
+    - 他人（USER_ID+1）→ error 帧 + close 4403（进流前拒绝，零 LLM 成本）
+    - 无映射（随机 uuid）→ error 帧 + close 4403
     """
-    import httpx
+    import json
+
+    from websockets import connect
+    from websockets.exceptions import ConnectionClosed
 
     from app.core.security import create_access_token
 
-    url = f"http://127.0.0.1:{port}/api/v2/ai/chat"
-    owner_headers = {"Authorization": f"Bearer {create_access_token(USER_ID)}"}
-    other_headers = {"Authorization": f"Bearer {create_access_token(USER_ID + 1)}"}
+    url = f"ws://127.0.0.1:{port}/api/v2/ai/chat/ws"
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        # ① owner 本人 → 200 放行：归属校验在 chat handler 内、
-        #    StreamingResponse 返回**之前**完成（HTTP 200 本身即放行证明）。
-        #    消费完整 SSE 流到 turn/end：一是顺带验证真实对话链路走 HTTP 入口
-        #    正常（不再 dsh_runtime.run 直调），二是避免提前关闭连接导致
-        #    _stream_chat finally cancel 掉 to_thread 的 DSH run——线程不可
-        #    中断会继续跑完整对话，在 server 关闭后打 /mcp 产生幽灵 500 噪音
-        seen_turn_end = False
-        async with client.stream(
-            "POST", url, headers=owner_headers,
-            json={"message": "请回复：OK", "session_id": session_id},
-        ) as resp:
-            assert resp.status_code == 200, f"owner 本人应 200 放行，实际 {resp.status_code}"
-            assert resp.headers.get("content-type", "").startswith("text/event-stream")
-            async for line in resp.aiter_lines():
-                if line.startswith("data: ") and '"type": "turn/end"' in line:
-                    seen_turn_end = True
-                    break
-        assert seen_turn_end, "HTTP chat 流未收到 turn/end（对话未正常完成）"
-        print("[verify] chat 归属校验 HTTP：owner 本人 → 200 放行 + 完整对话链路 ✓")
+    # ① owner 本人 → 事件流放行 + 完整对话链路（turn/end 到达）
+    seen_turn_end = False
+    async with connect(url, open_timeout=30) as ws:
+        await ws.send(json.dumps({
+            "token": create_access_token(USER_ID),
+            "session_id": session_id,
+            "message": "请回复：OK",
+        }))
+        async for raw in ws:
+            frame = json.loads(raw)
+            if frame.get("type") == "turn/end":
+                seen_turn_end = True
+                break
+    assert seen_turn_end, "WS chat 流未收到 turn/end（对话未正常完成）"
+    print("[verify] chat 归属校验 WS：owner 本人 → 事件流放行 + 完整对话链路 ✓")
 
-        resp_other = await client.post(
-            url, headers=other_headers,
-            json={"message": "hi", "session_id": session_id},
-        )
-        assert resp_other.status_code == 403, f"他人应 403，实际 {resp_other.status_code}"
+    async def expect_rejected(token_delta: int | None, sid: str, label: str) -> None:
+        """预期被拒：error 帧后服务端 close（4403）——recv 抛 ConnectionClosed"""
+        token = create_access_token(USER_ID if token_delta is None else USER_ID + token_delta)
+        rejected = False
+        try:
+            async with connect(url, open_timeout=30) as ws:
+                await ws.send(json.dumps(
+                    {"token": token, "session_id": sid, "message": "hi"}
+                ))
+                frame = json.loads(await ws.recv())
+                assert frame.get("type") == "error", f"{label} 应收到 error 帧: {frame}"
+                await ws.recv()  # 服务端随后 close → ConnectionClosed
+        except ConnectionClosed as e:
+            assert e.code == 4403, f"{label} close code 应 4403，实际 {e.code}"
+            rejected = True
+        assert rejected, f"{label} 应被拒绝（连接未关闭）"
 
-        resp_none = await client.post(
-            url, headers=owner_headers,
-            json={"message": "hi", "session_id": str(uuid.uuid4())},
-        )
-        assert resp_none.status_code == 403, f"无映射应 403，实际 {resp_none.status_code}"
-    print("[verify] chat 归属校验 HTTP：他人 403 / 无映射 403 ✓")
+    await expect_rejected(1, session_id, "他人")
+    await expect_rejected(None, str(uuid.uuid4()), "无映射")
+    print("[verify] chat 归属校验 WS：他人 4403 / 无映射 4403 ✓")
 
 
 async def check_messages_endpoint(session_id: str, port: int) -> None:
@@ -329,10 +333,11 @@ async def main() -> None:
         assert not errors, f"工具失败（身份查询/注入链路问题）: {errors}"
         print(f"[verify] 身份查询链路：session_id（纯 uuid）→ 内部端点 → _meta.user_id={USER_ID} ✓")
 
-        # ── ⑥ chat 归属校验 HTTP 端到端（dev-lead 第三轮建议）──
-        # 前 5 步的对话都走 dsh_runtime.run 直调（绕过 HTTP 入口），本步补齐
-        # 真实 HTTP POST /api/v2/ai/chat 的归属校验断言（200/403/403）
-        await check_chat_ownership_http(session_id, mcp_port)
+        # ── ⑥ chat 归属校验 WS 端到端（dev-lead 第三轮建议；2026-09-04 路线2
+        # 流式通道 SSE HTTP → WebSocket）──
+        # 前 5 步的对话都走 dsh_runtime.run 直调（绕过入口），本步补齐
+        # 真实 WS /api/v2/ai/chat/ws 的归属校验断言（turn/end / 4403 / 4403）
+        await check_chat_ownership_ws(session_id, mcp_port)
 
         # ── ⑦ M4 历史列表端点（PR #98 review 建议）：真实 MySQL 投影路径 ──
         # 前 6 步已在 events 表落真实对话事件 → GET /messages 走真实 SQL

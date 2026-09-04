@@ -1,32 +1,35 @@
-"""v2 AI 对话 API（SSE 事件流，TECH_SPEC §9.1）+ v2 会话统一创建点
+"""v2 AI 对话 API（WebSocket 事件流，TECH_SPEC §9.1）+ v2 会话统一创建点
 
 与 v1 /api/v1/ai/chat 区分：响应是 DSH 事件白名单子集（§4.2），
 不再是 v1 的 token/done/error。
 
+2026-09-04（路线2）：v2 chat 流式统一 WebSocket（/chat/ws，逐帧 JSON
+{type, data}）——微信云托管 callContainer 不支持 enableChunked（SSE 通道
+在云端不可用），SSE POST /chat 端点已删除。
+
 M3（issue #90）会话演进（§5.1 退役 / §5.3 落地；PR #97 review 定案）：
 - **前端先创建 session**：POST /api/v2/ai/session（ai_service.get_or_create_session_v2，
-  统一创建点）→ 返回 session_id；对话请求必须携带（不带 → 422）
+  统一创建点）→ 返回 session_id；对话必须携带（不带 → 拒绝）
 - 对话复用：DSH 侧 get-or-load-or-create（内存复用 / 持久化 resume / 兜底 create），
   同 id 续写；session id 纯 uuid（§6.3：不再编码 user_id）
 - FastAPI 是身份权威：owner 映射在创建时写入 sessions 表 owner_user_id（§8.2），
   DSH 侧桥插件经内部身份端点 GET /api/v2/internal/sessions/{id}/owner 查 owner（§6.3）
-- session id 经响应头 `X-Session-Id` 回传（事件流保持 DSH 事件原样，§4.1 不改写）
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket
 
 from app.ai.dsh_runtime import dsh_runtime
-from app.ai.event_layer import format_sse, is_done_event, should_forward
+from app.ai.event_layer import is_done_event, should_forward
 from app.ai.history import project_messages
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.security import decode_access_token
 from app.services.ai_service import get_or_create_session_v2, get_session_owner
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -35,22 +38,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI 对话 v2"])
 
-SSE_HEADERS = {
-    "Cache-Control": "no-cache",
-    "X-Accel-Buffering": "no",
-    "Connection": "keep-alive",
-}
 
+async def _chat_events(prompt: str, session_id: str, user_id: int):
+    """DSH 事件 → 白名单过滤生成器（传输无关，2026-09-04：SSE 帧 → 事件 dict）
 
-class ChatRequestV2(BaseModel):
-    message: str
-    # M3（PR #97 review 定案）：前端先经 POST /api/v2/ai/session 创建 session，
-    # 对话请求必须携带 session_id（服务端不再生成）
-    session_id: str
-
-
-async def _stream_chat(prompt: str, session_id: str, user_id: int):
-    """事件层过滤 → SSE 帧（2b 验证过的队列模式；M3：session 复用，同 id 续写）"""
+    2b 验证过的队列模式；M3：session 复用，同 id 续写。产出事件结构
+    {type, data}（与 event_layer 白名单一致，WS 逐帧 JSON 发送）。
+    """
     loop = asyncio.get_running_loop()
     q: asyncio.Queue = asyncio.Queue()
 
@@ -67,19 +61,89 @@ async def _stream_chat(prompt: str, session_id: str, user_id: int):
             if n.method == "session.event":
                 event = n.payload.get("event") or {}
                 if should_forward(event):
-                    yield format_sse(event)
+                    yield {"type": event.get("type"), "data": event.get("data") or {}}
                     if is_done_event(event):
                         break
             elif n.method == "session.status" and n.payload.get("status") == "idle":
                 # done 兜底（§4.3；正常路径 turn/end 已 break）
                 break
     except Exception:
-        logger.exception("v2 chat SSE 流异常")
-        yield "event: error\ndata: {\"message\": \"请重试\"}\n\n"
+        logger.exception("v2 chat 事件流异常")
+        yield {"type": "error", "data": {"message": "请重试"}}
     finally:
         if not run_task.done():
             run_task.cancel()
         await asyncio.gather(run_task, return_exceptions=True)
+
+
+async def _ws_error(websocket: WebSocket, code: int, message: str) -> None:
+    """WS 失败路径：先推 error 帧（前端可读文案）再关闭连接"""
+    try:
+        await websocket.send_text(
+            json.dumps({"type": "error", "data": {"message": message}}, ensure_ascii=False)
+        )
+    except Exception:
+        pass
+    await websocket.close(code=code)
+
+
+@router.websocket("/chat/ws")
+async def chat_ws(websocket: WebSocket):
+    """v2 对话（WebSocket 流式，2026-09-04 路线2：SSE 在微信云托管不可用，
+    callContainer 不支持流式 → 统一 WS 单一通道）。
+
+    协议（一轮对话 = 一条连接）：
+    1. 连接后首帧 {token, session_id, message}（JWT 放帧内——URL/header
+       不携带敏感信息；10s 内未收到 → 1008）
+    2. 校验：token 无效 → 4401；session 非本人/不存在 → 4403（fail-closed，
+       owner 校验复用 messages 端点同款语义）
+    3. 通过后逐帧推送 {type, data}（白名单子集 §4.2，DSH 原样），
+       turn/end / 兜底 idle 后关闭（1000）
+    4. 任何失败：先推 error 帧（{type:"error", data:{message}}）再 close
+    """
+    await websocket.accept()
+    try:
+        first = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+    except Exception:
+        await websocket.close(code=1008)
+        return
+
+    token = str(first.get("token") or "").strip()
+    message = str(first.get("message") or "").strip()
+    session_id = str(first.get("session_id") or "").strip()
+    if not message:
+        await _ws_error(websocket, 1008, "消息不能为空")
+        return
+    if not session_id:
+        await _ws_error(websocket, 1008, "缺少 session_id")
+        return
+
+    payload = decode_access_token(token) if token else None
+    user_id = int(payload.get("sub", 0)) if payload else 0
+    if user_id <= 0:
+        await _ws_error(websocket, 4401, "登录已过期，请重新登录")
+        return
+
+    # 归属校验（PR #97 review：session owner 必须是调用者本人，防横向越权）
+    from app.core.database import async_session_factory
+
+    async with async_session_factory() as db:
+        owner = await get_session_owner(db, session_id)
+    if owner is None or owner != user_id:
+        await _ws_error(websocket, 4403, "会话不存在或无权访问")
+        return
+
+    try:
+        async for evt in _chat_events(message, session_id, user_id):
+            await websocket.send_text(json.dumps(evt, ensure_ascii=False))
+    except Exception:
+        logger.exception("v2 chat WS 推送异常")
+        try:
+            await _ws_error(websocket, 1011, "请重试")
+        except Exception:
+            pass
+        return
+    await websocket.close(code=1000)
 
 
 @router.post("/session")
@@ -169,35 +233,3 @@ async def session_messages(
         "has_more": has_more,
     }
 
-
-@router.post("/chat")
-async def chat(
-    data: ChatRequestV2,
-    user_id: int = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    if not data.message.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="消息不能为空")
-
-    # M3：session_id 必填（前端先创建，§5.3 统一创建点）；id 即身份（§6.3）
-    session_id = data.session_id.strip()
-    if not session_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="缺少 session_id")
-
-    # M3（PR #97 dev-lead review）：session 归属校验——owner 必须是调用者本人。
-    # 前端先经 POST /api/v2/ai/session 创建（owner 映射必然存在）；owner 缺失
-    # （绕过统一创建点）或非本人 → 403 拒绝（统一 403，防 session 枚举）。
-    # 否则调用者 B 持 A 的 session_id 可 resume A 会话上下文，且工具以 A 身份
-    # 执行（get_my_profile/记忆等均为 A 的）——横向越权（PR #94 /mcp 同类修复）。
-    owner = await get_session_owner(db, session_id)
-    if owner is None or owner != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="session 不存在或无权访问",
-        )
-
-    return StreamingResponse(
-        _stream_chat(data.message.strip(), session_id, user_id),
-        media_type="text/event-stream",
-        headers={**SSE_HEADERS, "X-Session-Id": session_id},
-    )

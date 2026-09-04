@@ -33,8 +33,9 @@
 
 ```
 微信小程序 → FastAPI（唯一后端，不变）
-              ├─ /api/v2/ai/chat: 认证 → 新 DSH session（uuid，无注入）→ Python SDK → DSH runtime（Node 子进程）
-              │            → on_notification 事件层过滤 → SSE（§4，事件格式原样）
+              ├─ /api/v2/ai/chat/ws（WebSocket，2026-09-04 路线2：SSE → WS 统一）:
+              │      认证（首帧 token）→ session 归属 → Python SDK → DSH runtime（Node 子进程）
+              │      → on_notification 事件层过滤 → WS 逐帧 JSON（§4，事件格式原样）
               ├─ 业务工具桥: 每 worker 一个 Python MCP server 进程（@tool schema 复用）
               └─ MySQL（业务数据 + 会话日志）
 ```
@@ -102,15 +103,21 @@ lanyuan-base/
     └── mysql-persistence/         # 中期：MySQL PersistenceBackend 插件（TS → dist/）
 ```
 
-### 3.3 请求数据流（/api/v2/ai/chat）
+### 3.3 请求数据流（WebSocket /api/v2/ai/chat/ws）
+
+2026-09-04 路线2：SSE（wx.request enableChunked）在微信云托管不可用
+（callContainer 不支持流式）→ v2 对话流式**统一 WebSocket 单一通道**，
+事件协议不变（§4 白名单 {type, data} 原样），仅传输从 SSE 帧换 WS 逐帧 JSON。
 
 ```
-1. 前端 → POST /api/v2/ai/chat（认证通过）
-2. FastAPI 创建新 DSH session（uuid），直接发本次请求——**前期无 resume 能力，不做历史注入**（2026-08-23 用户定；M3 get-or-load-or-create 后改为复用/恢复）
+1. 前端 wx.connectSocket（wss://云托管域名 或 开发 ws://localhost）→ 首帧
+   {token, session_id, message}（JWT 放帧内，不进 URL/header）
+2. FastAPI 校验 token（4401）→ session owner 归属（4403，M3 起复用/恢复）
 3. harness.run(prompt, on_notification=...)
-4. on_notification 实时到达 → event_layer 过滤 → SSE 帧 → 前端（§4）
-5. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
-6. 工具调用 → DSH 内部调 MCP server（§6）→ 结果回 agent → 继续/结束
+4. on_notification 实时到达 → event_layer 过滤 → WS 帧 {type, data} → 前端（§4）
+5. turn/end / idle 兜底 → 服务端关闭连接（1000）；失败先推 error 帧再关闭
+6. 回复即 DSH session 日志（MySQL events 表，M3 起）；前端历史列表从日志派生（§10）
+7. 工具调用 → DSH 内部调 MCP server（§6）→ 结果回 agent → 继续/结束
 ```
 
 ## 4. 事件层（薄）：过滤起步，扩展点预留
@@ -147,12 +154,12 @@ lanyuan-base/
 
 | 职责 | 说明 |
 |---|---|
-| 事件过滤 | 白名单（§4.2）：非白名单事件只后端消费，不写 SSE（初期唯一职责） |
-| SSE 帧包装 | `event: <type>\ndata: <json>\n\n`（白名单事件原样透传 type + data） |
-| 认证 | 请求鉴权通过才建立流 |
+| 事件过滤 | 白名单（§4.2）：非白名单事件只后端消费，不产出给前端（初期唯一职责） |
+| 帧化（传输层） | 2026-09-04 起 v2 chat 统一 WebSocket：WS 逐帧 JSON `{type, data}`（白名单事件原样透传）；SSE 帧函数 format_sse 随 SSE 通道退役删除 |
+| 认证 | 请求鉴权通过才建立流（WS：首帧 token 校验） |
 | user_id 绑定 | 会话与用户绑定（§6 注入用） |
 | done 判定 | `turn/end`（reason.kind）或 `session.status=idle` 兜底 → 关流 |
-| 错误处理 | runtime 崩溃（TransportClosedError）→ SSE error 帧 + 日志；**不暴露内部错误详情**（v1 规则沿用：只写「请重试」，traceback 记 error.log） |
+| 错误处理 | runtime 崩溃（TransportClosedError）→ error 帧（WS `{type:"error"}`）+ 日志；**不暴露内部错误详情**（v1 规则沿用：只写「请重试」，traceback 记 error.log） |
 | 断连 | 前端断开 → 取消 run（cancel 语义） |
 | 扩展点（预留） | 翻译/改写按需加入：管道式结构（filter → [改写] → frame），初期改写环节为空 |
 
@@ -214,7 +221,7 @@ lanyuan-base/
 
 ```
 FastAPI 进程（uvicorn worker）
-  ├─ /api/v2/ai/chat: DSH runtime（Node 子进程）→ 桥插件（HTTP client）
+  ├─ /api/v2/ai/chat/ws: DSH runtime（Node 子进程）→ 桥插件（HTTP client）
   └─ /mcp: MCP server 挂载（fastmcp streamable-http，§6.2）
        └─ 业务工具（@mcp_tool 原生注册，§6.4b，连 MySQL）
 ```
@@ -275,7 +282,7 @@ DSH 侧（扩展 @lanyuan/dsh-mcp-client）：
 ```
 
 - 收益：session_id 恢复纯会话标识（不再有字符串格式约定）；身份权威收归 FastAPI；M3 会话复用天然满足"同会话多轮身份一致"
-- **入口归属校验（PR #97 dev-lead review）**：`POST /api/v2/ai/chat` 在进入 DSH
+- **入口归属校验（PR #97 dev-lead review）**：`WS /api/v2/ai/chat/ws`（2026-09-04 SSE → WS）在进入 DSH
   前校验 `sessions.owner_user_id == 调用者 JWT user_id`（§9.1）——session_id 本身
   不构成身份凭证，授权以 JWT 为准；越权/无映射 → 403（fail-closed）。与本节
   桥层注入形成闭环：**入口（FastAPI 校验调用者身份）+ 执行（桥按 session 查
@@ -483,7 +490,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ### 9.1 /api/v2/ai/chat（v2 专属路径，与 v1 区分）
 
-- **路径：`POST /api/v2/ai/chat`**（2026-08-23 用户定——v2 响应事件集与 v1 完全不同（DSH 事件 vs token/done），同路径返回不同格式易混淆；v2 用版本化路径 `/api/v2`，v1 的 `/api/v1/ai/chat` 保留给旧前端/兼容期）
+- **路径：`WS /api/v2/ai/chat/ws`**（2026-08-23 用户定版本化 `/api/v2`；2026-09-04 路线2：传输改 WebSocket——SSE 的 enableChunked 在微信云托管 callContainer 不可用。事件集与 v1 完全不同（DSH 事件 vs token/done）；v1 的 `/api/v1/ai/chat`（SSE）保留给旧前端/兼容期）
 - **会话创建：`POST /api/v2/ai/session`**（PR #97 review 定案：前端先创建 session，
   再发起对话——`ai_service.get_or_create_session_v2` 为统一创建点，复用该用户
   最近 session 或新建 `{uuid}` + owner 映射；返回 `{session_id}`）
@@ -508,7 +515,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 维持 `/api/v1` 不变（v1 TECH_SPEC §4）——**业务 API（用户/帖子/评论/通知/记忆）
 不属于 v1/v2 之争（2026-08-30 用户定）**：文件永存、路径不变，`@mcp_tool` 直接
 挂在业务 endpoint 上（@tool 旁叠加，§6.4b）——**不新增 v2 业务端点**；
-v2 只新增 `POST /api/v2/ai/chat`（§9.1）。
+v2 对话流式只新增 `WS /api/v2/ai/chat/ws`（§9.1；2026-09-04 SSE POST 退役）。
 
 ### 9.3 搜索能力
 

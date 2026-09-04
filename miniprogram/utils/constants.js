@@ -18,6 +18,9 @@ const BASE_URL = 'http://localhost:8000/api/v1'
 const CLOUD_CONFIG = {
   ENV: 'test-d2gizr8ena300c58e',
   SERVICE: 'lanyuan-base',
+  // 云托管公网域名（WS 流式通道用——wss://<HOST>/api/v2/ai/chat/ws；
+  // wx.connectSocket 需在 mp 后台配置 socket 合法域名 *.run.tcloudbase.com）
+  HOST: 'lanyuan-base-307582-12-1480460164.sh.run.tcloudbase.com',
 }
 
 /**
