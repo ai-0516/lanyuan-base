@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI 对话 v2"])
 
+# WS 首帧等待超时（秒）——协议：连接后 10s 未收到首帧 → close 1008。
+# 模块级常量便于测试 monkeypatch（超时分支用例无需真实等 10s）。
+WS_FIRST_FRAME_TIMEOUT = 10
+
 
 async def _chat_events(prompt: str, session_id: str, user_id: int):
     """DSH 事件 → 白名单过滤生成器（传输无关，2026-09-04：SSE 帧 → 事件 dict）
@@ -103,7 +107,9 @@ async def chat_ws(websocket: WebSocket):
     """
     await websocket.accept()
     try:
-        first = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        first = await asyncio.wait_for(
+            websocket.receive_json(), timeout=WS_FIRST_FRAME_TIMEOUT
+        )
     except Exception:
         await websocket.close(code=1008)
         return
@@ -119,7 +125,13 @@ async def chat_ws(websocket: WebSocket):
         return
 
     payload = decode_access_token(token) if token else None
-    user_id = int(payload.get("sub", 0)) if payload else 0
+    # sub 防御（PR #101 第 3 轮 review）：token 有效但 sub 缺失/非数字 → int() 抛
+    # ValueError 会导致未捕获直接断连（无 error 帧）——JWT 自签不会发生，兜底
+    # 归一为 4401（与 token 无效同语义），保证失败路径永远先推 error 帧再关。
+    try:
+        user_id = int(payload.get("sub", 0)) if payload else 0
+    except (TypeError, ValueError):
+        user_id = 0
     if user_id <= 0:
         await _ws_error(websocket, 4401, "登录已过期，请重新登录")
         return

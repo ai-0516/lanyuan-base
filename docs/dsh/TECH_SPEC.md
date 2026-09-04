@@ -110,8 +110,10 @@ lanyuan-base/
 事件协议不变（§4 白名单 {type, data} 原样），仅传输从 SSE 帧换 WS 逐帧 JSON。
 
 ```
-1. 前端 wx.connectSocket（wss://云托管域名 或 开发 ws://localhost）→ 首帧
-   {token, session_id, message}（JWT 放帧内，不进 URL/header）
+1. 前端连接：trial/release → wx.cloud.connectContainer（config.env + service +
+   path=/api/v2/ai/chat/ws，微信云托管私有链路，免公网域名/免 socket 合法域名
+   配置；基础库 ≥2.21.1）；develop → wx.connectSocket(ws://localhost) →
+   首帧 {token, session_id, message}（JWT 放帧内，不进 URL/header）
 2. FastAPI 校验 token（4401）→ session owner 归属（4403，M3 起复用/恢复）
 3. harness.run(prompt, on_notification=...)
 4. on_notification 实时到达 → event_layer 过滤 → WS 帧 {type, data} → 前端（§4）
@@ -488,7 +490,7 @@ persistence_state(singleton TINYINT PK, store_id CHAR(36))
 
 ## 9. API 设计（v2 变更）
 
-### 9.1 /api/v2/ai/chat（v2 专属路径，与 v1 区分）
+### 9.1 /api/v2/ai/chat/ws（v2 专属路径，与 v1 区分）
 
 - **路径：`WS /api/v2/ai/chat/ws`**（2026-08-23 用户定版本化 `/api/v2`；2026-09-04 路线2：传输改 WebSocket——SSE 的 enableChunked 在微信云托管 callContainer 不可用。事件集与 v1 完全不同（DSH 事件 vs token/done）；v1 的 `/api/v1/ai/chat`（SSE）保留给旧前端/兼容期）
 - **会话创建：`POST /api/v2/ai/session`**（PR #97 review 定案：前端先创建 session，

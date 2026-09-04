@@ -132,11 +132,45 @@ Page({
    * 事件映射（§10.1 不变——只换传输，不换事件协议）：
    *   turn/start → 回合边界；user/message → 用户气泡；step/start → 新 AI 气泡；
    *   assistant/chunk → text-delta 追加；turn/end → 回合收尾；error 帧 → 错误收尾
+   *
+   * 通道（2026-09-04 第 3 轮 review 修正——不走云托管公网域名）：
+   * - develop  → wx.connectSocket（ws://localhost，开发者工具连本地后端）
+   * - trial/release → wx.cloud.connectContainer（微信云托管私有链路，与
+   *   callContainer 同源：免公网域名、免 mp 后台 socket 合法域名配置、不依赖
+   *   「公网访问」开关 → WX_TRUST_OPENID_HEADER 信任门控部署前提（公网已关闭）
+   *   可同时成立。socketTask 与 connectSocket 返回值同构，事件处理零差异；
+   *   WS 鉴权走首帧 JWT，connectContainer「iOS 高性能+ 模式不带 x-wx-openid」
+   *   的已知限制不影响本项目）
    */
-  streamChat(sessionId, message) {
+  async streamChat(sessionId, message) {
     const token = wx.getStorageSync('token') || '';
 
-    const socket = wx.connectSocket({ url: this._wsUrl() });
+    let socket;
+    if (isCloudMode()) {
+      // 线上：云托管私有链路（connectContainer 需基础库 ≥2.21.1；缺失时
+      // 显式可读提示，与 request.js callContainer 守卫同款语义）
+      if (!wx.cloud || typeof wx.cloud.connectContainer !== 'function') {
+        this.handleStreamError('云能力不可用：请升级微信基础库（≥2.21.1）后重试');
+        return;
+      }
+      try {
+        const { socketTask } = await wx.cloud.connectContainer({
+          config: { env: CLOUD_CONFIG.ENV },
+          service: CLOUD_CONFIG.SERVICE, // 云托管服务名（与 callContainer 同源）
+          path: '/api/v2/ai/chat/ws',
+        });
+        socket = socketTask;
+      } catch (err) {
+        console.error('[ai-chat] connectContainer 连接失败', err);
+        this.handleStreamError();
+        return;
+      }
+    } else {
+      // 本地开发：直连本地后端（V2_BASE_URL http://localhost:8000/api/v2 → ws）
+      socket = wx.connectSocket({
+        url: V2_BASE_URL.replace(/^http/, 'ws') + '/ai/chat/ws',
+      });
+    }
 
     socket.onOpen(() => {
       socket.send({
@@ -175,17 +209,6 @@ Page({
         this.handleStreamError();
       }
     });
-  },
-
-  /** WS 地址：develop → ws://localhost（本地后端）；trial/release →
-   *  wss://云托管公网域名（云托管网关原生支持 WebSocket，需 socket 合法域名）
-   */
-  _wsUrl() {
-    if (isCloudMode()) {
-      return `wss://${CLOUD_CONFIG.HOST}/api/v2/ai/chat/ws`;
-    }
-    // V2_BASE_URL（http://localhost:8000/api/v2）→ ws://localhost:8000/api/v2
-    return V2_BASE_URL.replace(/^http/, 'ws') + '/ai/chat/ws';
   },
 
   /** DSH 事件分发（§10.1 映射表） */

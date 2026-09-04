@@ -147,6 +147,9 @@ async def check_chat_ownership_ws(session_id: str, port: int) -> None:
     """
     import json
 
+    # websockets 是 uvicorn[standard] 的传递依赖，pyproject 未显式声明——脚本
+    # 在 backend venv（uv sync）内运行必然存在；若脱离 venv 遇 ImportError：
+    # uv add --dev websockets 或 pip install websockets
     from websockets import connect
     from websockets.exceptions import ConnectionClosed
 

@@ -18,9 +18,9 @@ const BASE_URL = 'http://localhost:8000/api/v1'
 const CLOUD_CONFIG = {
   ENV: 'test-d2gizr8ena300c58e',
   SERVICE: 'lanyuan-base',
-  // 云托管公网域名（WS 流式通道用——wss://<HOST>/api/v2/ai/chat/ws；
-  // wx.connectSocket 需在 mp 后台配置 socket 合法域名 *.run.tcloudbase.com）
-  HOST: 'lanyuan-base-307582-12-1480460164.sh.run.tcloudbase.com',
+  // 说明：v1/v2 HTTP 走 callContainer、ai-chat WS 流式走 connectContainer
+  // （同一条微信私有链路）——都不需要公网域名/HOST，也不依赖 mp 后台域名配置；
+  // 「公网访问」可关闭 → WX_TRUST_OPENID_HEADER 信任门控部署前提成立
 }
 
 /**

@@ -211,3 +211,53 @@ class TestV2ChatOwnership:
         assert "消息不能为空" in frames[0]["data"]["message"]
         assert close_code == 1008
 
+    def test_empty_token_4401(self):
+        """token 空串 → 与缺失等价：decode 不执行 → 4401 error 帧（协议表分支补齐）"""
+        frames, close_code = self._ws_frames(
+            {"token": "", "session_id": self.SID, "message": "你好"},
+            patch_owner=7,
+        )
+        assert frames[0]["type"] == "error"
+        assert "登录" in frames[0]["data"]["message"]
+        assert close_code == 4401
+
+    def test_first_frame_timeout_closes_1008(self, monkeypatch):
+        """首帧 10s 超时 → close 1008（PR #101 第 3 轮 review 建议补的分支用例）。
+
+        协议值 10s 由 WS_FIRST_FRAME_TIMEOUT 常量定义——测试 monkeypatch 缩到
+        0.1s，不真实等 10s；超时路径无 error 帧（客户端未就绪无可读文案）。
+        """
+        import app.api.v2.ai as ai_mod
+        from fastapi.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        monkeypatch.setattr(ai_mod, "WS_FIRST_FRAME_TIMEOUT", 0.1)
+        close_code = None
+        with patch("app.api.v2.ai.get_session_owner", return_value=7):
+            with TestClient(app) as tc:
+                with tc.websocket_connect("/api/v2/ai/chat/ws") as ws:
+                    # 不发首帧 → 服务端 wait_for 超时 → close(1008)
+                    try:
+                        while True:
+                            ws.receive_json()
+                    except WebSocketDisconnect as e:
+                        close_code = e.code
+        assert close_code == 1008
+
+    @pytest.mark.parametrize(
+        "fake_payload", [{"sub": "not-a-number"}, {"exp": 9999999999}],
+        ids=["sub-non-numeric", "sub-missing"],
+    )
+    def test_sub_missing_or_non_numeric_4401(self, fake_payload, monkeypatch):
+        """token 有效但 sub 缺失/非数字 → int() 防御归一 4401 error 帧
+        （PR #101 第 3 轮 review：裸 ValueError 会未捕获断连、无 error 帧）"""
+        monkeypatch.setattr(
+            "app.api.v2.ai.decode_access_token", lambda t: fake_payload
+        )
+        frames, close_code = self._ws_frames(
+            {"token": "any-token", "session_id": self.SID, "message": "你好"},
+            patch_owner=7,
+        )
+        assert frames[0]["type"] == "error"
+        assert close_code == 4401
+
