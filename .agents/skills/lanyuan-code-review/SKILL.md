@@ -99,6 +99,18 @@ description: Use when reviewing a PR in the lanyuan-base repo — 六维度审�
 - 多个 PR 并行 review 时，每个 PR 一个 worktree（不共用），全部结束后逐一清理
 - Dev Lead review 如需查看/执行代码，创建自己的 worktree（`~/.hermes/profiles/dev-lead/workspace/`）
 
+## 提交 review 的操作陷阱（GitHub API 2026-09 实测，PR #101 事故）
+
+1. **设 review 状态用 `gh pr review`（CLI），不要 `gh api` 裸提交**
+   - GitHub `PullRequestReviewEvent` 枚举已从 `APPROVED` 改名 `APPROVE`；裸 `gh api -f event=APPROVED` / curl 传旧枚举 → 422 `Variable $event ... was provided invalid value`（REST 内部转 GraphQL 失败）
+   - `gh pr review --approve` / `--request-changes`（CLI）已适配新枚举，始终可用
+2. **绝不在真实 PR 上做连通性/状态测试提交**（PR #101 事故：调试 422 时在 PR 上留下「连通性测试，将删除」「状态测试-将覆盖」两条 review 残留；其中 COMMENTED 条目 GitHub append-only，**无法删除也无法 dismiss**，永久污染 PR 历史）
+   - 需要验证 API 行为：用 GraphQL introspection（`{ __type(name: "PullRequestReviewEvent") { enumValues { name } } }`）查合法枚举，或对一次性测试 PR 验证——绝不用真实 PR
+3. **发文件内容 comment 用 `gh api --input file.json` 或 `gh pr comment --body-file file`**
+   - `gh api -f body=@file` **不展开 `@` 文件引用**（`@file` 展开是 curl `-d @file` 语法）→ 路径字符串 `@/tmp/xxx.md` 会被当 body 发出去（PR #101 事故：正式报告发成了文件路径）
+   - 正确姿势：`python3 -c "import json; json.dump({'body': open(f).read()}, open(o,'w'))"` → `gh api ... --input out.json`；或 `gh pr comment N --body-file report.md`
+4. **review 提交前自检**：body 非空、无 `@/tmp` 路径残留、event 用 gh CLI 简写（--approve/--request-changes/--comment）
+
 ## 规则
 
 - 只提 PR comment，不修改 Issue 和 PR（如需修改标题/描述/label，通过 comment 提出建议）
