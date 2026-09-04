@@ -91,6 +91,12 @@ function _doRequest({ url, method = 'GET', data, header }) {
 
     if (isCloudMode()) {
       // 线上：微信云托管私有链路（免公网，平台注入 x-wx-openid）
+      // callContainer 需基础库 ≥2.19.1（wx.cloud 自 2.2.3 起提供，callContainer 更晚）；
+      // 缺失时显式 reject 带可读错误（避免 TypeError 空指针，页面 toast 可展示）
+      if (!wx.cloud || typeof wx.cloud.callContainer !== 'function') {
+        reject(new Error('云能力不可用：请升级微信基础库（≥2.19.1）后重试'))
+        return
+      }
       wx.cloud.callContainer({
         config: { env: CLOUD_CONFIG.ENV },
         path: toCloudPath(url),

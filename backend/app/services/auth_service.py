@@ -21,12 +21,13 @@ async def login(
     """微信登录：查或创建用户，返回 JWT
 
     openid 两种来源：
-    - openid 参数（微信云托管 callContainer 注入的 x-wx-openid header，
-      平台可信，免 code2session，2026-09-04 路线2）
+    - openid 参数（云托管 x-wx-openid header，2026-09-04 路线2；**信任门控在 API 层**：
+      auth.py 仅在 WX_TRUST_OPENID_HEADER=true 时解析 header 并做格式校验）
     - code 换 session（开发环境 / 传统链路）
     """
-    # 平台注入 openid（云托管 callContainer）→ 跳过 code2session
-    if openid is None:
+    # 平台注入 openid（云托管 callContainer）→ 跳过 code2session。
+    # None/空串一律回退 code 路径（service 边界防御：空 openid 不落库，防唯一约束/DataError）
+    if not openid:
         session_info = await wechat_client.code2session(code)
         openid = session_info["openid"]
 

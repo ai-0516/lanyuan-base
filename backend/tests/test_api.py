@@ -78,15 +78,19 @@ async def test_login(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_with_wx_openid_header(client: AsyncClient):
+async def test_login_with_wx_openid_header(client: AsyncClient, monkeypatch):
     """路线2：云托管 callContainer 注入 x-wx-openid → 免 code2session 直接登录
 
-    验证：openid 按 header 落库（而非 code mock 的 openid），且幂等复用同一用户
+    验证：信任开关开启时 openid 按 header 落库（而非 code mock 的 openid），且幂等复用同一用户
     """
     from sqlalchemy import select
 
+    from app.api.v1 import auth as auth_api
     from app.core.database import async_session_factory
     from app.models.user import User
+
+    # 模拟云托管部署已关闭公网访问、运维开启 header 信任
+    monkeypatch.setattr(auth_api.settings, "WX_TRUST_OPENID_HEADER", True)
 
     headers = {"x-wx-openid": "openid_callcontainer_001"}
     # code 带任意值（甚至 mock_code）也必须被忽略——header 优先
@@ -112,6 +116,69 @@ async def test_login_with_wx_openid_header(client: AsyncClient):
     )
     data2 = resp2.json()
     assert data2["data"]["user"]["id"] == data1["data"]["user"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_login_wx_openid_header_ignored_when_trust_off(client: AsyncClient):
+    """安全门控：信任开关默认关闭 → x-wx-openid 被忽略，走 code 路径（公网防伪造）
+
+    模拟公网访问未关闭的部署（开关 off）：外部请求携带任意 x-wx-openid 也不得建号/冒用，
+    落库的是 code 路径 openid（mock_code → test_openid_0）
+    """
+    from sqlalchemy import select
+
+    from app.core.database import async_session_factory
+    from app.models.user import User
+
+    resp = await client.post(
+        "/api/v1/auth/login",
+        json={"code": "mock_code"},
+        headers={"x-wx-openid": "attacker_chosen_openid"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["code"] == 0
+    assert "token" in data["data"]
+
+    async with async_session_factory() as session:
+        # header 值未建号
+        result = await session.execute(
+            select(User).where(User.openid == "attacker_chosen_openid")
+        )
+        assert result.scalar_one_or_none() is None, "开关关闭时 header openid 不得建号"
+        # 走的是 code 路径 openid
+        result = await session.execute(select(User).where(User.openid == "test_openid_0"))
+        assert result.scalar_one_or_none() is not None, "应回退 code 路径建号"
+
+
+@pytest.mark.asyncio
+async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient, monkeypatch):
+    """信任开启时非法 openid（超长/非法字符）→ 400 拒绝、不落库
+
+    防生产 MySQL varchar(64) 落库 DataError 500；真实微信 openid 为 28 位 [A-Za-z0-9_-]
+    """
+    from app.api.v1 import auth as auth_api
+
+    monkeypatch.setattr(auth_api.settings, "WX_TRUST_OPENID_HEADER", True)
+
+    # header 值必须 ASCII（httpx 传输层限制）——用可传输的非法形态覆盖：超长/特殊字符/空格
+    for bad in ["o" * 65, "bad!openid", "<script>alert(1)</script>", "open id_123"]:
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"code": "mock_code"},
+            headers={"x-wx-openid": bad},
+        )
+        assert resp.status_code == 400, f"非法 openid {bad[:20]!r} 应 400 拒绝"
+        assert resp.json()["code"] == 40013
+
+    # 合法真实形态（28 位 [A-Za-z0-9_-]）正常放行
+    ok = await client.post(
+        "/api/v1/auth/login",
+        json={"code": "mock_code", "nickname": "云端用户"},
+        headers={"x-wx-openid": "oXk7K5jKfQbLmNpRsTtUvVwXyZab12"},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["code"] == 0
 
 
 @pytest.mark.asyncio

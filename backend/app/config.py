@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
 
+    # 云托管 x-wx-openid header 信任开关（#100 路线2 安全门控，review 2026-09-04 修复）
+    # 微信云托管 callContainer 链路会带平台注入的身份 header x-wx-openid（免 code2session），
+    # 但该 header 在 HTTP 层可伪造（服务公网访问开着时，外部请求可直达容器并自带头）。
+    # 因此**默认关闭**：部署方必须先关闭云托管服务「公网访问」（公网关闭后无平台 header
+    # 的请求 = 无身份来源，无法再伪装），才可将本开关置为 true 启用 header 信任路径。
+    # 关闭状态下 header 被完全忽略，登录走 code 路径（与公网访问关闭前行为一致）。
+    WX_TRUST_OPENID_HEADER: bool = False
+
     # 云存储 (开发环境本地存储)
     UPLOAD_DIR: str = "./uploads"
 
