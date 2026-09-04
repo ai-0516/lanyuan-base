@@ -318,14 +318,33 @@ miniprogram/
 
 ### 2.4 数据流 — 关键场景
 
-**场景 A：用户登录流程**
+**场景 A：用户登录流程**（双路径，2026-09-04 路线2 起）
+
+路径 1 — 线上（微信云托管 callContainer，推荐）：请求经 wx.cloud.callContainer
+进入容器，平台在 header 注入可信 `x-wx-openid`，后端直接以其查/建用户，**免
+code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签证书问题）：
 ```
-1. 小程序 wx.login() → 获取 code
-2. POST /api/v1/auth/login { code } → 后端调微信 API 换 session_key + openid
-3. 后端生成 JWT (含 user_id) → 返回给前端
+1. 小程序（trial/release 版）wx.cloud.callContainer → POST /api/v1/auth/login
+2. 后端按信任开关读取 header x-wx-openid → 查/建 User（openid 唯一）
+3. 生成 JWT (含 user_id) → 返回
 4. 前端存储 token 到 wx.Storage
-5. 用户直接进入 App（信息不全不拦截，编辑资料入口在个人中心）
 ```
+> **信任前提（2026-09-04 定案）**：`x-wx-openid` 由微信云托管私有链路（callContainer /
+> connectContainer）平台注入——**服务公网访问关闭**是信任前提（公网关闭后私有链路
+> 外部不可达，客户端无法伪造该 header）。后端直接信任 header 优先登录；header 值
+> 仍需格式校验（≤64 位 `[A-Za-z0-9_-]`，对齐 DB varchar(64)），非法值 400 拒绝、不落库。
+
+路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端 code2session 换
+openid（mock 配置下全 mock）：
+```
+1. 小程序（develop 版）wx.request → POST /api/v1/auth/login { code }
+2. 后端 code2session(code) → openid → 查/建 User
+3. 生成 JWT (含 user_id) → 返回
+4. 前端存储 token 到 wx.Storage
+```
+两条路径共用查/建用户与 JWT 签发逻辑（auth_service.login 的 openid 参数化）。
+注：mock code2session 只存在于 mock 配置（WECHAT_APPID 占位）；生产真实 appid
+下任何 code 都走真实微信 API，杜绝公网可伪造的 mock openid。
 
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
@@ -520,7 +539,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| POST | `/auth/login` | 微信登录 | `{ code: string }` | `{ token, user }` |
+| POST | `/auth/login` | 微信登录 | `{ code }`（云托管链路 `x-wx-openid` header 优先——公网访问关闭前提下平台注入可信；非法格式 40013） | `{ token, user }` |
 | GET | `/auth/check` | 检查 token 是否有效 | — | `{ valid: bool }` |
 
 ### 4.2 用户

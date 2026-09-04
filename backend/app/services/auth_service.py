@@ -16,11 +16,20 @@ async def login(
     code: str,
     nickname: Optional[str] = None,
     avatar: Optional[str] = None,
+    openid: Optional[str] = None,
 ) -> LoginResponse:
-    """微信登录：code 换 openid，查或创建用户，返回 JWT"""
-    # 调微信 API 换 session
-    session_info = await wechat_client.code2session(code)
-    openid = session_info["openid"]
+    """微信登录：查或创建用户，返回 JWT
+
+    openid 两种来源：
+    - openid 参数（云托管 x-wx-openid header，2026-09-04 路线2；平台注入可信，
+      格式校验在 API 层 auth.py 完成）
+    - code 换 session（开发环境 / 传统链路）
+    """
+    # 平台注入 openid（云托管 callContainer）→ 跳过 code2session。
+    # None/空串一律回退 code 路径（service 边界防御：空 openid 不落库，防唯一约束/DataError）
+    if not openid:
+        session_info = await wechat_client.code2session(code)
+        openid = session_info["openid"]
 
     # 查数据库
     result = await db.execute(select(User).where(User.openid == openid))

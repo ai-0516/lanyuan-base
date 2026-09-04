@@ -1,8 +1,9 @@
-"""v2 事件层（薄）：白名单过滤 + SSE 帧（TECH_SPEC §4，2026-08-23 用户定）
+"""v2 事件层（薄）：白名单过滤（TECH_SPEC §4，2026-08-23 用户定）
 
 定位：初期唯一职责 = 白名单过滤——只把前端关心的 event 发过去；
-事件格式保留 DSH 原样（type + data 不改写）。翻译/改写是扩展点（管道式
-filter → [改写] → frame），初期改写环节为空。
+事件格式保留 DSH 原样（type + data 不改写）。帧化由传输层负责：
+2026-09-04 起 v2 chat 统一 WebSocket（WS 逐帧 JSON {type, data}；
+SSE 的 format_sse 帧化函数随 SSE 通道退役已删）。
 
 白名单（§4.2）：assistant/chunk(仅 text-delta) / step/start / user/message /
 turn/start / turn/end；其余（tool/*、reasoning-delta、session.status 等）
@@ -11,7 +12,6 @@ turn/start / turn/end；其余（tool/*、reasoning-delta、session.status 等�
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 
 # 白名单：type → 子类型过滤条件（None = 全透传）
@@ -32,12 +32,6 @@ def should_forward(event: dict) -> bool:
         return False
     cond = _WHITELIST[etype]
     return True if cond is None else cond(event.get("data") or {})
-
-
-def format_sse(event: dict) -> str:
-    """SSE 帧：`event: <type>\\ndata: <json>\\n\\n`（type + data 原样透传）"""
-    payload = {"type": event.get("type"), "data": event.get("data") or {}}
-    return f"event: {event.get('type')}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def is_done_event(event: dict) -> bool:

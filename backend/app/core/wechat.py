@@ -22,12 +22,11 @@ class WeChatClient:
         """用临时 code 换取 openid / session_key
 
         策略（双模式共存）：
-        - 短 code（<16字符，如 "user_a"、"mock_code"）→ 始终走 mock
-        - 长 code（wx.login() 返回的真实 code）→ 按配置走 mock 或真实微信 API
+        - mock 配置（WECHAT_APPID 为占位值）→ 全走 mock（开发环境）
+        - 真实 appid 配置（生产）→ 一律调真实微信 API（含短 code / mock_code，
+          2026-09-04 修正：短 code 启发式会让生产环境可伪造 mock openid
+          绕过身份——mock 只允许存在于 mock 配置）
         """
-        if self._looks_like_test_code(code):
-            return self._mock_code2session(code)
-
         if self._is_mock:
             return self._mock_code2session(code)
 
@@ -51,11 +50,7 @@ class WeChatClient:
         return result
 
     @staticmethod
-    def _looks_like_test_code(code: str) -> bool:
-        """试探：短字符串（手工敲的）→ 走 mock；长字符串（wx.login()）→ 走真实 API"""
-        return len(code) < 16 or code == "mock_code"
-
-    def _mock_code2session(self, code: str) -> dict:
+    def _mock_code2session(code: str) -> dict:
         """模拟 code 换 session_key + openid"""
         if code == "mock_code":
             openid = "test_openid_0"

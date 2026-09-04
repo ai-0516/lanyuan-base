@@ -1,8 +1,10 @@
-"""事件层单测：白名单过滤 + SSE 帧（TECH_SPEC §4.2/§4.3）"""
+"""事件层单测：白名单过滤（TECH_SPEC §4.2/§4.3）
 
-import json
+2026-09-04：format_sse 帧化函数随 SSE 通道退役删除（v2 chat 统一 WS，
+帧化由 WS 传输层 JSON 直发）——本文件只保留白名单过滤测试。
+"""
 
-from app.ai.event_layer import format_sse, should_forward
+from app.ai.event_layer import should_forward
 
 
 def _ev(etype: str, data: dict | None = None) -> dict:
@@ -41,17 +43,3 @@ class TestShouldForward:
     def test_internal_events_filtered(self):
         for etype in ("session/title", "request/header", "agent/inbox/spliced"):
             assert not should_forward(_ev(etype, {})), etype
-
-
-class TestFormatSse:
-    def test_frame_shape(self):
-        """SSE 帧：event + data（type/data 原样，DSH 字段名不翻译）"""
-        frame = format_sse(_ev("assistant/chunk", {"chunk": {"type": "text-delta", "text": "好"}}))
-        assert frame.startswith("event: assistant/chunk\n")
-        payload = json.loads(frame.split("\ndata: ", 1)[1].strip())
-        assert payload["type"] == "assistant/chunk"
-        assert payload["data"]["chunk"]["text"] == "好"
-
-    def test_unicode_preserved(self):
-        frame = format_sse(_ev("user/message", {"content": "你好，兰园"}))
-        assert "你好，兰园" in frame

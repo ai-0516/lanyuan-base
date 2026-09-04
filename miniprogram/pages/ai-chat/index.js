@@ -1,5 +1,5 @@
 const { request } = require('../../utils/request');
-const { V2_BASE_URL } = require('../../utils/constants');
+const { V2_BASE_URL, CLOUD_CONFIG, USE_CLOUD } = require('../../utils/constants');
 const app = getApp();
 
 Page({
@@ -122,92 +122,93 @@ Page({
     this.streamChat(sessionId, inputValue.trim());
   },
 
-  /** SSE 流式聊天（v2：DSH 事件分发，v1 5 事件 token/done/error/message:start/retry_wait 全部退役）
-   *  事件映射（TECH_SPEC §10.1）：
-   *    turn/start       → 回合边界（重置回合状态，不建气泡）
-   *    user/message     → 用户气泡（单一数据源）
-   *    step/start       → 开新 AI 气泡（若上一个气泡为空则先删——纯工具步骤无文字）
-   *    assistant/chunk  → text-delta 追加当前气泡
-   *    turn/end         → 回合收尾（done / reason=error 错误态；最终气泡仍空则丢弃）
-   *    error 帧         → 后端错误（runtime 崩溃等，「请重试」）
+  /** WS 流式聊天（2026-09-04 路线2：SSE enableChunked → WebSocket 统一通道——
+   *  wx.cloud.callContainer 不支持流式；一轮对话 = 一条连接）
+   *
+   * 传输协议（/api/v2/ai/chat/ws）：
+   *   连接 → 首帧 {token, session_id, message} → 事件逐帧 {type, data}
+   *   （后端失败先推 error 帧 {type:'error', data:{message}} 再关闭）
+   *
+   * 事件映射（§10.1 不变——只换传输，不换事件协议）：
+   *   turn/start → 回合边界；user/message → 用户气泡；step/start → 新 AI 气泡；
+   *   assistant/chunk → text-delta 追加；turn/end → 回合收尾；error 帧 → 错误收尾
+   *
+   * 通道（2026-09-04 修正——不走云托管公网域名，用 constants.USE_CLOUD 显式
+   * 开关而非 envVersion 自动分流，开发者工具可置 true 直接联调云端）：
+   * - USE_CLOUD=false → wx.connectSocket（ws://localhost，连本地后端）
+   * - USE_CLOUD=true → wx.cloud.connectContainer（微信云托管私有链路，与
+   *   callContainer 同源：免公网域名、免 mp 后台 socket 合法域名配置、不依赖
+   *   「公网访问」开关 → WX_TRUST_OPENID_HEADER 信任门控部署前提（公网已关闭）
+   *   可同时成立。socketTask 与 connectSocket 返回值同构，事件处理零差异；
+   *   WS 鉴权走首帧 JWT，connectContainer「iOS 高性能+ 模式不带 x-wx-openid」
+   *   的已知限制不影响本项目）
    */
-  streamChat(sessionId, message) {
+  async streamChat(sessionId, message) {
     const token = wx.getStorageSync('token') || '';
 
-    const task = wx.request({
-      url: `${V2_BASE_URL}/ai/chat`,
-      method: 'POST',
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      data: { session_id: sessionId, message },
-      enableChunked: true,
-      responseType: 'text',
-      success: (res) => {
-        // 非 2xx（403 session 已删/401 token 过期/422 参数错）：后端不会发
-        // error 帧（错误在 HTTP 响应而非 SSE 流）——必须显式收尾，否则
-        // isLoading 卡死无提示（PR #98 review 建议）
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          console.error('流式请求 HTTP 错误', res.statusCode);
-          this.handleStreamError();
-        }
-        // 2xx：流已正常结束（在 onChunkReceived 中处理）
-      },
-      fail: (err) => {
-        console.error('流式请求失败', err);
+    let socket;
+    if (USE_CLOUD) {
+      // 云托管：私有链路 connectContainer（需基础库 ≥2.21.1；缺失时
+      // 显式可读提示，与 request.js callContainer 守卫同款语义）——
+      // 开发者工具把 constants.USE_CLOUD 置 true 即可直接联调云端
+      if (!wx.cloud || typeof wx.cloud.connectContainer !== 'function') {
+        this.handleStreamError('云能力不可用：请升级微信基础库（≥2.21.1）后重试');
+        return;
+      }
+      try {
+        const { socketTask } = await wx.cloud.connectContainer({
+          config: { env: CLOUD_CONFIG.ENV },
+          service: CLOUD_CONFIG.SERVICE, // 云托管服务名（与 callContainer 同源）
+          path: '/api/v2/ai/chat/ws',
+        });
+        socket = socketTask;
+      } catch (err) {
+        console.error('[ai-chat] connectContainer 连接失败', err);
         this.handleStreamError();
-      },
-    });
-
-    let buffer = '';
-    let currentEvent = '';  // 跟踪当前 SSE 事件类型
-    // 跨 chunk 的 UTF-8 解码器（stream:true 保留多字节字符跨 chunk 状态，#77：
-    // 不复用会导致中文字符被 chunk 边界截断时出现 U+FFFD 乱码）
-    let sseDecoder = null;
-    try {
-      sseDecoder = new TextDecoder('utf-8', { stream: true });
-    } catch (e) {
-      // TextDecoder 不可用时走 arrayBufferToString 降级路径
-      console.warn('[ai-chat] TextDecoder 不可用，走降级解码:', e);
+        return;
+      }
+    } else {
+      // 本地开发：直连本地后端（V2_BASE_URL http://localhost:8000/api/v2 → ws）
+      socket = wx.connectSocket({
+        url: V2_BASE_URL.replace(/^http/, 'ws') + '/ai/chat/ws',
+      });
     }
 
-    task.onChunkReceived((res) => {
-      const chunk = this.arrayBufferToString(res.data, sseDecoder);
-      buffer += chunk;
+    socket.onOpen(() => {
+      socket.send({
+        data: JSON.stringify({ token, session_id: sessionId, message }),
+      });
+    });
 
-      // 按行解析 SSE 事件
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 保留不完整的行
+    socket.onMessage((res) => {
+      let frame = null;
+      try {
+        frame = JSON.parse(res.data);
+      } catch (e) {
+        console.warn('[ai-chat] 忽略非 JSON WS 帧:', res.data);
+        return;
+      }
+      const type = frame.type;
+      const data = frame.data || {};
+      if (type === 'error') {
+        // 后端错误帧（token 无效 4401 / 归属 4403 / 参数 1008 / 服务端异常
+        // 1011）——文案后端给（「请重试」语义），显示后连接由后端关闭
+        this.handleStreamError(data.message || 'AI 回复被中断，请重试');
+        return;
+      }
+      this.dispatchEvent(type, data);
+    });
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          currentEvent = line.slice(7).trim();
-        }
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6);
-          // error 帧：后端错误（runtime 崩溃等），文案不硬编码——后端给什么显示什么
-          if (currentEvent === 'error') {
-            let msg = 'AI 回复被中断，请重试';
-            try {
-              const parsed = JSON.parse(dataStr);
-              if (typeof parsed === 'string') msg = parsed;
-              else msg = parsed.message || parsed.error || msg;
-            } catch (e) {
-              if (dataStr) msg = dataStr;
-            }
-            this.handleStreamError(msg);
-            return;
-          }
-          // 白名单事件：{type, data}（event_layer 透传 DSH 原样，§4.1）
-          try {
-            const payload = JSON.parse(dataStr);
-            this.dispatchEvent(currentEvent, payload.data || {});
-          } catch (e) {
-            // 非 JSON 数据：忽略（白名单事件必为 JSON）
-            console.warn('[ai-chat] 忽略非 JSON SSE 数据:', dataStr);
-          }
-        }
+    socket.onError(() => {
+      console.error('[ai-chat] WebSocket 连接错误');
+      this.handleStreamError();
+    });
+
+    socket.onClose(() => {
+      // 正常流：turn/end 已触发 finishTurn（isLoading=false）；异常断开
+      // （无 turn/end 到达）→ 兜底收尾，避免 isLoading 卡死无提示
+      if (this.data.isLoading) {
+        this.handleStreamError();
       }
     });
   },
@@ -350,38 +351,6 @@ Page({
     }
     this.setData({ messages, isLoading: false });
     this.scrollToBottom();
-  },
-
-  /** ArrayBuffer 转字符串（UTF-8 安全）
-   *  @param {ArrayBuffer} buf - 本次 chunk 的二进制数据
-   *  @param {TextDecoder|null} [decoder] - 持久 stream 解码器（跨 chunk 保留多字节状态）；
-   *    传 null/不传时退化为一次性解码（无跨 chunk 状态）
-   */
-  arrayBufferToString(buf, decoder) {
-    if (decoder) {
-      return decoder.decode(buf, { stream: true });
-    }
-    try {
-      return new TextDecoder('utf-8').decode(buf);
-    } catch {
-      // 降级: percent-encode 后 decodeURIComponent（#77：解码失败不再抛异常，
-      // 多字节序列被 chunk 截断时保留原始字节，避免 URIError 中断整个流）
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += '%' + bytes[i].toString(16).padStart(2, '0');
-      }
-      try {
-        return decodeURIComponent(binary);
-      } catch {
-        // 降级仍失败（chunk 截断的不完整 UTF-8 序列）：按 latin1 逐字节解码保留可读文本
-        let text = '';
-        for (let i = 0; i < bytes.length; i++) {
-          text += String.fromCharCode(bytes[i]);
-        }
-        return text;
-      }
-    }
   },
 
   /** 滚动到底部 */
