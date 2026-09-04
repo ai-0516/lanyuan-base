@@ -566,11 +566,15 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 - 启动：uvicorn（workers=1 起步）+ lifespan 拉起 DSH runtime
 - 环境变量：DEEPSEEK_API_KEY（凭证 seam）、DSH_*（显式设置）
 - **Dockerfile（M4 落地，仓库根 `Dockerfile`）**：多阶段构建
-  - 阶段 1（dsh-builder）：`node:20-slim` + corepack pnpm →
+  - 阶段 1（dsh-builder）：`node:22-slim` + corepack pnpm →
     `pnpm install --frozen-lockfile`（file: 本地插件 install 自动跑 prepare tsc
     编译到 lib/，再显式 `pnpm run build` 兜底）
-  - 阶段 2（runtime）：`python:3.12-slim` + Node 20 二进制（COPY 自 node 官方镜像）
-    → uv sync（--frozen --no-dev --no-install-project，与 CI/开发同源）→ COPY
+  - 阶段 2（runtime）：`python:3.12-slim` + Node 22 二进制（COPY 自 node 官方镜像；
+    node:20 跑 pnpm 11 报 node:sqlite 缺失——2026-09-03 docker 实测；npm/npx 不拷，
+    runtime 不依赖且 symlink 被 COPY 解引用会损坏）
+    → uv export --frozen --no-dev --no-install-project 生成 requirements
+    （本地零网络，uv.lock 仍单一真源）→ pip -i 清华 安装（构建环境直连
+    pypi.org/Fastly 不通，2026-09-03 docker 实测）→ COPY
     dsh/ 家目录（pnpm 产物）+ backend（app/ + alembic/ + tools/，含 MCP server）
   - CMD：`alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 80 --workers 1`
   - 必需 env：DEEPSEEK_API_KEY、DATABASE_URL（MySQL，DSH 侧由 dsh_runtime
@@ -630,7 +634,7 @@ v1 ai-chat 页改造：token 追加逻辑 → DSH 事件分发（user/message �
 
 | # | 项 | 现状 | 谁定 |
 |---|---|---|---|
-| 1 | 微信云托管镜像大小限制 | 未实测 docker 构建 | M4 实测 |
+| 1 | 微信云托管镜像大小限制 | 已实测 docker 构建 **1.33GB**（PR #99：node:22 + pip 清华源；分层 pip 依赖 456M + dsh/ 313M + node 144M + 基础 ~180M + 代码 ~240M）；云托管侧上限 ≥2GB 是否满足待云托管环境确认 | M4 实测 |
 | 2 | user_id 注入具体机制（MCP _meta 透传 vs DSH 插件钩子） | **已定案（M2）**：session_id 编码 user_id + 自写桥插件注入 callTool `_meta`（§6.3）——**M2 过渡方案** | dev/M2 ✅ |
 | 3 | user_id 注入终态（session_id 编码退役） | **已定案（M3）**：身份查询插件——session_id 恢复纯 uuid，FastAPI 内部身份端点 + 桥插件查询，映射并入 sessions 表 owner_user_id（§6.3/§8.2） | 用户 2026-08-31 ✅ |
 

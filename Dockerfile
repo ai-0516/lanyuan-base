@@ -17,7 +17,9 @@
 # ══════════════════════════════════════════════════════════════════════
 
 # ── 阶段 1：dsh/ 家目录构建（pnpm install 全量 + 本地插件 tsc 编译） ──
-FROM node:20-slim AS dsh-builder
+# node:22（pnpm 11 需要 Node >= 22.13——node:20 报 ERR_UNKNOWN_BUILTIN_MODULE
+# node:sqlite，2026-09-03 docker 实测）
+FROM node:22-slim AS dsh-builder
 WORKDIR /build
 
 # 先 COPY 清单文件（利用 layer 缓存：依赖不变时跳过 install）
@@ -29,8 +31,10 @@ COPY dsh/mysql-persistence ./mysql-persistence
 COPY dsh/server ./server
 COPY dsh/bin ./bin
 
-# corepack 启用 pnpm（node:20-slim 自带 corepack）；--frozen-lockfile 按锁文件
-# 安装（与开发/CI 单一真源，lock 必须入库——否则部署必炸）
+# corepack 启用 pnpm（node:22-slim 自带 corepack）；--frozen-lockfile 按锁文件
+# 安装（与开发/CI 单一真源，lock 必须入库——否则部署必炸）。
+# pnpm 版本由 dsh/package.json 的 packageManager 字段固定（corepack 按字段下载
+# 对应版本，避免拉 latest 与 lock 生成版本不兼容）
 # file: 本地插件 install 时自动跑 prepare（tsc → lib/），再显式 build 兜底
 # （幂等；prepare 行为差异保险）
 RUN corepack enable \
@@ -40,18 +44,31 @@ RUN corepack enable \
 # ── 阶段 2：运行时（Python FastAPI + Node DSH runtime） ──
 FROM python:3.12-slim AS runtime
 
-# Node 20 二进制（DSH runtime 是 Node 子进程；从 node 官方镜像拷，避免 apt 旧版）
-COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node:20-slim /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node:20-slim /usr/local/bin/npx /usr/local/bin/npx
+# Node 22 二进制（DSH runtime 是 Node 子进程；从 node 官方镜像拷，避免 apt 旧版）
+# 不拷 npm/npx（PR #99 review 修复）：runtime 启动链路（alembic + uvicorn + DSH
+# 由 node 直跑 bin）不依赖 npm；且镜像内 /usr/local/bin/npm 是 symlink
+# （→ ../lib/node_modules/npm/bin/npm-cli.js），COPY 对 symlink 源会解引用成普通
+# 文件，require 相对路径失效 → npm -v MODULE_NOT_FOUND（2026-09-03 docker 实测）
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 WORKDIR /app
 
-# ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock，同 CI/开发 uv sync） ──
+# ── backend 依赖（依赖声明单源 = pyproject.toml + uv.lock：docker 内经 uv export
+# 生成 requirements 后 pip 安装（见下），CI/开发仍 uv sync） ──
+# pypi 源：docker 构建环境直连 pypi.org/simple 超时（实测 20s+），且 uv 直连下载
+# wheel（Fastly CDN）带宽 ~0.1MB/s 卡死。正解 = uv export 生成 requirements
+# （本地操作零网络）→ pip -i 镜像安装（镜像页面 href 重写 → wheel 全走镜像，
+# 实测 40s 装完 395M）。uv.lock 仍是依赖单一真源（uv export --frozen 读它）。
+# uv 锁 0.11.24 与开发环境一致（export 语法/行为稳定）。
+# ⚠️ 镜像选择：**mirrors.cloud.tencent.com**（微信云托管/腾讯云构建机专用，内网
+# 直达不限流）。清华 TUNA（pypi.tuna.tsinghua.edu.cn）对云厂商 IP 段 403
+# （2026-09-03 微信云托管部署实测：HTTP 403 Forbidden 下载 wheel 被拒）。
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN pip install --no-cache-dir uv \
-    && uv sync --frozen --no-dev --no-install-project
+RUN pip install --no-cache-dir -i https://mirrors.cloud.tencent.com/pypi/simple 'uv==0.11.24' \
+    && uv export --frozen --no-dev --no-install-project > /tmp/requirements.txt \
+    && pip install --no-cache-dir -i https://mirrors.cloud.tencent.com/pypi/simple -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 # ── dsh/ 家目录（pnpm 产物 + 本地插件构建产物；删除即卸载 DSH） ──
 COPY --from=dsh-builder /build/ ./dsh/
@@ -63,7 +80,7 @@ COPY backend/alembic.ini .
 # tools/mcp_server 在 backend/tools/（main.py import tools.mcp_server.main）
 COPY backend/tools ./tools/
 
-ENV PATH="/app/.venv/bin:$PATH"
+# 依赖已 pip 装进系统 python（/usr/local），uvicorn 直接从 PATH 取，无需 venv PATH
 
 # PR #98 review 修复（阻塞①③）：
 # - DSH_DIR 显式注入：镜像 `COPY backend/app ./app/` 打平 backend 层级后，
