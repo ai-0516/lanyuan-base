@@ -14,6 +14,8 @@ from app.core.database import init_db, close_db
 from app.logger import setup_logging
 from app.ai.dsh_runtime import dsh_runtime
 from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
+# wiki：纯工具模块（无 endpoint/router），import 仅用于触发 @mcp_tool/@tool 注册副作用
+from app.api.v1 import wiki  # noqa: F401
 # v2 AI 对话（§9.1）；业务工具 @mcp_tool 定义在 v1 业务文件里（v1/v2 仅限 /ai/chat，
 # 其他 endpoint 不变）——import v1 业务模块即触发 @mcp_tool 注册进 mcp
 # （必须在 tools.mcp_server.main 的 mcp_app 构建前 import，本文件顺序已保证）
