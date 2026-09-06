@@ -59,3 +59,13 @@ sha256: <正文 hex，不含 frontmatter>
 
 - `index.md`：全部知识页目录（每行：wikilink + 一句话摘要）
 - `log.md`：追加式操作日志 `## [YYYY-MM-DD] action | subject`
+
+## 校验（编译后必跑）
+
+编译/更新知识页后运行 wiki 校验脚本（结构 lint + raw 溯源 + 条款引用 + 镜像构建）：
+
+```bash
+cd backend && uv run python scripts/review/wiki_kb/review.py
+```
+
+要求：全部通过（exit 0）才可提交；新增 raw/页面后脚本应继续全绿。
