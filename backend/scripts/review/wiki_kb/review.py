@@ -77,15 +77,15 @@ def verify_structure():
     outbound: dict[str, set[str]] = {}
     for slug, pf in pages.items():
         outbound[slug] = find_wikilinks(pf.read_text(encoding="utf-8"))
-    broken = [(s, l) for s, links in outbound.items() for l in links if l not in pages]
+    broken = [(s, link) for s, links in outbound.items() for link in links if link not in pages]
     record("无断链（wikilink 目标均存在）", not broken, f"broken={broken}" if broken else "OK")
 
     # 孤儿页（无入链）
     inbound: dict[str, int] = {s: 0 for s in pages}
     for links in outbound.values():
-        for l in links:
-            if l in inbound:
-                inbound[l] += 1
+        for link in links:
+            if link in inbound:
+                inbound[link] += 1
     orphans = [s for s, n in inbound.items() if n == 0]
     record("无孤儿页（每页均有入链）", not orphans, f"orphans={orphans}" if orphans else "OK")
 
@@ -177,10 +177,10 @@ def verify_mirror_build():
     print("\n## 场景 4：docs/wiki 进镜像构建校验")
     di = (REPO_ROOT / ".dockerignore")
     df = (REPO_ROOT / "Dockerfile")
-    di_lines = [l.strip() for l in di.read_text(encoding="utf-8").splitlines()
-                if l.strip() and not l.strip().startswith("#")]
+    di_lines = [line.strip() for line in di.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")]
     df_text = df.read_text(encoding="utf-8") if df.exists() else ""
-    ok_di = "!docs/wiki/" in di_lines and not any(re.fullmatch(r"docs/?", l) for l in di_lines)
+    ok_di = "!docs/wiki/" in di_lines and not any(re.fullmatch(r"docs/?", line) for line in di_lines)
     ok_df = "COPY docs/wiki" in df_text
     record(
         ".dockerignore 放行 docs/wiki（!docs/wiki/ 且无裸 docs/ 排除）",
