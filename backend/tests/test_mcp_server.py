@@ -25,13 +25,15 @@ import app.main  # noqa: F401  # 触发全部 @mcp_tool 注册（业务文件 im
 from app.models.user import User
 from tools.mcp_server.decorator import _REGISTERED_TOOLS, _user_id_from_meta, mcp
 
-# MCP 工具面 = 19 个业务工具（search_history 不迁移，v2 用 DSH session-query）
+# MCP 工具面 = 21 个业务工具（search_history 不迁移，v2 用 DSH session-query；
+# wiki_index/wiki_read = issue #103 小区知识库只读工具）
 ALL_TOOLS = {
     "get_my_profile", "update_my_profile", "get_user_public",
     "list_posts", "create_post", "get_post", "delete_post", "like_post", "unlike_post",
     "list_comments", "create_comment", "delete_comment",
     "list_notifications", "notification_count", "mark_all_read",
     "memory_list", "memory_add", "memory_get", "memory_delete",
+    "wiki_index", "wiki_read",
 }
 
 

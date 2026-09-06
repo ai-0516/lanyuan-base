@@ -95,6 +95,10 @@ COPY docs/wiki ./docs/wiki/
 #   不覆盖则 MCP 工具桥必断（chat 可用但工具不可用）
 ENV DSH_DIR=/app/dsh
 ENV LANYUAN_MCP_URL=http://127.0.0.1:80/mcp/
+# issue #103 二期：wiki 只读工具定位知识库（COPY docs/wiki → /app/docs/wiki）。
+# 显式注入（同 DSH_DIR 模式）：容器层级与 backend 打平后 _wiki_root() 的
+# parents 推导指向 /app（本机 backend/app/api/v1/... → 仓库根），统一走 env。
+ENV WIKI_DIR=/app/docs/wiki
 
 # 微信云托管端口约定（容器默认监听 80，平台转发）
 EXPOSE 80

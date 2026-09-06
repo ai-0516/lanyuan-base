@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.database import init_db, close_db
 from app.logger import setup_logging
 from app.ai.dsh_runtime import dsh_runtime
-from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
+from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory, wiki
 # v2 AI 对话（§9.1）；业务工具 @mcp_tool 定义在 v1 业务文件里（v1/v2 仅限 /ai/chat，
 # 其他 endpoint 不变）——import v1 业务模块即触发 @mcp_tool 注册进 mcp
 # （必须在 tools.mcp_server.main 的 mcp_app 构建前 import，本文件顺序已保证）
