@@ -1,7 +1,7 @@
 # Wiki Index — lanyuan-base 小区知识库
 
 > 内容目录。AI 助手查询前先读本页定位相关页面。
-> Last updated: 2026-09-06 | Total pages: 6
+> Last updated: 2026-09-06
 
 ## Regulations（法规）
 

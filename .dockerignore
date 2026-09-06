@@ -8,6 +8,9 @@ backend/.venv
 **/node_modules
 logs/
 uploads/
-docs/
+# docs/ 下仅 wiki 知识库随镜像构建（Dockerfile `COPY docs/wiki ./docs/wiki/`），
+# 其余文档（PRD/TECH_SPEC/design 等）不进构建上下文
+docs/*
+!docs/wiki/
 spike/
 test_lanyuan.db
