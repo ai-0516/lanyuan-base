@@ -29,6 +29,7 @@ backend/uploads/*
 # Coverage
 .coverage
 htmlcov/
+miniprogram/coverage/
 
 # Logs
 backend/logs/

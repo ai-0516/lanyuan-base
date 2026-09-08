@@ -1,6 +1,6 @@
 // like-button 组件 —— 点赞按钮
 // 已点赞 → DELETE 取消，未点赞 → POST 点赞
-const request = require('../../utils/request');
+const { request } = require('../../utils/request');
 
 Component({
   properties: {
@@ -32,7 +32,7 @@ Component({
         .then(res => {
           // res 已被 request 自动解包为 { liked, likeCount }
           const newLiked = res.liked !== undefined ? res.liked : !isLiked;
-          const newCount = res.likeCount || this.data.count;
+          const newCount = res.likeCount !== undefined ? res.likeCount : this.data.count;
           this.setData({
             liked: newLiked,
             count: newCount

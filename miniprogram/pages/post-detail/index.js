@@ -128,7 +128,7 @@ Page({
     }
   },
 
-  _openCommentSheet(postId) {
+  _openCommentSheet() {
     this.setData({
       commentSheetOpen: true,
       commentText: '',

@@ -4,7 +4,7 @@
  * 封装 wx.Storage 读写 Token，提供登录/登出/状态判断能力
  */
 
-const { BASE_URL, STORAGE_KEYS, PAGES } = require('./constants')
+const { STORAGE_KEYS, PAGES } = require('./constants')
 const http = require('./request')
 
 /**
@@ -96,17 +96,19 @@ async function login(mode = 'phone', params = {}) {
   }
 
   const res = await http.post(endpoint, payload, { noAuth: true })
+  // request 会自动解包 { code: 0, data }，同时兼容尚未解包的响应。
+  const loginData = res && res.code === 0 ? res.data : res
 
-  if (res.code === 0 && res.data) {
+  if (loginData && loginData.token) {
     // 保存 Token 和用户信息
-    setToken(res.data.token)
-    if (res.data.user) {
-      setUserInfo(res.data.user)
+    setToken(loginData.token)
+    if (loginData.user) {
+      setUserInfo(loginData.user)
     }
-    return res.data
+    return loginData
   }
 
-  throw new Error(res.message || '登录失败')
+  throw new Error((res && res.message) || '登录失败')
 }
 
 /**
