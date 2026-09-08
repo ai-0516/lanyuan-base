@@ -3,7 +3,13 @@ name: Miniprogram CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'miniprogram/**'
+      - '.github/workflows/frontend-test.yml'
   pull_request:
+    paths:
+      - 'miniprogram/**'
+      - '.github/workflows/frontend-test.yml'
 
 permissions:
   contents: read

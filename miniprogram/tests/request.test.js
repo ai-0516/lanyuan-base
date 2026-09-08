@@ -64,4 +64,52 @@ describe('utils/request', () => {
 
     jest.dontMock('../utils/constants')
   })
+
+  test('routes through wx.cloud.callContainer with cloud path and service header when USE_CLOUD', async () => {
+    jest.doMock('../utils/constants', () => ({
+      BASE_URL: 'http://localhost:8000/api/v1',
+      CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
+      USE_CLOUD: true,
+    }))
+    wx.cloud = {
+      callContainer: jest.fn(({ success }) => {
+        success({ statusCode: 200, data: { code: 0, data: { id: 5 } } })
+      }),
+    }
+    const { request } = loadRequest()
+
+    const pending = request({ url: '/posts', method: 'POST', data: { title: 'hi' } })
+
+    expect(wx.cloud.callContainer).toHaveBeenCalledWith(expect.objectContaining({
+      config: { env: 'test-env' },
+      path: '/api/v1/posts',
+      method: 'POST',
+      data: { title: 'hi' },
+      header: expect.objectContaining({ 'X-WX-SERVICE': 'test-service' }),
+    }))
+    await expect(pending).resolves.toEqual({ id: 5 })
+
+    jest.dontMock('../utils/constants')
+  })
+
+  test('converts absolute URLs to their pathname for cloud calls', async () => {
+    jest.doMock('../utils/constants', () => ({
+      BASE_URL: 'http://localhost:8000/api/v1',
+      CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
+      USE_CLOUD: true,
+    }))
+    wx.cloud = {
+      callContainer: jest.fn(({ success }) => {
+        success({ statusCode: 200, data: { code: 0, data: null } })
+      }),
+    }
+    const { request } = loadRequest()
+
+    await request('GET', 'http://localhost:8000/api/v2/ai/session?page=1')
+    expect(wx.cloud.callContainer).toHaveBeenCalledWith(expect.objectContaining({
+      path: '/api/v2/ai/session?page=1',
+    }))
+
+    jest.dontMock('../utils/constants')
+  })
 })

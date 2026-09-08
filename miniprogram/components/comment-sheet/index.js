@@ -1,6 +1,6 @@
 // comment-sheet 组件 —— 底部评论弹出层
 // 半屏滑出显示评论列表，支持回复和发表新评论
-const request = require('../../utils/request');
+const { request } = require('../../utils/request');
 
 Component({
   properties: {
