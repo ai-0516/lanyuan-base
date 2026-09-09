@@ -41,7 +41,12 @@ async function mockRequest(miniProgram, routes) {
     const pathname = pathAndQuery.split('?')[0];
     const method = (options.method || 'GET').toUpperCase();
     const key = `${method} ${pathAndQuery}`;
-    return routeTable[key] || routeTable[`${method} ${pathname}`] || {
+    const matched = routeTable[key] || routeTable[`${method} ${pathname}`];
+    if (matched) return matched;
+    // 未命中 mock 的请求静默 404 会隐藏页面发出了预期外请求（测试仍绿），
+    // 打 warn 日志（harness 已收集 console 日志，失败 artifact 中可查）便于排障。
+    console.warn(`[e2e] Unmocked wx.request: ${key}`);
+    return {
       statusCode: 404,
       data: { message: `Unmocked request: ${key}` },
     };

@@ -98,14 +98,14 @@ e2e('发现页展示帖子，支持点赞、评论并进入发布页', async () 
   expect(loaded.posts).toHaveLength(1);
 
   await feed.callMethod('onPostLike', { detail: { postId: 101 } });
-  await feed.waitFor(200);
-  expect((await feed.data()).posts[0].liked).toBe(true);
+  const liked = await waitForData(feed, data => data.posts[0]?.liked === true);
+  expect(liked.posts[0].liked).toBe(true);
 
   await feed.callMethod('onPostComment', { detail: { postId: 101 } });
   await feed.callMethod('onCommentInput', { detail: { value: '自动化评论' } });
   await feed.callMethod('sendComment');
-  await feed.waitFor(200);
-  expect((await feed.data()).posts[0].comments[0].content).toBe('自动化评论');
+  const commented = await waitForData(feed, data => data.posts[0]?.comments[0]?.content === '自动化评论');
+  expect(commented.posts[0].comments[0].content).toBe('自动化评论');
 
   const createButton = await feed.$('.fab');
   await createButton.tap();
