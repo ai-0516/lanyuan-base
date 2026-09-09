@@ -6,7 +6,7 @@
 
   <!-- 内容区 -->
   <view class="page-content">
-    <textarea class="textarea" placeholder="分享小区新鲜事…" value="{{content}}" bindinput="onContentInput" maxlength="500" auto-height></textarea>
+    <textarea class="textarea" id="e2e-post-content" placeholder="分享小区新鲜事…" value="{{content}}" bindinput="onContentInput" maxlength="500" auto-height></textarea>
     <text class="char-count {{content.length > 400 ? (content.length >= 500 ? 'over' : 'warn') : ''}}">{{content.length}}/500</text>
 
     <!-- 图片网格 -->
@@ -22,5 +22,5 @@
   </view>
 
   <!-- 发布按钮 -->
-  <button class="publish" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
+  <button class="publish" id="e2e-post-submit" bindtap="onPublish" disabled="{{!canPublish || publishing}}" loading="{{publishing}}">发布</button>
 </view>

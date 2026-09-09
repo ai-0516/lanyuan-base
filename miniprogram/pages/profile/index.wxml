@@ -1,6 +1,6 @@
 <view class="profile-page">
   <!-- 用户信息卡（点击跳转编辑资料） -->
-  <view class="profile-card anim-1" bindtap="goToEditProfile">
+  <view class="profile-card anim-1" id="e2e-profile-card" bindtap="goToEditProfile">
     <view class="avatar-wrap">
       <image class="avatar" src="{{userInfo.avatar}}" mode="aspectFill" wx:if="{{userInfo.avatar}}"></image>
       <view class="avatar-placeholder" wx:else>
@@ -53,13 +53,13 @@
   </view>
 
   <!-- 退出登录 -->
-  <view class="logout-btn anim-2" bindtap="onLogout">退出登录</view>
+  <view class="logout-btn anim-2" id="e2e-logout-open" bindtap="onLogout">退出登录</view>
 
   <!-- 退出确认弹窗 -->
   <view class="modal-overlay {{showLogoutModal ? 'show' : ''}}" catchtap="hideLogoutModal">
     <view class="modal-sheet" catchtap="">
       <view class="modal-title">确认退出登录？</view>
-      <view class="modal-action danger" bindtap="confirmLogout">退出登录</view>
+      <view class="modal-action danger" id="e2e-logout-confirm" bindtap="confirmLogout">退出登录</view>
       <view class="modal-action cancel" bindtap="hideLogoutModal">取消</view>
     </view>
   </view>

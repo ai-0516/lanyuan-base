@@ -1,34 +1,34 @@
 const fs = require('fs');
 const path = require('path');
-const automator = require('miniprogram-automator');
-
-const MiniProgram = require('miniprogram-automator/out/MiniProgram').default;
+const automator = require('miniprogram-automator-next');
 
 const PROJECT_PATH = path.resolve(__dirname, '../..');
 const ARTIFACT_DIR = path.join(PROJECT_PATH, 'e2e-artifacts');
-const DEFAULT_CLI_PATH = '/Applications/wechatwebdevtools.app/Contents/MacOS/cli';
-
-// DevTools 2.02.2607271 renamed Tool.getInfo.SDKVersion to version. Automator
-// 0.12.1 dereferences the missing field before a session can start. Accept the
-// new field while retaining the original SDK-version check when it is present.
-const originalCheckVersion = MiniProgram.prototype.checkVersion;
-MiniProgram.prototype.checkVersion = async function checkVersionCompat() {
-  const info = await this.send('Tool.getInfo');
-  if (info.SDKVersion) return originalCheckVersion.call(this);
-  if (!info.version) throw new Error('DevTools did not return version information');
-};
+const DEFAULT_CLI_PATH = '/Applications/wechatwebdevtools-2.01.2510290.app/Contents/MacOS/cli';
+const SCREENSHOT_INCOMPATIBLE_VERSIONS = new Set(['2.02.2607271']);
 
 async function launchMiniProgram() {
   const cliPath = process.env.WECHAT_DEVTOOLS_CLI_PATH || DEFAULT_CLI_PATH;
-  if (!fs.existsSync(cliPath)) {
+  const wsEndpoint = process.env.WECHAT_DEVTOOLS_WS_ENDPOINT;
+  if (!wsEndpoint && !fs.existsSync(cliPath)) {
     throw new Error(`WeChat DevTools CLI not found: ${cliPath}`);
   }
-  const miniProgram = await automator.launch({
-    cliPath,
-    projectPath: PROJECT_PATH,
-    trustProject: true,
-    timeout: 60000,
-  });
+  const miniProgram = wsEndpoint
+    ? await automator.connect({ wsEndpoint })
+    : await automator.launch({
+      cliPath,
+      projectPath: PROJECT_PATH,
+      trustProject: true,
+      timeout: 60000,
+    });
+  const info = await miniProgram.raw.send('Tool.getInfo');
+  if (SCREENSHOT_INCOMPATIBLE_VERSIONS.has(info.version)) {
+    await miniProgram.teardown();
+    throw new Error(
+      `WeChat DevTools ${info.version} cannot return automator screenshots; ` +
+      'use the tested 2.01.2510290 version or set WECHAT_DEVTOOLS_CLI_PATH to a compatible CLI'
+    );
+  }
   const logs = [];
   miniProgram.on('console', log => logs.push({ type: 'console', log }));
   miniProgram.on('exception', error => logs.push({ type: 'exception', error }));
@@ -56,12 +56,14 @@ async function mockRequest(miniProgram, routes) {
 async function waitForPath(miniProgram, expected, timeout = 10000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const page = await miniProgram.currentPage();
-    if (page.path === expected) return page;
+    const page = miniProgram.page;
+    const route = await page.route();
+    if (route.route === expected) return page;
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-  const page = await miniProgram.currentPage();
-  throw new Error(`Expected page ${expected}, received ${page.path}`);
+  const page = miniProgram.page;
+  const route = await page.route();
+  throw new Error(`Expected page ${expected}, received ${route.route}`);
 }
 
 async function saveFailureArtifacts(miniProgram, logs, testName) {
@@ -69,7 +71,7 @@ async function saveFailureArtifacts(miniProgram, logs, testName) {
   const safeName = testName.replace(/[^a-zA-Z0-9_-]+/g, '-');
   let screenshotError = null;
   try {
-    await miniProgram.screenshot({ path: path.join(ARTIFACT_DIR, `${safeName}.png`) });
+    await miniProgram.saveScreenshot(path.join(ARTIFACT_DIR, `${safeName}.png`));
   } catch (error) {
     screenshotError = error.message;
   }
@@ -77,8 +79,9 @@ async function saveFailureArtifacts(miniProgram, logs, testName) {
   // 因此页面状态采集整体 try/catch，失败只记录原因不中断。
   let pageInfo = {};
   try {
-    const page = await miniProgram.currentPage();
-    pageInfo = { path: page.path, data: await page.data() };
+    const page = miniProgram.page;
+    const route = await page.route();
+    pageInfo = { path: route.route, options: route.options, data: await page.data() };
   } catch (error) {
     pageInfo = { error: `page unavailable: ${error.message}` };
   }

@@ -1,4 +1,4 @@
-<view class="feed-page">
+<view class="feed-page" id="e2e-feed-page">
   <!-- 滚动内容区 -->
   <scroll-view class="post-list-scroll" scroll-y enhanced show-scrollbar="{{false}}" refresher-enabled refresher-triggered="{{refresherTriggered}}" bindrefresherrefresh="onPullDownRefresh" bindscrolltolower="onLoadMore">
 
@@ -40,7 +40,7 @@
   </scroll-view>
 
   <!-- 浮动发布按钮（固定在右下角） -->
-  <view class="fab" bindtap="goToCreatePost">
+  <view class="fab" id="e2e-create-post-entry" bindtap="goToCreatePost">
     <text class="fab-icon">+</text>
   </view>
 
@@ -49,8 +49,8 @@
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
     <!-- 输入区 -->
     <view class="cs-input-area">
-      <textarea class="cs-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
-      <view class="cs-send {{canSend ? 'active' : ''}}" bindtap="sendComment">→</view>
+      <textarea class="cs-input" id="e2e-comment-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
+      <view class="cs-send {{canSend ? 'active' : ''}}" id="e2e-comment-submit" bindtap="sendComment">→</view>
     </view>
   </view>
 </view>
