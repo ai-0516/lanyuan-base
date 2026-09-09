@@ -138,6 +138,8 @@ uvicorn app.main:app --reload --port 8000
 
 ### 3. 运行测试
 
+#### 后端
+
 ```bash
 cd backend
 
@@ -150,6 +152,20 @@ cd backend
 # 仅 service 层
 .venv/bin/python3 -m pytest tests/test_services.py -v
 ```
+
+#### 微信小程序
+
+小程序第一阶段自动化测试不依赖微信开发者工具、真实微信账号或后端服务：
+
+```bash
+cd miniprogram
+npm ci
+npm run lint
+npm run test:coverage
+```
+
+测试覆盖 `utils` 核心逻辑、关键页面行为和自定义组件。依赖微信开发者
+工具的页面 E2E 与真机验证不在此测试集范围内。
 
 ---
 

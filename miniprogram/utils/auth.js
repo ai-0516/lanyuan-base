@@ -4,8 +4,7 @@
  * 封装 wx.Storage 读写 Token，提供登录/登出/状态判断能力
  */
 
-const { BASE_URL, STORAGE_KEYS, PAGES } = require('./constants')
-const http = require('./request')
+const { STORAGE_KEYS, PAGES } = require('./constants')
 
 /**
  * 判断用户是否已登录（本地是否有 Token）
@@ -68,48 +67,6 @@ function setUserInfo(userInfo) {
 }
 
 /**
- * 使用账号密码登录（调用服务端 /auth/login）
- *
- * @param {'phone'|'wechat'} mode - 登录方式
- * @param {object}   params - 登录参数
- * @param {string}   params.phone    - 手机号（mode=phone 时必填）
- * @param {string}   params.password - 密码（mode=phone 时必填）
- * @param {string}   params.code     - 微信静默 code（mode=wechat 时必填）
- * @returns {Promise<{token: string, user: object}>}
- */
-async function login(mode = 'phone', params = {}) {
-  let endpoint, payload
-
-  if (mode === 'phone') {
-    endpoint = '/auth/login'
-    payload = {
-      phone: params.phone,
-      password: params.password,
-    }
-  } else if (mode === 'wechat') {
-    endpoint = '/auth/wechat-login'
-    payload = {
-      code: params.code,
-    }
-  } else {
-    throw new Error('不支持的登录方式: ' + mode)
-  }
-
-  const res = await http.post(endpoint, payload, { noAuth: true })
-
-  if (res.code === 0 && res.data) {
-    // 保存 Token 和用户信息
-    setToken(res.data.token)
-    if (res.data.user) {
-      setUserInfo(res.data.user)
-    }
-    return res.data
-  }
-
-  throw new Error(res.message || '登录失败')
-}
-
-/**
  * 登出 — 清除本地凭据并跳转登录页
  */
 function logout() {
@@ -136,7 +93,6 @@ module.exports = {
   clearToken,
   getUserInfo,
   setUserInfo,
-  login,
   logout,
   checkLogin,
 }

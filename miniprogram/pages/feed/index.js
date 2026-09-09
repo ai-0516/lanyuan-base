@@ -216,10 +216,6 @@ Page({
     this.setData({ actionOpenId: '' });
     const post = this.data.posts.find(p => p.id === postId);
     if (!post) return;
-    const allComments = (post.comments || []).map(c => ({
-      ...c,
-      displayTime: this.formatTime(c.created_at),
-    }));
     this.setData({
       commentSheetOpen: true,
       commentSheetPostId: postId,

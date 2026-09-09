@@ -48,7 +48,7 @@ Page({
     wx.navigateTo({ url: '/pages/edit-profile/index' });
   },
 
-  async onToggleBuilding(e) {
+  async onToggleBuilding() {
     const showBuilding = !this.data.showBuilding;
     this.setData({ showBuilding });
     try {
@@ -59,7 +59,7 @@ Page({
     }
   },
 
-  async onToggleRoom(e) {
+  async onToggleRoom() {
     const showRoom = !this.data.showRoom;
     this.setData({ showRoom });
     try {

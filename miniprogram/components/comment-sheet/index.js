@@ -1,6 +1,6 @@
 // comment-sheet 组件 —— 底部评论弹出层
 // 半屏滑出显示评论列表，支持回复和发表新评论
-const request = require('../../utils/request');
+const { request } = require('../../utils/request');
 
 Component({
   properties: {
@@ -14,7 +14,7 @@ Component({
     },
     replyTo: {
       type: Object,
-      value: null // { userId, nickname } 待回复的用户
+      value: null // { commentId, userId, nickname } 待回复的评论
     }
   },
 
@@ -50,16 +50,17 @@ Component({
         method: 'GET'
       })
         .then(res => {
-          this.setData({ comments: res.data || [] });
+          // request 已自动解包统一响应，成功时 res 就是评论数组。
+          this.setData({ comments: Array.isArray(res) ? res : [] });
         })
         .catch(() => {});
     },
 
     /** 点击评论 -> 设置回复目标 */
-    onReplyTap(e) {
-      const user = e.currentTarget.dataset.user;
+  onReplyTap(e) {
+      const { commentId, user } = e.currentTarget.dataset;
       this.setData({
-        replyTo: { userId: user.id, nickname: user.nickname }
+        replyTo: { commentId, userId: user.id, nickname: user.nickname }
       });
     },
 
@@ -69,9 +70,9 @@ Component({
       if (!content) return;
 
       const data = { content };
-      // 如果是回复某条评论，带上 parentCommentId
+      // 如果是回复某条评论，带上后端要求的父评论 ID。
       if (this.data.replyTo) {
-        data.parentCommentId = this.data.replyTo.userId;
+        data.parent_comment_id = this.data.replyTo.commentId;
       }
 
       request({

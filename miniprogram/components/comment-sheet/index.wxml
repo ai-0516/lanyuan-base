@@ -9,15 +9,15 @@
 
     <!-- 评论列表（可滚动） -->
     <scroll-view class="comment-list" scroll-y>
-      <view wx:for="{{comments}}" wx:key="id" class="comment-item" bind:tap="onReplyTap" data-user="{{item.user}}">
+      <view wx:for="{{comments}}" wx:key="id" class="comment-item" bind:tap="onReplyTap" data-comment-id="{{item.id}}" data-user="{{item.user}}">
         <image class="comment-avatar" src="{{item.user.avatar}}" mode="aspectFill"></image>
         <view class="comment-body">
           <view class="comment-header">
             <text class="comment-author">{{item.user.nickname}}</text>
-            <text class="comment-time">{{item.createdAt}}</text>
+            <text class="comment-time">{{item.created_at}}</text>
           </view>
           <view class="comment-content">
-            <text wx:if="{{item.replyTo}}" class="reply-tag">回复 @{{item.replyTo.nickname}}：</text>
+            <text wx:if="{{item.reply_to}}" class="reply-tag">回复 @{{item.reply_to.nickname}}：</text>
             <text>{{item.content}}</text>
           </view>
         </view>
