@@ -16,7 +16,7 @@ function loadComponent(modulePath, propertyValues = {}) {
     Object.entries(definition.properties || {}).map(([name, options]) => [name, options.value]),
   )
   const component = {
-    data: { ...defaults, ...propertyValues },
+    data: { ...(definition.data || {}), ...defaults, ...propertyValues },
     setData(update) {
       Object.assign(this.data, update)
     },

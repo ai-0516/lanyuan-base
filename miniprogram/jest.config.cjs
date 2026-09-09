@@ -3,7 +3,7 @@ module.exports = {
   collectCoverageFrom: [
     'utils/{auth,date,request}.js',
     'pages/login/index.js',
-    'components/like-button/index.js',
+    'components/{comment-sheet,like-button}/index.js',
   ],
   coverageDirectory: 'coverage',
   coveragePathIgnorePatterns: ['/node_modules/'],
