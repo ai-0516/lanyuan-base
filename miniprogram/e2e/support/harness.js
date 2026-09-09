@@ -67,16 +67,23 @@ async function waitForPath(miniProgram, expected, timeout = 10000) {
 async function saveFailureArtifacts(miniProgram, logs, testName) {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const safeName = testName.replace(/[^a-zA-Z0-9_-]+/g, '-');
-  const page = await miniProgram.currentPage();
   let screenshotError = null;
   try {
     await miniProgram.screenshot({ path: path.join(ARTIFACT_DIR, `${safeName}.png`) });
   } catch (error) {
     screenshotError = error.message;
   }
+  // currentPage 在页面栈异常时可能抛错——若 artifacts 采集自身抛错会吞掉原始测试错误，
+  // 因此页面状态采集整体 try/catch，失败只记录原因不中断。
+  let pageInfo = {};
+  try {
+    const page = await miniProgram.currentPage();
+    pageInfo = { path: page.path, data: await page.data() };
+  } catch (error) {
+    pageInfo = { error: `page unavailable: ${error.message}` };
+  }
   fs.writeFileSync(path.join(ARTIFACT_DIR, `${safeName}.json`), JSON.stringify({
-    path: page.path,
-    data: await page.data(),
+    ...pageInfo,
     logs,
     screenshotError,
   }, null, 2));

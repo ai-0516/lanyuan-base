@@ -111,3 +111,37 @@ e2e('发现页展示帖子，支持点赞、评论并进入发布页', async () 
   await createButton.tap();
   await waitForPath(miniProgram, 'pages/create-post/index');
 });
+
+// Issue #108 验收「核心成功、鉴权失败和服务异常分支有断言」：
+// 下面两条分别覆盖登录主流程的 Token 失效（401）与社区流程的服务异常（500）分支。
+
+e2e('登录态 Token 失效（401）时清除登录态并停留登录页', async () => {
+  await authenticate();
+  // 前提：带 token 进入登录页才会走 _autoLogin 的 /auth/check 校验分支
+  expect(await miniProgram.callWxMethod('getStorageSync', 'token')).toBe('e2e-token');
+  await mockRequest(miniProgram, {
+    // /auth/check 401 → _autoLogin catch → clearToken 并回落登录表单
+    // （成功路径会 reLaunch 到 feed，页面不可能停在登录页，断言可区分分支）
+    'GET /api/v1/auth/check': { statusCode: 401, data: { code: 1002, message: 'Token 已失效' } },
+  });
+  await miniProgram.reLaunch('/pages/login/index');
+  const login = await waitForPath(miniProgram, 'pages/login/index');
+  // checked 置 true 仅发生在校验失败回落后（未登录直入时也会置 true，故先断言了 token 前提）
+  await waitForData(login, data => data.checked === true);
+  expect(await miniProgram.callWxMethod('getStorageSync', 'token')).toBe('');
+  expect(await miniProgram.callWxMethod('getStorageSync', 'user_info')).toBe('');
+});
+
+e2e('服务异常（500）时 Feed 加载失败并优雅降级', async () => {
+  await authenticate();
+  await mockRequest(miniProgram, {
+    // posts 500 → request reject → loadPosts catch → loading 复位
+    // （成功路径会填充 posts 使长度不为 0；请求未发出则 loading 恒为 true → 轮询超时失败）
+    'GET /api/v1/posts?page=1&size=20': { statusCode: 500, data: { code: 5000, message: '服务器错误' } },
+  });
+  await miniProgram.reLaunch('/pages/feed/index');
+  const feed = await waitForPath(miniProgram, 'pages/feed/index');
+  const settled = await waitForData(feed, data => data.loading === false && data.posts.length === 0);
+  expect(settled.loading).toBe(false);
+  expect(settled.posts).toHaveLength(0);
+});
