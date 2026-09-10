@@ -1,8 +1,14 @@
-const loadRequest = () => {
+const loadRequest = ({ useCloud = false } = {}) => {
   let http
+  jest.doMock('../utils/constants', () => ({
+    BASE_URL: 'http://localhost:8000/api/v1',
+    CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
+    USE_CLOUD: useCloud,
+  }))
   jest.isolateModules(() => {
     http = require('../utils/request')
   })
+  jest.dontMock('../utils/constants')
   return http
 }
 
@@ -52,31 +58,19 @@ describe('utils/request', () => {
   })
 
   test('returns a readable error when cloud capability is unavailable', async () => {
-    jest.doMock('../utils/constants', () => ({
-      BASE_URL: 'http://localhost:8000/api/v1',
-      CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
-      USE_CLOUD: true,
-    }))
-    const { request } = loadRequest()
+    const { request } = loadRequest({ useCloud: true })
 
     await expect(request('GET', '/posts')).rejects.toThrow('云能力不可用')
     expect(wx.request).not.toHaveBeenCalled()
-
-    jest.dontMock('../utils/constants')
   })
 
   test('routes through wx.cloud.callContainer with cloud path and service header when USE_CLOUD', async () => {
-    jest.doMock('../utils/constants', () => ({
-      BASE_URL: 'http://localhost:8000/api/v1',
-      CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
-      USE_CLOUD: true,
-    }))
     wx.cloud = {
       callContainer: jest.fn(({ success }) => {
         success({ statusCode: 200, data: { code: 0, data: { id: 5 } } })
       }),
     }
-    const { request } = loadRequest()
+    const { request } = loadRequest({ useCloud: true })
 
     const pending = request({ url: '/posts', method: 'POST', data: { title: 'hi' } })
 
@@ -89,27 +83,19 @@ describe('utils/request', () => {
     }))
     await expect(pending).resolves.toEqual({ id: 5 })
 
-    jest.dontMock('../utils/constants')
   })
 
   test('converts absolute URLs to their pathname for cloud calls', async () => {
-    jest.doMock('../utils/constants', () => ({
-      BASE_URL: 'http://localhost:8000/api/v1',
-      CLOUD_CONFIG: { ENV: 'test-env', SERVICE: 'test-service' },
-      USE_CLOUD: true,
-    }))
     wx.cloud = {
       callContainer: jest.fn(({ success }) => {
         success({ statusCode: 200, data: { code: 0, data: null } })
       }),
     }
-    const { request } = loadRequest()
+    const { request } = loadRequest({ useCloud: true })
 
     await request('GET', 'http://localhost:8000/api/v2/ai/session?page=1')
     expect(wx.cloud.callContainer).toHaveBeenCalledWith(expect.objectContaining({
       path: '/api/v2/ai/session?page=1',
     }))
-
-    jest.dontMock('../utils/constants')
   })
 })
