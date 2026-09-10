@@ -15,7 +15,7 @@ const BASE_URL = 'http://localhost:8000/api/v1'
  *   私有链路（**开发者工具可手动改 true 直接联调云托管线上链路**，
  *   无需等体验版；发布体验版/正式版前切回 false 或置 true 按部署需求）
  */
-const USE_CLOUD = false
+const USE_CLOUD = true
 
 /**
  * 微信云托管配置（线上模式，USE_CLOUD=true 时生效）
