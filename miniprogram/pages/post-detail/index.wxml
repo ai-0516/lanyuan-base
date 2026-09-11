@@ -24,7 +24,7 @@
   <view class="comment-overlay {{commentSheetOpen ? 'show' : ''}}" bindtap="closeCommentSheet"></view>
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
     <view class="cs-input-area">
-      <textarea class="cs-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
+      <textarea class="cs-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" adjust-position="{{true}}" show-confirm-bar="{{false}}" confirm-type="return" cursor-spacing="40" auto-height></textarea>
       <view class="cs-send {{canSend ? 'active' : ''}}" bindtap="sendComment">→</view>
     </view>
   </view>

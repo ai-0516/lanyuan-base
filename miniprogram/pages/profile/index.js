@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
-const { APP_VERSION, fullUrl } = require('../../utils/constants');
+const { fullUrl } = require('../../utils/constants');
+const { getRuntimeVersion } = require('../../utils/version');
 const auth = require('../../utils/auth');
 
 Page({
@@ -9,7 +10,7 @@ Page({
     showBuilding: true,
     showRoom: false,
     showLogoutModal: false,
-    appVersion: APP_VERSION,
+    appVersion: getRuntimeVersion(),
   },
 
   onShow() {

@@ -1,7 +1,7 @@
-const { APP_VERSION } = require('../../utils/constants');
+const { getRuntimeVersion } = require('../../utils/version');
 
 Page({
   data: {
-    appVersion: APP_VERSION,
+    appVersion: getRuntimeVersion(),
   },
 })

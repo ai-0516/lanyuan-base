@@ -10,14 +10,23 @@ page::-webkit-scrollbar {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  box-sizing: border-box;
   background: var(--cream);
 }
 
-/* 消息列表 — 对齐设计: padding 0 16px 8px */
+/* 消息列表 — 底部留白避免最后一行紧贴输入区 */
 .message-list {
   flex: 1;
-  padding: 0 32rpx 16rpx;
+  /* scroll-view 在纵向 flex 中必须有可收缩的基准高度；否则部分基础库会按
+     内容高度参与布局，输入区虽然显示在其上方，最大滚动范围却仍按旧视口计算。 */
+  height: 0;
+  min-height: 0;
+  padding: 0 32rpx 24rpx;
+  box-sizing: border-box;
   overflow-y: scroll;
+}
+.msg-end-anchor {
+  height: 12rpx;
 }
 .message-list::-webkit-scrollbar {
   display: none;

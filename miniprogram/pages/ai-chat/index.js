@@ -1,6 +1,8 @@
 const { request } = require('../../utils/request');
 const { V2_BASE_URL, CLOUD_CONFIG, USE_CLOUD } = require('../../utils/constants');
 const app = getApp();
+const MOCK_STREAM_STORAGE_KEY = 'debugMockAiStream';
+const STREAM_LOG_STORAGE_KEY = 'debugLogAiStream';
 
 Page({
   data: {
@@ -10,7 +12,7 @@ Page({
     isLoading: false,       // 是否正在加载 AI 回复
     sessionId: '',          // 当前会话 ID（v2 纯 uuid，POST /api/v2/ai/session 获取）
     userAvatar: '',         // 用户头像
-    lastMsgId: 'msg-end',   // 滚动定位锚点
+    lastMsgId: '',          // 在两个静态底部锚点间切换，强制重新执行原生定位
     hasMoreHistory: true,   // 是否还有更早历史（触顶加载）
     historyLoading: false,  // 历史加载防抖
     lastCursor: '',         // 历史分页游标（turn/start seq，加载更早 = before_seq）
@@ -24,6 +26,11 @@ Page({
   onShow() {
     // 每次展示时滚动到底部
     this.scrollToBottom();
+  },
+
+  onUnload() {
+    this._mockStreamActive = false;
+    this.stopAutoScroll(false);
   },
 
   /** 初始化 AI 会话（v2：TECH_SPEC §9.1 统一创建点）
@@ -144,6 +151,13 @@ Page({
    *   的已知限制不影响本项目）
    */
   async streamChat(sessionId, message) {
+    // towxml 子组件的排版可能晚于 chunk 的 setData 回调。流式期间持续重新
+    // 请求绝对底部，才能在真实换行出现时立即跟随，而不是等 turn/end。
+    this.startAutoScroll();
+    if (this.isMockStreamEnabled()) {
+      this.streamMockReply(message);
+      return;
+    }
     const token = wx.getStorageSync('token') || '';
 
     let socket;
@@ -193,10 +207,11 @@ Page({
       if (type === 'error') {
         // 后端错误帧（token 无效 4401 / 归属 4403 / 参数 1008 / 服务端异常
         // 1011）——文案后端给（「请重试」语义），显示后连接由后端关闭
+        this.flushPendingStreamChunks();
         this.handleStreamError(data.message || 'AI 回复被中断，请重试');
         return;
       }
-      this.dispatchEvent(type, data);
+      this.handleStreamFrame(type, data);
     });
 
     socket.onError(() => {
@@ -213,12 +228,102 @@ Page({
     });
   },
 
+  /**
+   * 合并高频 text-delta，避免每 1–2 个字符都把完整 messages 提交到视图层。
+   * 非 chunk 事件到达前先冲刷，保证 step/turn 边界的原始顺序不变。
+   */
+  handleStreamFrame(type, data) {
+    if (type !== 'assistant/chunk') {
+      this.flushPendingStreamChunks();
+      this.dispatchEvent(type, data);
+      return;
+    }
+
+    const text = (data.chunk || {}).text || '';
+    if (!text) return;
+    this.recordStreamChunk(text);
+    this._pendingStreamText = (this._pendingStreamText || '') + text;
+    if (this._chunkFlushScheduled) return;
+    this._chunkFlushScheduled = true;
+    setTimeout(() => {
+      this._chunkFlushScheduled = false;
+      this.flushPendingStreamChunks();
+    }, 100);
+  },
+
+  flushPendingStreamChunks() {
+    const text = this._pendingStreamText || '';
+    if (!text) return;
+    this._pendingStreamText = '';
+    if (this._streamMetrics) this._streamMetrics.renderBatchCount += 1;
+    this.dispatchEvent('assistant/chunk', { chunk: { text } });
+  },
+
+  /**
+   * 本地流式调试开关。仅 develop 生效，避免体验版或正式版误绕过后端。
+   * 开启：wx.setStorageSync('debugMockAiStream', true)
+   * 关闭：wx.removeStorageSync('debugMockAiStream')
+   */
+  isMockStreamEnabled() {
+    try {
+      const info = wx.getAccountInfoSync();
+      return info.miniProgram.envVersion === 'develop'
+        && wx.getStorageSync(MOCK_STREAM_STORAGE_KEY) === true;
+    } catch (err) {
+      return false;
+    }
+  },
+
+  /** 固定内容、固定节奏的本地事件流，复用真实 dispatchEvent/towxml 路径。 */
+  streamMockReply(message) {
+    const baseChunks = [
+      '这是本地模拟的流式回复。',
+      '它不会连接后端，也不会调用大模型，',
+      '用于反复观察消息气泡逐渐变高时，',
+      '页面是否能够在每次出现新行后及时向上滚动。',
+      '\n\n第二段继续增加内容，',
+      '确保回复高度超过当前可视区域。',
+      '如果滚动工作正常，',
+      '输入框上方应始终能够看到最新生成的文字，',
+      '而不是等整段回答结束以后才突然移动。',
+    ];
+    const chunks = [];
+    for (let round = 0; round < 4; round += 1) {
+      baseChunks.forEach((text, index) => {
+        chunks.push(index === 0 ? `\n\n第 ${round + 1} 段：${text}` : text);
+      });
+    }
+    this._mockStreamActive = true;
+    this.dispatchEvent('turn/start', {});
+    this.dispatchEvent('step/start', {});
+    this.dispatchEvent('user/message', {
+      content: [{ type: 'text', text: message }],
+    });
+
+    let index = 0;
+    const emitNext = () => {
+      if (!this._mockStreamActive) return;
+      if (index >= chunks.length) {
+        this._mockStreamActive = false;
+        this.dispatchEvent('turn/end', { reason: { kind: 'stop' } });
+        return;
+      }
+      this.dispatchEvent('assistant/chunk', {
+        chunk: { text: chunks[index] },
+      });
+      index += 1;
+      this._mockStreamTimer = setTimeout(emitNext, 350);
+    };
+    emitNext();
+  },
+
   /** DSH 事件分发（§10.1 映射表） */
   dispatchEvent(type, data) {
     switch (type) {
       case 'turn/start':
         // 回合边界（一次 user_prompt 处理开始）：重置回合状态，不建气泡
         this._turnEnded = false;
+        this.startStreamMetrics();
         break;
       case 'user/message':
         // 用户气泡数据源（事件流单一数据源，前端不做本地乐观渲染）
@@ -274,8 +379,7 @@ Page({
     } else {
       messages.push(userMsg);
     }
-    this.setData({ messages });
-    this.scrollToBottom();
+    this.setData({ messages }, () => this.scrollToBottom());
   },
 
   /** 追加内容到 AI 气泡（打字机效果，assistant/chunk text-delta 驱动） */
@@ -285,9 +389,16 @@ Page({
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.role === 'assistant') {
       lastMsg.content += text;
+      const towxmlStartedAt = Date.now();
       lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
-      this.setData({ messages });
-      this.scrollToBottom();
+      this.recordMetric('towxmlMs', Date.now() - towxmlStartedAt);
+      // towxml 是子组件；等当前 chunk 的节点提交到视图层后再测量高度，
+      // 否则连续流式更新期间会一直读到旧高度，只在 turn/end 时滚动。
+      const setDataStartedAt = Date.now();
+      this.setData({ messages }, () => {
+        this.recordMetric('setDataCallbackMs', Date.now() - setDataStartedAt);
+        this.scrollToBottom();
+      });
     }
   },
 
@@ -306,8 +417,7 @@ Page({
       nodes: [],
       time: this.formatTime(Date.now()),
     });
-    this.setData({ messages });
-    this.scrollToBottom();
+    this.setData({ messages }, () => this.scrollToBottom());
   },
 
   /** 回合收尾（turn/end 事件驱动，§10.1）
@@ -325,8 +435,10 @@ Page({
     if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
       messages.pop();
     }
-    this.setData({ messages, isLoading: false });
-    this.scrollToBottom();
+    this.setData({ messages, isLoading: false }, () => {
+      this.stopAutoScroll();
+      this.finishStreamMetrics();
+    });
   },
 
   /** 处理流式错误
@@ -349,15 +461,113 @@ Page({
         time: this.formatTime(Date.now()),
       });
     }
-    this.setData({ messages, isLoading: false });
-    this.scrollToBottom();
+    this.setData({ messages, isLoading: false }, () => this.stopAutoScroll());
   },
 
-  /** 滚动到底部 */
+  /** 流式输出期间持续请求绝对底部，捕获 towxml 异步产生的新行。 */
+  startAutoScroll() {
+    if (this._autoScrollActive) return;
+    this._autoScrollActive = true;
+    const poll = () => {
+      if (!this._autoScrollActive) return;
+      this.scrollToBottom();
+      this._autoScrollTimer = setTimeout(poll, 50);
+    };
+    poll();
+  },
+
+  stopAutoScroll(finalScroll = true) {
+    this._autoScrollActive = false;
+    // 微信小程序运行时提供 clearTimeout；eslint 的项目全局表未包含它。
+    // eslint-disable-next-line no-undef
+    clearTimeout(this._autoScrollTimer);
+    this._autoScrollTimer = null;
+    if (finalScroll) this.scrollToBottom();
+  },
+
+  /** 在两个相邻的静态锚点间切换，强制 scroll-into-view 重新定位到底部。 */
   scrollToBottom() {
+    if (this._scrollScheduled) return;
+    this._scrollScheduled = true;
+    const scheduledAt = Date.now();
     setTimeout(() => {
-      this.setData({ lastMsgId: 'msg-end' });
-    }, 50);
+      this._scrollScheduled = false;
+      this.recordMetric('scrollTimerMs', Date.now() - scheduledAt);
+      this.setData({
+        lastMsgId: this.data.lastMsgId === 'msg-end-a' ? 'msg-end-b' : 'msg-end-a',
+      });
+    }, 16);
+  },
+
+  /** 以下指标只在 develop + 手动开关下采集，不记录消息正文。 */
+  isStreamLogEnabled() {
+    try {
+      const info = wx.getAccountInfoSync();
+      return info.miniProgram.envVersion === 'develop'
+        && wx.getStorageSync(STREAM_LOG_STORAGE_KEY) === true;
+    } catch (err) {
+      return false;
+    }
+  },
+
+  startStreamMetrics() {
+    if (!this.isStreamLogEnabled()) {
+      this._streamMetrics = null;
+      return;
+    }
+    this._streamMetrics = {
+      startedAt: Date.now(),
+      lastChunkAt: 0,
+      chunkCount: 0,
+      characterCount: 0,
+      renderBatchCount: 0,
+      chunkGapMs: [],
+      chunkSize: [],
+      towxmlMs: [],
+      setDataCallbackMs: [],
+      scrollTimerMs: [],
+    };
+  },
+
+  recordStreamChunk(text) {
+    const metrics = this._streamMetrics;
+    if (!metrics) return;
+    const now = Date.now();
+    if (metrics.lastChunkAt) metrics.chunkGapMs.push(now - metrics.lastChunkAt);
+    metrics.lastChunkAt = now;
+    metrics.chunkCount += 1;
+    metrics.characterCount += text.length;
+    metrics.chunkSize.push(text.length);
+  },
+
+  recordMetric(name, value) {
+    const metrics = this._streamMetrics;
+    if (metrics && metrics[name]) metrics[name].push(value);
+  },
+
+  summarizeMetric(values) {
+    if (!values.length) return { avg: 0, max: 0 };
+    return {
+      avg: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
+      max: Math.max(...values),
+    };
+  },
+
+  finishStreamMetrics() {
+    const metrics = this._streamMetrics;
+    if (!metrics) return;
+    this._streamMetrics = null;
+    console.info('[ai-chat] stream metrics', {
+      durationMs: Date.now() - metrics.startedAt,
+      chunkCount: metrics.chunkCount,
+      characterCount: metrics.characterCount,
+      renderBatchCount: metrics.renderBatchCount,
+      chunkGapMs: this.summarizeMetric(metrics.chunkGapMs),
+      chunkSize: this.summarizeMetric(metrics.chunkSize),
+      towxmlMs: this.summarizeMetric(metrics.towxmlMs),
+      setDataCallbackMs: this.summarizeMetric(metrics.setDataCallbackMs),
+      scrollTimerMs: this.summarizeMetric(metrics.scrollTimerMs),
+    });
   },
 
   /** 格式化时间
