@@ -130,21 +130,20 @@
 /* 滑出操作面板 */
 .action-slide {
   display: flex;
-  gap: 24rpx;
+  gap: 0;
   align-items: center;
   position: absolute;
-  right: 40rpx;
+  right: 72rpx;
   top: 2rpx;
   transform: translateX(32rpx);
   transition: transform 0.25s ease, opacity 0.25s;
   z-index: 10;
   opacity: 0;
   visibility: hidden;
-  background: var(--warm-white);
-  border-radius: 20rpx;
-  padding: 8rpx 28rpx;
-  box-shadow: 0 4rpx 24rpx rgba(61, 43, 31, 0.1);
-  border: 1rpx solid rgba(232, 213, 192, 0.3);
+  background: #4c4c4c;
+  border-radius: 10rpx;
+  padding: 0 8rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.18);
 }
 .feed-actions.open .action-slide {
   transform: translateX(0);
@@ -155,36 +154,41 @@
   display: flex;
   align-items: center;
   gap: 8rpx;
+  min-height: 56rpx;
+  padding: 0 20rpx;
   font-size: 24rpx;
-  color: #b8a898;
-  transition: color 0.2s;
+  color: #fff;
   white-space: nowrap;
 }
-.slide-btn:active {
-  color: var(--terracotta);
+.slide-btn + .slide-btn {
+  border-left: 1rpx solid rgba(0, 0, 0, 0.28);
 }
 .slide-btn.liked {
-  color: var(--terracotta);
+  color: #fff;
 }
 .slide-icon {
   width: 32rpx;
   height: 32rpx;
+  filter: brightness(0) invert(1);
 }
 
 /* 三点菜单 */
 .action-dots {
-  font-size: 36rpx;
-  color: #b8a898;
-  line-height: 1;
-  padding: 4rpx 8rpx;
-  letter-spacing: 4rpx;
+  width: 56rpx;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
   z-index: 2;
   position: relative;
 }
-.action-dots:active {
-  color: var(--terracotta);
+.action-dot {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #a89583;
 }
-
 /* 点赞名单 */
 .likers-row {
   display: flex;

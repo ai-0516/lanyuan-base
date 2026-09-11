@@ -31,7 +31,11 @@
           <text>评论</text>
         </view>
       </view>
-      <text class="action-dots" catchtap="onToggleActions" data-fa-id="fa-{{post.id}}">⋯</text>
+      <view class="action-dots" catchtap="onToggleActions" data-fa-id="fa-{{post.id}}" aria-label="更多操作">
+        <view class="action-dot"></view>
+        <view class="action-dot"></view>
+        <view class="action-dot"></view>
+      </view>
     </view>
 
     <!-- 点赞名单 -->
