@@ -44,9 +44,6 @@ class Settings(BaseSettings):
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
 
-    # 已弃用：帖子图片改为微信云存储直传。暂时保留字段以兼容旧 .env / 部署环境变量，代码不再使用。
-    UPLOAD_DIR: str | None = None
-
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR
     LOG_TARGET: str = "local"                    # local | oss
