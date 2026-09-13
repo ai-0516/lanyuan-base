@@ -72,7 +72,8 @@ Page({
     } catch (err) {
       console.error('发布失败', err);
       await deleteCloudFiles(uploadedFileIDs);
-      wx.showToast({ title: '发布失败', icon: 'error' });
+      const unsafeMessage = err?.data?.code === 40010 ? err.data.message : '';
+      wx.showToast({ title: unsafeMessage || '发布失败', icon: unsafeMessage ? 'none' : 'error' });
     } finally {
       this.setData({ publishing: false });
     }

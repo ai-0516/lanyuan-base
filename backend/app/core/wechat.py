@@ -5,11 +5,16 @@
 - 配置了真实 appid/secret 时 → 调微信 API
 """
 
+import asyncio
+import time
+
 import httpx
 
 from app.config import settings
 
 WECHAT_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
+WECHAT_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
+WECHAT_MSG_SEC_CHECK_URL = "https://api.weixin.qq.com/wxa/msg_sec_check"
 
 
 class WeChatClient:
@@ -17,6 +22,9 @@ class WeChatClient:
 
     def __init__(self):
         self._is_mock = settings.WECHAT_APPID in ("wx_dev_appid", "")
+        self._access_token = ""
+        self._access_token_expires_at = 0.0
+        self._access_token_lock = asyncio.Lock()
 
     async def code2session(self, code: str) -> dict:
         """用临时 code 换取 openid / session_key
@@ -64,22 +72,62 @@ class WeChatClient:
         }
 
     async def get_access_token(self) -> str:
-        """获取微信接口调用凭据（开发环境返回 mock）"""
+        """获取并缓存微信接口调用凭据（开发环境返回 mock）。"""
         if self._is_mock:
             return "mock_access_token"
 
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                "https://api.weixin.qq.com/cgi-bin/token",
-                params={
-                    "grant_type": "client_credential",
-                    "appid": settings.WECHAT_APPID,
-                    "secret": settings.WECHAT_SECRET,
+        if self._access_token and time.monotonic() < self._access_token_expires_at:
+            return self._access_token
+
+        async with self._access_token_lock:
+            if self._access_token and time.monotonic() < self._access_token_expires_at:
+                return self._access_token
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    WECHAT_ACCESS_TOKEN_URL,
+                    params={
+                        "grant_type": "client_credential",
+                        "appid": settings.WECHAT_APPID,
+                        "secret": settings.WECHAT_SECRET,
+                    },
+                )
+                resp.raise_for_status()
+                result = resp.json()
+
+            token = result.get("access_token", "")
+            if not token:
+                raise RuntimeError(f"获取微信 access token 失败: {result.get('errmsg', '未知错误')}")
+            expires_in = max(int(result.get("expires_in", 7200)) - 300, 60)
+            self._access_token = token
+            self._access_token_expires_at = time.monotonic() + expires_in
+            return token
+
+    async def msg_sec_check(self, content: str, openid: str, scene: int) -> str:
+        """检查公开文本，返回微信建议：pass / review / risky。"""
+        if self._is_mock:
+            return "pass"
+
+        token = await self.get_access_token()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                WECHAT_MSG_SEC_CHECK_URL,
+                params={"access_token": token},
+                json={
+                    "content": content,
+                    "version": 2,
+                    "scene": scene,
+                    "openid": openid,
                 },
             )
+            resp.raise_for_status()
             result = resp.json()
 
-        return result.get("access_token", "")
+        if result.get("errcode", 0) != 0:
+            raise RuntimeError(f"微信内容安全校验失败: {result.get('errmsg', '未知错误')}")
+        suggestion = result.get("result", {}).get("suggest")
+        if suggestion not in {"pass", "review", "risky"}:
+            raise RuntimeError("微信内容安全校验返回无效结果")
+        return suggestion
 
 
 wechat_client = WeChatClient()

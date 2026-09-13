@@ -196,6 +196,76 @@ async def test_create_post(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("suggestion", ["review", "risky"])
+async def test_create_post_blocks_unsafe_content(client: AsyncClient, auth_headers: dict, monkeypatch, suggestion):
+    """帖子仅在微信明确返回 pass 时发布，客户端只收到统一违规提示。"""
+    from app.services import content_security_service
+
+    async def fake_check(content, openid, scene):
+        assert content == "待检测帖子"
+        assert openid.startswith("mock_openid_")
+        assert scene == 3
+        return suggestion
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", fake_check)
+    response = await client.post(
+        "/api/v1/posts",
+        json={"content": "待检测帖子", "images": []},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"code": 40010, "message": "发布内容含有违规信息，请修改后重试"}
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_create_comment_blocks_unsafe_content(client: AsyncClient, auth_headers: dict, monkeypatch):
+    """评论走 scene=2 校验，违规内容不会写库。"""
+    from app.services import content_security_service
+
+    post = await client.post(
+        "/api/v1/posts", json={"content": "安全帖子", "images": []}, headers=auth_headers
+    )
+    post_id = post.json()["data"]["id"]
+
+    async def fake_check(content, openid, scene):
+        return "risky" if scene == 2 else "pass"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", fake_check)
+    response = await client.post(
+        f"/api/v1/posts/{post_id}/comments",
+        json={"content": "违规评论"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"code": 40010, "message": "发布内容含有违规信息，请修改后重试"}
+    comments = await client.get(f"/api/v1/posts/{post_id}/comments", headers=auth_headers)
+    assert comments.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_post_fails_closed_when_security_service_is_unavailable(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """微信校验异常时不得绕过校验发布。"""
+    from app.services import content_security_service
+
+    async def unavailable(content, openid, scene):
+        raise RuntimeError("wechat unavailable")
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", unavailable)
+    response = await client.post(
+        "/api/v1/posts", json={"content": "无法校验", "images": []}, headers=auth_headers
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"code": 50310, "message": "内容安全验证暂时不可用，请稍后重试"}
+
+
+@pytest.mark.asyncio
 async def test_get_posts(client: AsyncClient, auth_headers: dict):
     """测试帖子列表"""
     # 先创建帖子
@@ -710,5 +780,4 @@ async def test_memory_delete_nonexistent_success(client: AsyncClient, auth_heade
     assert resp.status_code == 200
     assert resp.json()["code"] == 0
     assert resp.json()["data"]["deleted"] is False
-
 

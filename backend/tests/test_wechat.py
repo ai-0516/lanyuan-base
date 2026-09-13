@@ -70,3 +70,51 @@ async def test_code2session_real_appid_never_mocks(monkeypatch):
     with pytest.raises(RuntimeError, match="微信登录失败"):
         await client.code2session("mock_code")
     assert captured["params"]["js_code"] == "mock_code"
+
+
+@pytest.mark.asyncio
+async def test_msg_sec_check_sends_required_v2_payload(monkeypatch):
+    """内容安全调用包含 content/version/scene/openid，并解析微信 suggestion。"""
+    from app.core import wechat as wechat_module
+
+    monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
+    monkeypatch.setattr(wechat_module.settings, "WECHAT_SECRET", "real_secret_value")
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"errcode": 0, "errmsg": "ok", "result": {"suggest": "risky", "label": 100}}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, params=None, json=None):
+            captured.update(url=url, params=params, json=json)
+            return FakeResponse()
+
+    monkeypatch.setattr(wechat_module.httpx, "AsyncClient", FakeAsyncClient)
+    client = wechat_module.WeChatClient()
+    client._access_token = "cached-token"
+    client._access_token_expires_at = float("inf")
+
+    suggestion = await client.msg_sec_check("测试内容", "test-openid", scene=2)
+
+    assert suggestion == "risky"
+    assert captured["url"] == wechat_module.WECHAT_MSG_SEC_CHECK_URL
+    assert captured["params"] == {"access_token": "cached-token"}
+    assert captured["json"] == {
+        "content": "测试内容",
+        "version": 2,
+        "scene": 2,
+        "openid": "test-openid",
+    }

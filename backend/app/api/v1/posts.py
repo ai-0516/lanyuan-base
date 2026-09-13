@@ -8,7 +8,7 @@ from app.api.response import api_error, api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
 from tools.mcp_server.decorator import mcp_tool
 from app.schemas.post import PostCreate
-from app.services import post_service
+from app.services import content_security_service, post_service
 
 router = APIRouter(prefix="/posts", tags=["帖子"])
 
@@ -66,6 +66,12 @@ async def create_post(
     user_id: int = Depends(get_current_user),
 ):
     """发布帖子到社区。用户在这里分享生活、寻求帮助或组织活动。支持图文混排，最多9张图片。"""
+    try:
+        await content_security_service.check_public_text(db, user_id, data.content, scene=3)
+    except content_security_service.UnsafeContentError:
+        return api_error(40010, "发布内容含有违规信息，请修改后重试")
+    except content_security_service.ContentSecurityUnavailableError:
+        return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
     result = await post_service.create_post(db, user_id, data)
     return api_success(result)
 

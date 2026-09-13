@@ -171,7 +171,8 @@ Page({
       this.loadPost();
     } catch (err) {
       console.error('评论失败', err);
-      wx.showToast({ title: '评论失败', icon: 'none' });
+      const unsafeMessage = err?.data?.code === 40010 ? err.data.message : '';
+      wx.showToast({ title: unsafeMessage || '评论失败', icon: 'none' });
     }
   },
 

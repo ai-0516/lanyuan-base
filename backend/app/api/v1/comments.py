@@ -8,7 +8,7 @@ from app.api.response import api_error, api_success
 from app.harness.tool_registry import dumps, strip_keys, tool
 from tools.mcp_server.decorator import mcp_tool
 from app.schemas.comment import CommentCreate
-from app.services import comment_service
+from app.services import comment_service, content_security_service
 
 router = APIRouter(tags=["评论"])
 
@@ -51,6 +51,12 @@ async def create_comment(
     user_id: int = Depends(get_current_user),
 ):
     """对帖子添加评论。支持回复他人评论（传入 parent_comment_id 表示回复某人）。"""
+    try:
+        await content_security_service.check_public_text(db, user_id, data.content, scene=2)
+    except content_security_service.UnsafeContentError:
+        return api_error(40010, "发布内容含有违规信息，请修改后重试")
+    except content_security_service.ContentSecurityUnavailableError:
+        return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
     result = await comment_service.create_comment(db, user_id, post_id, data)
     return api_success(result)
 

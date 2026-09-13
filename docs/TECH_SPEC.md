@@ -749,7 +749,8 @@ App (app.js)
 | API 鉴权 | JWT middleware 校验，user_id 从 token 解析 |
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
-| 图片风险 | OSS 上传鉴权 (STS 临时凭证) |
+| 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
+| 图片风险 | 图片直传微信云存储，写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |
 

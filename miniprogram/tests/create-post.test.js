@@ -59,4 +59,23 @@ describe('create post cloud images', () => {
     expect(deleteCloudFiles).toHaveBeenCalledWith(['cloud://env/posts/orphan.jpg']);
     expect(wx.showToast).toHaveBeenCalledWith({ title: '发布失败', icon: 'error' });
   });
+
+  test('shows only the unified unsafe-content message', async () => {
+    request.mockRejectedValue({
+      data: { code: 40010, message: '发布内容含有违规信息，请修改后重试' },
+    });
+    const page = loadPage(pagePath);
+    Object.assign(page.data, {
+      content: '违规内容',
+      tempImages: [],
+      canPublish: true,
+    });
+
+    await page.onPublish();
+
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '发布内容含有违规信息，请修改后重试',
+      icon: 'none',
+    });
+  });
 });
