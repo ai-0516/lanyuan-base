@@ -1,6 +1,6 @@
 <view class="chat-page">
   <!-- 消息列表 -->
-  <scroll-view class="message-list" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{lastMsgId}}" scroll-with-animation scroll-anchoring bindscrolltoupper="loadHistory" upper-threshold="30">
+  <scroll-view class="message-list" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{lastMsgId}}" scroll-with-animation="{{!isLoading}}" scroll-anchoring bindscrolltoupper="loadHistory" upper-threshold="30">
     <view class="chat">
       <view class="msg {{item.role === 'assistant' ? 'ai' : 'me'}}" wx:for="{{messages}}" wx:key="index">
         <view class="msg-avatar {{item.role === 'assistant' ? 'ai' : 'me'}}">{{item.role === 'assistant' ? 'AI' : '我'}}</view>
@@ -15,12 +15,12 @@
         <text class="msg-time">{{item.time}}</text>
       </view>
     </view>
-    <view id="msg-end" style="height:1rpx;"></view>
+    <view id="msg-end" class="msg-end-anchor"></view>
   </scroll-view>
 
   <!-- 底部输入区 -->
   <view class="chat-input-wrap">
-    <textarea class="input-textarea" placeholder="输入消息…" value="{{inputValue}}" bindinput="onInputChange" disabled="{{isLoading}}" auto-height maxlength="-1"></textarea>
+    <textarea class="input-textarea" placeholder="输入消息…" value="{{inputValue}}" bindinput="onInputChange" adjust-position="{{true}}" show-confirm-bar="{{false}}" confirm-type="return" cursor-spacing="40" disabled="{{isLoading}}" auto-height maxlength="-1"></textarea>
     <view class="send-btn {{canSend && !isLoading ? 'active' : ''}}" bindtap="onSend">→</view>
   </view>
 </view>

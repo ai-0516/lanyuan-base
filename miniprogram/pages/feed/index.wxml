@@ -49,7 +49,7 @@
   <view class="comment-sheet {{commentSheetOpen ? 'show' : ''}}">
     <!-- 输入区 -->
     <view class="cs-input-area">
-      <textarea class="cs-input" id="e2e-comment-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" auto-height></textarea>
+      <textarea class="cs-input" id="e2e-comment-input" placeholder="{{replyToName ? '回复' + replyToName + '：' : '说点什么…'}}" value="{{commentText}}" bindinput="onCommentInput" adjust-position="{{true}}" show-confirm-bar="{{false}}" confirm-type="return" cursor-spacing="40" auto-height></textarea>
       <view class="cs-send {{canSend ? 'active' : ''}}" id="e2e-comment-submit" bindtap="sendComment">→</view>
     </view>
   </view>

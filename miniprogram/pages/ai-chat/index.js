@@ -10,7 +10,7 @@ Page({
     isLoading: false,       // 是否正在加载 AI 回复
     sessionId: '',          // 当前会话 ID（v2 纯 uuid，POST /api/v2/ai/session 获取）
     userAvatar: '',         // 用户头像
-    lastMsgId: 'msg-end',   // 滚动定位锚点
+    lastMsgId: '',          // 消息列表底部锚点
     hasMoreHistory: true,   // 是否还有更早历史（触顶加载）
     historyLoading: false,  // 历史加载防抖
     lastCursor: '',         // 历史分页游标（turn/start seq，加载更早 = before_seq）
@@ -193,10 +193,11 @@ Page({
       if (type === 'error') {
         // 后端错误帧（token 无效 4401 / 归属 4403 / 参数 1008 / 服务端异常
         // 1011）——文案后端给（「请重试」语义），显示后连接由后端关闭
+        this.flushPendingStreamChunks();
         this.handleStreamError(data.message || 'AI 回复被中断，请重试');
         return;
       }
-      this.dispatchEvent(type, data);
+      this.handleStreamFrame(type, data);
     });
 
     socket.onError(() => {
@@ -211,6 +212,35 @@ Page({
         this.handleStreamError();
       }
     });
+  },
+
+  /**
+   * 合并高频 text-delta，避免每 1–2 个字符都把完整 messages 提交到视图层。
+   * 非 chunk 事件到达前先冲刷，保证 step/turn 边界的原始顺序不变。
+   */
+  handleStreamFrame(type, data) {
+    if (type !== 'assistant/chunk') {
+      this.flushPendingStreamChunks();
+      this.dispatchEvent(type, data);
+      return;
+    }
+
+    const text = (data.chunk || {}).text || '';
+    if (!text) return;
+    this._pendingStreamText = (this._pendingStreamText || '') + text;
+    if (this._chunkFlushScheduled) return;
+    this._chunkFlushScheduled = true;
+    setTimeout(() => {
+      this._chunkFlushScheduled = false;
+      this.flushPendingStreamChunks();
+    }, 100);
+  },
+
+  flushPendingStreamChunks() {
+    const text = this._pendingStreamText || '';
+    if (!text) return;
+    this._pendingStreamText = '';
+    this.dispatchEvent('assistant/chunk', { chunk: { text } });
   },
 
   /** DSH 事件分发（§10.1 映射表） */
@@ -274,8 +304,7 @@ Page({
     } else {
       messages.push(userMsg);
     }
-    this.setData({ messages });
-    this.scrollToBottom();
+    this.setData({ messages }, () => this.scrollToBottom());
   },
 
   /** 追加内容到 AI 气泡（打字机效果，assistant/chunk text-delta 驱动） */
@@ -286,8 +315,7 @@ Page({
     if (lastMsg && lastMsg.role === 'assistant') {
       lastMsg.content += text;
       lastMsg.nodes = app.towxml(lastMsg.content, 'markdown', { theme: 'light' });
-      this.setData({ messages });
-      this.scrollToBottom();
+      this.setData({ messages }, () => this.scrollToBottom());
     }
   },
 
@@ -306,8 +334,7 @@ Page({
       nodes: [],
       time: this.formatTime(Date.now()),
     });
-    this.setData({ messages });
-    this.scrollToBottom();
+    this.setData({ messages }, () => this.scrollToBottom());
   },
 
   /** 回合收尾（turn/end 事件驱动，§10.1）
@@ -325,8 +352,7 @@ Page({
     if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
       messages.pop();
     }
-    this.setData({ messages, isLoading: false });
-    this.scrollToBottom();
+    this.setData({ messages, isLoading: false }, () => this.scrollToBottom());
   },
 
   /** 处理流式错误
@@ -349,15 +375,17 @@ Page({
         time: this.formatTime(Date.now()),
       });
     }
-    this.setData({ messages, isLoading: false });
-    this.scrollToBottom();
+    this.setData({ messages, isLoading: false }, () => this.scrollToBottom());
   },
 
-  /** 滚动到底部 */
+  /** 定位到消息列表底部锚点。 */
   scrollToBottom() {
+    if (this._scrollScheduled) return;
+    this._scrollScheduled = true;
     setTimeout(() => {
+      this._scrollScheduled = false;
       this.setData({ lastMsgId: 'msg-end' });
-    }, 50);
+    }, 16);
   },
 
   /** 格式化时间
