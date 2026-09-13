@@ -1,4 +1,5 @@
-const { request, BASE_URL } = require('../../utils/request');
+const { request } = require('../../utils/request');
+const { uploadPostImages, deleteCloudFiles } = require('../../utils/cloud-storage');
 
 Page({
   data: {
@@ -49,42 +50,20 @@ Page({
 
     this.setData({ publishing: true });
 
+    let uploadedFileIDs = [];
     try {
-      const token = wx.getStorageSync('token') || '';
-      let uploadedUrls = [];
 
-      // 上传图片（逐张用 wx.uploadFile 发送 multipart）
+      // 图片直传微信云存储，帖子只保存 cloud:// fileID。
       if (this.data.tempImages.length > 0) {
-        const uploadPromises = this.data.tempImages.map(filePath => {
-          return new Promise((resolve, reject) => {
-            wx.uploadFile({
-              url: BASE_URL + '/upload/images',
-              filePath,
-              name: 'files',
-              header: { 'Authorization': `Bearer ${token}` },
-              success: (res) => {
-                try {
-                  const body = JSON.parse(res.data);
-                  if (body.code === 0) {
-                    const urls = body.data && body.data.urls;
-                    resolve(urls ? urls[0] : body.data || '');
-                  } else {
-                    reject(new Error(body.message || '上传失败'));
-                  }
-                } catch (e) {
-                  reject(e);
-                }
-              },
-              fail: reject,
-            });
-          });
-        });
-        const results = await Promise.all(uploadPromises);
-        uploadedUrls = results.filter(Boolean);
+        uploadedFileIDs = await uploadPostImages(this.data.tempImages);
       }
 
       // 发布帖子
-      await request({ method: 'POST', url: '/posts', data: { content: this.data.content, images: uploadedUrls } });
+      await request({
+        method: 'POST',
+        url: '/posts',
+        data: { content: this.data.content, images: uploadedFileIDs },
+      });
 
       wx.showToast({ title: '发布成功', icon: 'success' });
       setTimeout(() => {
@@ -92,6 +71,7 @@ Page({
       }, 1000);
     } catch (err) {
       console.error('发布失败', err);
+      await deleteCloudFiles(uploadedFileIDs);
       wx.showToast({ title: '发布失败', icon: 'error' });
     } finally {
       this.setData({ publishing: false });

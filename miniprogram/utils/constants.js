@@ -107,11 +107,11 @@ const RESP_CODE = {
 
 /**
  * 将相对路径转为完整 URL（用于 image src）
- * @param {string} path - 图片路径，如 /uploads/xxx.jpeg
+ * @param {string} path - 图片路径，如 cloud://xxx 或 /uploads/xxx.jpeg
  * @returns {string} 完整 URL，非相对路径原样返回
  */
 function fullUrl(path) {
-  if (!path || path.startsWith('http') || path.startsWith('data:') || path.startsWith('wxfile')) return path || ''
+  if (!path || path.startsWith('cloud://') || path.startsWith('http') || path.startsWith('data:') || path.startsWith('wxfile')) return path || ''
   return SERVER_HOST + path
 }
 

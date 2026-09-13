@@ -2,18 +2,16 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.core.database import init_db, close_db
 from app.logger import setup_logging
 from app.ai.dsh_runtime import dsh_runtime
-from app.api.v1 import auth, posts, comments, notifications, profile, ai, upload, memory
+from app.api.v1 import auth, posts, comments, notifications, profile, ai, memory
 # wiki：纯工具模块（无 endpoint/router），import 仅用于触发 @mcp_tool/@tool 注册副作用
 from app.api.v1 import wiki  # noqa: F401
 # v2 AI 对话（§9.1）；业务工具 @mcp_tool 定义在 v1 业务文件里（v1/v2 仅限 /ai/chat，
@@ -66,7 +64,6 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(memory.router, prefix="/api/v1")
-app.include_router(upload.router, prefix="/api/v1")
 
 # v2（DSH 重写 agent，TECH_SPEC §9.1）——v2 只新增 /api/v2/ai/chat；
 # 业务工具 @mcp_tool 挂在 v1 业务 endpoint 上（v1/v2 仅限 /ai/chat）
@@ -84,9 +81,3 @@ app.mount("/mcp", mcp_app, name="mcp")
 @app.get("/api/health")
 async def health():
     return api_success({"status": "ok", "app": settings.APP_NAME})
-
-
-# ── 静态文件 ──
-uploads_dir = Path(settings.UPLOAD_DIR)
-uploads_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")

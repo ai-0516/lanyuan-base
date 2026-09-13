@@ -1,6 +1,6 @@
 const auth = require('./utils/auth')
 const http = require('./utils/request')
-const { USE_CLOUD } = require('./utils/constants')
+const { USE_CLOUD, CLOUD_CONFIG } = require('./utils/constants')
 
 App({
   /** towxml Markdown 渲染 */
@@ -50,15 +50,14 @@ App({
       self.globalData.userInfo = null
     }
 
-    // 云托管调用初始化（USE_CLOUD=true 才需要；wx.cloud.init env 可留空——
-    // callContainer/connectContainer 的 config.env 已显式指定云托管环境 ID，
-    // 见 constants CLOUD_CONFIG）
-    if (USE_CLOUD) {
-      if (!wx.cloud) {
+    // 图片始终使用云存储，因此无论 API 请求走云托管还是本地后端，都初始化云能力。
+    // callContainer/connectContainer 与云存储共用 constants 中的云环境 ID。
+    if (!wx.cloud) {
+      if (USE_CLOUD) {
         console.error('[App] 当前基础库不支持云能力（wx.cloud），请升级基础库 ≥2.2.3')
-      } else {
-        wx.cloud.init({ traceUser: true })
       }
+    } else {
+      wx.cloud.init({ env: CLOUD_CONFIG.ENV, traceUser: true })
     }
 
     // 云开发 / 其他三方 SDK 初始化可在此处补充

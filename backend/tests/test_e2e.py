@@ -568,48 +568,15 @@ class TestAI:
         assert "event: done" in chat_resp.text
 
 
-# ── 8. Upload ────────────────────────────────────────────────────────
-
-
-@pytest.mark.skip(reason="Upload 功能暂未使用，待启用时恢复测试")
-class TestUpload:
-
-    async def test_upload_single_file(self, client, headers_a):
-        """上传单张图片"""
-        resp = await client.post("/api/v1/upload/images",
-                                 files={"files": ("test.jpg", b"fake_image_content", "image/jpeg")},
-                                 headers=headers_a)
-        assert resp.json()["code"] == 0
-        urls = resp.json()["data"]["urls"]
-        assert len(urls) == 1
-        assert urls[0].startswith("/uploads/")
-
-    async def test_upload_too_many_files(self, client, headers_a):
-        """上传超过 9 张图片（已知问题：错误格式为 detail 包裹）"""
-        files = [("files", (f"img{i}.jpg", b"x", "image/jpeg")) for i in range(10)]
-        resp = await client.post("/api/v1/upload/images", files=files, headers=headers_a)
-        body = any_code_body(resp.json())
-        assert body["code"] != 0
-
-    async def test_upload_unsupported_format(self, client, headers_a):
-        """上传不支持的格式（已知问题：错误格式为 detail 包裹）"""
-        resp = await client.post("/api/v1/upload/images",
-                                 files={"files": ("test.exe", b"fake", "application/octet-stream")},
-                                 headers=headers_a)
-        body = any_code_body(resp.json())
-        assert body["code"] != 0
-
-    async def test_upload_no_files(self, client, headers_a):
-        """不传文件（已知问题：错误格式为 detail 包裹）"""
-        resp = await client.post("/api/v1/upload/images", files={}, headers=headers_a)
-        body = any_code_body(resp.json())
-        assert body["code"] != 0
-
-
-# ── 9. Unified Response Format ───────────────────────────────────────
+# ── 8. Unified Response Format ───────────────────────────────────────
 
 
 class TestUnifiedResponse:
+
+    async def test_legacy_upload_endpoint_is_removed(self, client):
+        """图片改为直传云存储后，后端不再暴露上传接口。"""
+        resp = await client.post("/api/v1/upload/images")
+        assert resp.status_code == 404
 
     ENDPOINTS = [
         ("GET", "/api/v1/auth/check"),
