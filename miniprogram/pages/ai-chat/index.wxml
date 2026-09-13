@@ -15,8 +15,7 @@
         <text class="msg-time">{{item.time}}</text>
       </view>
     </view>
-    <view id="msg-end-a" class="msg-end-anchor"></view>
-    <view id="msg-end-b" class="msg-end-anchor"></view>
+    <view id="msg-end" class="msg-end-anchor"></view>
   </scroll-view>
 
   <!-- 底部输入区 -->

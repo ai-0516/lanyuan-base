@@ -10,7 +10,7 @@ Page({
     isLoading: false,       // 是否正在加载 AI 回复
     sessionId: '',          // 当前会话 ID（v2 纯 uuid，POST /api/v2/ai/session 获取）
     userAvatar: '',         // 用户头像
-    lastMsgId: '',          // 在两个静态底部锚点间切换，强制重新执行原生定位
+    lastMsgId: '',          // 消息列表底部锚点
     hasMoreHistory: true,   // 是否还有更早历史（触顶加载）
     historyLoading: false,  // 历史加载防抖
     lastCursor: '',         // 历史分页游标（turn/start seq，加载更早 = before_seq）
@@ -378,15 +378,13 @@ Page({
     this.setData({ messages, isLoading: false }, () => this.scrollToBottom());
   },
 
-  /** 在两个相邻的静态锚点间切换，强制 scroll-into-view 重新定位到底部。 */
+  /** 定位到消息列表底部锚点。 */
   scrollToBottom() {
     if (this._scrollScheduled) return;
     this._scrollScheduled = true;
     setTimeout(() => {
       this._scrollScheduled = false;
-      this.setData({
-        lastMsgId: this.data.lastMsgId === 'msg-end-a' ? 'msg-end-b' : 'msg-end-a',
-      });
+      this.setData({ lastMsgId: 'msg-end' });
     }, 16);
   },
 

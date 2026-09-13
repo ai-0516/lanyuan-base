@@ -15,21 +15,21 @@ describe('AI chat viewport behavior', () => {
     jest.useRealTimers();
   });
 
-  test('alternates static anchors to reissue native bottom positioning', () => {
+  test('targets the static bottom anchor', () => {
     jest.useFakeTimers();
     const page = loadPage(pagePath);
 
     page.scrollToBottom();
     jest.runOnlyPendingTimers();
-    expect(page.data.lastMsgId).toBe('msg-end-a');
+    expect(page.data.lastMsgId).toBe('msg-end');
 
     page.scrollToBottom();
     jest.runOnlyPendingTimers();
-    expect(page.data.lastMsgId).toBe('msg-end-b');
+    expect(page.data.lastMsgId).toBe('msg-end');
 
     page.scrollToBottom();
     jest.runOnlyPendingTimers();
-    expect(page.data.lastMsgId).toBe('msg-end-a');
+    expect(page.data.lastMsgId).toBe('msg-end');
   });
 
   test('batches dense chunks and flushes before a turn boundary', () => {
