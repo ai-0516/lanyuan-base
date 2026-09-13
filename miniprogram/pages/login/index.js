@@ -12,7 +12,7 @@ Page({
     avatar: '',
     nickname: '',
     needPrivacyAuthorization: false,
-    showPrivacyAuthorization: false,
+    privacyAccepted: false,
     privacyContractName: privacy.DEFAULT_CONTRACT_NAME,
   },
 
@@ -20,6 +20,7 @@ Page({
     const setting = await privacy.getPrivacySetting();
     this.setData({
       needPrivacyAuthorization: setting.needAuthorization,
+      privacyAccepted: !setting.needAuthorization,
       privacyContractName: setting.privacyContractName,
     });
     this._continueAfterPrivacy();
@@ -39,15 +40,16 @@ Page({
     privacy.openPrivacyContract();
   },
 
+  onPrivacyAgreementChange(e) {
+    this.setData({ privacyAccepted: e.detail.value.includes('accepted') });
+  },
+
   onAgreePrivacyAuthorization() {
     this.setData({
       needPrivacyAuthorization: false,
-      showPrivacyAuthorization: false,
+      privacyAccepted: true,
     });
-    if (this.pendingPrivacyAction === 'login') {
-      this.pendingPrivacyAction = null;
-      this.handleWxLogin();
-    }
+    this.handleWxLogin();
   },
 
   /** 从本地缓存恢复用户主动设置过的昵称和头像 */
@@ -108,14 +110,13 @@ Page({
 
   async handleWxLogin() {
     if (this.data.logging) return;
-    if (this.data.needPrivacyAuthorization) {
-      this.pendingPrivacyAction = 'login';
-      this.setData({ showPrivacyAuthorization: true });
-      return;
-    }
     const nickname = (this.data.nickname || '').trim();
     if (!nickname || !this.data.avatar) {
       wx.showToast({ title: '请先设置头像和昵称', icon: 'none' });
+      return;
+    }
+    if (!this.data.privacyAccepted) {
+      wx.showToast({ title: '请先阅读并同意用户协议', icon: 'none' });
       return;
     }
 

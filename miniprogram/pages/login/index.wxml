@@ -41,19 +41,20 @@
 
   <!-- 登录按钮 -->
   <view class="login-btn-wrapper">
-    <button class="wx-login-btn" id="e2e-login-submit" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname || !avatar}}">
+    <button class="wx-login-btn" wx:if="{{needPrivacyAuthorization}}" id="e2e-login-submit" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgreePrivacyAuthorization" loading="{{logging}}" disabled="{{logging || !nickname || !avatar || !privacyAccepted}}">
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
       <text>登录</text>
     </button>
-    <view class="agreement-text">登录即表示已阅读并同意<text class="agreement-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text></view>
-  </view>
-  </block>
-
-  <view class="privacy-mask" wx:if="{{showPrivacyAuthorization}}">
-    <view class="privacy-dialog">
-      <text class="privacy-title">隐私保护提示</text>
-      <view class="privacy-content">在使用前，请阅读并同意<text class="privacy-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text>。同意后方可使用头像、昵称等相关功能。</view>
-      <button class="privacy-agree" id="privacy-agree-btn" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgreePrivacyAuthorization">同意并继续</button>
+    <button class="wx-login-btn" wx:else id="e2e-login-submit" bindtap="handleWxLogin" loading="{{logging}}" disabled="{{logging || !nickname || !avatar || !privacyAccepted}}">
+      <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
+      <text>登录</text>
+    </button>
+    <view class="agreement-text">
+      <checkbox-group class="agreement-check" bindchange="onPrivacyAgreementChange">
+        <label><checkbox value="accepted" checked="{{privacyAccepted}}" color="#c4673c" />我已阅读并同意</label>
+      </checkbox-group>
+      <text class="agreement-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text>
     </view>
   </view>
+  </block>
 </view>

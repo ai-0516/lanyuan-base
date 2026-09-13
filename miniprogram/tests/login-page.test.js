@@ -27,7 +27,7 @@ describe('login page', () => {
     expect(page.data).toMatchObject({
       checked: true,
       needPrivacyAuthorization: true,
-      showPrivacyAuthorization: false,
+      privacyAccepted: false,
       privacyContractName: '《兰园小程序用户隐私保护指引》',
     })
     expect(wx.getUserProfile).not.toHaveBeenCalled()
@@ -74,25 +74,32 @@ describe('login page', () => {
     expect(wx.login).not.toHaveBeenCalled()
   })
 
-  test('continues the pending login after privacy authorization', async () => {
+  test('requires the agreement checkbox before login', async () => {
+    const page = loadPage(pagePath)
+    page.data.avatar = 'avatar'
+    page.data.nickname = '用户'
+
+    await page.handleWxLogin()
+
+    expect(wx.showToast).toHaveBeenCalledWith({ title: '请先阅读并同意用户协议', icon: 'none' })
+    expect(wx.login).not.toHaveBeenCalled()
+  })
+
+  test('continues login after official privacy authorization', async () => {
     const page = loadPage(pagePath)
     page.data.needPrivacyAuthorization = true
     page.data.avatar = 'avatar'
     page.data.nickname = '用户'
+    page.onPrivacyAgreementChange({ detail: { value: ['accepted'] } })
     wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
     mockRequest.mockResolvedValue({ token: 'token', user: { id: 1 } })
-
-    await page.handleWxLogin()
-
-    expect(page.data.showPrivacyAuthorization).toBe(true)
-    expect(wx.login).not.toHaveBeenCalled()
 
     page.onAgreePrivacyAuthorization()
     await Promise.resolve()
 
     expect(page.data).toMatchObject({
       needPrivacyAuthorization: false,
-      showPrivacyAuthorization: false,
+      privacyAccepted: true,
     })
     expect(wx.login).toHaveBeenCalled()
     expect(mockRequest).toHaveBeenCalledWith(expect.objectContaining({ url: '/auth/login' }))
@@ -102,6 +109,7 @@ describe('login page', () => {
     const page = loadPage(pagePath)
     page.data.avatar = 'data:image/jpeg;base64,avatar'
     page.data.nickname = ' 兰园用户 '
+    page.data.privacyAccepted = true
     wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
     mockRequest.mockResolvedValue({ token: 'token', user: { id: 1 } })
 
@@ -127,6 +135,7 @@ describe('login page', () => {
     const page = loadPage(pagePath)
     page.data.avatar = 'avatar'
     page.data.nickname = '用户'
+    page.data.privacyAccepted = true
     wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
     mockRequest.mockRejectedValue(new Error('服务不可用'))
 
