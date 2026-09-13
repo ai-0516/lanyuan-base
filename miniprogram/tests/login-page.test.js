@@ -15,7 +15,7 @@ jest.mock('../utils/auth', () => mockAuth)
 const pagePath = path.join(__dirname, '../pages/login/index.js')
 
 describe('login page', () => {
-  test('waits for privacy authorization before requesting user information', async () => {
+  test('records pending privacy authorization without interrupting the first screen', async () => {
     wx.getPrivacySetting.mockImplementation(({ success }) => success({
       needAuthorization: true,
       privacyContractName: '《兰园小程序用户隐私保护指引》',
@@ -26,21 +26,37 @@ describe('login page', () => {
 
     expect(page.data).toMatchObject({
       checked: true,
-      showPrivacyAuthorization: true,
+      needPrivacyAuthorization: true,
+      showPrivacyAuthorization: false,
       privacyContractName: '《兰园小程序用户隐私保护指引》',
     })
     expect(wx.getUserProfile).not.toHaveBeenCalled()
   })
 
-  test('continues login initialization after privacy authorization', async () => {
+  test('shows privacy authorization when a protected action is requested', async () => {
     wx.getPrivacySetting.mockImplementation(({ success }) => success({ needAuthorization: true }))
     const page = loadPage(pagePath)
     await page.onLoad()
 
+    page.onPrivacyRequiredAction()
+
+    expect(page.data.showPrivacyAuthorization).toBe(true)
+    expect(wx.getUserProfile).not.toHaveBeenCalled()
+  })
+
+  test('enables protected controls after privacy authorization', async () => {
+    wx.getPrivacySetting.mockImplementation(({ success }) => success({ needAuthorization: true }))
+    const page = loadPage(pagePath)
+    await page.onLoad()
+    page.onPrivacyRequiredAction()
+
     page.onAgreePrivacyAuthorization()
 
-    expect(page.data.showPrivacyAuthorization).toBe(false)
-    expect(wx.getUserProfile).toHaveBeenCalled()
+    expect(page.data).toMatchObject({
+      needPrivacyAuthorization: false,
+      showPrivacyAuthorization: false,
+    })
+    expect(wx.getUserProfile).not.toHaveBeenCalled()
   })
 
   test('opens the official privacy contract', () => {
@@ -105,13 +121,14 @@ describe('login page', () => {
 
   test('does not log in while privacy authorization is pending', async () => {
     const page = loadPage(pagePath)
-    page.data.showPrivacyAuthorization = true
+    page.data.needPrivacyAuthorization = true
     page.data.avatar = 'avatar'
     page.data.nickname = '用户'
 
     await page.handleWxLogin()
 
     expect(wx.showToast).toHaveBeenCalledWith({ title: '请先阅读并同意隐私保护指引', icon: 'none' })
+    expect(page.data.showPrivacyAuthorization).toBe(true)
     expect(wx.login).not.toHaveBeenCalled()
   })
 
