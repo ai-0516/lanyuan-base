@@ -180,11 +180,6 @@
   color: rgba(255, 255, 255, 0.45);
   font-size: 30rpx;
 }
-.privacy-nickname {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 30rpx;
-  box-sizing: border-box;
-}
 .input-underline {
   width: 60%;
   height: 2rpx;

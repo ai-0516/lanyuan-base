@@ -33,32 +33,6 @@ describe('login page', () => {
     expect(wx.getUserProfile).not.toHaveBeenCalled()
   })
 
-  test('shows privacy authorization when a protected action is requested', async () => {
-    wx.getPrivacySetting.mockImplementation(({ success }) => success({ needAuthorization: true }))
-    const page = loadPage(pagePath)
-    await page.onLoad()
-
-    page.onPrivacyRequiredAction()
-
-    expect(page.data.showPrivacyAuthorization).toBe(true)
-    expect(wx.getUserProfile).not.toHaveBeenCalled()
-  })
-
-  test('enables protected controls after privacy authorization', async () => {
-    wx.getPrivacySetting.mockImplementation(({ success }) => success({ needAuthorization: true }))
-    const page = loadPage(pagePath)
-    await page.onLoad()
-    page.onPrivacyRequiredAction()
-
-    page.onAgreePrivacyAuthorization()
-
-    expect(page.data).toMatchObject({
-      needPrivacyAuthorization: false,
-      showPrivacyAuthorization: false,
-    })
-    expect(wx.getUserProfile).not.toHaveBeenCalled()
-  })
-
   test('opens the official privacy contract', () => {
     const page = loadPage(pagePath)
 
@@ -71,29 +45,10 @@ describe('login page', () => {
     wx.__storage.set('lastProfile', { avatar: 'cached-avatar', nickname: 'cached-name' })
     const page = loadPage(pagePath)
 
-    await page._tryAutoProfile()
+    page._restoreProfile()
 
     expect(page.data).toMatchObject({ avatar: 'cached-avatar', nickname: 'cached-name' })
     expect(wx.getUserProfile).not.toHaveBeenCalled()
-  })
-
-  test('loads and caches a WeChat profile', async () => {
-    const page = loadPage(pagePath)
-    wx.getUserProfile.mockImplementation(({ success }) => success({
-      userInfo: { nickName: '微信用户', avatarUrl: '/tmp/avatar.jpg' },
-    }))
-    wx.getFileSystemManager.mockReturnValue({ readFileSync: jest.fn(() => 'base64-data') })
-
-    await page._tryAutoProfile()
-
-    expect(page.data).toMatchObject({
-      avatar: 'data:image/jpeg;base64,base64-data',
-      nickname: '微信用户',
-    })
-    expect(wx.setStorageSync).toHaveBeenCalledWith('lastProfile', {
-      avatar: 'data:image/jpeg;base64,base64-data',
-      nickname: '微信用户',
-    })
   })
 
   test('updates and caches manually selected profile fields', () => {
@@ -119,17 +74,28 @@ describe('login page', () => {
     expect(wx.login).not.toHaveBeenCalled()
   })
 
-  test('does not log in while privacy authorization is pending', async () => {
+  test('continues the pending login after privacy authorization', async () => {
     const page = loadPage(pagePath)
     page.data.needPrivacyAuthorization = true
     page.data.avatar = 'avatar'
     page.data.nickname = '用户'
+    wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
+    mockRequest.mockResolvedValue({ token: 'token', user: { id: 1 } })
 
     await page.handleWxLogin()
 
-    expect(wx.showToast).toHaveBeenCalledWith({ title: '请先阅读并同意隐私保护指引', icon: 'none' })
     expect(page.data.showPrivacyAuthorization).toBe(true)
     expect(wx.login).not.toHaveBeenCalled()
+
+    page.onAgreePrivacyAuthorization()
+    await Promise.resolve()
+
+    expect(page.data).toMatchObject({
+      needPrivacyAuthorization: false,
+      showPrivacyAuthorization: false,
+    })
+    expect(wx.login).toHaveBeenCalled()
+    expect(mockRequest).toHaveBeenCalledWith(expect.objectContaining({ url: '/auth/login' }))
   })
 
   test('stores credentials and redirects after successful login', async () => {

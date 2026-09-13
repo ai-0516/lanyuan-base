@@ -29,14 +29,12 @@
     <view class="avatar-wrap">
       <view class="avatar-circle">
         <image class="avatar-img" src="{{avatar || ''}}" mode="aspectFill" wx:if="{{avatar}}"></image>
-        <button class="avatar-btn-overlay" wx:if="{{needPrivacyAuthorization}}" bindtap="onPrivacyRequiredAction"></button>
-        <button class="avatar-btn-overlay" wx:else open-type="chooseAvatar" bindchooseavatar="onChooseAvatar"></button>
+        <button class="avatar-btn-overlay" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar"></button>
       </view>
       <text class="avatar-label">点击设置头像</text>
     </view>
     <view class="nickname-wrap">
-      <view class="nickname-input privacy-nickname" wx:if="{{needPrivacyAuthorization}}" bindtap="onPrivacyRequiredAction">{{nickname || '你的昵称'}}</view>
-      <input wx:else type="nickname" class="nickname-input" id="e2e-login-nickname" placeholder="你的昵称" value="{{nickname}}" bindinput="onNicknameInput" maxlength="20" />
+      <input type="nickname" class="nickname-input" id="e2e-login-nickname" placeholder="你的昵称" value="{{nickname}}" bindinput="onNicknameInput" maxlength="20" />
       <view class="input-underline"></view>
     </view>
   </view>

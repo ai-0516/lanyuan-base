@@ -31,13 +31,8 @@ Page({
       this._autoLogin();
     } else {
       this.setData({ checked: true });
-      // 隐私状态确认后再尝试调用 getUserProfile。
-      if (!this.data.needPrivacyAuthorization) this._tryAutoProfile();
+      this._restoreProfile();
     }
-  },
-
-  onPrivacyRequiredAction() {
-    this.setData({ showPrivacyAuthorization: true });
   },
 
   onOpenPrivacyContract() {
@@ -49,44 +44,17 @@ Page({
       needPrivacyAuthorization: false,
       showPrivacyAuthorization: false,
     });
+    if (this.pendingPrivacyAction === 'login') {
+      this.pendingPrivacyAction = null;
+      this.handleWxLogin();
+    }
   },
 
-  /** 尝试自动获取微信昵称和头像 */
-  async _tryAutoProfile() {
-    // 优先从本地缓存恢复
+  /** 从本地缓存恢复用户主动设置过的昵称和头像 */
+  _restoreProfile() {
     const saved = this._loadProfile();
     if (saved) {
       this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
-      return;
-    }
-    // 首次使用，尝试从微信自动获取（可能因无用户手势失败）
-    try {
-      const res = await new Promise((resolve, reject) => {
-        wx.getUserProfile({
-          desc: '用于完善个人资料',
-          lang: 'zh_CN',
-          success: resolve,
-          fail: reject,
-        });
-      });
-      const info = res.userInfo || {};
-      const nickName = info.nickName || '';
-      const avatarUrl = info.avatarUrl || '';
-      // 头像转 base64
-      let avatar = '';
-      if (avatarUrl) {
-        try {
-          const fm = wx.getFileSystemManager();
-          const base64 = fm.readFileSync(avatarUrl, 'base64');
-          avatar = `data:image/jpeg;base64,${base64}`;
-        } catch {
-          avatar = avatarUrl;
-        }
-      }
-      this.setData({ nickname: nickName, avatar });
-      this._saveProfile(avatar, nickName);
-    } catch {
-      // 自动获取失败（用户拒绝或微信版本不支持），用户手动选择
     }
   },
 
@@ -141,8 +109,8 @@ Page({
   async handleWxLogin() {
     if (this.data.logging) return;
     if (this.data.needPrivacyAuthorization) {
-      this.onPrivacyRequiredAction();
-      wx.showToast({ title: '请先阅读并同意隐私保护指引', icon: 'none' });
+      this.pendingPrivacyAction = 'login';
+      this.setData({ showPrivacyAuthorization: true });
       return;
     }
     const nickname = (this.data.nickname || '').trim();
