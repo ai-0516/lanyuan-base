@@ -153,7 +153,7 @@
 | `v3-social-feed.html` | 发现页（帖子流） | 左右结构（头像+内容）、底部评论弹出层、点击评论回复 |
 | `v3-create-post.html` | 发布帖子 | 图文混排、图片网格上传、字数统计 |
 | `v3-ai-chat.html` | AI 助手 | 单对话、底部固定 textarea、AI/用户气泡区分 |
-| `v3-profile.html` | 个人中心 | 头像卡 + 消息通知 + 设置平铺（隐私开关、官方用户隐私保护指引、退出登录） |
+| `v3-profile.html` | 个人中心 | 头像卡 + 消息通知 + 设置平铺（隐私开关、用户协议入口、退出登录） |
 | `v3-edit-profile.html` | 编辑资料 | 头像/昵称/小区/楼号/单元/房号/个性签名 |
 | `v3-notifications.html` | 消息通知 | 未读列表，格式：谁+动作+帖子标题 |
 | `design-system.html` | 设计语言参考 | CSS 变量、组件样式 |

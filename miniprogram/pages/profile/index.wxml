@@ -39,7 +39,7 @@
       <text class="set-arrow">›</text>
     </view>
     <view class="setting-item" bindtap="onTapPrivacyContract">
-      <text class="set-label">用户隐私保护指引</text>
+      <text class="set-label">用户协议</text>
       <text class="set-arrow">›</text>
     </view>
     <view class="setting-item">
