@@ -38,12 +38,8 @@
       <text class="set-label">关于我们</text>
       <text class="set-arrow">›</text>
     </view>
-    <view class="setting-item" bindtap="onTapAgreement">
+    <view class="setting-item" bindtap="onTapPrivacyContract">
       <text class="set-label">用户协议</text>
-      <text class="set-arrow">›</text>
-    </view>
-    <view class="setting-item" bindtap="onTapPrivacy">
-      <text class="set-label">隐私政策</text>
       <text class="set-arrow">›</text>
     </view>
     <view class="setting-item">

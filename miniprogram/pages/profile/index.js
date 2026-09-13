@@ -2,6 +2,7 @@ const { request } = require('../../utils/request');
 const { fullUrl } = require('../../utils/constants');
 const { getRuntimeVersion } = require('../../utils/version');
 const auth = require('../../utils/auth');
+const privacy = require('../../utils/privacy');
 
 Page({
   data: {
@@ -79,12 +80,8 @@ Page({
     wx.navigateTo({ url: '/pages/about/index' });
   },
 
-  onTapAgreement() {
-    wx.navigateTo({ url: '/pages/agreement/index' });
-  },
-
-  onTapPrivacy() {
-    wx.navigateTo({ url: '/pages/privacy/index' });
+  onTapPrivacyContract() {
+    privacy.openPrivacyContract();
   },
 
   hideLogoutModal() {

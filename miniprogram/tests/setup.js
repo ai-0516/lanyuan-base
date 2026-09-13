@@ -9,6 +9,8 @@ function createWxMock() {
     request: jest.fn(),
     login: jest.fn(),
     getUserProfile: jest.fn(),
+    getPrivacySetting: jest.fn(),
+    openPrivacyContract: jest.fn(),
     getFileSystemManager: jest.fn(),
     reLaunch: jest.fn(),
     navigateTo: jest.fn(),

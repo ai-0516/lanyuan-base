@@ -235,10 +235,35 @@
 }
 
 .agreement-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.5);
   margin-top: 36rpx;
   text-align: center;
+}
+
+.agreement-check {
+  display: inline-flex;
+  align-items: center;
+}
+
+.agreement-label {
+  display: flex;
+  align-items: center;
+  line-height: 1.4;
+}
+
+.agreement-checkbox {
+  margin-right: -4rpx;
+  transform: scale(0.7);
+  transform-origin: center;
+}
+
+.agreement-link {
+  text-decoration: underline;
 }
 
 /* 自动登录 loading */

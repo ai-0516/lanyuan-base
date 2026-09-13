@@ -8,8 +8,6 @@
     "pages/notifications/index",
     "pages/edit-profile/index",
     "pages/about/index",
-    "pages/agreement/index",
-    "pages/privacy/index",
     "pages/post-detail/index"
   ],
   "window": {

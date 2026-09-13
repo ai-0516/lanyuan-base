@@ -1,6 +1,7 @@
 // 登录页
 const { request } = require('../../utils/request');
 const auth = require('../../utils/auth');
+const privacy = require('../../utils/privacy');
 
 const STORAGE_KEY = 'lastProfile';
 
@@ -10,55 +11,52 @@ Page({
     checked: false,
     avatar: '',
     nickname: '',
+    needPrivacyAuthorization: false,
+    privacyAccepted: false,
+    privacyContractName: privacy.DEFAULT_CONTRACT_NAME,
   },
 
   async onLoad() {
-    // 尝试自动获取微信头像和昵称
-    this._tryAutoProfile();
+    const setting = await privacy.getPrivacySetting();
+    this.setData({
+      needPrivacyAuthorization: setting.needAuthorization,
+      privacyAccepted: !setting.needAuthorization,
+      privacyContractName: setting.privacyContractName,
+    });
+    this._continueAfterPrivacy();
+  },
+
+  _continueAfterPrivacy() {
     // 已登录且 Token 有效 → 直接跳首页
     if (auth.isLoggedIn()) {
       this._autoLogin();
     } else {
       this.setData({ checked: true });
+      this._restoreProfile();
     }
   },
 
-  /** 尝试自动获取微信昵称和头像 */
-  async _tryAutoProfile() {
-    // 优先从本地缓存恢复
+  onOpenPrivacyContract() {
+    privacy.openPrivacyContract();
+  },
+
+  onPrivacyAgreementChange(e) {
+    this.setData({ privacyAccepted: e.detail.value.includes('accepted') });
+  },
+
+  onAgreePrivacyAuthorization() {
+    this.setData({
+      needPrivacyAuthorization: false,
+      privacyAccepted: true,
+    });
+    this.handleWxLogin();
+  },
+
+  /** 从本地缓存恢复用户主动设置过的昵称和头像 */
+  _restoreProfile() {
     const saved = this._loadProfile();
     if (saved) {
       this.setData({ avatar: saved.avatar || '', nickname: saved.nickname || '' });
-      return;
-    }
-    // 首次使用，尝试从微信自动获取（可能因无用户手势失败）
-    try {
-      const res = await new Promise((resolve, reject) => {
-        wx.getUserProfile({
-          desc: '用于完善个人资料',
-          lang: 'zh_CN',
-          success: resolve,
-          fail: reject,
-        });
-      });
-      const info = res.userInfo || {};
-      const nickName = info.nickName || '';
-      const avatarUrl = info.avatarUrl || '';
-      // 头像转 base64
-      let avatar = '';
-      if (avatarUrl) {
-        try {
-          const fm = wx.getFileSystemManager();
-          const base64 = fm.readFileSync(avatarUrl, 'base64');
-          avatar = `data:image/jpeg;base64,${base64}`;
-        } catch {
-          avatar = avatarUrl;
-        }
-      }
-      this.setData({ nickname: nickName, avatar });
-      this._saveProfile(avatar, nickName);
-    } catch {
-      // 自动获取失败（用户拒绝或微信版本不支持），用户手动选择
     }
   },
 
@@ -115,6 +113,10 @@ Page({
     const nickname = (this.data.nickname || '').trim();
     if (!nickname || !this.data.avatar) {
       wx.showToast({ title: '请先设置头像和昵称', icon: 'none' });
+      return;
+    }
+    if (!this.data.privacyAccepted) {
+      wx.showToast({ title: '请先阅读并同意用户协议', icon: 'none' });
       return;
     }
 

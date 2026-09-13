@@ -1,7 +1,7 @@
 module.exports = {
   clearMocks: true,
   collectCoverageFrom: [
-    'utils/{auth,date,request}.js',
+    'utils/{auth,date,privacy,request}.js',
     'pages/login/index.js',
     'components/{comment-sheet,like-button}/index.js',
   ],

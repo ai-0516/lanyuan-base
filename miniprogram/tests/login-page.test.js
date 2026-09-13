@@ -15,33 +15,40 @@ jest.mock('../utils/auth', () => mockAuth)
 const pagePath = path.join(__dirname, '../pages/login/index.js')
 
 describe('login page', () => {
+  test('records pending privacy authorization without interrupting the first screen', async () => {
+    wx.getPrivacySetting.mockImplementation(({ success }) => success({
+      needAuthorization: true,
+      privacyContractName: '《兰园小程序用户隐私保护指引》',
+    }))
+    const page = loadPage(pagePath)
+
+    await page.onLoad()
+
+    expect(page.data).toMatchObject({
+      checked: true,
+      needPrivacyAuthorization: true,
+      privacyAccepted: false,
+      privacyContractName: '《兰园小程序用户隐私保护指引》',
+    })
+    expect(wx.getUserProfile).not.toHaveBeenCalled()
+  })
+
+  test('opens the official privacy contract', () => {
+    const page = loadPage(pagePath)
+
+    page.onOpenPrivacyContract()
+
+    expect(wx.openPrivacyContract).toHaveBeenCalled()
+  })
+
   test('restores a cached profile without requesting user information', async () => {
     wx.__storage.set('lastProfile', { avatar: 'cached-avatar', nickname: 'cached-name' })
     const page = loadPage(pagePath)
 
-    await page._tryAutoProfile()
+    page._restoreProfile()
 
     expect(page.data).toMatchObject({ avatar: 'cached-avatar', nickname: 'cached-name' })
     expect(wx.getUserProfile).not.toHaveBeenCalled()
-  })
-
-  test('loads and caches a WeChat profile', async () => {
-    const page = loadPage(pagePath)
-    wx.getUserProfile.mockImplementation(({ success }) => success({
-      userInfo: { nickName: '微信用户', avatarUrl: '/tmp/avatar.jpg' },
-    }))
-    wx.getFileSystemManager.mockReturnValue({ readFileSync: jest.fn(() => 'base64-data') })
-
-    await page._tryAutoProfile()
-
-    expect(page.data).toMatchObject({
-      avatar: 'data:image/jpeg;base64,base64-data',
-      nickname: '微信用户',
-    })
-    expect(wx.setStorageSync).toHaveBeenCalledWith('lastProfile', {
-      avatar: 'data:image/jpeg;base64,base64-data',
-      nickname: '微信用户',
-    })
   })
 
   test('updates and caches manually selected profile fields', () => {
@@ -67,10 +74,42 @@ describe('login page', () => {
     expect(wx.login).not.toHaveBeenCalled()
   })
 
+  test('requires the agreement checkbox before login', async () => {
+    const page = loadPage(pagePath)
+    page.data.avatar = 'avatar'
+    page.data.nickname = '用户'
+
+    await page.handleWxLogin()
+
+    expect(wx.showToast).toHaveBeenCalledWith({ title: '请先阅读并同意用户协议', icon: 'none' })
+    expect(wx.login).not.toHaveBeenCalled()
+  })
+
+  test('continues login after official privacy authorization', async () => {
+    const page = loadPage(pagePath)
+    page.data.needPrivacyAuthorization = true
+    page.data.avatar = 'avatar'
+    page.data.nickname = '用户'
+    page.onPrivacyAgreementChange({ detail: { value: ['accepted'] } })
+    wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
+    mockRequest.mockResolvedValue({ token: 'token', user: { id: 1 } })
+
+    page.onAgreePrivacyAuthorization()
+    await Promise.resolve()
+
+    expect(page.data).toMatchObject({
+      needPrivacyAuthorization: false,
+      privacyAccepted: true,
+    })
+    expect(wx.login).toHaveBeenCalled()
+    expect(mockRequest).toHaveBeenCalledWith(expect.objectContaining({ url: '/auth/login' }))
+  })
+
   test('stores credentials and redirects after successful login', async () => {
     const page = loadPage(pagePath)
     page.data.avatar = 'data:image/jpeg;base64,avatar'
     page.data.nickname = ' 兰园用户 '
+    page.data.privacyAccepted = true
     wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
     mockRequest.mockResolvedValue({ token: 'token', user: { id: 1 } })
 
@@ -96,6 +135,7 @@ describe('login page', () => {
     const page = loadPage(pagePath)
     page.data.avatar = 'avatar'
     page.data.nickname = '用户'
+    page.data.privacyAccepted = true
     wx.login.mockImplementation(({ success }) => success({ code: 'wx-code' }))
     mockRequest.mockRejectedValue(new Error('服务不可用'))
 
