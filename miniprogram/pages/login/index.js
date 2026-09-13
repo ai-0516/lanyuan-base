@@ -1,6 +1,7 @@
 // 登录页
 const { request } = require('../../utils/request');
 const auth = require('../../utils/auth');
+const privacy = require('../../utils/privacy');
 
 const STORAGE_KEY = 'lastProfile';
 
@@ -10,17 +11,41 @@ Page({
     checked: false,
     avatar: '',
     nickname: '',
+    showPrivacyAuthorization: false,
+    privacyContractName: privacy.DEFAULT_CONTRACT_NAME,
   },
 
   async onLoad() {
-    // 尝试自动获取微信头像和昵称
-    this._tryAutoProfile();
+    const setting = await privacy.getPrivacySetting();
+    this.setData({
+      showPrivacyAuthorization: setting.needAuthorization,
+      privacyContractName: setting.privacyContractName,
+    });
+    if (setting.needAuthorization) {
+      this.setData({ checked: true });
+      return;
+    }
+    this._continueAfterPrivacy();
+  },
+
+  _continueAfterPrivacy() {
     // 已登录且 Token 有效 → 直接跳首页
     if (auth.isLoggedIn()) {
       this._autoLogin();
     } else {
       this.setData({ checked: true });
+      // 隐私状态确认后再尝试调用 getUserProfile。
+      this._tryAutoProfile();
     }
+  },
+
+  onOpenPrivacyContract() {
+    privacy.openPrivacyContract();
+  },
+
+  onAgreePrivacyAuthorization() {
+    this.setData({ showPrivacyAuthorization: false });
+    this._continueAfterPrivacy();
   },
 
   /** 尝试自动获取微信昵称和头像 */
@@ -112,6 +137,10 @@ Page({
 
   async handleWxLogin() {
     if (this.data.logging) return;
+    if (this.data.showPrivacyAuthorization) {
+      wx.showToast({ title: '请先阅读并同意隐私保护指引', icon: 'none' });
+      return;
+    }
     const nickname = (this.data.nickname || '').trim();
     if (!nickname || !this.data.avatar) {
       wx.showToast({ title: '请先设置头像和昵称', icon: 'none' });

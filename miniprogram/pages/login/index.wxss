@@ -241,6 +241,62 @@
   text-align: center;
 }
 
+.agreement-link,
+.privacy-link {
+  text-decoration: underline;
+}
+
+.privacy-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  background: rgba(0, 0, 0, 0.48);
+  box-sizing: border-box;
+}
+
+.privacy-dialog {
+  width: 100%;
+  padding: 48rpx 40rpx 36rpx;
+  border-radius: 28rpx;
+  background: #fffaf5;
+  box-sizing: border-box;
+}
+
+.privacy-title {
+  display: block;
+  margin-bottom: 24rpx;
+  color: #3d2b1f;
+  font-size: 34rpx;
+  font-weight: 600;
+  text-align: center;
+}
+
+.privacy-content {
+  margin-bottom: 36rpx;
+  color: #6f625a;
+  font-size: 27rpx;
+  line-height: 1.7;
+}
+
+.privacy-link {
+  color: #c4673c;
+}
+
+.privacy-agree {
+  color: #fff;
+  background: #c4673c;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+}
+
+.privacy-agree::after {
+  border: none;
+}
+
 /* 自动登录 loading */
 .loading-splash {
   display: flex;

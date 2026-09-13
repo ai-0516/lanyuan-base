@@ -15,6 +15,42 @@ jest.mock('../utils/auth', () => mockAuth)
 const pagePath = path.join(__dirname, '../pages/login/index.js')
 
 describe('login page', () => {
+  test('waits for privacy authorization before requesting user information', async () => {
+    wx.getPrivacySetting.mockImplementation(({ success }) => success({
+      needAuthorization: true,
+      privacyContractName: '《兰园小程序用户隐私保护指引》',
+    }))
+    const page = loadPage(pagePath)
+
+    await page.onLoad()
+
+    expect(page.data).toMatchObject({
+      checked: true,
+      showPrivacyAuthorization: true,
+      privacyContractName: '《兰园小程序用户隐私保护指引》',
+    })
+    expect(wx.getUserProfile).not.toHaveBeenCalled()
+  })
+
+  test('continues login initialization after privacy authorization', async () => {
+    wx.getPrivacySetting.mockImplementation(({ success }) => success({ needAuthorization: true }))
+    const page = loadPage(pagePath)
+    await page.onLoad()
+
+    page.onAgreePrivacyAuthorization()
+
+    expect(page.data.showPrivacyAuthorization).toBe(false)
+    expect(wx.getUserProfile).toHaveBeenCalled()
+  })
+
+  test('opens the official privacy contract', () => {
+    const page = loadPage(pagePath)
+
+    page.onOpenPrivacyContract()
+
+    expect(wx.openPrivacyContract).toHaveBeenCalled()
+  })
+
   test('restores a cached profile without requesting user information', async () => {
     wx.__storage.set('lastProfile', { avatar: 'cached-avatar', nickname: 'cached-name' })
     const page = loadPage(pagePath)
@@ -64,6 +100,18 @@ describe('login page', () => {
     await page.handleWxLogin()
 
     expect(wx.showToast).toHaveBeenCalledWith({ title: '请先设置头像和昵称', icon: 'none' })
+    expect(wx.login).not.toHaveBeenCalled()
+  })
+
+  test('does not log in while privacy authorization is pending', async () => {
+    const page = loadPage(pagePath)
+    page.data.showPrivacyAuthorization = true
+    page.data.avatar = 'avatar'
+    page.data.nickname = '用户'
+
+    await page.handleWxLogin()
+
+    expect(wx.showToast).toHaveBeenCalledWith({ title: '请先阅读并同意隐私保护指引', icon: 'none' })
     expect(wx.login).not.toHaveBeenCalled()
   })
 

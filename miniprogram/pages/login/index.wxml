@@ -45,7 +45,15 @@
       <image class="wx-icon" src="/images/wechat-icon.png" mode="aspectFit"></image>
       <text>登录</text>
     </button>
-    <text class="agreement-text">登录即表示同意《用户协议》和《隐私政策》</text>
+    <view class="agreement-text">登录即表示已阅读并同意<text class="agreement-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text></view>
   </view>
   </block>
+
+  <view class="privacy-mask" wx:if="{{showPrivacyAuthorization}}">
+    <view class="privacy-dialog">
+      <text class="privacy-title">隐私保护提示</text>
+      <view class="privacy-content">在使用兰园前，请阅读并同意<text class="privacy-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text>。同意后方可使用头像、昵称等相关功能。</view>
+      <button class="privacy-agree" id="privacy-agree-btn" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgreePrivacyAuthorization">同意并继续</button>
+    </view>
+  </view>
 </view>
