@@ -44,9 +44,6 @@ class Settings(BaseSettings):
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
 
-    # 云存储 (开发环境本地存储)
-    UPLOAD_DIR: str = "./uploads"
-
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR
     LOG_TARGET: str = "local"                    # local | oss

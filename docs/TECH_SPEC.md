@@ -645,9 +645,23 @@ event: error      → 错误提示
 
 ### 4.7 图片上传
 
-| 方法 | 路径 | 说明 | 请求体 | 响应 |
-|------|------|------|--------|------|
-| POST | `/upload/images` | 上传图片 (1-9张) | `multipart: files[]` | `{ urls: string[] }` |
+帖子图片不经过 FastAPI。小程序通过 `wx.cloud.uploadFile` 直传微信云存储，
+将返回的 `cloud://` fileID 数组作为 `POST /posts` 的 `images` 字段保存。
+
+云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
+客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。
+
+云存储需在控制台配置为社区图片可读、仅登录用户可写且只能修改本人文件：
+
+```json
+{
+  "read": true,
+  "write": "auth != null && resource.openid == auth.openid"
+}
+```
+
+安全规则属于部署配置，不保存在应用镜像中；发布前必须在对应 `CLOUD_CONFIG.ENV`
+环境的「云存储 → 权限设置」中核对。
 
 ---
 
@@ -872,7 +886,6 @@ pydantic-settings>=2.0.0
 httpx>=0.27.0               # DeepSeek API 客户端
 cachetools>=5.5.0           # 进程内缓存 (TTLCache)
 python-jose[cryptography]>=3.3.0  # JWT
-python-multipart>=0.0.0
 ```
 
 **微信小程序**

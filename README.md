@@ -46,8 +46,7 @@ lanyuan-base/
 │   │   │   ├── comments.py     #   评论（两级）
 │   │   │   ├── notifications.py#   消息通知
 │   │   │   ├── profile.py      #   个人中心
-│   │   │   ├── ai.py           #   AI 对话（SSE）
-│   │   │   └── upload.py       #   图片上传
+│   │   │   └── ai.py           #   AI 对话（SSE）
 │   │   ├── models/             # SQLAlchemy 数据模型（7 表）
 │   │   ├── schemas/            # Pydantic 请求/响应模型
 │   │   ├── services/           # 业务逻辑层
@@ -191,7 +190,8 @@ npm run test:coverage
 | | POST | `/notifications/read` | 标记已读 |
 | AI | POST | `/ai/session` | 获取/创建会话 |
 | | POST | `/ai/chat` | SSE 流式对话 |
-| 上传 | POST | `/upload/images` | 图片上传 |
+帖子图片由小程序通过 `wx.cloud.uploadFile` 直传微信云存储，帖子接口保存返回的
+`cloud://` fileID；图片内容不经过 FastAPI 容器。
 
 **响应格式**: `{ code: 0, data: {...}, message: "ok" }`
 
