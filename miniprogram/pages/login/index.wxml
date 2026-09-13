@@ -51,7 +51,10 @@
     </button>
     <view class="agreement-text">
       <checkbox-group class="agreement-check" bindchange="onPrivacyAgreementChange">
-        <label><checkbox value="accepted" checked="{{privacyAccepted}}" color="#c4673c" />我已阅读并同意</label>
+        <label class="agreement-label">
+          <checkbox class="agreement-checkbox" value="accepted" checked="{{privacyAccepted}}" color="#c4673c" />
+          <text>我已阅读并同意</text>
+        </label>
       </checkbox-group>
       <text class="agreement-link" bindtap="onOpenPrivacyContract">{{privacyContractName}}</text>
     </view>
