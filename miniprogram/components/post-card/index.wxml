@@ -12,7 +12,7 @@
 
     <!-- 图片网格 -->
     <view class="feed-images count-{{post.images.length}}" wx:if="{{post.images && post.images.length > 0}}">
-      <view class="feed-image-item" wx:for="{{post.displayImageItems}}" wx:for-item="item" wx:key="url">
+      <view class="feed-image-item" wx:for="{{displayImageItems}}" wx:for-item="item" wx:key="url">
         <image src="{{item.url}}" mode="aspectFill" catchtap="previewImage" data-current="{{item.url}}" data-urls="{{post.images}}"></image>
         <text class="moderation-badge {{item.status}}" wx:if="{{item.label}}">{{item.label}}</text>
       </view>
