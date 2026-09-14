@@ -381,30 +381,13 @@ async def test_image_post_rejected_by_wechat_callback(
 
 
 @pytest.mark.asyncio
-async def test_cloudrun_message_path_check_and_public_source_guard(
-    client: AsyncClient, monkeypatch
-):
-    """云托管路径检测返回 success；开启公网访问时拒绝缺少来源头的请求。"""
-    from app.config import settings
-
+async def test_cloudrun_message_path_check(client: AsyncClient):
+    """云托管路径检测返回 success。"""
     response = await client.post(
         "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
     )
     assert response.status_code == 200
     assert response.text == "success"
-
-    monkeypatch.setattr(settings, "WECHAT_CLOUDRUN_PUBLIC_ACCESS", True)
-    rejected = await client.post(
-        "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
-    )
-    assert rejected.status_code == 403
-    accepted = await client.post(
-        "/api/v1/wechat/events",
-        json={"action": "CheckContainerPath"},
-        headers={"x-wx-sources": "wx"},
-    )
-    assert accepted.status_code == 200
-
 
 @pytest.mark.asyncio
 async def test_get_posts(client: AsyncClient, auth_headers: dict):

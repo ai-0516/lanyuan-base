@@ -1,6 +1,6 @@
 """微信云托管消息推送回调。"""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +14,9 @@ router = APIRouter(prefix="/wechat/events", tags=["微信事件"])
 @router.post("")
 async def receive_wechat_event(
     request: Request,
-    x_wx_sources: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """接收云托管 JSON 消息，包括路径检测及 media_check_async 结果。"""
-    if settings.WECHAT_CLOUDRUN_PUBLIC_ACCESS and not x_wx_sources:
-        raise HTTPException(status_code=403, detail="invalid message source")
     payload = await request.json()
     if payload.get("action") == "CheckContainerPath":
         return PlainTextResponse("success")

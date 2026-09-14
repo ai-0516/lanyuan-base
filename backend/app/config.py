@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # 应用
     APP_NAME: str = "兰园公共底座"
-    DEBUG: bool = True
 
     # 数据库 - 默认使用 SQLite 开发，生产用 MySQL
     DATABASE_URL: str = "sqlite+aiosqlite:///./lanyuan.db"
@@ -43,8 +42,6 @@ class Settings(BaseSettings):
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
-    # 云托管关闭公网访问时，消息推送走可信内部链路；若开启公网则校验 x-wx-sources。
-    WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
 
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR
