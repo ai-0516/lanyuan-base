@@ -297,7 +297,19 @@ async def test_image_post_hidden_until_wechat_callback(
     )
     assert response.status_code == 200
     assert response.json()["data"]["moderation_status"] == "pending"
-    assert (await client.get("/api/v1/posts", headers=auth_headers)).json()["data"]["total"] == 0
+    assert response.json()["data"]["image_moderation_statuses"] == ["pending", "pending"]
+    own_posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert own_posts.json()["data"]["total"] == 1
+    assert own_posts.json()["data"]["items"][0]["image_moderation_statuses"] == [
+        "pending",
+        "pending",
+    ]
+
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
+    other_headers = {
+        "Authorization": f"Bearer {other_login.json()['data']['token']}"
+    }
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
 
     for trace_id in ["trace-a", "trace-b"]:
         callback = await client.post(
@@ -314,6 +326,13 @@ async def test_image_post_hidden_until_wechat_callback(
 
     posts = await client.get("/api/v1/posts", headers=auth_headers)
     assert posts.json()["data"]["total"] == 1
+    assert posts.json()["data"]["items"][0]["image_moderation_statuses"] == [
+        "passed",
+        "passed",
+    ]
+    other_posts = await client.get("/api/v1/posts", headers=other_headers)
+    assert other_posts.json()["data"]["total"] == 1
+    assert other_posts.json()["data"]["items"][0]["image_moderation_statuses"] == []
 
 
 @pytest.mark.asyncio
@@ -349,7 +368,16 @@ async def test_image_post_rejected_by_wechat_callback(
         },
     )
     posts = await client.get("/api/v1/posts", headers=auth_headers)
-    assert posts.json()["data"]["total"] == 0
+    assert posts.json()["data"]["total"] == 1
+    rejected = posts.json()["data"]["items"][0]
+    assert rejected["moderation_status"] == "rejected"
+    assert rejected["image_moderation_statuses"] == ["rejected"]
+
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
+    other_headers = {
+        "Authorization": f"Bearer {other_login.json()['data']['token']}"
+    }
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
 
 
 @pytest.mark.asyncio

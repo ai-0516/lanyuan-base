@@ -21,6 +21,7 @@ Component({
       if (p.images?.length && !p.displayImages) {
         p.displayImages = p.images.map(img => fullUrl(img));
       }
+      p.displayImageItems = this._buildDisplayImageItems(p);
       if (p.comments?.length && !p.displayComments) {
         p.displayComments = p.comments.map(cm => ({
           ...cm,
@@ -38,6 +39,14 @@ Component({
 
   methods: {
     noop() {},
+
+    _buildDisplayImageItems(post) {
+      const labels = { pending: '审核中', passed: '已通过', rejected: '未通过' };
+      return (post.displayImages || []).map((url, index) => {
+        const status = (post.image_moderation_statuses || [])[index] || '';
+        return { url, status, label: labels[status] || '' };
+      });
+    },
 
     /** 点击空白区域 → 通知父页面收起滑出面板 */
     onBlankTap() {

@@ -2,11 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.moderation import PostModerationStatus
-from app.models.post import Post
+from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.models.post import MediaModerationTask, Post
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.notification import Notification
@@ -41,6 +41,11 @@ async def create_post(
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
         moderation_status=post.moderation_status,
+        image_moderation_statuses=(
+            [MediaModerationTaskStatus.PENDING] * len(post.images)
+            if post.images
+            else []
+        ),
         liked=False,
         comments=[],
         created_at=datetime.utcnow(),
@@ -56,7 +61,10 @@ async def get_post_by_id(
     result = await db.execute(
         select(Post).where(
             Post.id == post_id,
-            Post.moderation_status == PostModerationStatus.APPROVED,
+            or_(
+                Post.moderation_status == PostModerationStatus.APPROVED,
+                Post.user_id == current_user_id,
+            ),
         )
     )
     post = result.scalar_one_or_none()
@@ -135,6 +143,9 @@ async def get_post_by_id(
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
         moderation_status=post.moderation_status,
+        image_moderation_statuses=await _get_image_moderation_statuses(
+            db, post, current_user_id
+        ),
         liked=liked,
         comments=comments,
         likers=likers,
@@ -152,16 +163,18 @@ async def get_posts(
     offset = (page - 1) * size
 
     # 查总数
-    count_stmt = select(func.count(Post.id)).where(
-        Post.moderation_status == PostModerationStatus.APPROVED
+    visible_filter = or_(
+        Post.moderation_status == PostModerationStatus.APPROVED,
+        Post.user_id == current_user_id,
     )
+    count_stmt = select(func.count(Post.id)).where(visible_filter)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # 查帖子
     stmt = (
         select(Post)
-        .where(Post.moderation_status == PostModerationStatus.APPROVED)
+        .where(visible_filter)
         .order_by(Post.created_at.desc(), Post.id.desc())
         .offset(offset)
         .limit(size)
@@ -245,6 +258,9 @@ async def get_posts(
                 content=post.content,
                 images=post.images if isinstance(post.images, list) else [],
                 moderation_status=post.moderation_status,
+                image_moderation_statuses=await _get_image_moderation_statuses(
+                    db, post, current_user_id
+                ),
                 liked=liked,
                 comments=comments,
                 likers=likers,
@@ -253,6 +269,27 @@ async def get_posts(
         )
 
     return PostListResponse(items=items, total=total, page=page, size=size)
+
+
+async def _get_image_moderation_statuses(
+    db: AsyncSession, post: Post, current_user_id: int
+) -> list[MediaModerationTaskStatus]:
+    """仅向作者返回与 images 顺序一致的逐图审核状态。"""
+    images = post.images if isinstance(post.images, list) else []
+    if not images or post.user_id != current_user_id:
+        return []
+    result = await db.execute(
+        select(MediaModerationTask.file_id, MediaModerationTask.status).where(
+            MediaModerationTask.post_id == post.id
+        )
+    )
+    statuses = {file_id: status for file_id, status in result.all()}
+    fallback = (
+        MediaModerationTaskStatus.PASSED
+        if post.moderation_status == PostModerationStatus.APPROVED
+        else MediaModerationTaskStatus.PENDING
+    )
+    return [MediaModerationTaskStatus(statuses.get(file_id, fallback)) for file_id in images]
 
 
 async def delete_post(db: AsyncSession, post_id: int, user_id: int) -> bool:

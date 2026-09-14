@@ -555,7 +555,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| GET | `/posts` | 帖子列表（含评论和点赞，按时间倒序） | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
+| GET | `/posts` | 帖子列表；公开已通过帖子，并向作者返回自己的待审/拒绝帖子 | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
 | POST | `/posts` | 发布帖子；带图时先进入审核中 | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
@@ -667,6 +667,9 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 | 图片任务 | `pending` | 已提交 `mediaCheckAsync`，等待对应 `trace_id` 回调 |
 | 图片任务 | `passed` | 微信回调为 `errcode=0` 且 `suggest=pass` |
 | 图片任务 | `rejected` | 微信返回非 `pass` 或检测发生错误 |
+
+待审和拒绝帖子仅作者本人可见，且响应中的 `image_moderation_statuses` 与
+`images` 按下标一一对应；其他用户只能看到已通过帖子，且不会收到逐图审核状态。
 
 云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
 客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。

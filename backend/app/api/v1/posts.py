@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
 from app.core.wechat import WeChatSecurityScene
-from app.core.moderation import PostModerationStatus
+from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
 from app.harness.tool_registry import dumps, strip_keys, tool
 from tools.mcp_server.decorator import mcp_tool
 from app.schemas.post import PostCreate
@@ -93,6 +93,9 @@ async def create_post(
             )
             if approved:
                 result.moderation_status = PostModerationStatus.APPROVED
+                result.image_moderation_statuses = [
+                    MediaModerationTaskStatus.PASSED for _ in data.images
+                ]
         except content_security_service.ContentSecurityUnavailableError:
             await db.rollback()
             return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)

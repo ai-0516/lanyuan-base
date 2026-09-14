@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from app.core.moderation import PostModerationStatus
+from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
 from app.schemas.common import ReplyTo, UserBrief
 
 
@@ -31,6 +31,7 @@ class PostResponse(BaseModel):
     content: str
     images: List[str] = []
     moderation_status: PostModerationStatus = PostModerationStatus.APPROVED
+    image_moderation_statuses: List[MediaModerationTaskStatus] = []
     liked: bool = False
     comments: List[CommentItem] = []
     likers: List[UserBrief] = []

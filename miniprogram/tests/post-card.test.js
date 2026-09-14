@@ -1,0 +1,19 @@
+const path = require('path');
+const { loadComponent } = require('./helpers/load-component');
+
+const componentPath = path.join(__dirname, '../components/post-card/index.js');
+
+describe('post-card image moderation status', () => {
+  test('maps each image status to its owner-facing label', () => {
+    const component = loadComponent(componentPath);
+
+    expect(component._buildDisplayImageItems({
+      displayImages: ['a.jpg', 'b.jpg', 'c.jpg'],
+      image_moderation_statuses: ['pending', 'passed', 'rejected'],
+    })).toEqual([
+      { url: 'a.jpg', status: 'pending', label: '审核中' },
+      { url: 'b.jpg', status: 'passed', label: '已通过' },
+      { url: 'c.jpg', status: 'rejected', label: '未通过' },
+    ]);
+  });
+});
