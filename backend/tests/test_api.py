@@ -270,8 +270,6 @@ async def test_image_post_hidden_until_wechat_callback(
     client: AsyncClient, auth_headers: dict, monkeypatch
 ):
     """带图帖子先隐藏，所有异步图片检测通过后才进入公开列表。"""
-    import hashlib
-
     from app.config import settings
     from app.services import content_security_service
 
@@ -284,7 +282,6 @@ async def test_image_post_hidden_until_wechat_callback(
         return next(traces)
 
     monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
-    monkeypatch.setattr(settings, "WECHAT_MESSAGE_TOKEN", "test-token")
     monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
     response = await client.post(
         "/api/v1/posts",
@@ -302,12 +299,9 @@ async def test_image_post_hidden_until_wechat_callback(
     assert response.json()["data"]["moderation_status"] == "pending"
     assert (await client.get("/api/v1/posts", headers=auth_headers)).json()["data"]["total"] == 0
 
-    timestamp, nonce = "123", "abc"
-    signature = hashlib.sha1("".join(sorted(["test-token", timestamp, nonce])).encode()).hexdigest()
-    callback_url = f"/api/v1/wechat/events?signature={signature}&timestamp={timestamp}&nonce={nonce}"
     for trace_id in ["trace-a", "trace-b"]:
         callback = await client.post(
-            callback_url,
+            "/api/v1/wechat/events",
             json={
                 "Event": "wxa_media_check",
                 "appid": "wx_dev_appid",
@@ -327,16 +321,12 @@ async def test_image_post_rejected_by_wechat_callback(
     client: AsyncClient, auth_headers: dict, monkeypatch
 ):
     """任一图片非 pass 时，帖子保持不可见。"""
-    import hashlib
-
-    from app.config import settings
     from app.services import content_security_service
 
     async def submit(media_url, openid, scene):
         return "trace-risky"
 
     monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
-    monkeypatch.setattr(settings, "WECHAT_MESSAGE_TOKEN", "test-token")
     response = await client.post(
         "/api/v1/posts",
         json={
@@ -348,10 +338,8 @@ async def test_image_post_rejected_by_wechat_callback(
     )
     assert response.status_code == 200
 
-    timestamp, nonce = "456", "def"
-    signature = hashlib.sha1("".join(sorted(["test-token", timestamp, nonce])).encode()).hexdigest()
     await client.post(
-        f"/api/v1/wechat/events?signature={signature}&timestamp={timestamp}&nonce={nonce}",
+        "/api/v1/wechat/events",
         json={
             "Event": "wxa_media_check",
             "appid": "wx_dev_appid",
@@ -362,6 +350,32 @@ async def test_image_post_rejected_by_wechat_callback(
     )
     posts = await client.get("/api/v1/posts", headers=auth_headers)
     assert posts.json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_cloudrun_message_path_check_and_public_source_guard(
+    client: AsyncClient, monkeypatch
+):
+    """云托管路径检测返回 success；开启公网访问时拒绝缺少来源头的请求。"""
+    from app.config import settings
+
+    response = await client.post(
+        "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
+    )
+    assert response.status_code == 200
+    assert response.text == "success"
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUDRUN_PUBLIC_ACCESS", True)
+    rejected = await client.post(
+        "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
+    )
+    assert rejected.status_code == 403
+    accepted = await client.post(
+        "/api/v1/wechat/events",
+        json={"action": "CheckContainerPath"},
+        headers={"x-wx-sources": "wx"},
+    )
+    assert accepted.status_code == 200
 
 
 @pytest.mark.asyncio

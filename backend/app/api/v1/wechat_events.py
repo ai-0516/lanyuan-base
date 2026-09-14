@@ -1,9 +1,6 @@
-"""微信服务器事件回调。"""
+"""微信云托管消息推送回调。"""
 
-import hashlib
-import hmac
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,43 +11,18 @@ from app.services import content_security_service
 router = APIRouter(prefix="/wechat/events", tags=["微信事件"])
 
 
-def _valid_signature(signature: str, timestamp: str, nonce: str) -> bool:
-    if not settings.WECHAT_MESSAGE_TOKEN:
-        return False
-    digest = hashlib.sha1(
-        "".join(sorted([settings.WECHAT_MESSAGE_TOKEN, timestamp, nonce])).encode()
-    ).hexdigest()
-    return hmac.compare_digest(digest, signature)
-
-
-def _verify(signature: str, timestamp: str, nonce: str) -> None:
-    if not _valid_signature(signature, timestamp, nonce):
-        raise HTTPException(status_code=403, detail="invalid signature")
-
-
-@router.get("")
-async def verify_wechat_server(
-    signature: str = Query(...),
-    timestamp: str = Query(...),
-    nonce: str = Query(...),
-    echostr: str = Query(...),
-):
-    """微信公众平台配置消息服务器时的 URL 验证。"""
-    _verify(signature, timestamp, nonce)
-    return PlainTextResponse(echostr)
-
-
 @router.post("")
 async def receive_wechat_event(
     request: Request,
-    signature: str = Query(...),
-    timestamp: str = Query(...),
-    nonce: str = Query(...),
+    x_wx_sources: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    """接收明文 JSON 格式的 media_check_async 检测结果。"""
-    _verify(signature, timestamp, nonce)
+    """接收云托管 JSON 消息，包括路径检测及 media_check_async 结果。"""
+    if settings.WECHAT_CLOUDRUN_PUBLIC_ACCESS and not x_wx_sources:
+        raise HTTPException(status_code=403, detail="invalid message source")
     payload = await request.json()
+    if payload.get("action") == "CheckContainerPath":
+        return PlainTextResponse("success")
     if payload.get("Event") != "wxa_media_check":
         return PlainTextResponse("success")
     if payload.get("appid") != settings.WECHAT_APPID:

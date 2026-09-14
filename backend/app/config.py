@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
-    WECHAT_MESSAGE_TOKEN: str = ""
+    # 云托管关闭公网访问时，消息推送走可信内部链路；若开启公网则校验 x-wx-sources。
+    WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
 
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR

@@ -559,7 +559,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 | POST | `/posts` | 发布帖子；带图时先进入审核中 | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
-| GET/POST | `/wechat/events` | 微信消息服务器验证 / 图片异步检测回调（签名校验） | 微信事件 JSON | 文本 `success` |
+| POST | `/wechat/events` | 微信云托管路径检测 / 图片异步检测回调 | 微信事件 JSON | 文本 `success` |
 
 **帖子列表响应示例：**
 ```json
@@ -654,7 +654,8 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 带图帖子初始状态为 `pending`，不会出现在帖子列表或详情中。微信在 30 分钟内
 将 `wxa_media_check` JSON 事件推送到 `/api/v1/wechat/events`：全部图片返回
 `pass` 后帖子才变为 `approved`；`review`、`risky`、下载失败及其他异常均保持
-不可见。回调通过微信消息签名验证，且必须匹配当前 `WECHAT_APPID`。
+不可见。回调必须匹配当前 `WECHAT_APPID`；若服务开启公网访问，还必须包含
+微信云托管注入的 `x-wx-sources` 请求头。
 
 云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
 客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。
@@ -671,12 +672,16 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 安全规则属于部署配置，不保存在应用镜像中；发布前必须在对应 `CLOUD_CONFIG.ENV`
 环境的「云存储 → 权限设置」中核对。
 
-生产环境还需设置 `WECHAT_MESSAGE_TOKEN`，并在微信公众平台将消息推送配置为：
+在「微信云托管 → 设置 → 其他设置 → 消息推送」中配置：
 
-- URL：`https://<后端公网域名>/api/v1/wechat/events`
-- 数据格式：JSON
-- 消息加解密方式：明文模式
-- Token：与后端 `WECHAT_MESSAGE_TOKEN` 完全一致
+- 环境 ID：后端所在云托管环境
+- 服务名称：后端云托管服务
+- path：`/api/v1/wechat/events`
+- 推送模式：JSON
+
+配置时平台会向该 path 发送 `{"action":"CheckContainerPath"}`，接口返回
+`success`。该方案不需要公网域名或消息 Token；建议关闭服务公网访问。确需开启
+公网访问时设置 `WECHAT_CLOUDRUN_PUBLIC_ACCESS=True`，强制校验 `x-wx-sources`。
 
 ---
 
