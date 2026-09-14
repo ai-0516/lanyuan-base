@@ -1,5 +1,7 @@
 """送检图片配对校验单元测试（content_security_service._validate_image_pair）。"""
 
+import logging
+
 import pytest
 
 from app.services.content_security_service import (
@@ -75,3 +77,18 @@ def test_mismatched_pair_is_rejected(file_id, media_url):
     """任一层不一致都按客户端参数错误拒绝（fail closed）。"""
     with pytest.raises(InvalidImageParamsError):
         _validate_image_pair(file_id, media_url)
+
+
+def test_rejected_pair_logs_file_id_and_host(caplog):
+    """环境校验失败时留下 file_id 与解析出的 host（部署后定位域名形态用）。"""
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(InvalidImageParamsError):
+            _validate_image_pair(
+                "cloud://env-a/posts/a.jpg",
+                "https://env-b.tcb.qcloud.la/posts/a.jpg?sign=1",
+            )
+
+    assert "file_id=cloud://env-a/posts/a.jpg" in caplog.text
+    assert "host=env-b.tcb.qcloud.la" in caplog.text
+    # 临时 URL 带签名，不得整体落日志
+    assert "sign=1" not in caplog.text
