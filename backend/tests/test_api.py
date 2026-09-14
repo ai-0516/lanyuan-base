@@ -544,6 +544,37 @@ async def test_rejected_image_is_terminal(
 
 
 @pytest.mark.asyncio
+async def test_rejection_wins_over_preceding_pass_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """审查要求：同一 trace_id 连发 pass → risky → pass，终态仍为 rejected。
+
+    非 pass 判定优先于已判定的 passed——乱序/伪造的 pass 不能阻止公开内容被撤回。
+    """
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-order")
+    other_headers = await _other_headers(client)
+
+    first = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-order", "pass")
+    )
+    assert first.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "approved"
+
+    for suggest in ("risky", "pass"):
+        replayed = await client.post(
+            "/api/v1/wechat/events", json=_media_callback("trace-order", suggest)
+        )
+        assert replayed.status_code == 200
+
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    item = posts.json()["data"]["items"][0]
+    assert item["moderation_status"] == "rejected"
+    assert item["image_moderation_statuses"] == ["rejected"]
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
 async def test_wechat_callback_requires_source_header_when_public_access_enabled(
     client: AsyncClient, auth_headers: dict, monkeypatch
 ):

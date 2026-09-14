@@ -129,15 +129,20 @@ async def submit_post_images(
 async def apply_media_result(
     db: AsyncSession, trace_id: str, suggestion: str, errcode: int
 ) -> bool:
-    """幂等应用微信图片检测回调；所有图片通过后才公开帖子。"""
+    """幂等应用微信图片检测回调；所有图片通过后才公开帖子。
+
+    判定语义：``rejected`` 是吸收态——同一 ``trace_id`` 的后续回调不再改判；
+    反之，非 ``pass`` 回调优先于已判定的 ``passed``（乱序/伪造的 pass 不能
+    阻止撤回），因为公开内容只能向「不公开」方向单调收紧。
+    """
     result = await db.execute(
         select(MediaModerationTask).where(MediaModerationTask.trace_id == trace_id)
     )
     task = result.scalar_one_or_none()
     if not task:
         return False
-    if task.status != MediaModerationTaskStatus.PENDING:
-        # 终态幂等：重复或乱序回调不得改判已判定图片（rejected 永久不公开）
+    if task.status == MediaModerationTaskStatus.REJECTED:
+        # 吸收态：重复或乱序回调不得把已拒绝的图片改回通过
         return True
     task.status = (
         MediaModerationTaskStatus.PASSED

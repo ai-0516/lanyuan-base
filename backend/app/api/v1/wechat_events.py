@@ -39,7 +39,7 @@ async def receive_wechat_event(
     errcode = payload.get("errcode")
     applied = await content_security_service.apply_media_result(
         db,
-        str(payload.get("trace_id", "")),
+        str(payload.get("trace_id") or ""),
         str(result.get("suggest", "")),
         errcode if isinstance(errcode, int) else -1,
     )
