@@ -19,10 +19,8 @@ WECHAT_CLOUD_MEDIA_CHECK_ASYNC_URL = "http://api.weixin.qq.com/wxa/media_check_a
 class WeChatSecurityScene(IntEnum):
     """微信内容安全 API 的发布场景。"""
 
-    PROFILE = 1
     COMMENT = 2
     FORUM = 3
-    SOCIAL_LOG = 4
 
 
 class WeChatClient:

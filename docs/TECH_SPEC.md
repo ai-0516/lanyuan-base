@@ -556,7 +556,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
 | GET | `/posts` | 帖子列表；公开已通过帖子，并向作者返回自己的待审/拒绝帖子 | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
-| POST | `/posts` | 发布帖子；带图时先进入审核中 | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
+| POST | `/posts` | 发布帖子；带图时先进入审核中（违规 40010 / 图片参数错误 40014 / 内容安全服务异常 50310） | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
 | POST | `/wechat/events` | 微信云托管路径检测 / 图片异步检测回调 | 微信事件 JSON | 文本 `success` |
@@ -672,6 +672,10 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 待审和拒绝帖子仅作者本人可见，且响应中的 `image_moderation_statuses` 与
 `images` 按下标一一对应；其他用户只能看到已通过帖子，且不会收到逐图审核状态。
 
+回调幂等：图片任务进入 `passed`/`rejected` 后不再被后续回调改判（同一 `trace_id`
+重复或乱序推送不影响结论），帖子 `rejected` 是单调终态，永不被改回 `approved`。
+送检 URL 必须来自与 fileID 同一环境的云存储且路径一致，否则按客户端参数错误拒绝。
+
 云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
 客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。
 
@@ -696,7 +700,9 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 
 配置时平台会向该 path 发送 `{"action":"CheckContainerPath"}`，接口返回
 `success`。该方案不需要公网域名或消息 Token；建议关闭服务公网访问。确需开启
-公网访问时设置 `WECHAT_CLOUDRUN_PUBLIC_ACCESS=True`，强制校验 `x-wx-sources`。
+公网访问时设置 `WECHAT_CLOUDRUN_PUBLIC_ACCESS=True`：接口对路径检测之外的
+推送强制要求微信侧注入的 `x-wx-source` 请求头，缺失一律 403（官方「确认消息
+来源」），同时仍校验 `appid`。服务关闭公网访问时保持默认 False。
 
 内容安全接口只在微信云托管生产环境调用；本地占位 AppID 直接返回 mock 结果。
 在云托管服务的「云调用 / 微信令牌」中开启开放接口服务，并将以下接口加入白名单：
@@ -846,7 +852,8 @@ App (app.js)
 └── 环境变量:
     ├── MYSQL_URL            # 云数据库连接 (CloudBase 自动注入)
     ├── DEEPSEEK_API_KEY     # DeepSeek API Key
-    └── WECHAT_APPID         # 小程序 AppID（图片审核回调校验）
+    ├── WECHAT_APPID         # 小程序 AppID（图片审核回调校验）
+    └── WECHAT_CLOUDRUN_PUBLIC_ACCESS  # 公网访问开启时置 True（默认 False，回调强制 x-wx-source）
 ```
 
 ### 7.3 部署方案对比

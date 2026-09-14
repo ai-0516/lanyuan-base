@@ -246,7 +246,7 @@ class TestPosts:
             json={
                 "content": "有图",
                 "images": [file_id],
-                "image_urls": ["https://test.tcb.qcloud.la/posts/img.jpg?sign=test"],
+                "image_urls": ["https://test-env.tcb.qcloud.la/posts/img.jpg?sign=test"],
             },
             headers=headers_a,
         )

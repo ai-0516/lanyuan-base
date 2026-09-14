@@ -114,9 +114,6 @@
   font-size: 20rpx;
   line-height: 1.4;
 }
-.moderation-badge.passed {
-  background: rgba(61, 139, 87, 0.82);
-}
 .moderation-badge.rejected {
   background: rgba(190, 67, 54, 0.86);
 }

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     # 微信：本地用 AppID/Secret 调 code2session；云托管从可信 header 获取身份
     WECHAT_CLOUD_DEPLOYMENT: bool = True
+    # 云托管服务开启公网访问时必须置 True：消息推送接口要求非路径检测事件
+    # 携带微信侧注入的 x-wx-source 头，否则 403（官方「确认消息来源」）
+    WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
     WECHAT_APPID: str = ""
     WECHAT_SECRET: str = ""
 

@@ -22,6 +22,10 @@ class ContentSecurityUnavailableError(Exception):
     """内容安全服务暂时不可用。"""
 
 
+class InvalidImageParamsError(Exception):
+    """图片送检参数不合法（客户端参数错误，非服务异常）。"""
+
+
 async def check_public_text(
     db: AsyncSession,
     user_id: int,
@@ -50,15 +54,28 @@ async def check_public_text(
 
 
 def _validate_image_pair(file_id: str, media_url: str) -> None:
-    """确保送检 URL 来自云存储且路径与待发布 fileID 一致。"""
+    """确保送检 URL 与 fileID 指向同一云存储环境下的同一对象。
+
+    fileID 形如 `cloud://<环境ID>.<存储桶>/<路径>`，临时 URL 形如
+    `https://<存储桶>.tcb.qcloud.la/<路径>`。只比对路径时，「A 环境 fileID +
+    B 环境同路径对象」也能通过——送检图就不是最终展示图，故三者都要对上。
+    """
     if not file_id.startswith("cloud://"):
-        raise ContentSecurityUnavailableError("图片 fileID 非法")
+        raise InvalidImageParamsError("图片 fileID 非法")
+    cloud_host, _, cloud_path = file_id[len("cloud://"):].partition("/")
+    env, _, bucket = cloud_host.partition(".")
+    bucket = bucket or env  # 无存储桶段时 fileID 的环境即存储桶
     parsed = urlparse(media_url)
-    if parsed.scheme != "https" or not parsed.hostname or not parsed.hostname.endswith(".tcb.qcloud.la"):
-        raise ContentSecurityUnavailableError("图片临时 URL 非法")
-    cloud_path = file_id.split("/", 3)[-1]
+    hostname = parsed.hostname or ""
+    if (
+        not cloud_path
+        or parsed.scheme != "https"
+        or hostname != f"{bucket}.tcb.qcloud.la"
+        or env not in bucket
+    ):
+        raise InvalidImageParamsError("图片临时 URL 与 fileID 不属于同一云存储环境")
     if not unquote(parsed.path).endswith("/" + cloud_path):
-        raise ContentSecurityUnavailableError("图片 URL 与 fileID 不匹配")
+        raise InvalidImageParamsError("图片 URL 与 fileID 路径不匹配")
 
 
 async def submit_post_images(
@@ -70,7 +87,7 @@ async def submit_post_images(
 ) -> bool:
     """为帖子图片创建异步检测任务；本地 mock 直接通过。"""
     if len(file_ids) != len(media_urls) or not file_ids:
-        raise ContentSecurityUnavailableError("图片检测参数不完整")
+        raise InvalidImageParamsError("图片检测参数不完整")
     result = await db.execute(select(User.openid).where(User.id == user_id))
     openid = result.scalar_one_or_none()
     if not openid:
@@ -85,6 +102,9 @@ async def submit_post_images(
             )
             if trace_id:
                 traces.append((trace_id, file_id))
+    except InvalidImageParamsError:
+        # 客户端参数错误原样上抛，不混进「服务不可用」
+        raise
     except Exception as exc:
         logger.warning(
             "Media security submission unavailable for user_id=%s post_id=%s",
@@ -94,8 +114,11 @@ async def submit_post_images(
         )
         raise ContentSecurityUnavailableError from exc
 
-    db_post = await db.get(Post, post_id)
     if not traces:
+        db_post = await db.get(Post, post_id)
+        if not db_post:
+            # 帖子缺失时无法确认审核结论，fail closed 而非当作通过
+            raise ContentSecurityUnavailableError("帖子不存在")
         db_post.moderation_status = PostModerationStatus.APPROVED
         return True
     for trace_id, file_id in traces:
@@ -113,6 +136,9 @@ async def apply_media_result(
     task = result.scalar_one_or_none()
     if not task:
         return False
+    if task.status != MediaModerationTaskStatus.PENDING:
+        # 终态幂等：重复或乱序回调不得改判已判定图片（rejected 永久不公开）
+        return True
     task.status = (
         MediaModerationTaskStatus.PASSED
         if errcode == 0 and suggestion == "pass"
@@ -131,5 +157,7 @@ async def apply_media_result(
     if statuses and all(
         status == MediaModerationTaskStatus.PASSED for status in statuses
     ):
-        post.moderation_status = PostModerationStatus.APPROVED
+        # approved 只能从 pending 进入；rejected 是单调终态
+        if post.moderation_status == PostModerationStatus.PENDING:
+            post.moderation_status = PostModerationStatus.APPROVED
     return True

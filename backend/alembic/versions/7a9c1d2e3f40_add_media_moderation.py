@@ -32,7 +32,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=True),
         sa.ForeignKeyConstraint(["post_id"], ["posts.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("trace_id"),
     )
     op.create_index("ix_media_moderation_tasks_post_id", "media_moderation_tasks", ["post_id"])
     op.create_index("ix_media_moderation_tasks_trace_id", "media_moderation_tasks", ["trace_id"], unique=True)

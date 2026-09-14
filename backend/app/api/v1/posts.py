@@ -96,6 +96,9 @@ async def create_post(
                 result.image_moderation_statuses = [
                     MediaModerationTaskStatus.PASSED for _ in data.images
                 ]
+        except content_security_service.InvalidImageParamsError:
+            await db.rollback()
+            return api_error(40014, "图片送检参数有误，请重新选择图片后发布")
         except content_security_service.ContentSecurityUnavailableError:
             await db.rollback()
             return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
