@@ -6,7 +6,7 @@ from urllib.parse import unquote, urlparse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.wechat import wechat_client
+from app.core.wechat import WeChatSecurityScene, wechat_client
 from app.models.post import MediaModerationTask, Post
 from app.models.user import User
 
@@ -21,7 +21,12 @@ class ContentSecurityUnavailableError(Exception):
     """内容安全服务暂时不可用。"""
 
 
-async def check_public_text(db: AsyncSession, user_id: int, content: str, scene: int) -> None:
+async def check_public_text(
+    db: AsyncSession,
+    user_id: int,
+    content: str,
+    scene: WeChatSecurityScene,
+) -> None:
     """校验公开发布文本；仅微信明确返回 pass 时放行。"""
     result = await db.execute(select(User.openid).where(User.id == user_id))
     openid = result.scalar_one_or_none()
@@ -74,7 +79,9 @@ async def submit_post_images(
     try:
         for file_id, media_url in zip(file_ids, media_urls, strict=True):
             _validate_image_pair(file_id, media_url)
-            trace_id = await wechat_client.media_check_async(media_url, openid, scene=3)
+            trace_id = await wechat_client.media_check_async(
+                media_url, openid, scene=WeChatSecurityScene.FORUM
+            )
             if trace_id:
                 traces.append((trace_id, file_id))
     except Exception as exc:

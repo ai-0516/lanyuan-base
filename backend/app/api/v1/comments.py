@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
+from app.core.wechat import WeChatSecurityScene
 from app.harness.tool_registry import dumps, strip_keys, tool
 from tools.mcp_server.decorator import mcp_tool
 from app.schemas.comment import CommentCreate
@@ -52,7 +53,9 @@ async def create_comment(
 ):
     """对帖子添加评论。支持回复他人评论（传入 parent_comment_id 表示回复某人）。"""
     try:
-        await content_security_service.check_public_text(db, user_id, data.content, scene=2)
+        await content_security_service.check_public_text(
+            db, user_id, data.content, scene=WeChatSecurityScene.COMMENT
+        )
     except content_security_service.UnsafeContentError:
         return api_error(40010, "发布内容含有违规信息，请修改后重试")
     except content_security_service.ContentSecurityUnavailableError:

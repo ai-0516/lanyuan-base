@@ -7,6 +7,7 @@
 
 import asyncio
 import time
+from enum import IntEnum
 
 import httpx
 
@@ -16,6 +17,15 @@ WECHAT_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 WECHAT_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
 WECHAT_MSG_SEC_CHECK_URL = "https://api.weixin.qq.com/wxa/msg_sec_check"
 WECHAT_MEDIA_CHECK_ASYNC_URL = "https://api.weixin.qq.com/wxa/media_check_async"
+
+
+class WeChatSecurityScene(IntEnum):
+    """微信内容安全 API 的发布场景。"""
+
+    PROFILE = 1
+    COMMENT = 2
+    FORUM = 3
+    SOCIAL_LOG = 4
 
 
 class WeChatClient:
@@ -103,7 +113,9 @@ class WeChatClient:
             self._access_token_expires_at = time.monotonic() + expires_in
             return token
 
-    async def msg_sec_check(self, content: str, openid: str, scene: int) -> str:
+    async def msg_sec_check(
+        self, content: str, openid: str, scene: WeChatSecurityScene
+    ) -> str:
         """检查公开文本，返回微信建议：pass / review / risky。"""
         if self._is_mock:
             return "pass"
@@ -116,7 +128,7 @@ class WeChatClient:
                 json={
                     "content": content,
                     "version": 2,
-                    "scene": scene,
+                    "scene": int(scene),
                     "openid": openid,
                 },
             )
@@ -131,7 +143,7 @@ class WeChatClient:
         return suggestion
 
     async def media_check_async(
-        self, media_url: str, openid: str, scene: int
+        self, media_url: str, openid: str, scene: WeChatSecurityScene
     ) -> str | None:
         """提交图片异步检测，返回用于匹配微信回调的 trace_id。"""
         if self._is_mock:
@@ -146,7 +158,7 @@ class WeChatClient:
                     "media_url": media_url,
                     "media_type": 2,
                     "version": 2,
-                    "scene": scene,
+                    "scene": int(scene),
                     "openid": openid,
                 },
             )

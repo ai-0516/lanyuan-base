@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
+from app.core.wechat import WeChatSecurityScene
 from app.harness.tool_registry import dumps, strip_keys, tool
 from tools.mcp_server.decorator import mcp_tool
 from app.schemas.post import PostCreate
@@ -67,7 +68,9 @@ async def create_post(
 ):
     """发布帖子到社区。用户在这里分享生活、寻求帮助或组织活动。支持图文混排，最多9张图片。"""
     try:
-        await content_security_service.check_public_text(db, user_id, data.content, scene=3)
+        await content_security_service.check_public_text(
+            db, user_id, data.content, scene=WeChatSecurityScene.FORUM
+        )
     except content_security_service.UnsafeContentError:
         return api_error(40010, "发布内容含有违规信息，请修改后重试")
     except content_security_service.ContentSecurityUnavailableError:

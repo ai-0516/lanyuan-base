@@ -107,7 +107,9 @@ async def test_msg_sec_check_sends_required_v2_payload(monkeypatch):
     client._access_token = "cached-token"
     client._access_token_expires_at = float("inf")
 
-    suggestion = await client.msg_sec_check("测试内容", "test-openid", scene=2)
+    suggestion = await client.msg_sec_check(
+        "测试内容", "test-openid", scene=wechat_module.WeChatSecurityScene.COMMENT
+    )
 
     assert suggestion == "risky"
     assert captured["url"] == wechat_module.WECHAT_MSG_SEC_CHECK_URL
@@ -155,7 +157,9 @@ async def test_media_check_async_sends_required_v2_payload(monkeypatch):
     client._access_token_expires_at = float("inf")
 
     trace_id = await client.media_check_async(
-        "https://test.tcb.qcloud.la/posts/a.jpg", "test-openid", scene=3
+        "https://test.tcb.qcloud.la/posts/a.jpg",
+        "test-openid",
+        scene=wechat_module.WeChatSecurityScene.FORUM,
     )
     assert trace_id == "trace-123"
     assert captured == {
