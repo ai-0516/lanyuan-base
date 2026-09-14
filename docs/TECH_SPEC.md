@@ -801,6 +801,7 @@ App (app.js)
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
 | 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
+| 公开文本安全范围 | 本期仅覆盖帖子与评论。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检 `mediaCheckAsync`，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
 | 公开图片安全 | 图片直传微信云存储后调用 `mediaCheckAsync` v2；帖子审核通过前不可见，非 `pass` 或异常均不公开；云存储写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |
