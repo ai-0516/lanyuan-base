@@ -11,9 +11,9 @@ describe('post-card image moderation status', () => {
       displayImages: ['a.jpg', 'b.jpg', 'c.jpg'],
       image_moderation_statuses: ['pending', 'passed', 'rejected'],
     })).toEqual([
-      { url: 'a.jpg', status: 'pending', label: '审核中' },
-      { url: 'b.jpg', status: 'passed', label: '已通过' },
-      { url: 'c.jpg', status: 'rejected', label: '未通过' },
+      { url: 'a.jpg', status: 'pending', label: '图片审核中' },
+      { url: 'b.jpg', status: 'passed', label: '' },
+      { url: 'c.jpg', status: 'rejected', label: '审核未通过' },
     ]);
   });
 
@@ -30,7 +30,7 @@ describe('post-card image moderation status', () => {
 
     expect(component.data.post).toBe(post);
     expect(component.data.displayImageItems).toEqual([
-      { url: 'https://temp.example/a.jpg', status: 'passed', label: '已通过' },
+      { url: 'https://temp.example/a.jpg', status: 'passed', label: '' },
     ]);
 
     const likedPost = { ...post, liked: true };

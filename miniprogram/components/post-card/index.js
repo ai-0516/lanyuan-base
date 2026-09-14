@@ -27,7 +27,7 @@ Component({
     },
 
     _buildDisplayImageItems(post) {
-      const labels = { pending: '审核中', passed: '已通过', rejected: '未通过' };
+      const labels = { pending: '图片审核中', rejected: '审核未通过' };
       const displayImages = post.displayImages
         || (post.images || []).map(img => fullUrl(img));
       return displayImages.map((url, index) => {
