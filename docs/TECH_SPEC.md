@@ -697,16 +697,14 @@ fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用
 `success`。该方案不需要公网域名或消息 Token；建议关闭服务公网访问。确需开启
 公网访问时设置 `WECHAT_CLOUDRUN_PUBLIC_ACCESS=True`，强制校验 `x-wx-sources`。
 
-内容安全接口使用微信云托管“云调用”，生产环境保持
-`WECHAT_CLOUD_CALL=True`。在云托管服务的「云调用 / 微信令牌」中开启开放接口
-服务，并将以下接口加入白名单：
+内容安全接口只在微信云托管生产环境调用；本地占位 AppID 直接返回 mock 结果。
+在云托管服务的「云调用 / 微信令牌」中开启开放接口服务，并将以下接口加入白名单：
 
 - `/wxa/msg_sec_check`
 - `/wxa/media_check_async`
 
-云调用通过内部 `http://api.weixin.qq.com` 访问，由平台完成鉴权，不请求
-`/cgi-bin/token`。只有部署在微信云托管之外时才设置
-`WECHAT_CLOUD_CALL=False`，改用 AppID/AppSecret 和 HTTPS access token 流程。
+云调用通过内部 `http://api.weixin.qq.com` 访问，由平台完成鉴权，应用不获取或
+维护 `access_token`。
 
 ---
 

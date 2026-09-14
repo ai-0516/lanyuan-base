@@ -43,8 +43,6 @@ class Settings(BaseSettings):
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
-    # 云托管默认走内部 http://api.weixin.qq.com 云调用，无需自行获取 access_token。
-    WECHAT_CLOUD_CALL: bool = True
     # 云托管关闭公网访问时，消息推送走可信内部链路；若开启公网则校验 x-wx-sources。
     WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
 

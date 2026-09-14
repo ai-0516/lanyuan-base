@@ -30,7 +30,6 @@ async def test_code2session_real_appid_never_mocks(monkeypatch):
 
     monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
     monkeypatch.setattr(wechat_module.settings, "WECHAT_SECRET", "real_secret_value")
-    monkeypatch.setattr(wechat_module.settings, "WECHAT_CLOUD_CALL", False)
 
     captured = {}
 
@@ -80,7 +79,6 @@ async def test_msg_sec_check_sends_required_v2_payload(monkeypatch):
 
     monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
     monkeypatch.setattr(wechat_module.settings, "WECHAT_SECRET", "real_secret_value")
-    monkeypatch.setattr(wechat_module.settings, "WECHAT_CLOUD_CALL", False)
     captured = {}
 
     class FakeResponse:
@@ -106,16 +104,14 @@ async def test_msg_sec_check_sends_required_v2_payload(monkeypatch):
 
     monkeypatch.setattr(wechat_module.httpx, "AsyncClient", FakeAsyncClient)
     client = wechat_module.WeChatClient()
-    client._access_token = "cached-token"
-    client._access_token_expires_at = float("inf")
 
     suggestion = await client.msg_sec_check(
         "测试内容", "test-openid", scene=wechat_module.WeChatSecurityScene.COMMENT
     )
 
     assert suggestion == "risky"
-    assert captured["url"] == wechat_module.WECHAT_MSG_SEC_CHECK_URL
-    assert captured["params"] == {"access_token": "cached-token"}
+    assert captured["url"] == wechat_module.WECHAT_CLOUD_MSG_SEC_CHECK_URL
+    assert captured["params"] is None
     assert captured["json"] == {
         "content": "测试内容",
         "version": 2,
@@ -130,7 +126,6 @@ async def test_media_check_async_sends_required_v2_payload(monkeypatch):
     from app.core import wechat as wechat_module
 
     monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
-    monkeypatch.setattr(wechat_module.settings, "WECHAT_CLOUD_CALL", False)
     captured = {}
 
     class FakeResponse:
@@ -156,8 +151,6 @@ async def test_media_check_async_sends_required_v2_payload(monkeypatch):
 
     monkeypatch.setattr(wechat_module.httpx, "AsyncClient", FakeAsyncClient)
     client = wechat_module.WeChatClient()
-    client._access_token = "cached-token"
-    client._access_token_expires_at = float("inf")
 
     trace_id = await client.media_check_async(
         "https://test.tcb.qcloud.la/posts/a.jpg",
@@ -166,8 +159,8 @@ async def test_media_check_async_sends_required_v2_payload(monkeypatch):
     )
     assert trace_id == "trace-123"
     assert captured == {
-        "url": wechat_module.WECHAT_MEDIA_CHECK_ASYNC_URL,
-        "params": {"access_token": "cached-token"},
+        "url": wechat_module.WECHAT_CLOUD_MEDIA_CHECK_ASYNC_URL,
+        "params": None,
         "json": {
             "media_url": "https://test.tcb.qcloud.la/posts/a.jpg",
             "media_type": 2,
@@ -175,46 +168,4 @@ async def test_media_check_async_sends_required_v2_payload(monkeypatch):
             "scene": 3,
             "openid": "test-openid",
         },
-    }
-
-
-@pytest.mark.asyncio
-async def test_cloud_call_uses_internal_http_without_access_token(monkeypatch):
-    """微信云托管通过内部 HTTP 云调用，不能请求公网 token 或校验平台自签证书。"""
-    from app.core import wechat as wechat_module
-
-    monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
-    monkeypatch.setattr(wechat_module.settings, "WECHAT_CLOUD_CALL", True)
-    captured = {}
-
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"errcode": 0, "result": {"suggest": "pass"}}
-
-    class FakeAsyncClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def post(self, url, params=None, json=None):
-            captured.update(url=url, params=params)
-            return FakeResponse()
-
-    monkeypatch.setattr(wechat_module.httpx, "AsyncClient", FakeAsyncClient)
-    client = wechat_module.WeChatClient()
-    await client.msg_sec_check(
-        "测试内容", "test-openid", wechat_module.WeChatSecurityScene.FORUM
-    )
-
-    assert captured == {
-        "url": wechat_module.WECHAT_CLOUD_MSG_SEC_CHECK_URL,
-        "params": None,
     }
