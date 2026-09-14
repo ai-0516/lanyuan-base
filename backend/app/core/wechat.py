@@ -17,6 +17,8 @@ WECHAT_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 WECHAT_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
 WECHAT_MSG_SEC_CHECK_URL = "https://api.weixin.qq.com/wxa/msg_sec_check"
 WECHAT_MEDIA_CHECK_ASYNC_URL = "https://api.weixin.qq.com/wxa/media_check_async"
+WECHAT_CLOUD_MSG_SEC_CHECK_URL = "http://api.weixin.qq.com/wxa/msg_sec_check"
+WECHAT_CLOUD_MEDIA_CHECK_ASYNC_URL = "http://api.weixin.qq.com/wxa/media_check_async"
 
 
 class WeChatSecurityScene(IntEnum):
@@ -120,11 +122,16 @@ class WeChatClient:
         if self._is_mock:
             return "pass"
 
-        token = await self.get_access_token()
+        if settings.WECHAT_CLOUD_CALL:
+            url = WECHAT_CLOUD_MSG_SEC_CHECK_URL
+            params = None
+        else:
+            url = WECHAT_MSG_SEC_CHECK_URL
+            params = {"access_token": await self.get_access_token()}
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
-                WECHAT_MSG_SEC_CHECK_URL,
-                params={"access_token": token},
+                url,
+                params=params,
                 json={
                     "content": content,
                     "version": 2,
@@ -149,11 +156,16 @@ class WeChatClient:
         if self._is_mock:
             return None
 
-        token = await self.get_access_token()
+        if settings.WECHAT_CLOUD_CALL:
+            url = WECHAT_CLOUD_MEDIA_CHECK_ASYNC_URL
+            params = None
+        else:
+            url = WECHAT_MEDIA_CHECK_ASYNC_URL
+            params = {"access_token": await self.get_access_token()}
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
-                WECHAT_MEDIA_CHECK_ASYNC_URL,
-                params={"access_token": token},
+                url,
+                params=params,
                 json={
                     "media_url": media_url,
                     "media_type": 2,
