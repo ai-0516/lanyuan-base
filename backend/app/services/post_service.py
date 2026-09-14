@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.moderation import PostModerationStatus
 from app.models.post import Post
 from app.models.comment import Comment
 from app.models.like import Like
@@ -18,7 +19,7 @@ async def create_post(
     db: AsyncSession,
     user_id: int,
     data: PostCreate,
-    moderation_status: str = "approved",
+    moderation_status: PostModerationStatus = PostModerationStatus.APPROVED,
 ) -> PostResponse:
     """创建帖子并返回完整信息"""
     post = Post(
@@ -53,7 +54,10 @@ async def get_post_by_id(
 ) -> PostResponse | None:
     """获取单个帖子详情（含评论和点赞）"""
     result = await db.execute(
-        select(Post).where(Post.id == post_id, Post.moderation_status == "approved")
+        select(Post).where(
+            Post.id == post_id,
+            Post.moderation_status == PostModerationStatus.APPROVED,
+        )
     )
     post = result.scalar_one_or_none()
     if not post:
@@ -148,14 +152,16 @@ async def get_posts(
     offset = (page - 1) * size
 
     # 查总数
-    count_stmt = select(func.count(Post.id)).where(Post.moderation_status == "approved")
+    count_stmt = select(func.count(Post.id)).where(
+        Post.moderation_status == PostModerationStatus.APPROVED
+    )
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # 查帖子
     stmt = (
         select(Post)
-        .where(Post.moderation_status == "approved")
+        .where(Post.moderation_status == PostModerationStatus.APPROVED)
         .order_by(Post.created_at.desc(), Post.id.desc())
         .offset(offset)
         .limit(size)
@@ -276,7 +282,10 @@ async def like_post(
     """
     # 先校验帖子存在，再插入点赞
     post_result = await db.execute(
-        select(Post).where(Post.id == post_id, Post.moderation_status == "approved")
+        select(Post).where(
+            Post.id == post_id,
+            Post.moderation_status == PostModerationStatus.APPROVED,
+        )
     )
     post = post_result.scalar_one_or_none()
     if not post:

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.wechat import WeChatSecurityScene, wechat_client
+from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
 from app.models.post import MediaModerationTask, Post
 from app.models.user import User
 
@@ -95,7 +96,7 @@ async def submit_post_images(
 
     db_post = await db.get(Post, post_id)
     if not traces:
-        db_post.moderation_status = "approved"
+        db_post.moderation_status = PostModerationStatus.APPROVED
         return True
     for trace_id, file_id in traces:
         db.add(MediaModerationTask(post_id=post_id, trace_id=trace_id, file_id=file_id))
@@ -112,17 +113,23 @@ async def apply_media_result(
     task = result.scalar_one_or_none()
     if not task:
         return False
-    task.status = "passed" if errcode == 0 and suggestion == "pass" else "rejected"
+    task.status = (
+        MediaModerationTaskStatus.PASSED
+        if errcode == 0 and suggestion == "pass"
+        else MediaModerationTaskStatus.REJECTED
+    )
     post = await db.get(Post, task.post_id)
     if not post:
         return True
-    if task.status == "rejected":
-        post.moderation_status = "rejected"
+    if task.status == MediaModerationTaskStatus.REJECTED:
+        post.moderation_status = PostModerationStatus.REJECTED
         return True
     statuses_result = await db.execute(
         select(MediaModerationTask.status).where(MediaModerationTask.post_id == post.id)
     )
     statuses = list(statuses_result.scalars())
-    if statuses and all(status == "passed" for status in statuses):
-        post.moderation_status = "approved"
+    if statuses and all(
+        status == MediaModerationTaskStatus.PASSED for status in statuses
+    ):
+        post.moderation_status = PostModerationStatus.APPROVED
     return True
