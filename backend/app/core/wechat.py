@@ -1,8 +1,8 @@
 """微信 API 客户端
 
-自动判断模式：
-- WECHAT_APPID 为默认占位值时 → mock 模式（开发环境）
-- 配置了真实 appid/secret 时 → 调微信 API
+部署模式：
+- 本地开发通过 AppID/Secret 调用 code2session，内容安全使用 mock
+- 微信云托管从可信 header 获取用户身份，内容安全调用内部 API
 """
 
 from enum import IntEnum
@@ -29,19 +29,15 @@ class WeChatClient:
     """微信客户端"""
 
     def __init__(self):
-        self._is_mock = settings.WECHAT_APPID in ("wx_dev_appid", "")
+        self._is_cloud = settings.WECHAT_CLOUD_DEPLOYMENT
 
     async def code2session(self, code: str) -> dict:
         """用临时 code 换取 openid / session_key
 
-        策略（双模式共存）：
-        - mock 配置（WECHAT_APPID 为占位值）→ 全走 mock（开发环境）
-        - 真实 appid 配置（生产）→ 一律调真实微信 API（含短 code / mock_code，
-          2026-09-04 修正：短 code 启发式会让生产环境可伪造 mock openid
-          绕过身份——mock 只允许存在于 mock 配置）
+        仅本地开发链路使用；云托管登录直接采用平台注入的 x-wx-openid。
         """
-        if self._is_mock:
-            return self._mock_code2session(code)
+        if not settings.WECHAT_APPID or not settings.WECHAT_SECRET:
+            raise RuntimeError("本地微信登录缺少 WECHAT_APPID 或 WECHAT_SECRET")
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -62,25 +58,11 @@ class WeChatClient:
 
         return result
 
-    @staticmethod
-    def _mock_code2session(code: str) -> dict:
-        """模拟 code 换 session_key + openid"""
-        if code == "mock_code":
-            openid = "test_openid_0"
-        else:
-            openid = f"mock_openid_{hash(code) % 100000:05d}"
-
-        return {
-            "openid": openid,
-            "session_key": "mock_session_key",
-            "unionid": None,
-        }
-
     async def msg_sec_check(
         self, content: str, openid: str, scene: WeChatSecurityScene
     ) -> str:
         """检查公开文本，返回微信建议：pass / review / risky。"""
-        if self._is_mock:
+        if not self._is_cloud:
             return "pass"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -107,7 +89,7 @@ class WeChatClient:
         self, media_url: str, openid: str, scene: WeChatSecurityScene
     ) -> str | None:
         """提交图片异步检测，返回用于匹配微信回调的 trace_id。"""
-        if self._is_mock:
+        if not self._is_cloud:
             return None
 
         async with httpx.AsyncClient(timeout=10.0) as client:

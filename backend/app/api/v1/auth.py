@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.api.response import api_error, api_success
+from app.config import settings
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -29,11 +30,10 @@ async def login(data: dict, request: Request, db: AsyncSession = Depends(get_db)
     code = data.get("code", "mock_code")
     nickname = data.get("nickname")
     avatar = data.get("avatar")
-    # 平台注入的 openid 必为合法格式；出现非格式值 = 请求可疑（伪造/异常）
-    # → 400 拒绝，不静默落入 code 路径
     wx_openid = None
-    raw = (request.headers.get("x-wx-openid") or "").strip()
-    if raw:
+    if settings.WECHAT_CLOUD_DEPLOYMENT:
+        # 仅云托管私有链路信任平台注入的身份；本地请求即使伪造该 header 也忽略。
+        raw = (request.headers.get("x-wx-openid") or "").strip()
         if not _OPENID_RE.fullmatch(raw):
             api_error(40013, "登录参数错误，请重试")
         wx_openid = raw

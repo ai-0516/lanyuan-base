@@ -39,9 +39,10 @@ class Settings(BaseSettings):
     MEMORY_MAX_PER_USER: int = 30             # 每用户记忆条数上限，超限触发 LLM 合并
     MEMORY_INDEX_LIMIT: int = 30              # 注入 system prompt 的索引条数上限
 
-    # 微信 (开发环境模拟)
-    WECHAT_APPID: str = "wx_dev_appid"
-    WECHAT_SECRET: str = "wx_dev_secret"
+    # 微信：本地用 AppID/Secret 调 code2session；云托管从可信 header 获取身份
+    WECHAT_CLOUD_DEPLOYMENT: bool = True
+    WECHAT_APPID: str = ""
+    WECHAT_SECRET: str = ""
 
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR

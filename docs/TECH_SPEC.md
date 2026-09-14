@@ -325,7 +325,7 @@ miniprogram/
 code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签证书问题）：
 ```
 1. 小程序（trial/release 版）wx.cloud.callContainer → POST /api/v1/auth/login
-2. 后端按信任开关读取 header x-wx-openid → 查/建 User（openid 唯一）
+2. 后端默认按云托管模式读取 header x-wx-openid → 查/建 User（openid 唯一）
 3. 生成 JWT (含 user_id) → 返回
 4. 前端存储 token 到 wx.Storage
 ```
@@ -334,8 +334,8 @@ code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签
 > 外部不可达，客户端无法伪造该 header）。后端直接信任 header 优先登录；header 值
 > 仍需格式校验（≤64 位 `[A-Za-z0-9_-]`，对齐 DB varchar(64)），非法值 400 拒绝、不落库。
 
-路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端 code2session 换
-openid（mock 配置下全 mock）：
+路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端使用本地配置的
+`WECHAT_APPID` 与 `WECHAT_SECRET` 调用 code2session 换取真实 openid：
 ```
 1. 小程序（develop 版）wx.request → POST /api/v1/auth/login { code }
 2. 后端 code2session(code) → openid → 查/建 User
@@ -343,8 +343,8 @@ openid（mock 配置下全 mock）：
 4. 前端存储 token 到 wx.Storage
 ```
 两条路径共用查/建用户与 JWT 签发逻辑（auth_service.login 的 openid 参数化）。
-注：mock code2session 只存在于 mock 配置（WECHAT_APPID 占位）；生产真实 appid
-下任何 code 都走真实微信 API，杜绝公网可伪造的 mock openid。
+内容安全与登录模式分开：本地登录是真实 code2session，但内容安全 API 使用 mock；
+云托管登录使用可信 header，内容安全 API 才调用微信云托管内部地址。
 
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
@@ -651,11 +651,12 @@ event: error      → 错误提示
 fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用微信
 `mediaCheckAsync` v2（`scene=3`）。临时 URL 只用于送检，帖子只保存 fileID。
 
-带图帖子初始状态为 `pending`，不会出现在帖子列表或详情中。微信在 30 分钟内
+带图帖子初始状态为 `pending`：发帖者本人仍可在列表和详情中看到帖子及每张图片的
+审核状态，其他用户不可见。微信在 30 分钟内
 将 `wxa_media_check` JSON 事件推送到 `/api/v1/wechat/events`：全部图片返回
 `pass` 后帖子才变为 `approved`；`review`、`risky`、下载失败及其他异常均保持
-不可见。回调必须匹配当前 `WECHAT_APPID`；若服务开启公网访问，还必须包含
-微信云托管注入的 `x-wx-sources` 请求头。
+不可见。回调必须匹配当前 `WECHAT_APPID`，并且服务必须关闭公网访问，使回调
+仅能通过微信云托管内部消息链路到达。
 
 审核状态枚举：
 
@@ -842,10 +843,10 @@ App (app.js)
 │   ├── app/                 # FastAPI 应用代码
 │   ├── Dockerfile           # 云托管构建入口
 │   └── pyproject.toml       # Python 依赖（PEP 621 单源，含 uv.lock）
-└── 环境变量 (云托管自动注入):
+└── 环境变量:
     ├── MYSQL_URL            # 云数据库连接 (CloudBase 自动注入)
     ├── DEEPSEEK_API_KEY     # DeepSeek API Key
-    └── WECHAT_APPID         # 小程序 AppID
+    └── WECHAT_APPID         # 小程序 AppID（图片审核回调校验）
 ```
 
 ### 7.3 部署方案对比

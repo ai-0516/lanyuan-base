@@ -78,7 +78,7 @@ async def test_login(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_with_wx_openid_header(client: AsyncClient):
+async def test_login_with_wx_openid_header(client: AsyncClient, monkeypatch):
     """路线2：云托管注入 x-wx-openid → 免 code2session 直接登录
 
     验证：openid 按 header 落库（而非 code mock 的 openid），且幂等复用同一用户
@@ -87,6 +87,9 @@ async def test_login_with_wx_openid_header(client: AsyncClient):
 
     from app.core.database import async_session_factory
     from app.models.user import User
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
 
     headers = {"x-wx-openid": "openid_callcontainer_001"}
     # code 带任意值（甚至 mock_code）也必须被忽略——header 优先
@@ -115,11 +118,14 @@ async def test_login_with_wx_openid_header(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient):
+async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient, monkeypatch):
     """非法 openid（超长/非法字符）→ 400 拒绝、不落库
 
     防生产 MySQL varchar(64) 落库 DataError 500；真实微信 openid 为 28 位 [A-Za-z0-9_-]
     """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
     # header 值必须 ASCII（httpx 传输层限制）——用可传输的非法形态覆盖：超长/特殊字符/空格
     for bad in ["o" * 65, "bad!openid", "<script>alert(1)</script>", "open id_123"]:
         resp = await client.post(
@@ -340,7 +346,10 @@ async def test_image_post_rejected_by_wechat_callback(
     client: AsyncClient, auth_headers: dict, monkeypatch
 ):
     """任一图片非 pass 时，帖子保持不可见。"""
+    from app.config import settings
     from app.services import content_security_service
+
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
 
     async def submit(media_url, openid, scene):
         return "trace-risky"
