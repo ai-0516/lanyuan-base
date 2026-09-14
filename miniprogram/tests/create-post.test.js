@@ -88,4 +88,26 @@ describe('create post cloud images', () => {
       icon: 'none',
     });
   });
+
+  test('shows the image submit param message', async () => {
+    uploadPostImages.mockResolvedValue(['cloud://env/posts/a.jpg']);
+    getTempFileURLs.mockResolvedValue(['https://test.tcb.qcloud.la/posts/a.jpg']);
+    request.mockRejectedValue({
+      data: { code: 40014, message: '图片送检参数有误，请重新选择图片后发布' },
+    });
+    const page = loadPage(pagePath);
+    Object.assign(page.data, {
+      content: '图片参数错误',
+      tempImages: ['wxfile://tmp/a.jpg'],
+      canPublish: true,
+    });
+
+    await page.onPublish();
+
+    expect(deleteCloudFiles).toHaveBeenCalledWith(['cloud://env/posts/a.jpg']);
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '图片送检参数有误，请重新选择图片后发布',
+      icon: 'none',
+    });
+  });
 });
