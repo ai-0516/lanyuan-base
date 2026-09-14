@@ -93,12 +93,13 @@ def _validate_image_pair(file_id: str, media_url: str) -> None:
         )
     ):
         # 部署后若真实域名形态与假设不符，这里会全量触发；留 file_id 与解析出的 host
-        # 便于一次定位（40014 本身不带可诊断信息）
+        # 便于一次定位（40014 本身不带可诊断信息）。三者均来自客户端，故用 %r 转义控制
+        # 字符（否则换行可在消息体内伪造出不带前缀的日志行）并截断（防单条日志无限膨胀）。
         logger.warning(
-            "Rejected image pair, file_id=%s host=%s scope=%s",
-            file_id,
-            host,
-            cloud_scope,
+            "Rejected image pair, file_id=%r host=%r scope=%r",
+            file_id[:200],
+            host[:200],
+            cloud_scope[:200],
         )
         raise InvalidImageParamsError("图片临时 URL 与 fileID 不属于同一云存储环境")
     if not unquote(parsed.path).endswith("/" + cloud_path):

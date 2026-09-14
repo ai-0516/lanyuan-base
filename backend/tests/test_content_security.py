@@ -88,7 +88,33 @@ def test_rejected_pair_logs_file_id_and_host(caplog):
                 "https://env-b.tcb.qcloud.la/posts/a.jpg?sign=1",
             )
 
-    assert "file_id=cloud://env-a/posts/a.jpg" in caplog.text
-    assert "host=env-b.tcb.qcloud.la" in caplog.text
+    assert "file_id='cloud://env-a/posts/a.jpg'" in caplog.text
+    assert "host='env-b.tcb.qcloud.la'" in caplog.text
     # 临时 URL 带签名，不得整体落日志
     assert "sign=1" not in caplog.text
+
+
+def test_rejected_pair_log_escapes_control_chars_and_truncates(caplog):
+    """file_id/host/scope 客户端可控：控制字符须转义（防伪造日志行），长度须有上限。"""
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(InvalidImageParamsError):
+            _validate_image_pair(
+                "cloud://env-a\nFORGED-LOG-LINE/posts/x.jpg",
+                "https://evil.tcb.qcloud.la/posts/x.jpg",
+            )
+        with pytest.raises(InvalidImageParamsError):
+            _validate_image_pair(
+                "cloud://env-a/posts/" + "a" * 500 + ".jpg",
+                "https://evil.tcb.qcloud.la/posts/x.jpg",
+            )
+
+    messages = [
+        r.getMessage() for r in caplog.records if "Rejected image pair" in r.getMessage()
+    ]
+    assert len(messages) == 2
+    # 换行被转义成 \n 字面量 → 不会多出一条不带 logger 前缀的日志行
+    assert all("\n" not in message for message in messages)
+    # 转义后仍保留可诊断内容
+    assert "FORGED-LOG-LINE" in messages[0]
+    # 超长 file_id 被截断
+    assert "a" * 500 not in messages[1]
