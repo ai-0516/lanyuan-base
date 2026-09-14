@@ -53,25 +53,35 @@ async def check_public_text(
         raise UnsafeContentError
 
 
+CLOUD_STORAGE_HOST_SUFFIX = ".tcb.qcloud.la"
+
+
 def _validate_image_pair(file_id: str, media_url: str) -> None:
     """确保送检 URL 与 fileID 指向同一云存储环境下的同一对象。
 
-    fileID 形如 `cloud://<环境ID>.<存储桶>/<路径>`，临时 URL 形如
-    `https://<存储桶>.tcb.qcloud.la/<路径>`。只比对路径时，「A 环境 fileID +
-    B 环境同路径对象」也能通过——送检图就不是最终展示图，故三者都要对上。
+    fileID 形如 `cloud://<环境ID>[.<存储桶>]/<路径>`；临时 URL 域名为
+    `<存储桶>[-<AppID>].tcb.qcloud.la`（官方 getdownloadtcbfilelink 示例：fileID
+    `cloud://test2-4a89da.7465-test2-4a89da/A.png` 对应 `https://7465-test2-4a89da-1258717764.tcb.qcloud.la/A.png`，
+    域名带 AppID 后缀，因此不能与存储桶做等值比较）。只比对路径时，「A 环境 fileID +
+    B 环境同路径对象」也能通过——送检图就不是最终展示图，故 fileID 的环境段必须
+    落在域名内，且路径一致。
     """
     if not file_id.startswith("cloud://"):
         raise InvalidImageParamsError("图片 fileID 非法")
-    cloud_host, _, cloud_path = file_id[len("cloud://"):].partition("/")
-    env, _, bucket = cloud_host.partition(".")
-    bucket = bucket or env  # 无存储桶段时 fileID 的环境即存储桶
+    cloud_scope, _, cloud_path = file_id[len("cloud://"):].partition("/")
     parsed = urlparse(media_url)
-    hostname = parsed.hostname or ""
+    host = parsed.hostname or ""
+    host_scope = (
+        host[: -len(CLOUD_STORAGE_HOST_SUFFIX)]
+        if host.endswith(CLOUD_STORAGE_HOST_SUFFIX)
+        else ""
+    )
     if (
-        not cloud_path
+        not cloud_scope
+        or not cloud_path
+        or not host_scope
         or parsed.scheme != "https"
-        or hostname != f"{bucket}.tcb.qcloud.la"
-        or env not in bucket
+        or any(part not in host_scope for part in cloud_scope.split(".") if part)
     ):
         raise InvalidImageParamsError("图片临时 URL 与 fileID 不属于同一云存储环境")
     if not unquote(parsed.path).endswith("/" + cloud_path):
