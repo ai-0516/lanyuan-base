@@ -27,6 +27,16 @@ from app.services.content_security_service import (
             "cloud://test2-4a89da.7465-test2-4a89da/A.png",
             "https://7465-test2-4a89da-1258717764.tcb.qcloud.la/A.png",
         ),
+        # DNS 主机名大小写不敏感：urlparse 会把域名小写化，fileID 段保留原样，
+        # 比对前不归一就会误拒同一环境的合法配对
+        (
+            "cloud://envA/posts/a.jpg",
+            "https://envA.tcb.qcloud.la/posts/a.jpg?sign=1",
+        ),
+        (
+            "cloud://Env-A.env-a/posts/a.jpg",
+            "https://env-a.tcb.qcloud.la/posts/a.jpg",
+        ),
     ],
 )
 def test_matching_pair_is_accepted(file_id, media_url):
@@ -54,6 +64,11 @@ def test_matching_pair_is_accepted(file_id, media_url):
         ("cloud://test-env/posts/a.jpg", "https://test-env.tcb.qcloud.la/other/a.jpg"),
         # fileID 缺少对象路径
         ("cloud://test-env.7465-test-env-1300", "https://7465-test-env-1300.tcb.qcloud.la/posts/a.jpg"),
+        # 环境段为空段：不能被 `if part` 滤掉后绕过环境绑定
+        ("cloud://./posts/a.jpg", "https://anything.tcb.qcloud.la/posts/a.jpg"),
+        ("cloud://env-a..env-a/posts/a.jpg", "https://env-a.tcb.qcloud.la/posts/a.jpg"),
+        # 大小写归一仅限主机名：对象路径大小写有意义，不归一时必须拒绝
+        ("cloud://test-env/posts/A.JPG", "https://test-env.tcb.qcloud.la/posts/a.jpg"),
     ],
 )
 def test_mismatched_pair_is_rejected(file_id, media_url):

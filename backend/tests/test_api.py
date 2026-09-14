@@ -638,6 +638,8 @@ async def test_create_post_rejects_incomplete_image_params(
         ("cloud://envA/posts/a.jpg", "https://evil.example/posts/a.jpg"),
         # 路径与 fileID 不一致
         ("cloud://envA/posts/a.jpg", "https://envA.tcb.qcloud.la/other/a.jpg"),
+        # 环境段为空段：原实现被 `if part` 滤掉后可建帖（200），此处锁定拒绝
+        ("cloud://./posts/a.jpg", "https://anything.tcb.qcloud.la/posts/a.jpg"),
     ],
 )
 async def test_create_post_rejects_mismatched_image_pairs(
@@ -656,6 +658,35 @@ async def test_create_post_rejects_mismatched_image_pairs(
         "message": "图片送检参数有误，请重新选择图片后发布",
     }
     assert (await client.get("/api/v1/posts", headers=auth_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_image_post_accepts_uppercase_env_scope(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """DNS 主机名大小写不敏感：fileID 环境段含大写时同环境的合法配对仍可发布。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    async def submit(media_url, openid, scene):
+        assert media_url == "https://env-a.tcb.qcloud.la/posts/a.jpg"
+        return "trace-upper"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/posts",
+        json={
+            "content": "大写环境",
+            "images": ["cloud://Env-A.env-a/posts/a.jpg"],
+            "image_urls": ["https://env-a.tcb.qcloud.la/posts/a.jpg"],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["moderation_status"] == "pending"
+
 
 @pytest.mark.asyncio
 async def test_get_posts(client: AsyncClient, auth_headers: dict):

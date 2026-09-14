@@ -65,6 +65,12 @@ def _validate_image_pair(file_id: str, media_url: str) -> None:
     域名带 AppID 后缀，因此不能与存储桶做等值比较）。只比对路径时，「A 环境 fileID +
     B 环境同路径对象」也能通过——送检图就不是最终展示图，故 fileID 的环境段必须
     落在域名内，且路径一致。
+
+    DNS 主机名大小写不敏感，而 `urlparse().hostname` 会把域名小写化，故环境段比对
+    前统一 `.lower()`（路径保持原样，对象路径大小写有意义）；环境段含空段
+    （如 `cloud://./posts/a.jpg`）直接拒绝，否则空段被滤掉后绑定形同虚设。无点形式
+    `cloud://<环境ID>/<路径>` 的绑定强度仅为「域名包含环境段」，本项目客户端只发
+    dot 形式（官方样例即是），故不额外收紧。
     """
     if not file_id.startswith("cloud://"):
         raise InvalidImageParamsError("图片 fileID 非法")
@@ -81,7 +87,10 @@ def _validate_image_pair(file_id: str, media_url: str) -> None:
         or not cloud_path
         or not host_scope
         or parsed.scheme != "https"
-        or any(part not in host_scope for part in cloud_scope.split(".") if part)
+        or any(
+            not part or part not in host_scope
+            for part in cloud_scope.lower().split(".")
+        )
     ):
         raise InvalidImageParamsError("图片临时 URL 与 fileID 不属于同一云存储环境")
     if not unquote(parsed.path).endswith("/" + cloud_path):
@@ -161,6 +170,8 @@ async def apply_media_result(
     )
     post = await db.get(Post, task.post_id)
     if not post:
+        # 帖子已删除：无需撤回、重试也不会有结果，幂等视为已处理完（与
+        # submit_post_images 对同一情形的 fail closed 口径不同，那是「无法确认结论」）
         return True
     if task.status == MediaModerationTaskStatus.REJECTED:
         post.moderation_status = PostModerationStatus.REJECTED
