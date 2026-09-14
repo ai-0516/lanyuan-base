@@ -1,5 +1,5 @@
 const { request } = require('../../utils/request');
-const { uploadPostImages, deleteCloudFiles } = require('../../utils/cloud-storage');
+const { uploadPostImages, getTempFileURLs, deleteCloudFiles } = require('../../utils/cloud-storage');
 
 Page({
   data: {
@@ -57,15 +57,19 @@ Page({
       if (this.data.tempImages.length > 0) {
         uploadedFileIDs = await uploadPostImages(this.data.tempImages);
       }
+      const imageURLs = await getTempFileURLs(uploadedFileIDs);
 
       // 发布帖子
-      await request({
+      const post = await request({
         method: 'POST',
         url: '/posts',
-        data: { content: this.data.content, images: uploadedFileIDs },
+        data: { content: this.data.content, images: uploadedFileIDs, image_urls: imageURLs },
       });
 
-      wx.showToast({ title: '发布成功', icon: 'success' });
+      wx.showToast({
+        title: post.moderation_status === 'pending' ? '图片审核中，通过后将自动发布' : '发布成功',
+        icon: post.moderation_status === 'pending' ? 'none' : 'success',
+      });
       setTimeout(() => {
         wx.switchTab({ url: '/pages/feed/index' });
       }, 1000);

@@ -72,7 +72,22 @@ async def create_post(
         return api_error(40010, "发布内容含有违规信息，请修改后重试")
     except content_security_service.ContentSecurityUnavailableError:
         return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
-    result = await post_service.create_post(db, user_id, data)
+    result = await post_service.create_post(
+        db,
+        user_id,
+        data,
+        moderation_status="pending" if data.images else "approved",
+    )
+    if data.images:
+        try:
+            approved = await content_security_service.submit_post_images(
+                db, user_id, result.id, data.images, data.image_urls
+            )
+            if approved:
+                result.moderation_status = "approved"
+        except content_security_service.ContentSecurityUnavailableError:
+            await db.rollback()
+            return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
     return api_success(result)
 
 

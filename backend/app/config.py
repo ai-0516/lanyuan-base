@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # 微信 (开发环境模拟)
     WECHAT_APPID: str = "wx_dev_appid"
     WECHAT_SECRET: str = "wx_dev_secret"
+    WECHAT_MESSAGE_TOKEN: str = ""
 
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR

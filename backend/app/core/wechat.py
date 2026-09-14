@@ -15,6 +15,7 @@ from app.config import settings
 WECHAT_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
 WECHAT_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
 WECHAT_MSG_SEC_CHECK_URL = "https://api.weixin.qq.com/wxa/msg_sec_check"
+WECHAT_MEDIA_CHECK_ASYNC_URL = "https://api.weixin.qq.com/wxa/media_check_async"
 
 
 class WeChatClient:
@@ -128,6 +129,33 @@ class WeChatClient:
         if suggestion not in {"pass", "review", "risky"}:
             raise RuntimeError("微信内容安全校验返回无效结果")
         return suggestion
+
+    async def media_check_async(
+        self, media_url: str, openid: str, scene: int
+    ) -> str | None:
+        """提交图片异步检测，返回用于匹配微信回调的 trace_id。"""
+        if self._is_mock:
+            return None
+
+        token = await self.get_access_token()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                WECHAT_MEDIA_CHECK_ASYNC_URL,
+                params={"access_token": token},
+                json={
+                    "media_url": media_url,
+                    "media_type": 2,
+                    "version": 2,
+                    "scene": scene,
+                    "openid": openid,
+                },
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+        if result.get("errcode", 0) != 0 or not result.get("trace_id"):
+            raise RuntimeError(f"微信图片安全校验提交失败: {result.get('errmsg', '未知错误')}")
+        return result["trace_id"]
 
 
 wechat_client = WeChatClient()

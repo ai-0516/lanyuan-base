@@ -11,6 +11,7 @@ from app.schemas.common import ReplyTo, UserBrief
 class PostCreate(BaseModel):
     content: str
     images: List[str] = []
+    image_urls: List[str] = []
 
 
 class CommentItem(BaseModel):
@@ -28,6 +29,7 @@ class PostResponse(BaseModel):
     user: UserBrief
     content: str
     images: List[str] = []
+    moderation_status: str = "approved"
     liked: bool = False
     comments: List[CommentItem] = []
     likers: List[UserBrief] = []

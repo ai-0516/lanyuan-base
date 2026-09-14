@@ -615,7 +615,8 @@ class TestEdgeCases:
         # 直接插入一条孤儿帖子（user_id 不存在）
         async with aiosqlite.connect("./test_lanyuan.db") as conn:
             await conn.execute(
-                "INSERT INTO posts (user_id, content, images) VALUES (99999, '孤儿帖', '[]')"
+                "INSERT INTO posts (user_id, content, images, moderation_status) "
+                "VALUES (99999, '孤儿帖', '[]', 'approved')"
             )
             await conn.commit()
 

@@ -14,12 +14,18 @@ from app.schemas.post import CommentItem, PostCreate, PostListResponse, PostResp
 from app.schemas.common import ReplyTo, UserBrief
 
 
-async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostResponse:
+async def create_post(
+    db: AsyncSession,
+    user_id: int,
+    data: PostCreate,
+    moderation_status: str = "approved",
+) -> PostResponse:
     """创建帖子并返回完整信息"""
     post = Post(
         user_id=user_id,
         content=data.content,
         images=data.images or [],
+        moderation_status=moderation_status,
     )
     db.add(post)
     await db.flush()
@@ -33,6 +39,7 @@ async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostR
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
+        moderation_status=post.moderation_status,
         liked=False,
         comments=[],
         created_at=datetime.utcnow(),
@@ -45,7 +52,9 @@ async def get_post_by_id(
     current_user_id: int,
 ) -> PostResponse | None:
     """获取单个帖子详情（含评论和点赞）"""
-    result = await db.execute(select(Post).where(Post.id == post_id))
+    result = await db.execute(
+        select(Post).where(Post.id == post_id, Post.moderation_status == "approved")
+    )
     post = result.scalar_one_or_none()
     if not post:
         return None
@@ -121,6 +130,7 @@ async def get_post_by_id(
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
+        moderation_status=post.moderation_status,
         liked=liked,
         comments=comments,
         likers=likers,
@@ -138,14 +148,15 @@ async def get_posts(
     offset = (page - 1) * size
 
     # 查总数
-    count_stmt = select(func.count(Post.id))
+    count_stmt = select(func.count(Post.id)).where(Post.moderation_status == "approved")
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # 查帖子
     stmt = (
         select(Post)
-        .order_by(Post.created_at.desc())
+        .where(Post.moderation_status == "approved")
+        .order_by(Post.created_at.desc(), Post.id.desc())
         .offset(offset)
         .limit(size)
     )
@@ -227,6 +238,7 @@ async def get_posts(
                 user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
                 content=post.content,
                 images=post.images if isinstance(post.images, list) else [],
+                moderation_status=post.moderation_status,
                 liked=liked,
                 comments=comments,
                 likers=likers,
@@ -263,7 +275,9 @@ async def like_post(
     避免走到数据库层由 FK 约束抛 IntegrityError（#28）。
     """
     # 先校验帖子存在，再插入点赞
-    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    post_result = await db.execute(
+        select(Post).where(Post.id == post_id, Post.moderation_status == "approved")
+    )
     post = post_result.scalar_one_or_none()
     if not post:
         return None, 0

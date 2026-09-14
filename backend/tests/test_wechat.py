@@ -118,3 +118,54 @@ async def test_msg_sec_check_sends_required_v2_payload(monkeypatch):
         "scene": 2,
         "openid": "test-openid",
     }
+
+
+@pytest.mark.asyncio
+async def test_media_check_async_sends_required_v2_payload(monkeypatch):
+    """图片检测包含官方要求的全部 v2 参数，并返回 trace_id。"""
+    from app.core import wechat as wechat_module
+
+    monkeypatch.setattr(wechat_module.settings, "WECHAT_APPID", "wx_real_appid_123")
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"errcode": 0, "errmsg": "ok", "trace_id": "trace-123"}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, params=None, json=None):
+            captured.update(url=url, params=params, json=json)
+            return FakeResponse()
+
+    monkeypatch.setattr(wechat_module.httpx, "AsyncClient", FakeAsyncClient)
+    client = wechat_module.WeChatClient()
+    client._access_token = "cached-token"
+    client._access_token_expires_at = float("inf")
+
+    trace_id = await client.media_check_async(
+        "https://test.tcb.qcloud.la/posts/a.jpg", "test-openid", scene=3
+    )
+    assert trace_id == "trace-123"
+    assert captured == {
+        "url": wechat_module.WECHAT_MEDIA_CHECK_ASYNC_URL,
+        "params": {"access_token": "cached-token"},
+        "json": {
+            "media_url": "https://test.tcb.qcloud.la/posts/a.jpg",
+            "media_type": 2,
+            "version": 2,
+            "scene": 3,
+            "openid": "test-openid",
+        },
+    }

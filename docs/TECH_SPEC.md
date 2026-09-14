@@ -556,9 +556,10 @@ Comment ──── Comment (self-ref: parent_comment_id)
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
 | GET | `/posts` | 帖子列表（含评论和点赞，按时间倒序） | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
-| POST | `/posts` | 发布帖子 | `{ content, images[] }` | `Post` |
+| POST | `/posts` | 发布帖子；带图时先进入审核中 | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
+| GET/POST | `/wechat/events` | 微信消息服务器验证 / 图片异步检测回调（签名校验） | 微信事件 JSON | 文本 `success` |
 
 **帖子列表响应示例：**
 ```json
@@ -646,7 +647,14 @@ event: error      → 错误提示
 ### 4.7 图片上传
 
 帖子图片不经过 FastAPI。小程序通过 `wx.cloud.uploadFile` 直传微信云存储，
-将返回的 `cloud://` fileID 数组作为 `POST /posts` 的 `images` 字段保存。
+再以 `wx.cloud.getTempFileURL` 获取临时 HTTPS URL；发布请求同时携带 `cloud://`
+fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用微信
+`mediaCheckAsync` v2（`scene=3`）。临时 URL 只用于送检，帖子只保存 fileID。
+
+带图帖子初始状态为 `pending`，不会出现在帖子列表或详情中。微信在 30 分钟内
+将 `wxa_media_check` JSON 事件推送到 `/api/v1/wechat/events`：全部图片返回
+`pass` 后帖子才变为 `approved`；`review`、`risky`、下载失败及其他异常均保持
+不可见。回调通过微信消息签名验证，且必须匹配当前 `WECHAT_APPID`。
 
 云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
 客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。
@@ -662,6 +670,13 @@ event: error      → 错误提示
 
 安全规则属于部署配置，不保存在应用镜像中；发布前必须在对应 `CLOUD_CONFIG.ENV`
 环境的「云存储 → 权限设置」中核对。
+
+生产环境还需设置 `WECHAT_MESSAGE_TOKEN`，并在微信公众平台将消息推送配置为：
+
+- URL：`https://<后端公网域名>/api/v1/wechat/events`
+- 数据格式：JSON
+- 消息加解密方式：明文模式
+- Token：与后端 `WECHAT_MESSAGE_TOKEN` 完全一致
 
 ---
 
@@ -750,7 +765,7 @@ App (app.js)
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
 | 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
-| 图片风险 | 图片直传微信云存储，写权限限制为文件所有者 |
+| 公开图片安全 | 图片直传微信云存储后调用 `mediaCheckAsync` v2；帖子审核通过前不可见，非 `pass` 或异常均不公开；云存储写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |
 

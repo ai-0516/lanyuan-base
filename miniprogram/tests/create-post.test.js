@@ -1,11 +1,12 @@
 const path = require('path');
 const { loadPage } = require('./helpers/load-page');
 const { request } = require('../utils/request');
-const { uploadPostImages, deleteCloudFiles } = require('../utils/cloud-storage');
+const { uploadPostImages, getTempFileURLs, deleteCloudFiles } = require('../utils/cloud-storage');
 
 jest.mock('../utils/request', () => ({ request: jest.fn() }));
 jest.mock('../utils/cloud-storage', () => ({
   uploadPostImages: jest.fn(),
+  getTempFileURLs: jest.fn(() => Promise.resolve([])),
   deleteCloudFiles: jest.fn(() => Promise.resolve()),
 }));
 
@@ -23,7 +24,8 @@ describe('create post cloud images', () => {
   test('publishes cloud file IDs instead of backend upload URLs', async () => {
     jest.useFakeTimers();
     uploadPostImages.mockResolvedValue(['cloud://env/posts/a.jpg']);
-    request.mockResolvedValue({ id: 1 });
+    getTempFileURLs.mockResolvedValue(['https://test.tcb.qcloud.la/posts/a.jpg']);
+    request.mockResolvedValue({ id: 1, moderation_status: 'pending' });
     const page = loadPage(pagePath);
     Object.assign(page.data, {
       content: '带图片的帖子',
@@ -37,7 +39,15 @@ describe('create post cloud images', () => {
     expect(request).toHaveBeenCalledWith({
       method: 'POST',
       url: '/posts',
-      data: { content: '带图片的帖子', images: ['cloud://env/posts/a.jpg'] },
+      data: {
+        content: '带图片的帖子',
+        images: ['cloud://env/posts/a.jpg'],
+        image_urls: ['https://test.tcb.qcloud.la/posts/a.jpg'],
+      },
+    });
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '图片审核中，通过后将自动发布',
+      icon: 'none',
     });
     expect(deleteCloudFiles).not.toHaveBeenCalled();
     jest.runOnlyPendingTimers();

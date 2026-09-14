@@ -239,11 +239,18 @@ class TestPosts:
         assert body["data"] is None
 
     async def test_post_with_images(self, client, headers_a):
-        """发帖含图片URL"""
-        resp = await client.post("/api/v1/posts",
-                                 json={"content": "有图", "images": ["http://example.com/img.jpg"]},
-                                 headers=headers_a)
-        assert resp.json()["data"]["images"] == ["http://example.com/img.jpg"]
+        """发帖含云存储图片及对应送检 URL"""
+        file_id = "cloud://test-env/posts/img.jpg"
+        resp = await client.post(
+            "/api/v1/posts",
+            json={
+                "content": "有图",
+                "images": [file_id],
+                "image_urls": ["https://test.tcb.qcloud.la/posts/img.jpg?sign=test"],
+            },
+            headers=headers_a,
+        )
+        assert resp.json()["data"]["images"] == [file_id]
 
     async def test_post_with_xss_content(self, client, headers_a):
         """帖子内容含 HTML 脚本（不应被执行）"""
