@@ -7,6 +7,7 @@ const mockAuth = {
   isLoggedIn: jest.fn(),
   setToken: jest.fn(),
   setUserInfo: jest.fn(),
+  returnAfterLogin: jest.fn(),
 }
 
 jest.mock('../utils/request', () => ({ request: mockRequest }))
@@ -141,7 +142,7 @@ describe('login page', () => {
     })
     expect(mockAuth.setToken).toHaveBeenCalledWith('token')
     expect(mockAuth.setUserInfo).toHaveBeenCalledWith({ id: 1 })
-    expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/feed/index' })
+    expect(mockAuth.returnAfterLogin).toHaveBeenCalled()
     expect(page.data.logging).toBe(false)
   })
 
@@ -180,7 +181,7 @@ describe('login page', () => {
 
     await page._autoLogin()
 
-    expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/feed/index' })
+    expect(mockAuth.returnAfterLogin).toHaveBeenCalled()
     expect(mockAuth.clearToken).not.toHaveBeenCalled()
   })
 })

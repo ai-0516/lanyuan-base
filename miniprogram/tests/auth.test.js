@@ -25,8 +25,9 @@ describe('utils/auth', () => {
 
   test('redirects unauthenticated users and logout clears credentials', () => {
     const auth = loadAuth()
-    expect(auth.checkLogin()).toBe(false)
-    expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/login/index' })
+    expect(auth.checkLogin('/pages/create-post/index')).toBe(false)
+    expect(wx.setStorageSync).toHaveBeenCalledWith('login_return_url', '/pages/create-post/index')
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/login/index' })
 
     wx.__storage.set('token', 'token')
     expect(auth.checkLogin()).toBe(true)
@@ -34,6 +35,16 @@ describe('utils/auth', () => {
     auth.logout()
     expect(wx.removeStorageSync).toHaveBeenCalledWith('token')
     expect(wx.removeStorageSync).toHaveBeenCalledWith('user_info')
-    expect(wx.reLaunch).toHaveBeenLastCalledWith({ url: '/pages/login/index' })
+    expect(wx.switchTab).toHaveBeenLastCalledWith({ url: '/pages/feed/index' })
+  })
+
+  test('returns to the original target after login', () => {
+    const auth = loadAuth()
+    wx.__storage.set('login_return_url', '/pages/create-post/index')
+
+    auth.returnAfterLogin()
+
+    expect(wx.removeStorageSync).toHaveBeenCalledWith('login_return_url')
+    expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/create-post/index' })
   })
 })

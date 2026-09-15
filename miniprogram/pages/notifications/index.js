@@ -1,4 +1,6 @@
 const { request } = require('../../utils/request');
+const { PAGES } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -6,6 +8,7 @@ Page({
   },
 
   onShow() {
+    if (!auth.checkLogin(PAGES.NOTIFICATIONS)) return;
     this.loadNotifications();
   },
 

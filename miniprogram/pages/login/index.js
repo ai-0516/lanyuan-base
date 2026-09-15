@@ -79,7 +79,7 @@ Page({
   async _autoLogin() {
     try {
       await request('GET', '/auth/check');
-      wx.reLaunch({ url: '/pages/feed/index' });
+      auth.returnAfterLogin();
     } catch {
       auth.clearToken();
       this.setData({ checked: true });
@@ -139,7 +139,7 @@ Page({
       auth.setToken(result.token);
       auth.setUserInfo(result.user);
 
-      wx.reLaunch({ url: '/pages/feed/index' });
+      auth.returnAfterLogin();
     } catch (err) {
       console.error('登录失败:', err);
       wx.showToast({

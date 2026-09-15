@@ -55,18 +55,13 @@ async def create_post(
 async def get_post_by_id(
     db: AsyncSession,
     post_id: int,
-    current_user_id: int,
+    current_user_id: int | None,
 ) -> PostResponse | None:
     """获取单个帖子详情（含评论和点赞）"""
-    result = await db.execute(
-        select(Post).where(
-            Post.id == post_id,
-            or_(
-                Post.moderation_status == PostModerationStatus.APPROVED,
-                Post.user_id == current_user_id,
-            ),
-        )
-    )
+    visibility = Post.moderation_status == PostModerationStatus.APPROVED
+    if current_user_id is not None:
+        visibility = or_(visibility, Post.user_id == current_user_id)
+    result = await db.execute(select(Post).where(Post.id == post_id, visibility))
     post = result.scalar_one_or_none()
     if not post:
         return None
@@ -78,11 +73,13 @@ async def get_post_by_id(
         return None
 
     # 当前用户是否点赞
-    liked_stmt = select(Like).where(
-        Like.post_id == post.id, Like.user_id == current_user_id
-    )
-    liked_result = await db.execute(liked_stmt)
-    liked = liked_result.scalar_one_or_none() is not None
+    liked = False
+    if current_user_id is not None:
+        liked_stmt = select(Like).where(
+            Like.post_id == post.id, Like.user_id == current_user_id
+        )
+        liked_result = await db.execute(liked_stmt)
+        liked = liked_result.scalar_one_or_none() is not None
 
     # 全部评论
     comment_stmt = (
@@ -155,7 +152,7 @@ async def get_post_by_id(
 
 async def get_posts(
     db: AsyncSession,
-    current_user_id: int,
+    current_user_id: int | None,
     page: int = 1,
     size: int = 20,
 ) -> PostListResponse:
@@ -163,10 +160,9 @@ async def get_posts(
     offset = (page - 1) * size
 
     # 查总数
-    visible_filter = or_(
-        Post.moderation_status == PostModerationStatus.APPROVED,
-        Post.user_id == current_user_id,
-    )
+    visible_filter = Post.moderation_status == PostModerationStatus.APPROVED
+    if current_user_id is not None:
+        visible_filter = or_(visible_filter, Post.user_id == current_user_id)
     count_stmt = select(func.count(Post.id)).where(visible_filter)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
@@ -191,11 +187,13 @@ async def get_posts(
             continue
 
         # 当前用户是否点赞
-        liked_stmt = select(Like).where(
-            Like.post_id == post.id, Like.user_id == current_user_id
-        )
-        liked_result = await db.execute(liked_stmt)
-        liked = liked_result.scalar_one_or_none() is not None
+        liked = False
+        if current_user_id is not None:
+            liked_stmt = select(Like).where(
+                Like.post_id == post.id, Like.user_id == current_user_id
+            )
+            liked_result = await db.execute(liked_stmt)
+            liked = liked_result.scalar_one_or_none() is not None
 
         # 全部评论（不折叠）
         comment_stmt = (
@@ -272,7 +270,7 @@ async def get_posts(
 
 
 async def _get_image_moderation_statuses(
-    db: AsyncSession, post: Post, current_user_id: int
+    db: AsyncSession, post: Post, current_user_id: int | None
 ) -> list[MediaModerationTaskStatus]:
     """仅向作者返回与 images 顺序一致的逐图审核状态。"""
     images = post.images if isinstance(post.images, list) else []

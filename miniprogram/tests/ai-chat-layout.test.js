@@ -15,6 +15,17 @@ describe('AI chat viewport behavior', () => {
     jest.useRealTimers();
   });
 
+  test('does not initialize a guest AI session before login', () => {
+    const page = loadPage(pagePath);
+    page.initSession = jest.fn();
+
+    page.onLoad();
+
+    expect(page.initSession).not.toHaveBeenCalled();
+    expect(wx.setStorageSync).toHaveBeenCalledWith('login_return_url', '/pages/ai-chat/index');
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/login/index' });
+  });
+
   test('targets the static bottom anchor', () => {
     jest.useFakeTimers();
     const page = loadPage(pagePath);

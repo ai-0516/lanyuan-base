@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, get_optional_user
 from app.api.response import api_error, api_success
 from app.core.wechat import WeChatSecurityScene
 from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
@@ -52,7 +52,7 @@ async def list_posts(
     page: int = 1,
     size: int = 20,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user),
+    user_id: int | None = Depends(get_optional_user),
 ):
     """获取社区帖子列表，按时间倒序。返回每条帖子的内容、作者信息、评论列表和点赞详情。"""
     result = await post_service.get_posts(db, user_id, page, size)
@@ -111,7 +111,7 @@ async def create_post(
 async def get_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user),
+    user_id: int | None = Depends(get_optional_user),
 ):
     """获取单个帖子的详细信息，包括全部评论和点赞者名单。"""
     result = await post_service.get_post_by_id(db, post_id, user_id)

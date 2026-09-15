@@ -83,7 +83,7 @@ MySQL 8.0 (云数据库) · 云存储 · DeepSeek API
 
 ### 1.4 小程序端
 
-- 11 页 3 Tab（AI/发现/我），登录页为首屏；`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo。
+- 11 页 3 Tab（AI/发现/我），发现页为首屏并支持游客只读；身份操作按需跳转登录，成功后返回原目标。`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo 与登录返回目标。
 - AI 对话页实现较完整的 SSE 解析器（事件类型跟踪、行级 buffer、多轮气泡、tool 消息过滤、TextDecoder 解码）。
 - post-card 组件化 + 事件冒泡（feed 与详情页复用），乐观更新 + 失败回滚。
 - 设计系统：CSS 变量（陶土暖色系）+ JS 侧 COLORS 同步。

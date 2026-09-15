@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
-const { fullUrl } = require('../../utils/constants');
+const { fullUrl, PAGES } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -20,6 +21,7 @@ Page({
   },
 
   onLoad() {
+    if (!auth.checkLogin(PAGES.EDIT_PROFILE)) return;
     // 加载当前用户信息到表单
     this.loadUserInfo();
   },

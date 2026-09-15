@@ -555,7 +555,7 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| GET | `/posts` | 帖子列表；公开已通过帖子，并向作者返回自己的待审/拒绝帖子 | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
+| GET | `/posts` | 可匿名访问；游客看到公开已通过帖子，登录作者另可看到自己的待审/拒绝帖子 | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
 | POST | `/posts` | 发布帖子；带图时先进入审核中（违规 40010 / 图片参数错误 40014 / 内容安全服务异常 50310） | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
@@ -772,7 +772,8 @@ App (app.js)
 - 发布: 发现页 FAB → navigateTo /pages/create-post/index
 - 通知: 个人中心 → navigateTo /pages/notifications/index
 - 编辑资料: 个人中心 → navigateTo /pages/edit-profile/index
-- 登录: 未登录 → reLaunch /pages/login/index
+- 首屏: /pages/feed/index，未登录可浏览帖子列表与详情
+- 登录: 点赞、评论、发帖、AI、个人中心等身份功能触发时 → navigateTo /pages/login/index；成功后 reLaunch 回原目标页
 ```
 
 ---
