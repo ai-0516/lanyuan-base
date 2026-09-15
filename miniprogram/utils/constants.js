@@ -47,6 +47,7 @@ const REQUEST_TIMEOUT = 15000
 const STORAGE_KEYS = {
   TOKEN: 'token',           // JWT token
   USER_INFO: 'user_info',   // 用户信息缓存
+  LOGIN_RETURN_URL: 'login_return_url', // 登录成功后恢复用户原目标
 }
 
 /** 颜色常量（与 variables.wxss 保持一致，供 JS 动态使用） */
@@ -79,6 +80,7 @@ const PAGES = {
   CREATE_POST: '/pages/create-post/index',
   NOTIFICATIONS: '/pages/notifications/index',
   EDIT_PROFILE: '/pages/edit-profile/index',
+  ABOUT: '/pages/about/index',
   LOGIN: '/pages/login/index',
   POST_DETAIL: '/pages/post-detail/index',
 }

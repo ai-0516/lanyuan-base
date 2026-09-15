@@ -1,5 +1,7 @@
 const { request } = require('../../utils/request');
 const { uploadPostImages, getTempFileURLs, deleteCloudFiles } = require('../../utils/cloud-storage');
+const { PAGES } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 
 Page({
   data: {
@@ -7,6 +9,10 @@ Page({
     tempImages: [],
     canPublish: false,
     publishing: false,
+  },
+
+  onLoad() {
+    auth.checkLogin(PAGES.CREATE_POST);
   },
 
   onCancel() {

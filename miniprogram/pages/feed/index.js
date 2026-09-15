@@ -1,6 +1,6 @@
 // 发现页 - 帖子信息流
 const { request } = require('../../utils/request');
-const { fullUrl } = require('../../utils/constants');
+const { fullUrl, PAGES, TAB_PAGES } = require('../../utils/constants');
 const auth = require('../../utils/auth');
 
 Page({
@@ -47,6 +47,7 @@ Page({
 
   /** 每次页面显示时静默刷新第一页 */
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 1 });
     if (this.data.posts.length > 0) {
       this.loadPosts(true);
     }
@@ -125,6 +126,7 @@ Page({
 
   /** 点赞 */
   onPostLike(e) {
+    if (!auth.checkLogin(TAB_PAGES.FEED)) return;
     const { postId } = e.detail;
     this._toggleLike(postId);
   },
@@ -139,12 +141,14 @@ Page({
 
   /** 打开评论弹窗 */
   onPostComment(e) {
+    if (!auth.checkLogin(TAB_PAGES.FEED)) return;
     const { postId } = e.detail;
     this._openCommentSheet(postId);
   },
 
   /** 点击评论 */
   onPostTapComment(e) {
+    if (!auth.checkLogin(TAB_PAGES.FEED)) return;
     const { postId, cid, cuid, cname } = e.detail;
     if (cuid === this.data.currentUserId) {
       wx.showActionSheet({
@@ -169,6 +173,7 @@ Page({
 
   /** 删除帖子 */
   onPostDelete(e) {
+    if (!auth.checkLogin(TAB_PAGES.FEED)) return;
     const { postId } = e.detail;
     this._deletePost(postId);
   },
@@ -345,11 +350,13 @@ Page({
 
   /** 跳转发布页 */
   goToCreatePost() {
-    wx.navigateTo({ url: '/pages/create-post/index' });
+    if (!auth.checkLogin(PAGES.CREATE_POST)) return;
+    wx.navigateTo({ url: PAGES.CREATE_POST });
   },
 
   /** 跳转通知页 */
   goToNotifications() {
-    wx.navigateTo({ url: '/pages/notifications/index' });
+    if (!auth.checkLogin(PAGES.NOTIFICATIONS)) return;
+    wx.navigateTo({ url: PAGES.NOTIFICATIONS });
   },
 });

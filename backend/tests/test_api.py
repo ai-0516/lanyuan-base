@@ -319,6 +319,9 @@ async def test_image_post_hidden_until_wechat_callback(
         "pending",
         "pending",
     ]
+    guest_posts = await client.get("/api/v1/posts")
+    assert guest_posts.status_code == 200
+    assert guest_posts.json()["data"]["total"] == 0
 
     other_login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
     other_headers = {
@@ -348,6 +351,12 @@ async def test_image_post_hidden_until_wechat_callback(
     other_posts = await client.get("/api/v1/posts", headers=other_headers)
     assert other_posts.json()["data"]["total"] == 1
     assert other_posts.json()["data"]["items"][0]["image_moderation_statuses"] == []
+    guest_posts = await client.get("/api/v1/posts")
+    assert guest_posts.json()["data"]["total"] == 1
+    guest_post = await client.get(f"/api/v1/posts/{response.json()['data']['id']}")
+    assert guest_post.status_code == 200
+    assert guest_post.json()["data"]["liked"] is False
+    assert guest_post.json()["data"]["image_moderation_statuses"] == []
 
 
 @pytest.mark.asyncio
@@ -1051,7 +1060,7 @@ async def test_unauthorized_unified_format(client: AsyncClient):
     无 token 时走 HTTPBearer 默认 401（detail 为字符串 "Not authenticated"），
     统一后为 code=40100；带无效 token 的 40101/40102 同理均为顶层 code。
     """
-    response = await client.get("/api/v1/posts")
+    response = await client.get("/api/v1/auth/check")
     assert response.status_code == 401
     data = response.json()
     assert "detail" not in data

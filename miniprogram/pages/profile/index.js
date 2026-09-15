@@ -1,5 +1,5 @@
 const { request } = require('../../utils/request');
-const { fullUrl } = require('../../utils/constants');
+const { fullUrl, PAGES, TAB_PAGES } = require('../../utils/constants');
 const { getRuntimeVersion } = require('../../utils/version');
 const auth = require('../../utils/auth');
 const privacy = require('../../utils/privacy');
@@ -15,6 +15,8 @@ Page({
   },
 
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 2 });
+    if (!auth.checkLogin(TAB_PAGES.PROFILE)) return;
     this.loadUserInfo();
     this.loadUnreadCount();
   },
@@ -43,11 +45,11 @@ Page({
   },
 
   goToNotifications() {
-    wx.navigateTo({ url: '/pages/notifications/index' });
+    wx.navigateTo({ url: PAGES.NOTIFICATIONS });
   },
 
   goToEditProfile() {
-    wx.navigateTo({ url: '/pages/edit-profile/index' });
+    wx.navigateTo({ url: PAGES.EDIT_PROFILE });
   },
 
   async onToggleBuilding() {
@@ -77,7 +79,7 @@ Page({
   },
 
   onTapAbout() {
-    wx.navigateTo({ url: '/pages/about/index' });
+    wx.navigateTo({ url: PAGES.ABOUT });
   },
 
   onTapPrivacyContract() {

@@ -21,6 +21,19 @@ describe('create post cloud images', () => {
     jest.useRealTimers();
   });
 
+  test('redirects a guest to login and remembers the create-post target', () => {
+    const page = loadPage(pagePath);
+
+    page.onLoad();
+
+    expect(wx.setStorageSync).toHaveBeenCalledWith(
+      'login_return_url',
+      '/pages/create-post/index',
+    );
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/login/index' });
+    expect(request).not.toHaveBeenCalled();
+  });
+
   test('publishes cloud file IDs instead of backend upload URLs', async () => {
     jest.useFakeTimers();
     uploadPostImages.mockResolvedValue(['cloud://env/posts/a.jpg']);

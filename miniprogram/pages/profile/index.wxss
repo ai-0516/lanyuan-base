@@ -1,8 +1,9 @@
 /* 个人中心 — 对齐 v3-profile.html 设计稿 */
 .profile-page {
   min-height: 100vh;
+  box-sizing: border-box;
   background: var(--cream);
-  padding: 20rpx 24rpx 40rpx;
+  padding: 20rpx 24rpx calc(40rpx + 50px + env(safe-area-inset-bottom));
 }
 
 /* ── 用户信息卡 ── */

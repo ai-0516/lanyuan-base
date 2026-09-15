@@ -1,5 +1,6 @@
 const { request } = require('../../utils/request');
-const { V2_BASE_URL, CLOUD_CONFIG, USE_CLOUD } = require('../../utils/constants');
+const { V2_BASE_URL, CLOUD_CONFIG, USE_CLOUD, TAB_PAGES } = require('../../utils/constants');
+const auth = require('../../utils/auth');
 const app = getApp();
 
 Page({
@@ -17,11 +18,13 @@ Page({
   },
 
   onLoad() {
+    if (!auth.checkLogin(TAB_PAGES.AI_CHAT)) return;
     // 进入页面时获取/复用会话
     this.initSession();
   },
 
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 0 });
     // 每次展示时滚动到底部
     this.scrollToBottom();
   },

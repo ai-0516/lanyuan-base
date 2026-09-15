@@ -1,7 +1,7 @@
 {
   "pages": [
-    "pages/login/index",
     "pages/feed/index",
+    "pages/login/index",
     "pages/profile/index",
     "pages/ai-chat/index",
     "pages/create-post/index",
@@ -19,6 +19,7 @@
     "enablePullDownRefresh": false
   },
   "tabBar": {
+    "custom": true,
     "color": "#8a8a8a",
     "selectedColor": "#c4673c",
     "backgroundColor": "#fffaf5",
