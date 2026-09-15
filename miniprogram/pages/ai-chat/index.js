@@ -24,6 +24,7 @@ Page({
   },
 
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 0 });
     // 每次展示时滚动到底部
     this.scrollToBottom();
   },

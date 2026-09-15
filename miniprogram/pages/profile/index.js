@@ -15,6 +15,7 @@ Page({
   },
 
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 2 });
     if (!auth.checkLogin(TAB_PAGES.PROFILE)) return;
     this.loadUserInfo();
     this.loadUnreadCount();

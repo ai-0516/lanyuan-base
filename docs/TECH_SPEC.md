@@ -290,6 +290,7 @@ miniprogram/
 ├── app.js                      # 全局入口, 登录态判断
 ├── app.json                    # 全局配置 (页面注册, TabBar)
 ├── app.wxss                    # 全局样式 (CSS 变量)
+├── custom-tab-bar/             # 自定义 TabBar，在切页前拦截受保护入口
 ├── project.config.json         # 微信开发者工具配置
 ├── pages/
 │   ├── login/                  # 登录页
@@ -769,6 +770,7 @@ App (app.js)
 - AI → /pages/ai-chat/index
 - 发现 → /pages/feed/index
 - 我 → /pages/profile/index
+- 自定义 TabBar 在切换 AI/“我”前检查登录，游客直接进入登录页，避免受保护页面闪现
 - 发布: 发现页 FAB → navigateTo /pages/create-post/index
 - 通知: 个人中心 → navigateTo /pages/notifications/index
 - 编辑资料: 个人中心 → navigateTo /pages/edit-profile/index

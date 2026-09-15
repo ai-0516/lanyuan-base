@@ -47,6 +47,7 @@ Page({
 
   /** 每次页面显示时静默刷新第一页 */
   onShow() {
+    this.getTabBar?.()?.setData({ selected: 1 });
     if (this.data.posts.length > 0) {
       this.loadPosts(true);
     }

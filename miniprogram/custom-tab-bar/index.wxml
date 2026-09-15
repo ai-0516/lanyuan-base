@@ -1,0 +1,15 @@
+<cover-view class="tab-bar">
+  <cover-view
+    class="tab-item {{selected === index ? 'selected' : ''}}"
+    wx:for="{{items}}"
+    wx:key="pagePath"
+    data-index="{{index}}"
+    bindtap="onTabTap"
+  >
+    <cover-image
+      class="tab-icon"
+      src="{{selected === index ? item.selectedIconPath : item.iconPath}}"
+    />
+    <cover-view class="tab-text">{{item.text}}</cover-view>
+  </cover-view>
+</cover-view>
