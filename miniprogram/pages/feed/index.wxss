@@ -4,6 +4,8 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding-bottom: calc(50px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
   background: var(--cream);
 }
 .post-list-scroll {
@@ -82,7 +84,7 @@ page::-webkit-scrollbar {
 .fab {
   position: fixed;
   right: 32rpx;
-  bottom: 60rpx;
+  bottom: calc(64px + env(safe-area-inset-bottom));
   width: 96rpx;
   height: 96rpx;
   background: linear-gradient(135deg, var(--ember), var(--clay));
@@ -110,7 +112,7 @@ page::-webkit-scrollbar {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(50px + env(safe-area-inset-bottom));
   background: rgba(61, 43, 31, 0.3);
   z-index: 200;
   opacity: 0;
@@ -125,17 +127,23 @@ page::-webkit-scrollbar {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(50px + env(safe-area-inset-bottom));
   background: var(--warm-white);
   border-radius: 32rpx 32rpx 0 0;
   z-index: 201;
   padding: 32rpx 32rpx 48rpx;
   transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s;
   box-shadow: 0 -8rpx 48rpx rgba(61, 43, 31, 0.1);
 }
 .comment-sheet.show {
   transform: translateY(0);
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 .cs-input-area {
   display: flex;
