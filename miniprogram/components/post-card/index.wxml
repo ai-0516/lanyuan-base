@@ -12,7 +12,10 @@
 
     <!-- 图片网格 -->
     <view class="feed-images count-{{post.images.length}}" wx:if="{{post.images && post.images.length > 0}}">
-      <image wx:for="{{post.displayImages}}" wx:for-item="img" wx:key="*this" src="{{img}}" mode="aspectFill" catchtap="previewImage" data-current="{{img}}" data-urls="{{post.images}}"></image>
+      <view class="feed-image-item" wx:for="{{displayImageItems}}" wx:for-item="item" wx:key="url">
+        <image src="{{item.url}}" mode="aspectFill" catchtap="previewImage" data-current="{{item.url}}" data-urls="{{post.images}}"></image>
+        <text class="moderation-badge {{item.status}}" wx:if="{{item.label}}">{{item.label}}</text>
+      </view>
     </view>
 
     <!-- 操作栏 -->
@@ -21,7 +24,7 @@
         <text>{{post.displayTime}}</text>
         <text class="delete-icon" wx:if="{{post.user.id === currentUserId}}" catchtap="onDelete">删除</text>
       </view>
-      <view class="action-slide">
+      <view class="action-slide" wx:if="{{post.moderation_status === 'approved'}}">
         <view class="slide-btn {{post.liked ? 'liked' : ''}}" catchtap="onLike">
           <image class="slide-icon" src="{{post.liked ? '/images/liked-icon.png' : '/images/like-icon.png'}}" mode="aspectFit"></image>
           <text>{{post.liked ? '取消点赞' : '点赞'}}</text>
@@ -31,7 +34,7 @@
           <text>评论</text>
         </view>
       </view>
-      <view class="action-dots" catchtap="onToggleActions" data-fa-id="fa-{{post.id}}" aria-label="更多操作">
+      <view class="action-dots" wx:if="{{post.moderation_status === 'approved'}}" catchtap="onToggleActions" data-fa-id="fa-{{post.id}}" aria-label="更多操作">
         <view class="action-dot"></view>
         <view class="action-dot"></view>
         <view class="action-dot"></view>

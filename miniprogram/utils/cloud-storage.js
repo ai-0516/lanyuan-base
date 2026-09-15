@@ -58,9 +58,28 @@ async function uploadPostImages(filePaths) {
   return uploadedFileIDs;
 }
 
+function getTempFileURLs(fileIDs) {
+  if (!fileIDs?.length) return Promise.resolve([]);
+  if (!wx.cloud || typeof wx.cloud.getTempFileURL !== 'function') {
+    return Promise.reject(new Error('云存储不可用：无法生成图片检测链接'));
+  }
+  return new Promise((resolve, reject) => {
+    wx.cloud.getTempFileURL({
+      fileList: fileIDs,
+      success: ({ fileList = [] }) => {
+        const urls = fileList.map(item => item.tempFileURL).filter(Boolean);
+        if (urls.length === fileIDs.length) resolve(urls);
+        else reject(new Error('部分图片未生成检测链接'));
+      },
+      fail: reject,
+    });
+  });
+}
+
 module.exports = {
   createCloudPath,
   uploadPostImage,
   uploadPostImages,
+  getTempFileURLs,
   deleteCloudFiles,
 };

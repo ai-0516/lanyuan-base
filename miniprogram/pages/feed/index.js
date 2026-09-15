@@ -280,7 +280,8 @@ Page({
       wx.showToast({ title: '发送成功', icon: 'success' });
     } catch (err) {
       console.error('发送评论失败', err);
-      wx.showToast({ title: '发送失败', icon: 'error' });
+      const unsafeMessage = err?.data?.code === 40010 ? err.data.message : '';
+      wx.showToast({ title: unsafeMessage || '发送失败', icon: unsafeMessage ? 'none' : 'error' });
       this.setData({ commentText: text });
     }
   },

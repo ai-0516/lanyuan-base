@@ -325,7 +325,7 @@ miniprogram/
 code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签证书问题）：
 ```
 1. 小程序（trial/release 版）wx.cloud.callContainer → POST /api/v1/auth/login
-2. 后端按信任开关读取 header x-wx-openid → 查/建 User（openid 唯一）
+2. 后端默认按云托管模式读取 header x-wx-openid → 查/建 User（openid 唯一）
 3. 生成 JWT (含 user_id) → 返回
 4. 前端存储 token 到 wx.Storage
 ```
@@ -334,8 +334,8 @@ code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签
 > 外部不可达，客户端无法伪造该 header）。后端直接信任 header 优先登录；header 值
 > 仍需格式校验（≤64 位 `[A-Za-z0-9_-]`，对齐 DB varchar(64)），非法值 400 拒绝、不落库。
 
-路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端 code2session 换
-openid（mock 配置下全 mock）：
+路径 2 — 开发（本地 wx.request）：wx.login() 取 code → 后端使用本地配置的
+`WECHAT_APPID` 与 `WECHAT_SECRET` 调用 code2session 换取真实 openid：
 ```
 1. 小程序（develop 版）wx.request → POST /api/v1/auth/login { code }
 2. 后端 code2session(code) → openid → 查/建 User
@@ -343,8 +343,8 @@ openid（mock 配置下全 mock）：
 4. 前端存储 token 到 wx.Storage
 ```
 两条路径共用查/建用户与 JWT 签发逻辑（auth_service.login 的 openid 参数化）。
-注：mock code2session 只存在于 mock 配置（WECHAT_APPID 占位）；生产真实 appid
-下任何 code 都走真实微信 API，杜绝公网可伪造的 mock openid。
+内容安全与登录模式分开：本地登录是真实 code2session，但内容安全 API 使用 mock；
+云托管登录使用可信 header，内容安全 API 才调用微信云托管内部地址。
 
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
@@ -555,10 +555,11 @@ Comment ──── Comment (self-ref: parent_comment_id)
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| GET | `/posts` | 帖子列表（含评论和点赞，按时间倒序） | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
-| POST | `/posts` | 发布帖子 | `{ content, images[] }` | `Post` |
+| GET | `/posts` | 帖子列表；公开已通过帖子，并向作者返回自己的待审/拒绝帖子 | `?page=1&size=20` | `{ items: Post[], total, page, size }` |
+| POST | `/posts` | 发布帖子；带图时先进入审核中（违规 40010 / 图片参数错误 40014 / 内容安全服务异常 50310） | `{ content, images[], image_urls[] }` | `Post`（含 `moderation_status`） |
 | DELETE | `/posts/{id}` | 删除帖子（仅作者） | — | `{ success }` |
 | POST | `/posts/{id}/like` | 点赞 / 取消点赞 | — | `{ liked: bool, likeCount: int }` |
+| POST | `/wechat/events` | 微信云托管路径检测 / 图片异步检测回调 | 微信事件 JSON | 文本 `success` |
 
 **帖子列表响应示例：**
 ```json
@@ -646,7 +647,35 @@ event: error      → 错误提示
 ### 4.7 图片上传
 
 帖子图片不经过 FastAPI。小程序通过 `wx.cloud.uploadFile` 直传微信云存储，
-将返回的 `cloud://` fileID 数组作为 `POST /posts` 的 `images` 字段保存。
+再以 `wx.cloud.getTempFileURL` 获取临时 HTTPS URL；发布请求同时携带 `cloud://`
+fileID 和临时 URL，后端校验二者路径一致后，为每张图片调用微信
+`mediaCheckAsync` v2（`scene=3`）。临时 URL 只用于送检，帖子只保存 fileID。
+
+带图帖子初始状态为 `pending`：发帖者本人仍可在列表和详情中看到帖子及每张图片的
+审核状态，其他用户不可见。微信在 30 分钟内
+将 `wxa_media_check` JSON 事件推送到 `/api/v1/wechat/events`：全部图片返回
+`pass` 后帖子才变为 `approved`；`review`、`risky`、下载失败及其他异常均保持
+不可见。回调必须匹配当前 `WECHAT_APPID`，并且服务必须关闭公网访问，使回调
+仅能通过微信云托管内部消息链路到达。
+
+审核状态枚举：
+
+| 对象 | 状态 | 含义 |
+|------|------|------|
+| 帖子 | `pending` | 至少一张图片仍在等待微信回调，不公开 |
+| 帖子 | `approved` | 无图片或所有图片均通过，可以公开 |
+| 帖子 | `rejected` | 至少一张图片未通过，永久不公开 |
+| 图片任务 | `pending` | 已提交 `mediaCheckAsync`，等待对应 `trace_id` 回调 |
+| 图片任务 | `passed` | 微信回调为 `errcode=0` 且 `suggest=pass` |
+| 图片任务 | `rejected` | 微信返回非 `pass` 或检测发生错误 |
+
+待审和拒绝帖子仅作者本人可见，且响应中的 `image_moderation_statuses` 与
+`images` 按下标一一对应；其他用户只能看到已通过帖子，且不会收到逐图审核状态。
+
+回调幂等：`rejected` 是吸收态（同一 `trace_id` 的后续回调不改判，`pass` 也不能翻回），
+非 `pass` 判定优先于已判定的 `passed`——公开内容只能向不公开方向单调收紧，帖子
+`rejected` 永不被改回 `approved`。
+送检 URL 必须来自与 fileID 同一环境的云存储且路径一致，否则按客户端参数错误拒绝。
 
 云存储路径格式：`posts/<毫秒时间戳>-<随机值>.<扩展名>`。发布帖子失败时，
 客户端尽力调用 `wx.cloud.deleteFile` 清理本轮已上传文件。
@@ -662,6 +691,28 @@ event: error      → 错误提示
 
 安全规则属于部署配置，不保存在应用镜像中；发布前必须在对应 `CLOUD_CONFIG.ENV`
 环境的「云存储 → 权限设置」中核对。
+
+在「微信云托管 → 设置 → 其他设置 → 消息推送」中配置：
+
+- 环境 ID：后端所在云托管环境
+- 服务名称：后端云托管服务
+- path：`/api/v1/wechat/events`
+- 推送模式：JSON
+
+配置时平台会向该 path 发送 `{"action":"CheckContainerPath"}`，接口返回
+`success`。该方案不需要公网域名或消息 Token；建议关闭服务公网访问。确需开启
+公网访问时设置 `WECHAT_CLOUDRUN_PUBLIC_ACCESS=True`：接口对路径检测之外的
+推送强制要求微信侧注入的 `x-wx-source` 请求头，缺失一律 403（官方「确认消息
+来源」），同时仍校验 `appid`。服务关闭公网访问时保持默认 False。
+
+内容安全接口只在微信云托管生产环境调用；本地占位 AppID 直接返回 mock 结果。
+在云托管服务的「云调用 / 微信令牌」中开启开放接口服务，并将以下接口加入白名单：
+
+- `/wxa/msg_sec_check`
+- `/wxa/media_check_async`
+
+云调用通过内部 `http://api.weixin.qq.com` 访问，由平台完成鉴权，应用不获取或
+维护 `access_token`。
 
 ---
 
@@ -749,7 +800,9 @@ App (app.js)
 | API 鉴权 | JWT middleware 校验，user_id 从 token 解析 |
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
-| 图片风险 | OSS 上传鉴权 (STS 临时凭证) |
+| 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
+| 公开文本安全范围 | 本期仅覆盖帖子与评论。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检 `mediaCheckAsync`，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
+| 公开图片安全 | 图片直传微信云存储后调用 `mediaCheckAsync` v2；帖子审核通过前不可见，非 `pass` 或异常均不公开；云存储写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |
 
@@ -798,10 +851,11 @@ App (app.js)
 │   ├── app/                 # FastAPI 应用代码
 │   ├── Dockerfile           # 云托管构建入口
 │   └── pyproject.toml       # Python 依赖（PEP 621 单源，含 uv.lock）
-└── 环境变量 (云托管自动注入):
+└── 环境变量:
     ├── MYSQL_URL            # 云数据库连接 (CloudBase 自动注入)
     ├── DEEPSEEK_API_KEY     # DeepSeek API Key
-    └── WECHAT_APPID         # 小程序 AppID
+    ├── WECHAT_APPID         # 小程序 AppID（图片审核回调校验）
+    └── WECHAT_CLOUDRUN_PUBLIC_ACCESS  # 公网访问开启时置 True（默认 False，回调强制 x-wx-source）
 ```
 
 ### 7.3 部署方案对比

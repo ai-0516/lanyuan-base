@@ -26,7 +26,7 @@ async def _clear_db():
         async with async_session_factory() as session:
             for t in [
                 "user_memories", "messages", "conversations", "notifications",
-                "likes", "comments", "posts", "users",
+                "likes", "comments", "media_moderation_tasks", "posts", "users",
             ]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
@@ -78,7 +78,7 @@ async def test_login(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_with_wx_openid_header(client: AsyncClient):
+async def test_login_with_wx_openid_header(client: AsyncClient, monkeypatch):
     """路线2：云托管注入 x-wx-openid → 免 code2session 直接登录
 
     验证：openid 按 header 落库（而非 code mock 的 openid），且幂等复用同一用户
@@ -87,6 +87,9 @@ async def test_login_with_wx_openid_header(client: AsyncClient):
 
     from app.core.database import async_session_factory
     from app.models.user import User
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
 
     headers = {"x-wx-openid": "openid_callcontainer_001"}
     # code 带任意值（甚至 mock_code）也必须被忽略——header 优先
@@ -115,11 +118,14 @@ async def test_login_with_wx_openid_header(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient):
+async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient, monkeypatch):
     """非法 openid（超长/非法字符）→ 400 拒绝、不落库
 
     防生产 MySQL varchar(64) 落库 DataError 500；真实微信 openid 为 28 位 [A-Za-z0-9_-]
     """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
     # header 值必须 ASCII（httpx 传输层限制）——用可传输的非法形态覆盖：超长/特殊字符/空格
     for bad in ["o" * 65, "bad!openid", "<script>alert(1)</script>", "open id_123"]:
         resp = await client.post(
@@ -193,6 +199,493 @@ async def test_create_post(client: AsyncClient, auth_headers: dict):
     post = data["data"]
     assert post["content"] == "测试帖子内容"
     assert post["user"]["nickname"] == "兰园业主"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suggestion", ["review", "risky"])
+async def test_create_post_blocks_unsafe_content(client: AsyncClient, auth_headers: dict, monkeypatch, suggestion):
+    """帖子仅在微信明确返回 pass 时发布，客户端只收到统一违规提示。"""
+    from app.services import content_security_service
+
+    async def fake_check(content, openid, scene):
+        assert content == "待检测帖子"
+        assert openid.startswith("mock_openid_")
+        assert scene == 3
+        return suggestion
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", fake_check)
+    response = await client.post(
+        "/api/v1/posts",
+        json={"content": "待检测帖子", "images": []},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"code": 40010, "message": "发布内容含有违规信息，请修改后重试"}
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_create_comment_blocks_unsafe_content(client: AsyncClient, auth_headers: dict, monkeypatch):
+    """评论走 scene=2 校验，违规内容不会写库。"""
+    from app.services import content_security_service
+
+    post = await client.post(
+        "/api/v1/posts", json={"content": "安全帖子", "images": []}, headers=auth_headers
+    )
+    post_id = post.json()["data"]["id"]
+
+    async def fake_check(content, openid, scene):
+        return "risky" if scene == 2 else "pass"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", fake_check)
+    response = await client.post(
+        f"/api/v1/posts/{post_id}/comments",
+        json={"content": "违规评论"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"code": 40010, "message": "发布内容含有违规信息，请修改后重试"}
+    comments = await client.get(f"/api/v1/posts/{post_id}/comments", headers=auth_headers)
+    assert comments.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_post_fails_closed_when_security_service_is_unavailable(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """微信校验异常时不得绕过校验发布。"""
+    from app.services import content_security_service
+
+    async def unavailable(content, openid, scene):
+        raise RuntimeError("wechat unavailable")
+
+    monkeypatch.setattr(content_security_service.wechat_client, "msg_sec_check", unavailable)
+    response = await client.post(
+        "/api/v1/posts", json={"content": "无法校验", "images": []}, headers=auth_headers
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"code": 50310, "message": "内容安全验证暂时不可用，请稍后重试"}
+
+
+@pytest.mark.asyncio
+async def test_image_post_hidden_until_wechat_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """带图帖子先隐藏，所有异步图片检测通过后才进入公开列表。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    traces = iter(["trace-a", "trace-b"])
+
+    async def submit(media_url, openid, scene):
+        assert media_url.startswith(
+            (
+                "https://test-env.tcb.qcloud.la/posts/",
+                "https://7465-test-env-1300.tcb.qcloud.la/posts/",
+            )
+        )
+        assert openid.startswith("mock_openid_")
+        assert scene == 3
+        return next(traces)
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/posts",
+        json={
+            "content": "带图帖子",
+            # 两种 fileID 形态：无存储桶段 / cloud://<环境ID>.<存储桶>
+            "images": [
+                "cloud://test-env/posts/a.jpg",
+                "cloud://test-env.7465-test-env-1300/posts/b.jpg",
+            ],
+            "image_urls": [
+                "https://test-env.tcb.qcloud.la/posts/a.jpg?sign=1",
+                "https://7465-test-env-1300.tcb.qcloud.la/posts/b.jpg?sign=2",
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["moderation_status"] == "pending"
+    assert response.json()["data"]["image_moderation_statuses"] == ["pending", "pending"]
+    own_posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert own_posts.json()["data"]["total"] == 1
+    assert own_posts.json()["data"]["items"][0]["image_moderation_statuses"] == [
+        "pending",
+        "pending",
+    ]
+
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
+    other_headers = {
+        "Authorization": f"Bearer {other_login.json()['data']['token']}"
+    }
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+    for trace_id in ["trace-a", "trace-b"]:
+        callback = await client.post(
+            "/api/v1/wechat/events",
+            json={
+                "Event": "wxa_media_check",
+                "appid": "wx_dev_appid",
+                "trace_id": trace_id,
+                "errcode": 0,
+                "result": {"suggest": "pass"},
+            },
+        )
+        assert callback.status_code == 200
+
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["total"] == 1
+    assert posts.json()["data"]["items"][0]["image_moderation_statuses"] == [
+        "passed",
+        "passed",
+    ]
+    other_posts = await client.get("/api/v1/posts", headers=other_headers)
+    assert other_posts.json()["data"]["total"] == 1
+    assert other_posts.json()["data"]["items"][0]["image_moderation_statuses"] == []
+
+
+@pytest.mark.asyncio
+async def test_image_post_rejected_by_wechat_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """任一图片非 pass 时，帖子保持不可见。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+
+    async def submit(media_url, openid, scene):
+        return "trace-risky"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    response = await client.post(
+        "/api/v1/posts",
+        json={
+            "content": "风险图片",
+            "images": ["cloud://test-env/posts/risky.jpg"],
+            "image_urls": ["https://test-env.tcb.qcloud.la/posts/risky.jpg?sign=1"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    await client.post(
+        "/api/v1/wechat/events",
+        json={
+            "Event": "wxa_media_check",
+            "appid": "wx_dev_appid",
+            "trace_id": "trace-risky",
+            "errcode": 0,
+            "result": {"suggest": "risky"},
+        },
+    )
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["total"] == 1
+    rejected = posts.json()["data"]["items"][0]
+    assert rejected["moderation_status"] == "rejected"
+    assert rejected["image_moderation_statuses"] == ["rejected"]
+
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
+    other_headers = {
+        "Authorization": f"Bearer {other_login.json()['data']['token']}"
+    }
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_cloudrun_message_path_check(client: AsyncClient):
+    """云托管路径检测返回 success。"""
+    response = await client.post(
+        "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
+    )
+    assert response.status_code == 200
+    assert response.text == "success"
+
+
+# ── 内容安全回调：鉴权 / 容错 / 终态 ──────────────────────────────────
+
+
+def _media_callback(trace_id: str, suggest: str = "pass", **overrides) -> dict:
+    """构造微信图片检测回调 JSON。"""
+    payload = {
+        "Event": "wxa_media_check",
+        "appid": "wx_dev_appid",
+        "trace_id": trace_id,
+        "errcode": 0,
+        "result": {"suggest": suggest},
+    }
+    payload.update(overrides)
+    return payload
+
+
+async def _create_image_post(
+    client: AsyncClient, auth_headers: dict, monkeypatch, trace_id: str
+) -> None:
+    """发一张带图帖子（送检返回指定 trace_id），帖子此时处于审核中。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    async def submit(media_url, openid, scene):
+        return trace_id
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/posts",
+        json={
+            "content": "带图帖子",
+            "images": ["cloud://test-env/posts/a.jpg"],
+            "image_urls": ["https://test-env.tcb.qcloud.la/posts/a.jpg?sign=1"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+
+async def _other_headers(client: AsyncClient) -> dict:
+    """另一个用户的鉴权头，用于验证公开可见性。"""
+    login = await client.post("/api/v1/auth/login", json={"code": "other_user"})
+    return {"Authorization": f"Bearer {login.json()['data']['token']}"}
+
+
+@pytest.mark.asyncio
+async def test_wechat_callback_rejects_unknown_appid(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """appid 不匹配的回调 403，且不改变审核状态。"""
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-appid")
+
+    response = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-appid", appid="wx_other_appid")
+    )
+
+    assert response.status_code == 403
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_wechat_callback_requests_retry_for_unknown_trace(
+    client: AsyncClient, monkeypatch
+):
+    """未知 trace_id（回调早于入库的竞态）返回 503 让微信重试，而非静默丢弃。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+
+    response = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-unknown")
+    )
+
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_wechat_callback_accepts_malformed_payload_without_500(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """畸形推送不得 500（否则微信对确定性失败的消息反复重试）。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+
+    not_json = await client.post(
+        "/api/v1/wechat/events",
+        content=b"not-json",
+        headers={"content-type": "application/json"},
+    )
+    assert not_json.status_code == 400
+
+    not_object = await client.post("/api/v1/wechat/events", json=["unexpected"])
+    assert not_object.status_code == 400
+
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-null-errcode")
+    # errcode 缺失/null → 按检测失败处理（fail closed），但仍返回 200
+    null_errcode = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-null-errcode", errcode=None)
+    )
+    assert null_errcode.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_rejected_image_is_terminal(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """rejected 是终态：后续 pass 回调不得把帖子改回公开。"""
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-terminal")
+    other_headers = await _other_headers(client)
+
+    rejected = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-terminal", "risky")
+    )
+    assert rejected.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "rejected"
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+    # 同一 trace_id 的重复/乱序回调（此处无任何凭据）不得改判
+    replayed = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-terminal", "pass")
+    )
+    assert replayed.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    item = posts.json()["data"]["items"][0]
+    assert item["moderation_status"] == "rejected"
+    assert item["image_moderation_statuses"] == ["rejected"]
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_rejection_wins_over_preceding_pass_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """审查要求：同一 trace_id 连发 pass → risky → pass，终态仍为 rejected。
+
+    非 pass 判定优先于已判定的 passed——乱序/伪造的 pass 不能阻止公开内容被撤回。
+    """
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-order")
+    other_headers = await _other_headers(client)
+
+    first = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-order", "pass")
+    )
+    assert first.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "approved"
+
+    for suggest in ("risky", "pass"):
+        replayed = await client.post(
+            "/api/v1/wechat/events", json=_media_callback("trace-order", suggest)
+        )
+        assert replayed.status_code == 200
+
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    item = posts.json()["data"]["items"][0]
+    assert item["moderation_status"] == "rejected"
+    assert item["image_moderation_statuses"] == ["rejected"]
+    assert (await client.get("/api/v1/posts", headers=other_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_wechat_callback_requires_source_header_when_public_access_enabled(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """开启公网访问时，无 x-wx-source 的推送一律 403；带该头的正常推送仍生效。"""
+    from app.config import settings
+
+    await _create_image_post(client, auth_headers, monkeypatch, "trace-source")
+    monkeypatch.setattr(settings, "WECHAT_CLOUDRUN_PUBLIC_ACCESS", True)
+
+    # 平台配置推送路径时的检测请求不受守卫影响（官方要求返回 200）
+    path_check = await client.post(
+        "/api/v1/wechat/events", json={"action": "CheckContainerPath"}
+    )
+    assert path_check.status_code == 200
+
+    blocked = await client.post(
+        "/api/v1/wechat/events", json=_media_callback("trace-source")
+    )
+    assert blocked.status_code == 403
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "pending"
+
+    allowed = await client.post(
+        "/api/v1/wechat/events",
+        json=_media_callback("trace-source"),
+        headers={"x-wx-source": "wx"},
+    )
+    assert allowed.status_code == 200
+    posts = await client.get("/api/v1/posts", headers=auth_headers)
+    assert posts.json()["data"]["items"][0]["moderation_status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_create_post_rejects_incomplete_image_params(
+    client: AsyncClient, auth_headers: dict
+):
+    """images 与 image_urls 不匹配是客户端参数错误 → 400 而非 503。"""
+    response = await client.post(
+        "/api/v1/posts",
+        json={"content": "只给 fileID", "images": ["cloud://test-env/posts/a.jpg"]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "code": 40014,
+        "message": "图片送检参数有误，请重新选择图片后发布",
+    }
+    assert (await client.get("/api/v1/posts", headers=auth_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("file_id", "media_url"),
+    [
+        # 非云存储 fileID
+        ("https://evil.example/posts/a.jpg", "https://evil.example/posts/a.jpg"),
+        # fileID 属 A 环境、送检 URL 属 B 环境
+        ("cloud://envA.envB/posts/a.jpg", "https://envB.tcb.qcloud.la/posts/a.jpg"),
+        # 送检 URL 不在云存储域名下
+        ("cloud://envA/posts/a.jpg", "https://evil.example/posts/a.jpg"),
+        # 路径与 fileID 不一致
+        ("cloud://envA/posts/a.jpg", "https://envA.tcb.qcloud.la/other/a.jpg"),
+        # 环境段为空段：原实现被 `if part` 滤掉后可建帖（200），此处锁定拒绝
+        ("cloud://./posts/a.jpg", "https://anything.tcb.qcloud.la/posts/a.jpg"),
+    ],
+)
+async def test_create_post_rejects_mismatched_image_pairs(
+    client: AsyncClient, auth_headers: dict, file_id: str, media_url: str
+):
+    """送检图与展示图必须是同一环境、同一路径的对象；不满足则 400 且不落库。"""
+    response = await client.post(
+        "/api/v1/posts",
+        json={"content": "送检不匹配", "images": [file_id], "image_urls": [media_url]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "code": 40014,
+        "message": "图片送检参数有误，请重新选择图片后发布",
+    }
+    assert (await client.get("/api/v1/posts", headers=auth_headers)).json()["data"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_image_post_accepts_uppercase_env_scope(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """DNS 主机名大小写不敏感：fileID 环境段含大写时同环境的合法配对仍可发布。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    async def submit(media_url, openid, scene):
+        assert media_url == "https://env-a.tcb.qcloud.la/posts/a.jpg"
+        return "trace-upper"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/posts",
+        json={
+            "content": "大写环境",
+            "images": ["cloud://Env-A.env-a/posts/a.jpg"],
+            "image_urls": ["https://env-a.tcb.qcloud.la/posts/a.jpg"],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["moderation_status"] == "pending"
 
 
 @pytest.mark.asyncio
@@ -710,5 +1203,3 @@ async def test_memory_delete_nonexistent_success(client: AsyncClient, auth_heade
     assert resp.status_code == 200
     assert resp.json()["code"] == 0
     assert resp.json()["data"]["deleted"] is False
-
-

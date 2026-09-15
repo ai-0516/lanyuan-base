@@ -2,10 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.post import Post
+from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.models.post import MediaModerationTask, Post
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.notification import Notification
@@ -14,12 +15,18 @@ from app.schemas.post import CommentItem, PostCreate, PostListResponse, PostResp
 from app.schemas.common import ReplyTo, UserBrief
 
 
-async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostResponse:
+async def create_post(
+    db: AsyncSession,
+    user_id: int,
+    data: PostCreate,
+    moderation_status: PostModerationStatus = PostModerationStatus.APPROVED,
+) -> PostResponse:
     """创建帖子并返回完整信息"""
     post = Post(
         user_id=user_id,
         content=data.content,
         images=data.images or [],
+        moderation_status=moderation_status,
     )
     db.add(post)
     await db.flush()
@@ -33,6 +40,12 @@ async def create_post(db: AsyncSession, user_id: int, data: PostCreate) -> PostR
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
+        moderation_status=post.moderation_status,
+        image_moderation_statuses=(
+            [MediaModerationTaskStatus.PENDING] * len(post.images)
+            if post.images
+            else []
+        ),
         liked=False,
         comments=[],
         created_at=datetime.utcnow(),
@@ -45,7 +58,15 @@ async def get_post_by_id(
     current_user_id: int,
 ) -> PostResponse | None:
     """获取单个帖子详情（含评论和点赞）"""
-    result = await db.execute(select(Post).where(Post.id == post_id))
+    result = await db.execute(
+        select(Post).where(
+            Post.id == post_id,
+            or_(
+                Post.moderation_status == PostModerationStatus.APPROVED,
+                Post.user_id == current_user_id,
+            ),
+        )
+    )
     post = result.scalar_one_or_none()
     if not post:
         return None
@@ -121,6 +142,10 @@ async def get_post_by_id(
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
         content=post.content,
         images=post.images if isinstance(post.images, list) else [],
+        moderation_status=post.moderation_status,
+        image_moderation_statuses=await _get_image_moderation_statuses(
+            db, post, current_user_id
+        ),
         liked=liked,
         comments=comments,
         likers=likers,
@@ -138,14 +163,19 @@ async def get_posts(
     offset = (page - 1) * size
 
     # 查总数
-    count_stmt = select(func.count(Post.id))
+    visible_filter = or_(
+        Post.moderation_status == PostModerationStatus.APPROVED,
+        Post.user_id == current_user_id,
+    )
+    count_stmt = select(func.count(Post.id)).where(visible_filter)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
     # 查帖子
     stmt = (
         select(Post)
-        .order_by(Post.created_at.desc())
+        .where(visible_filter)
+        .order_by(Post.created_at.desc(), Post.id.desc())
         .offset(offset)
         .limit(size)
     )
@@ -227,6 +257,10 @@ async def get_posts(
                 user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
                 content=post.content,
                 images=post.images if isinstance(post.images, list) else [],
+                moderation_status=post.moderation_status,
+                image_moderation_statuses=await _get_image_moderation_statuses(
+                    db, post, current_user_id
+                ),
                 liked=liked,
                 comments=comments,
                 likers=likers,
@@ -235,6 +269,27 @@ async def get_posts(
         )
 
     return PostListResponse(items=items, total=total, page=page, size=size)
+
+
+async def _get_image_moderation_statuses(
+    db: AsyncSession, post: Post, current_user_id: int
+) -> list[MediaModerationTaskStatus]:
+    """仅向作者返回与 images 顺序一致的逐图审核状态。"""
+    images = post.images if isinstance(post.images, list) else []
+    if not images or post.user_id != current_user_id:
+        return []
+    result = await db.execute(
+        select(MediaModerationTask.file_id, MediaModerationTask.status).where(
+            MediaModerationTask.post_id == post.id
+        )
+    )
+    statuses = {file_id: status for file_id, status in result.all()}
+    fallback = (
+        MediaModerationTaskStatus.PASSED
+        if post.moderation_status == PostModerationStatus.APPROVED
+        else MediaModerationTaskStatus.PENDING
+    )
+    return [MediaModerationTaskStatus(statuses.get(file_id, fallback)) for file_id in images]
 
 
 async def delete_post(db: AsyncSession, post_id: int, user_id: int) -> bool:
@@ -263,7 +318,12 @@ async def like_post(
     避免走到数据库层由 FK 约束抛 IntegrityError（#28）。
     """
     # 先校验帖子存在，再插入点赞
-    post_result = await db.execute(select(Post).where(Post.id == post_id))
+    post_result = await db.execute(
+        select(Post).where(
+            Post.id == post_id,
+            Post.moderation_status == PostModerationStatus.APPROVED,
+        )
+    )
     post = post_result.scalar_one_or_none()
     if not post:
         return None, 0

@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # 应用
     APP_NAME: str = "兰园公共底座"
-    DEBUG: bool = True
 
     # 数据库 - 默认使用 SQLite 开发，生产用 MySQL
     DATABASE_URL: str = "sqlite+aiosqlite:///./lanyuan.db"
@@ -40,9 +39,13 @@ class Settings(BaseSettings):
     MEMORY_MAX_PER_USER: int = 30             # 每用户记忆条数上限，超限触发 LLM 合并
     MEMORY_INDEX_LIMIT: int = 30              # 注入 system prompt 的索引条数上限
 
-    # 微信 (开发环境模拟)
-    WECHAT_APPID: str = "wx_dev_appid"
-    WECHAT_SECRET: str = "wx_dev_secret"
+    # 微信：本地用 AppID/Secret 调 code2session；云托管从可信 header 获取身份
+    WECHAT_CLOUD_DEPLOYMENT: bool = True
+    # 云托管服务开启公网访问时必须置 True：消息推送接口要求非路径检测事件
+    # 携带微信侧注入的 x-wx-source 头，否则 403（官方「确认消息来源」）
+    WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
+    WECHAT_APPID: str = ""
+    WECHAT_SECRET: str = ""
 
     # 日志
     LOG_LEVEL: str = "INFO"                      # DEBUG / INFO / WARNING / ERROR

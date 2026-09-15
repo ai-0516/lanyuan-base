@@ -33,6 +33,21 @@ describe('login page', () => {
     expect(wx.getUserProfile).not.toHaveBeenCalled()
   })
 
+  test('does not preselect the agreement after official privacy authorization', async () => {
+    wx.getPrivacySetting.mockImplementation(({ success }) => success({
+      needAuthorization: false,
+      privacyContractName: '《兰园小程序用户隐私保护指引》',
+    }))
+    const page = loadPage(pagePath)
+
+    await page.onLoad()
+
+    expect(page.data).toMatchObject({
+      needPrivacyAuthorization: false,
+      privacyAccepted: false,
+    })
+  })
+
   test('opens the official privacy contract', () => {
     const page = loadPage(pagePath)
 

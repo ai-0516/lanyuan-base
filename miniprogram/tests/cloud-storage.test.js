@@ -2,6 +2,7 @@ const {
   createCloudPath,
   uploadPostImage,
   uploadPostImages,
+  getTempFileURLs,
   deleteCloudFiles,
 } = require('../utils/cloud-storage');
 const { fullUrl } = require('../utils/constants');
@@ -65,5 +66,19 @@ describe('utils/cloud-storage', () => {
     expect(wx.cloud.deleteFile).toHaveBeenCalledWith(expect.objectContaining({
       fileList: ['cloud://test/a.jpg'],
     }));
+  });
+
+  test('gets downloadable temporary URLs for content moderation', async () => {
+    wx.cloud = {
+      getTempFileURL: jest.fn(({ fileList, success }) => success({
+        fileList: fileList.map(fileID => ({
+          fileID,
+          tempFileURL: `https://test.tcb.qcloud.la/${fileID.split('/').pop()}`,
+        })),
+      })),
+    };
+    await expect(getTempFileURLs(['cloud://env/posts/a.jpg'])).resolves.toEqual([
+      'https://test.tcb.qcloud.la/a.jpg',
+    ]);
   });
 });

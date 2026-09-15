@@ -20,7 +20,7 @@ Page({
     const setting = await privacy.getPrivacySetting();
     this.setData({
       needPrivacyAuthorization: setting.needAuthorization,
-      privacyAccepted: !setting.needAuthorization,
+      privacyAccepted: false,
       privacyContractName: setting.privacyContractName,
     });
     this._continueAfterPrivacy();

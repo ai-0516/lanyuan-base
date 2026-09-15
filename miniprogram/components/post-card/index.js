@@ -3,6 +3,10 @@
 const { fullUrl } = require('../../utils/constants');
 
 Component({
+  data: {
+    displayImageItems: [],
+  },
+
   properties: {
     post: { type: Object, value: {} },
     currentUserId: { type: Number, value: 0 },
@@ -11,33 +15,26 @@ Component({
 
   observers: {
     post(val) {
-      if (!val || val._processed) return;
-      // 必须克隆对象，否则 WeChat 的 diff 检测不到属性变化
-      const p = { ...val };
-      if (!p.displayTime) p.displayTime = this._formatTime(p.created_at);
-      if (!p.displayAvatar) {
-        p.displayAvatar = p.user?.avatar || `https://i.pravatar.cc/80?img=${(p.user?.id || 1) % 70}`;
-      }
-      if (p.images?.length && !p.displayImages) {
-        p.displayImages = p.images.map(img => fullUrl(img));
-      }
-      if (p.comments?.length && !p.displayComments) {
-        p.displayComments = p.comments.map(cm => ({
-          ...cm,
-          displayTime: this._formatTime(cm.created_at),
-          displayAvatar: fullUrl(cm.user?.avatar),
-        }));
-      }
-      if (!p.likersText) {
-        p.likersText = (p.likers || []).map(l => l.nickname).filter(Boolean).join('，');
-      }
-      p._processed = true;
-      this.setData({ post: p });
+      this._syncDisplayImageItems(val);
     },
   },
 
   methods: {
     noop() {},
+
+    _syncDisplayImageItems(post) {
+      this.setData({ displayImageItems: this._buildDisplayImageItems(post || {}) });
+    },
+
+    _buildDisplayImageItems(post) {
+      const labels = { pending: '图片审核中', rejected: '审核未通过' };
+      const displayImages = post.displayImages
+        || (post.images || []).map(img => fullUrl(img));
+      return displayImages.map((url, index) => {
+        const status = (post.image_moderation_statuses || [])[index] || '';
+        return { url, status, label: labels[status] || '' };
+      });
+    },
 
     /** 点击空白区域 → 通知父页面收起滑出面板 */
     onBlankTap() {

@@ -179,12 +179,21 @@ class TestModelFlatten:
         fake = FakeSession(FakeScalarResult([]))
         captured = {}
 
-        async def fake_create_post(db, user_id, data):
+        class FakePost(dict):
+            id = 1
+            moderation_status = "pending"
+
+        async def fake_create_post(db, user_id, data, moderation_status="approved"):
             captured["data"] = data
-            return {"id": 1, "content": data.content}
+            return FakePost(id=1, content=data.content)
+
+        async def fake_check(*args, **kwargs):
+            return None
 
         with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake), \
-             patch("app.api.v1.posts.post_service.create_post", new=fake_create_post):
+             patch("app.api.v1.posts.post_service.create_post", new=fake_create_post), \
+             patch("app.api.v1.posts.content_security_service.check_public_text", new=fake_check), \
+             patch("app.api.v1.posts.content_security_service.submit_post_images", new=fake_check):
             result = await _REGISTERED_TOOLS["create_post"](
                 ctx=_ctx_with_meta(SimpleNamespace(user_id=42)),
                 content="你好",
