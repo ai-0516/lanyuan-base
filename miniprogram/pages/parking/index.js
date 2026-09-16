@@ -1,6 +1,11 @@
 const parkingData = require('../../data/parking');
 const { PARKING_MAP_URL } = require('../../utils/constants');
-const { searchParkingTargets, calculateViewportTransform } = require('../../utils/parking');
+const {
+  searchParkingTargets,
+  calculateViewportTransform,
+  calculateRouteViewportTransform,
+} = require('../../utils/parking');
+const { calculateParkingRoute, createRouteSegments } = require('../../utils/parking-route');
 
 const DEFAULT_SCALE = 1;
 const FOCUS_SCALE = 2.4;
@@ -19,6 +24,11 @@ Page({
     results: [],
     searchActive: false,
     selectedTarget: null,
+    routeStart: null,
+    routeEnd: null,
+    routeSegments: [],
+    routeMarkers: [],
+    routeDistance: 0,
   },
 
   onShow() {
@@ -98,6 +108,83 @@ Page({
         top: `${target.y * 100}%`,
       },
       searchActive: false,
+    });
+  },
+
+  onSetRouteEndpoint(e) {
+    const target = this.data.selectedTarget;
+    const role = e.currentTarget.dataset.role;
+    if (!target || !['start', 'end'].includes(role)) return;
+    const endpoint = {
+      type: target.type,
+      id: target.id,
+      title: target.title,
+      subtitle: target.subtitle,
+      x: target.x,
+      y: target.y,
+    };
+    const next = {
+      routeStart: role === 'start' ? endpoint : this.data.routeStart,
+      routeEnd: role === 'end' ? endpoint : this.data.routeEnd,
+    };
+    if (next.routeStart && next.routeEnd && next.routeStart.type === next.routeEnd.type
+      && next.routeStart.id === next.routeEnd.id) {
+      wx.showToast({ title: '起点和终点不能相同', icon: 'none' });
+      return;
+    }
+    this.setData(next, () => this.updateRoute());
+  },
+
+  updateRoute() {
+    const { routeStart, routeEnd } = this.data;
+    const routeMarkers = [
+      routeStart && { ...routeStart, role: 'start', label: '起', left: `${routeStart.x * 100}%`, top: `${routeStart.y * 100}%` },
+      routeEnd && { ...routeEnd, role: 'end', label: '终', left: `${routeEnd.x * 100}%`, top: `${routeEnd.y * 100}%` },
+    ].filter(Boolean);
+
+    if (!routeStart || !routeEnd) {
+      this.setData({ routeMarkers, routeSegments: [], routeDistance: 0 });
+      return;
+    }
+
+    const route = calculateParkingRoute(routeStart, routeEnd);
+    if (!route) {
+      this.setData({ routeMarkers, routeSegments: [], routeDistance: 0 });
+      wx.showToast({ title: '起终点之间暂无可用路线', icon: 'none' });
+      return;
+    }
+
+    const transform = calculateRouteViewportTransform(
+      route.points,
+      this._viewport,
+      this._map,
+      { width: parkingData.imageWidth, height: parkingData.imageHeight },
+    );
+    this._mapScale = transform.scale;
+    this.setData({
+      routeMarkers,
+      routeSegments: createRouteSegments(route.points, parkingData.imageWidth, parkingData.imageHeight),
+      routeDistance: route.distanceMeters,
+      mapX: transform.x,
+      mapY: transform.y,
+      mapScale: transform.scale,
+      selectedTarget: null,
+    });
+  },
+
+  swapRoute() {
+    const routeStart = this.data.routeEnd;
+    const routeEnd = this.data.routeStart;
+    this.setData({ routeStart, routeEnd }, () => this.updateRoute());
+  },
+
+  clearRoute() {
+    this.setData({
+      routeStart: null,
+      routeEnd: null,
+      routeSegments: [],
+      routeMarkers: [],
+      routeDistance: 0,
     });
   },
 

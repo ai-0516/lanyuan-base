@@ -40,9 +40,44 @@ function calculateViewportTransform(target, viewport, map, scale = 2.4) {
   };
 }
 
+function calculateRouteViewportTransform(points, viewport, map, image, maxScale = 3) {
+  if (!points.length) return { scale: 1, x: 0, y: 0 };
+  const xs = points.map(point => point.x / image.width);
+  const ys = points.map(point => point.y / image.height);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const padding = 56;
+  const routeWidth = Math.max(1, (maxX - minX) * map.width);
+  const routeHeight = Math.max(1, (maxY - minY) * map.height);
+  const scale = Math.max(1, Math.min(
+    maxScale,
+    (viewport.width - padding * 2) / routeWidth,
+    (viewport.height - padding * 2) / routeHeight,
+  ));
+  const scaledWidth = map.width * scale;
+  const scaledHeight = map.height * scale;
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const desiredX = viewport.width / 2 - centerX * scaledWidth;
+  const desiredY = viewport.height / 2 - centerY * scaledHeight;
+  const clamp = (value, viewportSize, contentSize) => {
+    if (contentSize <= viewportSize) return (viewportSize - contentSize) / 2;
+    return Math.max(viewportSize - contentSize, Math.min(0, value));
+  };
+
+  return {
+    scale,
+    x: clamp(desiredX, viewport.width, scaledWidth),
+    y: clamp(desiredY, viewport.height, scaledHeight),
+  };
+}
+
 module.exports = {
   TYPE_LABELS,
   normalizeQuery,
   searchParkingTargets,
   calculateViewportTransform,
+  calculateRouteViewportTransform,
 };

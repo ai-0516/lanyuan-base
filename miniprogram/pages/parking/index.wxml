@@ -56,6 +56,18 @@
         binderror="onMapError"
       />
       <view
+        class="route-segment"
+        wx:for="{{routeSegments}}"
+        wx:key="index"
+        style="left: {{item.left}}; top: {{item.top}}; width: {{item.width}}; transform: rotate({{item.angle}});"
+      ></view>
+      <view
+        class="route-marker route-marker-{{item.role}}"
+        wx:for="{{routeMarkers}}"
+        wx:key="role"
+        style="left: {{item.left}}; top: {{item.top}};"
+      >{{item.label}}</view>
+      <view
         class="target-marker target-marker-{{selectedTarget.type}}"
         wx:if="{{selectedTarget}}"
         style="left: {{selectedTarget.left}}; top: {{selectedTarget.top}};"
@@ -81,13 +93,38 @@
     </view>
     <view class="reset-tool" bindtap="resetMap">全览</view>
 
-    <view class="selection-card" wx:if="{{selectedTarget}}">
+    <view class="selection-card {{routeStart || routeEnd ? 'selection-card-raised' : ''}}" wx:if="{{selectedTarget}}">
       <view>
         <text class="selection-kind">{{selectedTarget.typeLabel}}</text>
         <text class="selection-title">{{selectedTarget.title}}</text>
         <text class="selection-subtitle">{{selectedTarget.subtitle}}</text>
       </view>
-      <text class="selection-future">路线功能即将开放</text>
+      <view class="selection-actions">
+        <button class="endpoint-button endpoint-button-start" data-role="start" bindtap="onSetRouteEndpoint">设为起点</button>
+        <button class="endpoint-button endpoint-button-end" data-role="end" bindtap="onSetRouteEndpoint">设为终点</button>
+      </view>
+    </view>
+
+    <view class="route-card" wx:if="{{routeStart || routeEnd}}">
+      <view class="route-endpoints">
+        <view class="route-endpoint-row">
+          <text class="endpoint-badge endpoint-badge-start">起</text>
+          <text class="endpoint-name">{{routeStart ? routeStart.title : '请选择起点'}}</text>
+        </view>
+        <view class="route-endpoint-line"></view>
+        <view class="route-endpoint-row">
+          <text class="endpoint-badge endpoint-badge-end">终</text>
+          <text class="endpoint-name">{{routeEnd ? routeEnd.title : '请选择终点'}}</text>
+        </view>
+      </view>
+      <view class="route-summary">
+        <text class="route-distance" wx:if="{{routeDistance}}">约 {{routeDistance}} 米</text>
+        <text class="route-waiting" wx:else>搜索位置并设置另一端</text>
+        <view class="route-actions">
+          <text class="route-action" wx:if="{{routeStart && routeEnd}}" bindtap="swapRoute">交换</text>
+          <text class="route-action route-action-clear" bindtap="clearRoute">清除</text>
+        </view>
+      </view>
     </view>
   </movable-area>
 </view>

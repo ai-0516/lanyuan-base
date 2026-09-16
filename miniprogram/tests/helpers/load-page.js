@@ -15,8 +15,9 @@ function loadPage(modulePath) {
   const page = {
     ...definition,
     data: { ...definition.data },
-    setData(update) {
+    setData(update, callback) {
       Object.assign(this.data, update)
+      if (callback) callback.call(this)
     },
   }
 
