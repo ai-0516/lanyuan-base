@@ -19,6 +19,13 @@ Component({
         protected: false,
       },
       {
+        pagePath: '/pages/parking/index',
+        text: '停车',
+        iconPath: '/assets/icons/parking.png',
+        selectedIconPath: '/assets/icons/parking-active.png',
+        protected: false,
+      },
+      {
         pagePath: '/pages/profile/index',
         text: '我',
         iconPath: '/assets/icons/profile.png',

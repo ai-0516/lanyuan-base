@@ -185,7 +185,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    微信小程序客户端                       │
-│  (原生开发, 7个页面, 底部Tab: AI → 发现 → 我)           │
+│  (原生开发, 底部Tab: AI → 发现 → 停车 → 我)            │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTPS (云托管自带域名)
                          ▼
@@ -297,6 +297,7 @@ miniprogram/
 │   ├── feed/                   # 发现页 (帖子流)
 │   ├── create-post/            # 发布帖子
 │   ├── ai-chat/                # AI 对话页
+│   ├── parking/                # 停车地图、搜索与定位
 │   ├── profile/                # 个人中心
 │   ├── edit-profile/           # 编辑资料
 │   └── notifications/          # 消息通知
@@ -746,6 +747,11 @@ App (app.js)
 │   ├── <chat-bubble> (user) [陶土渐变气泡, 右下圆角4px]
 │   └── <chat-input> [textarea + 发送按钮, 底部固定]
 │
+├── ParkingPage (pages/parking/)     ← Tab: 停车
+│   ├── <movable-area/view> [地图双指缩放与拖动]
+│   ├── <parking-search> [车位/楼栋/出入口本地搜索]
+│   └── <target-marker> [选中目标定位与高亮]
+│
 ├── ProfilePage (pages/profile/)     ← Tab: 我
 │   ├── <profile-header> [大头像 + 昵称 + 小区]
 │   ├── <notification-card> [消息通知入口 + 未读红点]
@@ -763,20 +769,29 @@ App (app.js)
 
 ```
 微信小程序 TabBar (底部固定)
-┌──────┬──────┬──────┐
-│  AI  │ 发现 │  我  │
-│ (○)  │ (💬) │ (◎)  │
-└──────┴──────┴──────┘
+┌──────┬──────┬──────┬──────┐
+│  AI  │ 发现 │ 停车 │  我  │
+│ (○)  │ (💬) │ (P)  │ (◎)  │
+└──────┴──────┴──────┴──────┘
 - AI → /pages/ai-chat/index
 - 发现 → /pages/feed/index
+- 停车 → /pages/parking/index
 - 我 → /pages/profile/index
-- 自定义 TabBar 在切换 AI/“我”前检查登录，游客直接进入登录页，避免受保护页面闪现
+- 自定义 TabBar 在切换 AI/“我”前检查登录；“发现”和“停车”允许游客进入
 - 发布: 发现页 FAB → navigateTo /pages/create-post/index
 - 通知: 个人中心 → navigateTo /pages/notifications/index
 - 编辑资料: 个人中心 → navigateTo /pages/edit-profile/index
 - 首屏: /pages/feed/index，未登录可浏览帖子列表与详情
 - 登录: 点赞、评论、发帖、AI、个人中心等身份功能触发时 → navigateTo /pages/login/index；成功后 reLaunch 回原目标页
 ```
+
+### 停车地图数据与渲染
+
+- 原始地图保存在微信云存储，`PARKING_MAP_URL` 配置其 `cloud://` fileID，避免 7 MB 图片进入小程序主包
+- `docs/parking/parking_spots_buildings_gates_roads.json` 是数据源；`scripts/generate-parking-data.js` 生成前端只读搜索索引
+- 搜索索引包含 1385 个车位、31 栋楼和 3 个出入口，坐标归一化为原图宽高比例
+- 地图使用 `movable-area` / `movable-view` 实现原生缩放与拖动，仅渲染当前选中标记，避免同时创建 1385 个视图节点
+- 路线规划、出租车位和闲时共享不在本期实现，但复用同一坐标系和停车页面入口
 
 ---
 

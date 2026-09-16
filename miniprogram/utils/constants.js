@@ -40,6 +40,9 @@ const V2_BASE_URL = 'http://localhost:8000/api/v2'
 /** 服务器根地址（用于拼接静态资源完整 URL） */
 const SERVER_HOST = 'http://localhost:8000'
 
+/** 停车场原始地图的微信云存储 fileID（上传后替换） */
+const PARKING_MAP_URL = 'cloud://test-d2gizr8ena300c58e.7465-test-d2gizr8ena300c58e-1480460164/parking/parking.png'
+
 /** 请求超时时间（毫秒） */
 const REQUEST_TIMEOUT = 15000
 
@@ -72,6 +75,7 @@ const COLORS = {
 const TAB_PAGES = {
   AI_CHAT: '/pages/ai-chat/index',
   FEED: '/pages/feed/index',
+  PARKING: '/pages/parking/index',
   PROFILE: '/pages/profile/index',
 }
 
@@ -123,6 +127,7 @@ module.exports = {
   USE_CLOUD,
   CLOUD_CONFIG,
   SERVER_HOST,
+  PARKING_MAP_URL,
   fullUrl,
   REQUEST_TIMEOUT,
   STORAGE_KEYS,

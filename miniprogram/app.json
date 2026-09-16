@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/feed/index",
+    "pages/parking/index",
     "pages/login/index",
     "pages/profile/index",
     "pages/ai-chat/index",
@@ -36,6 +37,12 @@
         "iconPath": "assets/icons/feed.png",
         "selectedIconPath": "assets/icons/feed-active.png",
         "text": "发现"
+      },
+      {
+        "pagePath": "pages/parking/index",
+        "iconPath": "assets/icons/parking.png",
+        "selectedIconPath": "assets/icons/parking-active.png",
+        "text": "停车"
       },
       {
         "pagePath": "pages/profile/index",

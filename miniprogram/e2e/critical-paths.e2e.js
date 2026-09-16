@@ -110,6 +110,21 @@ e2e('服务异常（500）时 Feed 加载失败并优雅降级', async () => {
   expect(settled.posts).toHaveLength(0);
 });
 
+e2e('停车地图加载并可搜索定位车位', async () => {
+  await miniProgram.open('/pages/parking/index');
+  const parking = await waitForPath(miniProgram, 'pages/parking/index');
+  const loaded = await waitForData(parking, data => data.mapReady === true);
+  expect(loaded.mapError).toBe(false);
+
+  await parking.callMethod('onSearchInput', { detail: { value: 'A001' } });
+  const searched = await waitForData(parking, data => data.results.length === 1);
+  expect(searched.results[0]).toMatchObject({ id: 'A001', type: 'spot' });
+
+  await parking.callMethod('onResultTap', { currentTarget: { dataset: { index: 0 } } });
+  const focused = await waitForData(parking, data => data.selectedTarget?.id === 'A001');
+  expect(focused.mapScale).toBe(2.4);
+});
+
 // 进入非 Tab 发布页后，当前 DevTools 的自动化协议不稳定；将该终止性导航
 // 放在最后，避免页面栈影响后续用例。各用例的 storage 仍由 beforeEach 清空。
 e2e('发现页展示帖子，支持点赞、评论并进入发布页', async () => {

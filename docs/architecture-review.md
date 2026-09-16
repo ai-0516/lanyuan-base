@@ -8,11 +8,11 @@
 
 ## 0. 项目概览
 
-**定位**：微信小程序**公共底座**，为「兰园地暖」「兰园停车」等业务小程序提供开箱即用的登录、社区社交（帖子/评论/点赞/通知）与 AI 对话能力。底座提供 3 个 Tab（AI → 发现 → 我），业务方在此基础上扩展 Tab。
+**定位**：微信小程序**公共底座**，为「兰园地暖」「兰园停车」等业务小程序提供开箱即用的登录、社区社交（帖子/评论/点赞/通知）与 AI 对话能力。停车业务版本提供 4 个 Tab（AI → 发现 → 停车 → 我）。
 
 | 维度 | 技术 | 说明 |
 |---|---|---|
-| 前端 | 微信原生小程序 | 11 页、3 tab、6 组件（另含 towxml 第三方 markdown 渲染） |
+| 前端 | 微信原生小程序 | 12 页、4 tab、6 组件（另含 towxml 第三方 markdown 渲染） |
 | 后端 | FastAPI + Uvicorn | REST + SSE 流式，约 20 个端点 |
 | ORM | SQLAlchemy 2.0 async + Alembic | 9 表，SQLite（开发）/ MySQL（生产） |
 | AI | DeepSeek API | SSE 流式 + 工具调用（function calling） |
@@ -31,7 +31,7 @@
 ### 1.1 整体分层
 
 ```
-微信小程序 (原生, 3 Tab)
+微信小程序 (原生, 4 Tab)
    │ HTTPS + SSE (EventSource/chunked)
    ▼
 FastAPI (微信云托管 Docker)
@@ -83,7 +83,7 @@ MySQL 8.0 (云数据库) · 云存储 · DeepSeek API
 
 ### 1.4 小程序端
 
-- 11 页 3 Tab（AI/发现/我），发现页为首屏并支持游客只读；身份操作按需跳转登录，成功后返回原目标。`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo 与登录返回目标。
+- 12 页 4 Tab（AI/发现/停车/我），发现页为首屏，发现与停车支持游客访问；身份操作按需跳转登录，成功后返回原目标。`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo 与登录返回目标。
 - AI 对话页实现较完整的 SSE 解析器（事件类型跟踪、行级 buffer、多轮气泡、tool 消息过滤、TextDecoder 解码）。
 - post-card 组件化 + 事件冒泡（feed 与详情页复用），乐观更新 + 失败回滚。
 - 设计系统：CSS 变量（陶土暖色系）+ JS 侧 COLORS 同步。

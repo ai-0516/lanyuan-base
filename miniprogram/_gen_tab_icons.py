@@ -26,21 +26,21 @@ def canvas():
 
 
 def save(image, name):
-    image = image.resize((OUTPUT_SIZE, OUTPUT_SIZE), Image.Resampling.LANCZOS)
     alpha = image.getchannel("A")
     bounds = alpha.getbbox()
     artwork = image.crop(bounds)
-    target = 96
+    target = 96 * SUPERSAMPLE
     ratio = min(target / artwork.width, target / artwork.height)
     artwork = artwork.resize(
         (round(artwork.width * ratio), round(artwork.height * ratio)),
         Image.Resampling.LANCZOS,
     )
-    image = Image.new("RGBA", (OUTPUT_SIZE, OUTPUT_SIZE), (0, 0, 0, 0))
+    image = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
     image.alpha_composite(
         artwork,
-        ((OUTPUT_SIZE - artwork.width) // 2, (OUTPUT_SIZE - artwork.height) // 2),
+        ((CANVAS_SIZE - artwork.width) // 2, (CANVAS_SIZE - artwork.height) // 2),
     )
+    image = image.resize((OUTPUT_SIZE, OUTPUT_SIZE), Image.Resampling.LANCZOS)
     image.save(
         OUTPUT_DIR / name,
         optimize=True,
@@ -101,9 +101,45 @@ def draw_profile(color, active):
     return image
 
 
+def draw_parking(color, active):
+    image, draw = canvas()
+    circle = scaled((18, 12, 90, 84))
+    width = scaled(6)
+    if active:
+        draw.ellipse(circle, fill=color)
+        mark_color = WHITE
+    else:
+        draw.ellipse(circle, outline=color, width=width)
+        mark_color = color
+
+    # Build the P as one filled glyph instead of joining separate strokes.
+    # This keeps the bowl smooth and avoids visible seams after downsampling.
+    glyph = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
+    glyph_draw = ImageDraw.Draw(glyph)
+    glyph_draw.rectangle(scaled((39, 26, 48, 67.5)), fill=mark_color)
+    glyph_draw.ellipse(scaled((39, 63, 48, 72)), fill=mark_color)
+    glyph_draw.rounded_rectangle(
+        scaled((43, 26, 75, 58)),
+        radius=scaled(16),
+        fill=mark_color,
+    )
+    glyph_draw.rounded_rectangle(
+        scaled((50, 34, 66, 50)),
+        radius=scaled(8),
+        fill=(0, 0, 0, 0),
+    )
+    image.alpha_composite(glyph)
+    return image
+
+
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    generators = {"ai": draw_ai, "feed": draw_feed, "profile": draw_profile}
+    generators = {
+        "ai": draw_ai,
+        "feed": draw_feed,
+        "parking": draw_parking,
+        "profile": draw_profile,
+    }
     for name, generator in generators.items():
         save(generator(GRAY, False), f"{name}.png")
         save(generator(ACTIVE, True), f"{name}-active.png")

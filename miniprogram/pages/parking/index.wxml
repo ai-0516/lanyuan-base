@@ -1,0 +1,93 @@
+<view class="parking-page">
+  <view class="search-area">
+    <view class="search-box">
+      <text class="search-icon">⌕</text>
+      <input
+        class="search-input"
+        value="{{query}}"
+        placeholder="搜索车位号、楼栋或出入口"
+        confirm-type="search"
+        bindfocus="onSearchFocus"
+        bindinput="onSearchInput"
+      />
+      <text class="search-clear" wx:if="{{query}}" bindtap="clearSearch">×</text>
+    </view>
+
+    <view class="search-results" wx:if="{{searchActive && query}}">
+      <view class="result-empty" wx:if="{{results.length === 0}}">没有找到相关位置</view>
+      <view
+        class="result-item"
+        wx:for="{{results}}"
+        wx:key="id"
+        data-index="{{index}}"
+        bindtap="onResultTap"
+      >
+        <text class="result-type result-type-{{item.type}}">{{item.typeLabel}}</text>
+        <view class="result-copy">
+          <text class="result-title">{{item.title}}</text>
+          <text class="result-subtitle">{{item.subtitle}}</text>
+        </view>
+        <text class="result-locate">定位</text>
+      </view>
+      <view class="result-limit" wx:if="{{results.length === 30}}">仅显示前 30 条，请继续输入缩小范围</view>
+    </view>
+  </view>
+
+  <movable-area class="map-viewport" id="parking-map-viewport" scale-area>
+    <movable-view
+      class="map-layer"
+      style="width: {{mapWidth}}px; height: {{mapHeight}}px;"
+      direction="all"
+      x="{{mapX}}"
+      y="{{mapY}}"
+      scale
+      scale-min="1"
+      scale-max="4"
+      scale-value="{{mapScale}}"
+      animation
+      out-of-bounds
+      bindscale="onScale"
+    >
+      <image
+        class="parking-map"
+        src="{{mapUrl}}"
+        mode="scaleToFill"
+        bindload="onMapLoad"
+        binderror="onMapError"
+      />
+      <view
+        class="target-marker target-marker-{{selectedTarget.type}}"
+        wx:if="{{selectedTarget}}"
+        style="left: {{selectedTarget.left}}; top: {{selectedTarget.top}};"
+      >
+        <view class="marker-dot"></view>
+      </view>
+    </movable-view>
+
+    <view class="map-status" wx:if="{{!mapUrl}}">
+      <text class="status-title">停车场地图待配置</text>
+      <text class="status-text">上传地图到微信云存储后，配置 PARKING_MAP_URL</text>
+    </view>
+    <view class="map-status" wx:elif="{{mapError}}">
+      <text class="status-title">地图加载失败</text>
+      <text class="status-text">请检查云存储文件地址和读取权限</text>
+    </view>
+    <view class="map-loading" wx:elif="{{!mapReady}}">地图加载中…</view>
+
+    <view class="map-tools">
+      <view class="map-tool" bindtap="onZoomIn">＋</view>
+      <view class="tool-divider"></view>
+      <view class="map-tool" bindtap="onZoomOut">－</view>
+    </view>
+    <view class="reset-tool" bindtap="resetMap">全览</view>
+
+    <view class="selection-card" wx:if="{{selectedTarget}}">
+      <view>
+        <text class="selection-kind">{{selectedTarget.typeLabel}}</text>
+        <text class="selection-title">{{selectedTarget.title}}</text>
+        <text class="selection-subtitle">{{selectedTarget.subtitle}}</text>
+      </view>
+      <text class="selection-future">路线功能即将开放</text>
+    </view>
+  </movable-area>
+</view>
