@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拼接对比 - 小重叠</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a2e; color:#fff; font-family:system-ui; }
+.header { padding:16px 20px; background:#16213e; }
+h1 { font-size:18px; }
+.grid { display:flex; flex-wrap:wrap; gap:12px; padding:12px; }
+.card { flex:1; min-width:340px; background:#0f3460; border-radius:8px; overflow:hidden; }
+.card h2 { padding:10px 14px; font-size:14px; background:rgba(0,0,0,0.3); }
+.card a { display:block; }
+.card img { width:100%; display:block; }
+</style>
+</head>
+<body>
+<div class="header"><h1>🔗 overlap = 0 / 50 / 100 / 150 px</h1></div>
+<div class="grid">
+<div class="card"><h2>overlap = 0</h2><a href="stitched_ov0.png" target="_blank"><img src="stitched_ov0.png"></a></div>
+<div class="card"><h2>overlap = 50</h2><a href="stitched_ov50.png" target="_blank"><img src="stitched_ov50.png"></a></div>
+<div class="card"><h2>overlap = 100</h2><a href="stitched_ov100.png" target="_blank"><img src="stitched_ov100.png"></a></div>
+<div class="card"><h2>overlap = 150</h2><a href="stitched_ov150.png" target="_blank"><img src="stitched_ov150.png"></a></div>
+</div>
+</body>
+</html>

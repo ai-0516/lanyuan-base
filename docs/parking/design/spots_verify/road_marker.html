@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>出入口 & 道路标记 - 东方兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui;background:#1a1a2e;color:#eee;overflow:hidden}
+.header{background:#16213e;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:12px;border-bottom:1px solid #333}
+h1{font-size:15px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-left:auto;font-size:11px;flex-wrap:wrap}
+.toolbar button{padding:3px 10px;border:1px solid #444;background:#1a1a2e;color:#eee;border-radius:4px;cursor:pointer;font-size:11px}
+.toolbar button:hover{background:#333}
+.toolbar button.active{background:#00b894;border-color:#00b894;color:#fff}
+.toolbar button.danger{background:#e17055;border-color:#e17055}
+label{display:flex;align-items:center;gap:3px;cursor:pointer}
+.viewport{position:relative;overflow:auto;height:calc(100vh - 48px)}
+.canvas-wrap{position:relative;width:3370px;height:4299px;transform-origin:0 0}
+.bg-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+.bg-layer img{width:100%;height:100%;pointer-events:none}
+.spot{position:absolute;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:#000;border-radius:1px;z-index:2;user-select:none;pointer-events:none;opacity:0.7}
+.building{position:absolute;border:2px solid;z-index:3;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;pointer-events:none}
+.gate-rect{position:absolute;border:2px solid;z-index:4;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;pointer-events:none}
+/* Road lines */
+.road-segment{position:absolute;z-index:3;pointer-events:none;transform-origin:0 0}
+.road-segment line{stroke:#ff9800;stroke-width:30;stroke-linecap:round;opacity:0.95}
+.waypoint{position:absolute;width:10px;height:10px;background:#ff9800;border-radius:50%;z-index:5;pointer-events:none;transform:translate(-5px,-5px)}
+/* Graph nodes */
+.graph-node{position:absolute;width:14px;height:14px;border-radius:50%;z-index:7;pointer-events:none;transform:translate(-7px,-7px);border:2px solid #fff;transition:opacity .2s}
+.graph-node.intersection{background:#00d2ff;box-shadow:0 0 8px rgba(0,210,255,.6)}
+.graph-node.endpoint{background:#1dd1a1;box-shadow:0 0 6px rgba(29,209,161,.5)}
+.graph-node.leaf{background:#feca57;box-shadow:0 0 6px rgba(254,202,87,.5)}
+.graph-edge{position:absolute;z-index:6;pointer-events:none;overflow:visible}
+.graph-edge line{stroke:#00d2ff;stroke-width:2;stroke-dasharray:6,4;opacity:.6}
+/* Path finding */
+.graph-node.clickable{cursor:pointer;pointer-events:auto!important;z-index:10}
+.graph-node.clickable:hover{transform:translate(-7px,-7px) scale(1.5)}
+.graph-node.path-start{background:#f9ca24!important;box-shadow:0 0 14px rgba(249,202,36,.8)!important;z-index:11;pointer-events:auto!important}
+.graph-node.path-end{background:#ff6b6b!important;box-shadow:0 0 14px rgba(255,107,107,.8)!important;z-index:11;pointer-events:auto!important}
+.path-highlight{position:absolute;z-index:8;pointer-events:none;overflow:visible}
+.path-highlight line{stroke:#00e676;stroke-width:6;stroke-linecap:round;opacity:0.9;filter:drop-shadow(0 0 4px rgba(0,230,118,.6))}
+.spot.unreachable{background:rgba(255,0,0,0.5)!important;border-color:#ff0000!important;z-index:3;opacity:0.85!important}
+/* Coverage panel */
+.coverage-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#16213e;border:2px solid #ffd700;border-radius:12px;padding:20px 24px;z-index:200;display:none;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.coverage-panel h2{font-size:16px;margin-bottom:12px;color:#ffd700}
+.coverage-panel p{font-size:13px;line-height:1.8;margin-bottom:8px}
+.coverage-panel button{margin-top:10px;padding:6px 16px;border:1px solid #ffd700;background:transparent;color:#ffd700;border-radius:6px;cursor:pointer}
+.coverage-panel button:hover{background:rgba(255,215,0,.1)}
+.coverage-panel .ok{color:#00d2ff}
+.coverage-panel .warn{color:#e17055}
+/* Drag preview */
+.preview-line{position:absolute;z-index:50;pointer-events:none;transform-origin:0 0}
+.preview-line line{stroke:#ffd700;stroke-width:30;stroke-dasharray:16,8;stroke-linecap:round}
+/* Handles for gates */
+.handle{position:absolute;width:8px;height:8px;background:#ffd700;border:1px solid #000;z-index:6}
+.handle.nw{top:-4px;left:-4px;cursor:nw-resize}
+.handle.n{top:-4px;left:50%;margin-left:-4px;cursor:n-resize}
+.handle.ne{top:-4px;right:-4px;cursor:ne-resize}
+.handle.e{top:50%;margin-top:-4px;right:-4px;cursor:e-resize}
+.handle.se{bottom:-4px;right:-4px;cursor:se-resize}
+.handle.s{bottom:-4px;left:50%;margin-left:-4px;cursor:s-resize}
+.handle.sw{bottom:-4px;left:-4px;cursor:sw-resize}
+.handle.w{top:50%;margin-top:-4px;left:-4px;cursor:w-resize}
+.selected{border-color:#ffd700!important;z-index:10}
+.info{position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,0.85);padding:6px 12px;border-radius:6px;font-size:11px;z-index:100}
+.help{position:fixed;top:56px;right:8px;background:rgba(0,0,0,0.85);padding:8px 12px;border-radius:6px;font-size:11px;z-index:100;line-height:1.8;max-width:200px}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🚪🛣 出入口 & 道路 — 东方兰园</h1>
+<div class="toolbar">
+<button onclick="zoomOut()">🔍−</button>
+<button onclick="zoomIn()">🔍+</button>
+<button onclick="zoomFit()">📐 适应</button>
+<span id="zoomLabel">100%</span>
+<button id="btnGate" onclick="setMode('gate')">🚪 出入口</button>
+<button id="btnRoad" class="active" onclick="setMode('road')">🛣 道路</button>
+<button id="btnDelGate" onclick="deleteGate()" class="danger" style="display:none">🗑 删出入口</button>
+<button onclick="undoRoad()" class="danger">↩ 撤销</button>
+<button id="btnDraw" class="danger" onclick="toggleDrawing()">🔒 已锁定</button>
+<button onclick="newRoad()">✖ 新路</button>
+<button onclick="deleteSelectedRoad()" class="danger">🗑 删路</button>
+<button id="btnDir" onclick="toggleRoadDir()" style="display:none">⇄ 双向</button>
+<button onclick="exportData()">📥 导出全部</button>
+<button id="btnGraph" onclick="toggleGraph()">🧩 建图</button>
+<span id="graphStats" style="color:#00d2ff;display:none"></span>
+<button id="btnPath" onclick="togglePathMode()" style="display:none">🔍 路径测试</button>
+<button id="btnCoverage" onclick="checkCoverage()" style="display:none">⚠️ 全覆盖检查</button>
+<button id="btnBldRoutes" onclick="showBuildingRoutes('西门')" style="display:none">🗺️ 到楼栋路线</button>
+<span id="pathHint" style="color:#00e676;display:none;font-size:11px"></span>
+<span id="stats"></span>
+</div>
+</div>
+<div class="viewport" id="vp">
+<div class="canvas-wrap" id="canvas">
+  <div class="bg-layer"><img id="bgImg" draggable="false"></div>
+</div>
+<div class="info" id="info"></div>
+<div class="help" id="help">
+<b>🚪 出入口模式：</b><br>
+• 点击空位 → 新建出入口<br>
+• 点击出入口 → 选中<br>
+• 拖拽手柄 → 调整大小<br>
+<b>🛣 道路模式：</b><br>
+• 点击 → 放置路点<br>
+• 双击/Enter → 结束当前路<br>
+• 点击路点 → 选中道路<br>
+• Del → 删除选中道路<br>
+• 🧩 建图 → 自动检测交叉路口<br>
+<b>出入口：</b><span id="gateList">暂无</span>
+</div>
+<div class="coverage-panel" id="covPanel" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
+<h2>⚠️ 全覆盖检查</h2>
+<p id="covResult"></p>
+<button onclick="closeCoverage()">关闭</button>
+<button onclick="clearUnreachable()">清除标记</button>
+</div>
+</div>
+<script>
+const CW=3370, CH=4299;
+let zoom=1, mode='road';
+let spots=[], buildings=[], gates=[], roads=[]; // roads: [{segments:[{x1,y1,x2,y2}]}]
+let allData={};
+
+const GATE_PRESETS=[
+  {id:'西门'},
+  {id:'北门'},
+  {id:'东门'}
+];
+const gateColor='#ff6d00';
+
+const areaBg={A:'rgba(233,69,96,0.3)',B:'rgba(74,144,217,0.3)',C:'rgba(0,184,148,0.3)',D:'rgba(253,203,110,0.3)',F:'rgba(165,94,234,0.3)'};
+const areaColors={A:'#e94560',B:'#4a90d9',C:'#00b894',D:'#fdcb6e',F:'#a55eea'};
+
+// Drag state
+let dragMode=null; // 'gate-create','gate-move','gate-resize','road-waypoint'
+let dragStart={}, dragStartRect={}, resizeHandle=null;
+let newBoxEl=null;
+let selectedGate=null, selectedRoad=null;
+let currentRoad=[];
+let roadEls=[], gateEls={}, waypointEls=[];
+let previewEl=null;
+let waypointDrag=null; // {roadIdx, origX, origY, endpoints}
+let roadMove=null; // {roadIdx, origSegs:[{x1,y1,x2,y2}]}
+let drawingStart=null; // {x,y} current road start point during drawing
+let lastMouse={x:0,y:0}; // for Enter-finalize
+let drawingEnabled=false; // toggle road drawing mode
+let graphData=null; // {nodes:[{id,x,y,type}], edges:[{from,to,roadIdx,segIdx,length}]}
+let showGraph=false; // toggle for graph visualization
+let graphEls=[]; // DOM elements for graph nodes/edges
+let pathMode=false; // path testing mode active
+let pathStart=null, pathEnd=null; // selected node IDs
+let pathEls=[]; // DOM elements for path highlight
+let unreachableSpots=[]; // spot indices marked as unreachable
+
+// Building colors
+const bldColors=['#ff6b6b','#4ecdc4','#45b7d1','#f9ca24','#6c5ce7','#a29bfe',
+  '#fd79a8','#00b894','#e17055','#74b9ff','#ffeaa7','#dfe6e9',
+  '#fab1a0','#81ecec','#55a3e8','#b8e994','#e77f67','#cf6a87',
+  '#786fa6','#f19066','#e15f41','#c44569','#574b90','#546de5',
+  '#3dc1d3','#f5cd79','#f8a5c2','#63cdda','#ea8685','#596275','#778beb'];
+
+// localStorage
+const GATE_KEY='lanyuan_gates';
+const ROAD_KEY='lanyuan_roads';
+const GRAPH_KEY='lanyuan_graph';
+function saveGates(){
+  localStorage.setItem(GATE_KEY,JSON.stringify(gates));
+}
+function loadGates(){
+  try{const raw=localStorage.getItem(GATE_KEY);if(raw)gates=JSON.parse(raw);}catch(e){gates=[];}
+  // Migration: rename old gate IDs
+  const nameMap={'出入口1':'西门','出入口2':'北门','出入口3':'东门'};
+  let changed=false;
+  gates.forEach(g=>{if(nameMap[g.id]){g.id=nameMap[g.id];changed=true;}});
+  if(changed)saveGates();
+}
+function saveRoads(){
+  localStorage.setItem(ROAD_KEY,JSON.stringify(roads));
+}
+function loadRoads(){
+  try{const raw=localStorage.getItem(ROAD_KEY);if(raw)roads=JSON.parse(raw);}catch(e){roads=[];}
+}
+function saveGraph(){
+  if(graphData)localStorage.setItem(GRAPH_KEY,JSON.stringify(graphData));
+}
+function loadGraph(){
+  try{const raw=localStorage.getItem(GRAPH_KEY);if(raw)graphData=JSON.parse(raw);}catch(e){graphData=null;}
+}
+
+function viewportToCanvas(cx,cy){
+  const r=document.getElementById('canvas').getBoundingClientRect();
+  return {x:(cx-r.left)/zoom, y:(cy-r.top)/zoom};
+}
+
+// Point to line segment distance
+function pointToSegDist(px,py,x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1;
+  const lenSq=dx*dx+dy*dy;
+  if(lenSq===0)return Math.hypot(px-x1,py-y1);
+  let t=((px-x1)*dx+(py-y1)*dy)/lenSq;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
+
+function applyZoom(){
+  const c=document.getElementById('canvas');
+  c.style.transform=`scale(${zoom})`;
+  document.getElementById('zoomLabel').textContent=Math.round(zoom*100)+'%';
+}
+function zoomIn(){zoom=Math.min(5,zoom*1.25);applyZoom();}
+function zoomOut(){zoom=Math.max(0.1,zoom/1.25);applyZoom();}
+function zoomFit(){
+  const vp=document.getElementById('vp');
+  zoom=Math.min(vp.clientWidth/CW,vp.clientHeight/CH)*0.92;
+  applyZoom();
+}
+
+function setMode(m){
+  mode=m;
+  document.getElementById('btnGate').classList.toggle('active',m==='gate');
+  document.getElementById('btnRoad').classList.toggle('active',m==='road');
+  selectGate(null);selectedRoad=null;
+  currentRoad=[];removePreview();
+  renderRoads();
+  updateInfo();
+}
+
+function selectGate(id){
+  if(selectedGate&&gateEls[selectedGate]){
+    gateEls[selectedGate].classList.remove('selected');
+    hideHandles(selectedGate);
+  }
+  selectedGate=id;
+  document.getElementById('btnDelGate').style.display=id?'inline-block':'none';
+  if(id&&gateEls[id]){
+    gateEls[id].classList.add('selected');
+    showHandles(id);
+  }
+}
+
+function deleteGate(){
+  if(!selectedGate)return;
+  const el=gateEls[selectedGate];
+  if(el)el.remove();
+  delete gateEls[selectedGate];
+  gates=gates.filter(g=>g.id!==selectedGate);
+  selectedGate=null;
+  document.getElementById('btnDelGate').style.display='none';
+  saveGates();
+  updateInfo();
+}
+
+function hideHandles(id){const el=gateEls[id];if(el)el.querySelectorAll('.handle').forEach(h=>h.style.display='none');}
+function showHandles(id){const el=gateEls[id];if(el)el.querySelectorAll('.handle').forEach(h=>h.style.display='block');}
+
+function createGateElement(g){
+  const el=document.createElement('div');
+  el.className='gate-rect';
+  el.style.left=(g.x/CW*100)+'%';
+  el.style.top=(g.y/CH*100)+'%';
+  el.style.width=(g.w/CW*100)+'%';
+  el.style.height=(g.h/CH*100)+'%';
+  el.style.borderColor=gateColor;
+  el.style.color='#fff';
+  el.style.background=gateColor+'33';
+  el.innerHTML=`<span style="pointer-events:none">${g.id}</span>`;
+  el.dataset.id=g.id;
+  
+  ['nw','n','ne','e','se','s','sw','w'].forEach(pos=>{
+    const h=document.createElement('div');
+    h.className='handle '+pos;
+    h.dataset.handle=pos;
+    h.style.display='none';
+    el.appendChild(h);
+  });
+  
+  document.getElementById('canvas').appendChild(el);
+  gateEls[g.id]=el;
+}
+
+function updateGateElement(g){
+  const el=gateEls[g.id];
+  if(!el)return;
+  el.style.left=(g.x/CW*100)+'%';
+  el.style.top=(g.y/CH*100)+'%';
+  el.style.width=(g.w/CW*100)+'%';
+  el.style.height=(g.h/CH*100)+'%';
+}
+
+function renderRoads(){
+  // Remove old road elements
+  roadEls.forEach(r=>r.remove());roadEls=[];
+  waypointEls.forEach(w=>w.remove());waypointEls=[];
+  document.getElementById('btnDir').style.display=selectedRoad!==null?'inline-block':'none';
+  if(selectedRoad!==null){
+    const r=roads[selectedRoad];
+    const isOneway=r.direction==='oneway';
+    document.getElementById('btnDir').textContent=isOneway?'→ 单向':'⇄ 双向';
+  }
+  
+  roads.forEach((road,ri)=>{
+    road.segments.forEach(seg=>{
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.classList.add('road-segment');
+      svg.style.left=(Math.min(seg.x1,seg.x2)-2)+'px';
+      svg.style.top=(Math.min(seg.y1,seg.y2)-2)+'px';
+      svg.style.width=Math.max(4,Math.abs(seg.x2-seg.x1))+'px';
+      svg.style.height=Math.max(4,Math.abs(seg.y2-seg.y1))+'px';
+      svg.style.overflow='visible';
+      svg.dataset.road=ri;
+      
+      const ox=Math.min(seg.x1,seg.x2), oy=Math.min(seg.y1,seg.y2);
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',seg.x1-ox);
+      line.setAttribute('y1',seg.y1-oy);
+      line.setAttribute('x2',seg.x2-ox);
+      line.setAttribute('y2',seg.y2-oy);
+      const isSel=ri===selectedRoad;
+      line.setAttribute('stroke',isSel?'#ffd700':'#ff9800');
+      line.setAttribute('stroke-width',isSel?'40':'30');
+      line.setAttribute('stroke-linecap','round');
+      line.setAttribute('opacity','0.8');
+      svg.appendChild(line);
+      
+      // Arrows: one-way = one arrow, bidirectional = two arrows
+      const isOneway=road.direction==='oneway';
+      const mx=(seg.x1+seg.x2)/2-ox, my=(seg.y1+seg.y2)/2-oy;
+      const angle=Math.atan2(seg.y2-seg.y1,seg.x2-seg.x1)*180/Math.PI;
+      const arrowFill='#fff'; // white arrows for contrast
+      
+      if(isOneway){
+        const arrow=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        arrow.setAttribute('points','-20,-12 20,0 -20,12');
+        arrow.setAttribute('fill',arrowFill);
+        arrow.setAttribute('transform',`translate(${mx},${my}) rotate(${angle})`);
+        svg.appendChild(arrow);
+      } else {
+        // Bidirectional: two arrows pointing opposite ways
+        const gap=25;
+        [{dir:'forward',off:-gap,ang:angle},{dir:'back',off:gap,ang:angle+180}].forEach(a=>{
+          const ax=mx-Math.cos(angle*Math.PI/180)*a.off;
+          const ay=my-Math.sin(angle*Math.PI/180)*a.off;
+          const arrow=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          arrow.setAttribute('points','-12,-8 12,0 -12,8');
+          arrow.setAttribute('fill',arrowFill);
+          arrow.setAttribute('transform',`translate(${ax},${ay}) rotate(${a.ang})`);
+          svg.appendChild(arrow);
+        });
+      }
+      
+      document.getElementById('canvas').appendChild(svg);
+      roadEls.push(svg);
+    });
+    
+    // Render waypoints for selected road (interactive)
+    if(ri===selectedRoad){
+      const seen=new Set();
+      road.segments.forEach((seg,si)=>{
+        [{x:seg.x1,y:seg.y1,segIdx:si,which:'1'},{x:seg.x2,y:seg.y2,segIdx:si,which:'2'}].forEach(pt=>{
+          const key=`${pt.x},${pt.y}`;
+          if(seen.has(key))return;
+          seen.add(key);
+          const dot=document.createElement('div');
+          dot.className='waypoint';
+          dot.style.left=pt.x+'px';
+          dot.style.top=pt.y+'px';
+          dot.style.background='#ffd700';
+          dot.style.pointerEvents='auto';
+          dot.style.cursor='grab';
+          dot.style.zIndex='6';
+          dot.dataset.roadIdx=ri;
+          dot.dataset.x=pt.x;
+          dot.dataset.y=pt.y;
+          document.getElementById('canvas').appendChild(dot);
+          waypointEls.push(dot);
+        });
+      });
+    }
+  });
+  // Auto-refresh graph if visible
+  if(showGraph){graphData=null;buildGraph();renderGraph();}
+}
+
+function removePreview(){
+  if(previewEl){previewEl.remove();previewEl=null;}
+}
+
+function drawPreview(pts){
+  removePreview();
+  if(pts.length<2)return;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.classList.add('preview-line');
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  const minX=Math.min(...xs)-4, minY=Math.min(...ys)-4;
+  const maxX=Math.max(...xs)+4, maxY=Math.max(...ys)+4;
+  svg.style.left=minX+'px';
+  svg.style.top=minY+'px';
+  svg.style.width=(maxX-minX)+'px';
+  svg.style.height=(maxY-minY)+'px';
+  svg.style.overflow='visible';
+  
+  for(let i=0;i<pts.length-1;i++){
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',pts[i].x-minX);
+    line.setAttribute('y1',pts[i].y-minY);
+    line.setAttribute('x2',pts[i+1].x-minX);
+    line.setAttribute('y2',pts[i+1].y-minY);
+    line.setAttribute('stroke','#ffd700');
+    line.setAttribute('stroke-width','30');
+    line.setAttribute('stroke-dasharray','16,8');
+    line.setAttribute('stroke-linecap','round');
+    svg.appendChild(line);
+  }
+  document.getElementById('canvas').appendChild(svg);
+  previewEl=svg;
+}
+
+function deleteSelectedRoad(){
+  if(selectedRoad===null)return;
+  roads.splice(selectedRoad,1);
+  selectedRoad=null;
+  drawingStart=null;
+  removePreview();
+  saveRoads();
+  renderRoads();
+  updateInfo();
+}
+
+function newRoad(){drawingStart=null;removePreview();selectedRoad=null;renderRoads();updateInfo();}
+function undoRoad(){
+  if(!drawingStart)return;
+  drawingStart=null;removePreview();renderRoads();updateInfo();
+}
+
+function toggleDrawing(){
+  drawingEnabled=!drawingEnabled;
+  const btn=document.getElementById('btnDraw');
+  if(drawingEnabled){
+    btn.textContent='✏️ 画路中';
+    btn.classList.add('active');
+    btn.classList.remove('danger');
+  }else{
+    btn.textContent='🔒 已锁定';
+    btn.classList.remove('active');
+    btn.classList.add('danger');
+    drawingStart=null;removePreview();
+  }
+  renderRoads();updateInfo();
+}
+
+function toggleRoadDir(){
+  if(selectedRoad===null)return;
+  const r=roads[selectedRoad];
+  r.direction=r.direction==='oneway'?'bidirectional':'oneway';
+  saveRoads();
+  renderRoads();
+}
+
+function deleteSelectedRoad(){
+  if(selectedRoad===null)return;
+  roads.splice(selectedRoad,1);
+  selectedRoad=null;
+  currentRoad=[];
+  removePreview();
+  saveRoads();
+  renderRoads();
+  updateInfo();
+}
+
+function updateInfo(){
+  const el=document.getElementById('info');
+  const parts=['全景 '+CW+'×'+CH];
+  if(mode==='road'){
+    parts.push('🛣 道路模式');
+    parts.push('路:'+roads.length+'条');
+    if(drawingStart)parts.push('画路中...');
+  }else{
+    parts.push('🚪 出入口模式');
+    parts.push('出入口:'+gates.length+'/3');
+  }
+  document.getElementById('info').textContent=parts.join(' | ');
+  document.getElementById('gateList').textContent=gates.map(g=>g.id).join(', ')||'暂无';
+}
+
+// ────────── GRAPH BUILDING ──────────
+const SNAP_THRESHOLD=20; // pixels: endpoints within this distance merge
+const T_THRESHOLD=25;    // pixels: endpoint near a segment = T-junction
+
+/** Check if two line segments intersect (proper intersection, includes endpoints). Returns {x,y} or null. */
+function segSegIntersect(x1,y1,x2,y2,x3,y3,x4,y4){
+  const d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);
+  if(Math.abs(d)<1e-8)return null; // parallel
+  const t=((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/d;
+  const u=-((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/d;
+  if(t>=-1e-6&&t<=1+1e-6&&u>=-1e-6&&u<=1+1e-6){
+    return {x:x1+t*(x2-x1),y:y1+t*(y2-y1)};
+  }
+  return null;
+}
+
+/** Distance from point to point */
+function ptDist(x1,y1,x2,y2){return Math.hypot(x2-x1,y2-y1);}
+
+/** Distance from point to line segment */
+function ptToSegDist(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1;
+  const lenSq=dx*dx+dy*dy;
+  if(lenSq===0)return Math.hypot(px-x1,py-y1);
+  let t=((px-x1)*dx+(py-y1)*dy)/lenSq;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
+
+/** Closest point on segment to a given point */
+function closestOnSeg(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1;
+  const lenSq=dx*dx+dy*dy;
+  if(lenSq===0)return{x:x1,y:y1};
+  let t=((px-x1)*dx+(py-y1)*dy)/lenSq;
+  t=Math.max(0,Math.min(1,t));
+  return {x:x1+t*dx,y:y1+t*dy};
+}
+
+/** Build the road network graph from current roads */
+function buildGraph(){
+  if(roads.length===0){graphData=null;return;}
+
+  // Collect all segments
+  const allSegs=[];
+  roads.forEach((road,ri)=>{
+    road.segments.forEach((seg,si)=>{
+      allSegs.push({ri,si,x1:seg.x1,y1:seg.y1,x2:seg.x2,y2:seg.y2});
+    });
+  });
+
+  const rawNodes=[]; // {x,y,type:'intersection'|'endpoint'}
+  const nodeKey=(x,y)=>`${Math.round(x)},${Math.round(y)}`;
+  const nodeMap={};
+
+  function addNode(x,y,type){
+    const k=nodeKey(x,y);
+    if(nodeMap[k]!==undefined){
+      // Upgrade leaf/junction to intersection if it already exists
+      const existing=rawNodes[nodeMap[k]];
+      if(existing.type!=='intersection'&&type==='intersection')existing.type='intersection';
+      return nodeMap[k];
+    }
+    const idx=rawNodes.length;
+    rawNodes.push({x,y,type});
+    nodeMap[k]=idx;
+    return idx;
+  }
+
+  // Phase 1: segment-segment intersections
+  for(let i=0;i<allSegs.length;i++){
+    for(let j=i+1;j<allSegs.length;j++){
+      const a=allSegs[i], b=allSegs[j];
+      // Skip same road's adjacent segments sharing an endpoint (they naturally connect)
+      if(a.ri===b.ri&&Math.abs(a.si-b.si)<=1)continue;
+
+      // Check proper intersection
+      const isect=segSegIntersect(a.x1,a.y1,a.x2,a.y2,b.x1,b.y1,b.x2,b.y2);
+      if(isect)addNode(isect.x,isect.y,'intersection');
+    }
+  }
+
+  // Phase 2: endpoint-to-endpoint snapping (roads connecting at endpoints)
+  const endpoints=[]; // [{x,y,ri,si,which}]
+  allSegs.forEach(s=>{
+    endpoints.push({x:s.x1,y:s.y1,ri:s.ri,si:s.si,which:'1'});
+    endpoints.push({x:s.x2,y:s.y2,ri:s.ri,si:s.si,which:'2'});
+  });
+
+  for(let i=0;i<endpoints.length;i++){
+    for(let j=i+1;j<endpoints.length;j++){
+      const a=endpoints[i], b=endpoints[j];
+      if(a.ri===b.ri&&a.si===b.si)continue; // same segment endpoints
+      if(ptDist(a.x,a.y,b.x,b.y)<SNAP_THRESHOLD){
+        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        addNode(mx,my,'endpoint');
+      }
+    }
+  }
+
+  // Phase 3: T-junctions (endpoint close to another segment's interior)
+  endpoints.forEach(ep=>{
+    allSegs.forEach(seg=>{
+      // Skip if endpoint belongs to this segment
+      if(ep.ri===seg.ri&&ep.si===seg.si)return;
+      // Skip if this segment already shares this endpoint (handled in phase 2)
+      if(ptDist(ep.x,ep.y,seg.x1,seg.y1)<SNAP_THRESHOLD)return;
+      if(ptDist(ep.x,ep.y,seg.x2,seg.y2)<SNAP_THRESHOLD)return;
+
+      const d=ptToSegDist(ep.x,ep.y,seg.x1,seg.y1,seg.x2,seg.y2);
+      if(d<T_THRESHOLD){
+        const cp=closestOnSeg(ep.x,ep.y,seg.x1,seg.y1,seg.x2,seg.y2);
+        addNode(cp.x,cp.y,'intersection');
+      }
+    });
+  });
+
+  // Phase 4: collect leaf nodes (endpoints not near any node)
+  const finalNodes=rawNodes.map((n,i)=>({id:i,x:n.x,y:n.y,type:n.type}));
+
+  // Mark endpoints that are NOT near any node as leaf nodes
+  endpoints.forEach(ep=>{
+    let nearNode=false;
+    finalNodes.forEach(n=>{
+      if(ptDist(ep.x,ep.y,n.x,n.y)<SNAP_THRESHOLD)nearNode=true;
+    });
+    if(!nearNode){
+      const idx=finalNodes.length;
+      finalNodes.push({id:idx,x:ep.x,y:ep.y,type:'leaf'});
+    }
+  });
+
+  // Phase 5: build edges — for each segment, find which nodes lie on it, create edges between adjacent nodes
+  const edges=[];
+  allSegs.forEach(seg=>{
+    // Find all nodes on this segment
+    const nodesOnSeg=[];
+    finalNodes.forEach(n=>{
+      const d=ptToSegDist(n.x,n.y,seg.x1,seg.y1,seg.x2,seg.y2);
+      if(d<SNAP_THRESHOLD)nodesOnSeg.push(n);
+    });
+    // Include segment endpoints if not already represented by a node
+    [{x:seg.x1,y:seg.y1},{x:seg.x2,y:seg.y2}].forEach(ep=>{
+      const exists=nodesOnSeg.find(n=>ptDist(n.x,n.y,ep.x,ep.y)<SNAP_THRESHOLD);
+      if(!exists){
+        const idx=finalNodes.length;
+        finalNodes.push({id:idx,x:ep.x,y:ep.y,type:'leaf'});
+        nodesOnSeg.push(finalNodes[idx]);
+      }
+    });
+    // Sort nodes along segment direction
+    const dx=seg.x2-seg.x1, dy=seg.y2-seg.y1;
+    nodesOnSeg.sort((a,b)=>{
+      const projA=(a.x-seg.x1)*dx+(a.y-seg.y1)*dy;
+      const projB=(b.x-seg.x1)*dx+(b.y-seg.y1)*dy;
+      return projA-projB;
+    });
+    // Create edges between consecutive nodes
+    for(let i=0;i<nodesOnSeg.length-1;i++){
+      const a=nodesOnSeg[i], b=nodesOnSeg[i+1];
+      const len=ptDist(a.x,a.y,b.x,b.y);
+      if(len>1){ // ignore degenerate edges
+        edges.push({from:a.id,to:b.id,roadIdx:seg.ri,segIdx:seg.si,length:Math.round(len)});
+      }
+    }
+  });
+
+  // Deduplicate nodes that are very close (re-snap)
+  const dedupedNodes=[];
+  const mergeMap={};
+  finalNodes.forEach(n=>{
+    let found=-1;
+    for(let i=0;i<dedupedNodes.length;i++){
+      if(ptDist(n.x,n.y,dedupedNodes[i].x,dedupedNodes[i].y)<SNAP_THRESHOLD/2){
+        found=i;break;
+      }
+    }
+    if(found>=0){
+      mergeMap[n.id]=dedupedNodes[found].id;
+      // Upgrade type if needed
+      if(n.type==='intersection')dedupedNodes[found].type='intersection';
+      else if(n.type==='endpoint'&&dedupedNodes[found].type==='leaf')dedupedNodes[found].type='endpoint';
+    }else{
+      const newId=dedupedNodes.length;
+      mergeMap[n.id]=newId;
+      dedupedNodes.push({id:newId,x:n.x,y:n.y,type:n.type});
+    }
+  });
+
+  // Remap edge node IDs
+  const dedupedEdges=edges.map(e=>({
+    from:mergeMap[e.from],to:mergeMap[e.to],
+    roadIdx:e.roadIdx,segIdx:e.segIdx,length:e.length
+  }));
+
+  // Remove duplicate edges
+  const edgeSet=new Set();
+  const uniqueEdges=dedupedEdges.filter(e=>{
+    const key=`${Math.min(e.from,e.to)}-${Math.max(e.from,e.to)}`;
+    if(edgeSet.has(key))return false;
+    edgeSet.add(key);return true;
+  });
+
+  graphData={nodes:dedupedNodes,edges:uniqueEdges};
+  saveGraph();
+  console.log(`Graph: ${dedupedNodes.length} nodes, ${uniqueEdges.length} edges`);
+}
+
+function toggleGraph(){
+  if(!graphData)buildGraph();
+  else graphData=null; // rebuild on next toggle
+  showGraph=!showGraph;
+  graphData=null;buildGraph(); // rebuild fresh
+  const btn=document.getElementById('btnGraph');
+  const stats=document.getElementById('graphStats');
+  const btnPath=document.getElementById('btnPath');
+  const btnCov=document.getElementById('btnCoverage');
+  const btnBld=document.getElementById('btnBldRoutes');
+  if(showGraph){
+    btn.textContent='🧩 隐藏图';
+    btn.classList.add('active');
+    stats.style.display='inline';
+    stats.textContent=`节点${graphData.nodes.length} 边${graphData.edges.length}`;
+    btnPath.style.display='inline-block';
+    btnCov.style.display='inline-block';
+    btnBld.style.display='inline-block';
+  }else{
+    btn.textContent='🧩 建图';
+    btn.classList.remove('active');
+    stats.style.display='none';
+    btnPath.style.display='none';
+    btnCov.style.display='none';
+    btnBld.style.display='none';
+    // Exit path mode if graph hidden
+    if(pathMode){pathMode=false;pathStart=null;pathEnd=null;clearPath();
+      document.getElementById('pathHint').style.display='none';
+      document.getElementById('btnPath').textContent='🔍 路径测试';
+      document.getElementById('btnPath').classList.remove('active');}
+  }
+  renderGraph();
+}
+
+function renderGraph(){
+  // Remove old graph elements
+  graphEls.forEach(el=>el.remove());graphEls=[];
+  if(!showGraph||!graphData)return;
+
+  // Render edges
+  graphData.edges.forEach(e=>{
+    const a=graphData.nodes[e.from], b=graphData.nodes[e.to];
+    if(!a||!b)return;
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.classList.add('graph-edge');
+    svg.style.left=(Math.min(a.x,b.x)-4)+'px';
+    svg.style.top=(Math.min(a.y,b.y)-4)+'px';
+    const w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+    svg.style.width=Math.max(4,w)+'px';
+    svg.style.height=Math.max(4,h)+'px';
+    svg.style.overflow='visible';
+    const ox=Math.min(a.x,b.x), oy=Math.min(a.y,b.y);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x-ox);line.setAttribute('y1',a.y-oy);
+    line.setAttribute('x2',b.x-ox);line.setAttribute('y2',b.y-oy);
+    line.setAttribute('stroke','#00d2ff');
+    line.setAttribute('stroke-width','2');
+    line.setAttribute('stroke-dasharray','6,4');
+    line.setAttribute('opacity','0.6');
+    svg.appendChild(line);
+    // Edge length label
+    const mx=(a.x+b.x)/2-ox, my=(a.y+b.y)/2-oy;
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',mx);txt.setAttribute('y',my-4);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('fill','#00d2ff');
+    txt.setAttribute('font-size','10');
+    txt.setAttribute('font-weight','bold');
+    txt.textContent=e.length+'px';
+    svg.appendChild(txt);
+    document.getElementById('canvas').appendChild(svg);
+    graphEls.push(svg);
+  });
+
+  // Render nodes
+  graphData.nodes.forEach(n=>{
+    const el=document.createElement('div');
+    let cls='graph-node '+n.type;
+    if(pathMode)cls+=' clickable';
+    if(n.id===pathStart)cls+=' path-start';
+    if(n.id===pathEnd)cls+=' path-end';
+    el.className=cls;
+    el.style.left=n.x+'px';el.style.top=n.y+'px';
+    el.dataset.nodeId=n.id;
+    // Label
+    const lbl=document.createElement('span');
+    lbl.style.cssText='position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:#00d2ff;white-space:nowrap;font-weight:bold;text-shadow:0 0 4px rgba(0,0,0,.8)';
+    lbl.textContent=n.id;
+    el.appendChild(lbl);
+    document.getElementById('canvas').appendChild(el);
+    graphEls.push(el);
+  });
+  // Re-render path highlight after re-render
+  if(pathStart!==null&&pathEnd!==null)renderPath(pathStart,pathEnd);
+}
+
+// ────────── DIJKSTRA PATHFINDING ──────────
+
+/** Build adjacency list from graphData edges */
+function buildAdjList(){
+  const adj={};
+  graphData.nodes.forEach(n=>{adj[n.id]=[];});
+  graphData.edges.forEach(e=>{
+    adj[e.from].push({to:e.to,weight:e.length});
+    adj[e.to].push({to:e.from,weight:e.length}); // undirected
+  });
+  return adj;
+}
+
+/** Dijkstra's algorithm: returns {dist,prev} maps or null if unreachable */
+function dijkstra(startId){
+  const adj=buildAdjList();
+  const dist={}, prev={};
+  graphData.nodes.forEach(n=>{dist[n.id]=Infinity;prev[n.id]=null;});
+  dist[startId]=0;
+  
+  const pq=[[0,startId]]; // [dist, nodeId]
+  const visited=new Set();
+  
+  while(pq.length>0){
+    // Extract min (simple insertion-sort style PQ for small graphs)
+    let minIdx=0;
+    for(let i=1;i<pq.length;i++){if(pq[i][0]<pq[minIdx][0])minIdx=i;}
+    const[d, u]=pq.splice(minIdx,1)[0];
+    if(visited.has(u))continue;
+    visited.add(u);
+    
+    if(!adj[u])continue;
+    for(const{to,weight} of adj[u]){
+      const nd=d+weight;
+      if(nd<dist[to]){
+        dist[to]=nd;
+        prev[to]=u;
+        pq.push([nd,to]);
+      }
+    }
+  }
+  return {dist,prev};
+}
+
+/** Find shortest path from start to end. Returns array of node IDs or null. */
+function shortestPath(startId,endId){
+  const{prev,dist}=dijkstra(startId);
+  if(dist[endId]===Infinity)return null;
+  const path=[];
+  let cur=endId;
+  while(cur!==null){
+    path.unshift(cur);
+    cur=prev[cur];
+  }
+  return path;
+}
+
+/** Clear path highlight */
+function clearPath(){
+  pathEls.forEach(el=>el.remove());pathEls=[];
+}
+
+/** Render shortest path between two nodes */
+function renderPath(startId,endId){
+  clearPath();
+  if(!graphData)return;
+  const path=shortestPath(startId,endId);
+  if(!path||path.length<2){clearPath();return;}
+  
+  // Highlight nodes along path
+  graphEls.forEach(el=>{
+    const nid=parseInt(el.dataset.nodeId);
+    if(path.includes(nid)){
+      el.style.background='#00e676';
+      el.style.boxShadow='0 0 12px rgba(0,230,118,.8)';
+      el.style.zIndex='11';
+    }
+  });
+  
+  // Draw path line segments
+  for(let i=0;i<path.length-1;i++){
+    const a=graphData.nodes[path[i]], b=graphData.nodes[path[i+1]];
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.classList.add('path-highlight');
+    const minX=Math.min(a.x,b.x)-4, minY=Math.min(a.y,b.y)-4;
+    svg.style.left=minX+'px';svg.style.top=minY+'px';
+    svg.style.width=Math.max(4,Math.abs(b.x-a.x))+'px';
+    svg.style.height=Math.max(4,Math.abs(b.y-a.y))+'px';
+    svg.style.overflow='visible';
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x-minX);line.setAttribute('y1',a.y-minY);
+    line.setAttribute('x2',b.x-minX);line.setAttribute('y2',b.y-minY);
+    line.setAttribute('stroke','#00e676');
+    line.setAttribute('stroke-width','6');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('opacity','0.9');
+    svg.appendChild(line);
+    document.getElementById('canvas').appendChild(svg);
+    pathEls.push(svg);
+  }
+  
+  // Total distance
+  let total=0;
+  for(let i=0;i<path.length-1;i++){
+    const a=graphData.nodes[path[i]], b=graphData.nodes[path[i+1]];
+    total+=ptDist(a.x,a.y,b.x,b.y);
+  }
+  document.getElementById('pathHint').textContent=
+    `路径: ${pathStart}→${pathEnd} 经过${path.length}节点 总长${Math.round(total)}px`;
+}
+
+/** Toggle path testing mode */
+function togglePathMode(){
+  if(!showGraph){
+    alert('请先点击「🧩 建图」');return;
+  }
+  pathMode=!pathMode;
+  pathStart=null;pathEnd=null;clearPath();
+  const btn=document.getElementById('btnPath');
+  const hint=document.getElementById('pathHint');
+  if(pathMode){
+    btn.textContent='✖ 退出测试';
+    btn.classList.add('active');
+    hint.style.display='inline';
+    hint.textContent='点击节点选起点→终点';
+  }else{
+    btn.textContent='🔍 路径测试';
+    btn.classList.remove('active');
+    hint.style.display='none';
+  }
+  renderGraph();
+}
+
+/** Handle graph node click in path mode */
+function onGraphNodeClick(nodeId){
+  if(!pathMode)return;
+  if(pathStart===null){
+    pathStart=nodeId;pathEnd=null;
+    clearPath();
+    document.getElementById('pathHint').textContent=`起点:${nodeId} → 点击终点`;
+  }else{
+    pathEnd=nodeId;
+    renderPath(pathStart,pathEnd);
+  }
+  renderGraph();
+}
+
+// ────────── COVERAGE CHECK ──────────
+
+/** Find nearest road segment to a point, return distance or Infinity if no roads */
+function spotToRoadDist(sx,sy){
+  let minD=Infinity;
+  for(const road of roads){
+    for(const seg of road.segments){
+      const d=ptToSegDist(sx,sy,seg.x1,seg.y1,seg.x2,seg.y2);
+      if(d<minD)minD=d;
+    }
+  }
+  return minD;
+}
+
+/** Check which spots are unreachable from any entrance */
+function checkCoverage(){
+  if(roads.length===0){alert('请先画路！');return;}
+  if(!graphData)buildGraph();
+  if(!graphData){alert('请先建图！');return;}
+  
+  // Find entrance nodes: gates go through entrance roads
+  // For now, just check if each spot has a nearby road segment
+  // More sophisticated: check if spot can reach any gate node via the graph
+  
+  // Simple approach: find which road segments are connected to entrances
+  // For now: spots more than 200px from any road segment = unreachable
+  
+  // Better: find the nearest road to each entrance, get those nodes
+  // Then check reachability from those nodes to every road segment
+  
+  clearUnreachable();
+  unreachableSpots=[];
+  
+  // Step 1: find entrance gate positions
+  const gatePositions=gates.map(g=>({x:g.x+g.w/2,y:g.y+g.h/2,id:g.id}));
+  
+  // Step 2: for each entrance, find the nearest road node
+  const entryNodes=[];
+  gatePositions.forEach(g=>{
+    let minD=Infinity, bestNode=null;
+    graphData.nodes.forEach(n=>{
+      const d=ptDist(g.x,g.y,n.x,n.y);
+      if(d<minD){minD=d;bestNode=n.id;}
+    });
+    if(bestNode!==null&&minD<500)entryNodes.push(bestNode);
+  });
+  
+  // Step 3: compute reachable nodes from all entry nodes
+  const reachableNodes=new Set();
+  entryNodes.forEach(en=>{
+    const{dist}=dijkstra(en);
+    graphData.nodes.forEach(n=>{
+      if(dist[n.id]!==Infinity)reachableNodes.add(n.id);
+    });
+  });
+  
+  // Step 4: for each road segment, check if it has any reachable node on it
+  // Mark spots as reachable if they're near a reachable road segment
+  const reachableSegs=new Set();
+  roads.forEach((road,ri)=>{
+    road.segments.forEach((seg,si)=>{
+      // Check if either endpoint node is reachable
+      const R=40; // tolerance for node-on-segment
+      let connected=false;
+      graphData.nodes.forEach(n=>{
+        if(!reachableNodes.has(n.id))return;
+        const d=ptToSegDist(n.x,n.y,seg.x1,seg.y1,seg.x2,seg.y2);
+        if(d<R)connected=true;
+      });
+      if(connected)reachableSegs.add(`${ri}_${si}`);
+    });
+  });
+  
+  // Step 5: check each spot
+  let unreachable=0, total=spots.length;
+  spots.forEach((s,i)=>{
+    let minD=Infinity, closestSeg=null;
+    roads.forEach((road,ri)=>{
+      road.segments.forEach((seg,si)=>{
+        const d=ptToSegDist(s.stitched_x,s.stitched_y,seg.x1,seg.y1,seg.x2,seg.y2);
+        if(d<minD){minD=d;closestSeg=`${ri}_${si}`;}
+      });
+    });
+    if(!reachableSegs.has(closestSeg)||minD>300){
+      unreachable++;
+      unreachableSpots.push(i);
+    }
+  });
+  
+  // Step 6: render unreachable spots in red
+  unreachableSpots.forEach(i=>{
+    const el=document.querySelectorAll('.spot')[i];
+    if(el)el.classList.add('unreachable');
+  });
+  
+  // Show panel
+  const panel=document.getElementById('covPanel');
+  const result=document.getElementById('covResult');
+  panel.style.display='block';
+  if(unreachable===0){
+    result.innerHTML='<span class="ok">✅ 全部通过！所有 '+total+' 个车位均可从入口到达。</span>';
+  }else{
+    result.innerHTML=
+      `<span class="warn">❌ ${unreachable}/${total} 个车位无法到达</span><br>
+      图中红底标出，请检查是否漏画路或存在断头路。<br>
+      入口节点: [${entryNodes.join(',')}]`;
+  }
+}
+
+function closeCoverage(){
+  document.getElementById('covPanel').style.display='none';
+}
+function clearUnreachable(){
+  unreachableSpots.forEach(i=>{
+    const el=document.querySelectorAll('.spot')[i];
+    if(el)el.classList.remove('unreachable');
+  });
+  unreachableSpots=[];
+}
+
+// ────────── BUILDING ROUTES ──────────
+
+let bldRouteData=null; // {gateName, startNode, results:[{id,node,path,dist}], visibleEls:Map}
+
+function showBuildingRoutes(gateName){
+  if(!graphData){alert('请先建图！');return;}
+  
+  // Step 1: find the gate
+  const gate=gates.find(g=>g.id===gateName);
+  if(!gate){alert(`未找到「${gateName}」`);return;}
+  
+  // Step 2: find nearest road node to gate center
+  const gx=gate.x+gate.w/2, gy=gate.y+gate.h/2;
+  let startNode=null, startDist=Infinity;
+  graphData.nodes.forEach(n=>{
+    const d=ptDist(gx,gy,n.x,n.y);
+    if(d<startDist){startDist=d;startNode=n.id;}
+  });
+  if(startNode===null){alert('未找到通往入口的道路节点');return;}
+  
+  // Step 3: run Dijkstra from gate node
+  const{dist,prev}=dijkstra(startNode);
+  
+  // Step 4: for each building, find nearest reachable node
+  clearPath();
+  const results=[];
+  
+  buildings.forEach((b,bi)=>{
+    const bx=b.x+b.w/2, by=b.y+b.h/2;
+    let bestNode=null, bestD=Infinity;
+    graphData.nodes.forEach(n=>{
+      if(dist[n.id]===Infinity)return;
+      const d=ptDist(bx,by,n.x,n.y);
+      if(d<bestD){bestD=d;bestNode=n.id;}
+    });
+    if(bestNode===null){results.push({id:b.id,node:null,path:null,dist:Infinity});return;}
+    
+    const path=[];
+    let cur=bestNode;
+    while(cur!==null){path.unshift(cur);cur=prev[cur];}
+    results.push({id:b.id,node:bestNode,path,dist:dist[bestNode]});
+  });
+  
+  bldRouteData={gateName,startNode,results,visibleEls:new Map()};
+  
+  // Show panel with radio buttons
+  const panel=document.getElementById('covPanel');
+  const result=document.getElementById('covResult');
+  panel.style.display='block';
+  let html=`<span class="ok">🗺️ ${gateName} → 楼栋路线</span> <button onclick="bldClear()">✕ 清除</button><br><br>`;
+  
+  const cols=4; const rows=Math.ceil(buildings.length/cols);
+  html+='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px 8px;font-size:12px;max-height:300px;overflow-y:auto">';
+  results.forEach((r,bi)=>{
+    const reachable=r.path!==null;
+    html+=`<label style="cursor:pointer;white-space:nowrap"><input type="radio" name="bldRoute" onchange="selectBldRoute(${bi})" ${reachable?'':'disabled'}> `;
+    html+=reachable?`${r.id} <span style="color:#888;font-size:10px">${Math.round(r.dist)}px</span>`:`<span style="color:#e17055">${r.id} ✗</span>`;
+    html+=`</label>`;
+  });
+  html+='</div>';
+  result.innerHTML=html;
+}
+
+function bldClear(){
+  if(!bldRouteData)return;
+  // Hide all visible paths
+  bldRouteData.visibleEls.forEach((els,bi)=>{els.forEach(el=>el.remove());});
+  bldRouteData.visibleEls.clear();
+  // Clear all radios
+  const inputs=document.querySelectorAll('#covResult input[name=bldRoute]');
+  inputs.forEach(r=>r.checked=false);
+}
+
+function selectBldRoute(bi){
+  if(!bldRouteData)return;
+  // Hide all current paths
+  bldRouteData.visibleEls.forEach((els,bi)=>{els.forEach(el=>el.remove());});
+  bldRouteData.visibleEls.clear();
+  // Show selected
+  toggleBldRoute(bi,true);
+}
+
+function toggleBldRoute(bi,show){
+  if(!bldRouteData)return;
+  const r=bldRouteData.results[bi];
+  if(!r||!r.path)return;
+  
+  const existing=bldRouteData.visibleEls.get(bi);
+  if(existing){
+    existing.forEach(el=>el.remove());
+    bldRouteData.visibleEls.delete(bi);
+  }
+  
+  if(!show)return;
+  
+  const b=buildings[bi];
+  const els=[];
+  // Draw path
+  for(let i=0;i<r.path.length-1;i++){
+    const a=graphData.nodes[r.path[i]], b2=graphData.nodes[r.path[i+1]];
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.classList.add('path-highlight');
+    const minX=Math.min(a.x,b2.x)-4, minY=Math.min(a.y,b2.y)-4;
+    svg.style.left=minX+'px';svg.style.top=minY+'px';
+    svg.style.width=(Math.abs(b2.x-a.x)+8)+'px';
+    svg.style.height=(Math.abs(b2.y-a.y)+8)+'px';
+    svg.style.overflow='visible';
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x-minX);line.setAttribute('y1',a.y-minY);
+    line.setAttribute('x2',b2.x-minX);line.setAttribute('y2',b2.y-minY);
+    line.setAttribute('stroke','#00e676');
+    line.setAttribute('stroke-width','4');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('opacity','0.7');
+    svg.appendChild(line);
+    document.getElementById('canvas').appendChild(svg);
+    els.push(svg);
+  }
+  // Building label
+  const lbl=document.createElement('div');
+  lbl.style.cssText=`position:absolute;left:${b.x+b.w/2}px;top:${b.y-22}px;transform:translateX(-50%);font-size:12px;color:#00e676;font-weight:bold;z-index:20;text-shadow:0 0 6px rgba(0,0,0,.9);white-space:nowrap;pointer-events:none`;
+  lbl.textContent=`${r.id} | ${Math.round(r.dist)}px`;
+  document.getElementById('canvas').appendChild(lbl);
+  els.push(lbl);
+  
+  bldRouteData.visibleEls.set(bi,els);
+}
+
+// Mouse events
+const vp=document.getElementById('vp');
+
+vp.addEventListener('mousedown',e=>{
+  const pt=viewportToCanvas(e.clientX,e.clientY);
+  
+  // Path mode: check graph node click first
+  if(pathMode&&showGraph){
+    const nodeEl=e.target.closest('.graph-node.clickable');
+    if(nodeEl){
+      const nid=parseInt(nodeEl.dataset.nodeId);
+      if(!isNaN(nid)){onGraphNodeClick(nid);e.preventDefault();e.stopPropagation();return;}
+    }
+  }
+  
+  if(mode==='road'){
+    // Check if clicking on a waypoint of the selected road
+    const wpEl=e.target.closest('.waypoint');
+    if(wpEl&&selectedRoad!==null){
+      const ri=parseInt(wpEl.dataset.roadIdx);
+      if(ri===selectedRoad){
+        const ox=parseFloat(wpEl.dataset.x), oy=parseFloat(wpEl.dataset.y);
+        const endpoints=[];
+        roads[ri].segments.forEach((seg,si)=>{
+          if(Math.abs(seg.x1-ox)<1&&Math.abs(seg.y1-oy)<1) endpoints.push({segIdx:si,which:'1'});
+          if(Math.abs(seg.x2-ox)<1&&Math.abs(seg.y2-oy)<1) endpoints.push({segIdx:si,which:'2'});
+        });
+        dragMode='road-waypoint';
+        waypointDrag={roadIdx:ri, origX:ox, origY:oy, endpoints};
+        dragStart=pt;
+        e.preventDefault();e.stopPropagation();
+        return;
+      }
+    }
+    
+    // Check click distance to existing road segments
+    const hitDist=25/zoom;
+    let foundRoad=-1, minDist=Infinity;
+    for(let ri=0;ri<roads.length;ri++){
+      for(const seg of roads[ri].segments){
+        const d=pointToSegDist(pt.x,pt.y,seg.x1,seg.y1,seg.x2,seg.y2);
+        if(d<hitDist&&d<minDist){foundRoad=ri;minDist=d;}
+      }
+    }
+    
+    if(foundRoad>=0){
+      // Click on road → start moving the entire road
+      selectedRoad=foundRoad;
+      drawingStart=null;removePreview();
+      dragMode='road-move';
+      dragStart=pt;
+      roadMove={roadIdx:foundRoad, origSegs:roads[foundRoad].segments.map(s=>({x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2}))};
+      renderRoads();
+      updateInfo();
+      e.preventDefault();e.stopPropagation();
+      return;
+    }
+    
+    // Drawing new road: first click starts, second click ends (only if drawing enabled)
+    if(!drawingEnabled){selectedRoad=null;renderRoads();updateInfo();return;}
+    if(drawingStart){
+      // Second click → finalize road
+      const dx=Math.abs(pt.x-drawingStart.x), dy=Math.abs(pt.y-drawingStart.y);
+      if(dx<dy) pt.x=drawingStart.x; else pt.y=drawingStart.y;
+      // Only finalize if non-zero length
+      if(Math.abs(pt.x-drawingStart.x)>1||Math.abs(pt.y-drawingStart.y)>1){
+        roads.push({segments:[{x1:drawingStart.x,y1:drawingStart.y,x2:pt.x,y2:pt.y}]});
+        saveRoads();
+        renderRoads();
+      }
+      drawingStart=null;removePreview();updateInfo();
+      return;
+    }
+    // First click → set start point
+    drawingStart={x:pt.x,y:pt.y};
+    selectedRoad=null;
+    renderRoads();
+    updateInfo();
+    return;
+  }
+  
+  // Gate mode
+  const handleEl=e.target.closest('.handle');
+  if(handleEl){
+    const bldEl=handleEl.closest('.gate-rect');
+    const id=bldEl.dataset.id;
+    selectGate(id);
+    dragMode='gate-resize';
+    resizeHandle=handleEl.dataset.handle;
+    const g=gates.find(g=>g.id===id);
+    dragStart=pt;
+    dragStartRect={x:g.x,y:g.y,w:g.w,h:g.h};
+    e.preventDefault();e.stopPropagation();
+    return;
+  }
+  
+  const gateEl=e.target.closest('.gate-rect');
+  if(gateEl){
+    const id=gateEl.dataset.id;
+    selectGate((selectedGate===id)?null:id);
+    dragMode='gate-move';
+    const g=gates.find(g=>g.id===id);
+    dragStart=pt;
+    dragStartRect={x:g.x,y:g.y};
+    e.preventDefault();e.stopPropagation();
+    return;
+  }
+  
+  // Create new gate
+  selectGate(null);
+  const used=gates.map(g=>g.id);
+  const avail=GATE_PRESETS.filter(p=>!used.includes(p.id));
+  if(avail.length===0){alert('所有出入口已标记！');return;}
+  dragMode='gate-create';
+  dragStart=pt;
+  newBoxEl=document.createElement('div');
+  newBoxEl.style.cssText='position:absolute;border:1px dashed #ffd700;background:rgba(255,215,0,.08);z-index:50;pointer-events:none';
+  newBoxEl.style.left=pt.x+'px';
+  newBoxEl.style.top=pt.y+'px';
+  newBoxEl.style.width='0px';
+  newBoxEl.style.height='0px';
+  document.getElementById('canvas').appendChild(newBoxEl);
+});
+
+window.addEventListener('mousemove',e=>{
+  const cur=viewportToCanvas(e.clientX,e.clientY);
+  lastMouse=cur;
+  
+  // Drawing preview: line from start point to cursor
+  if(!dragMode&&drawingStart){
+    removePreview();
+    let endX=cur.x, endY=cur.y;
+    const dx=Math.abs(endX-drawingStart.x), dy=Math.abs(endY-drawingStart.y);
+    if(dx<dy) endX=drawingStart.x; else endY=drawingStart.y;
+    drawPreview([{x:drawingStart.x,y:drawingStart.y},{x:endX,y:endY}]);
+  }
+  
+  if(!dragMode)return;
+  
+  if(dragMode==='road-waypoint'&&waypointDrag){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    // Lock to horizontal or vertical based on dominant drag direction
+    let nx=waypointDrag.origX+dx, ny=waypointDrag.origY+dy;
+    if(Math.abs(dx)>Math.abs(dy)) ny=waypointDrag.origY; else nx=waypointDrag.origX;
+    const r=roads[waypointDrag.roadIdx];
+    waypointDrag.endpoints.forEach(({segIdx,which})=>{
+      if(which==='1'){ r.segments[segIdx].x1=nx; r.segments[segIdx].y1=ny; }
+      else{ r.segments[segIdx].x2=nx; r.segments[segIdx].y2=ny; }
+    });
+    renderRoads();
+    return;
+  }
+  
+  if(dragMode==='gate-create'&&newBoxEl){
+    const x1=Math.min(dragStart.x,cur.x),y1=Math.min(dragStart.y,cur.y);
+    const x2=Math.max(dragStart.x,cur.x),y2=Math.max(dragStart.y,cur.y);
+    newBoxEl.style.left=x1+'px';newBoxEl.style.top=y1+'px';
+    newBoxEl.style.width=(x2-x1)+'px';newBoxEl.style.height=(y2-y1)+'px';
+  }
+  
+  if(dragMode==='road-move'&&roadMove){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    const r=roads[roadMove.roadIdx];
+    roadMove.origSegs.forEach((orig,i)=>{
+      r.segments[i].x1=orig.x1+dx; r.segments[i].y1=orig.y1+dy;
+      r.segments[i].x2=orig.x2+dx; r.segments[i].y2=orig.y2+dy;
+    });
+    renderRoads();
+    return;
+  }
+  
+  if(dragMode==='gate-move'&&selectedGate){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    const g=gates.find(g=>g.id===selectedGate);
+    g.x=dragStartRect.x+dx;g.y=dragStartRect.y+dy;
+    updateGateElement(g);
+  }
+  
+  if(dragMode==='gate-resize'&&selectedGate){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    const g=gates.find(g=>g.id===selectedGate);
+    const r=dragStartRect;
+    if(resizeHandle.includes('e')){g.w=Math.max(20,r.w+dx);}
+    if(resizeHandle.includes('w')){g.x=r.x+dx;g.w=Math.max(20,r.w-dx);if(g.w===20)g.x=r.x+r.w-20;}
+    if(resizeHandle.includes('s')){g.h=Math.max(20,r.h+dy);}
+    if(resizeHandle.includes('n')){g.y=r.y+dy;g.h=Math.max(20,r.h-dy);if(g.h===20)g.y=r.y+r.h-20;}
+    updateGateElement(g);
+  }
+});
+
+window.addEventListener('mouseup',e=>{
+  if(dragMode==='gate-create'&&newBoxEl){
+    const cur=viewportToCanvas(e.clientX,e.clientY);
+    const x1=Math.min(dragStart.x,cur.x),y1=Math.min(dragStart.y,cur.y);
+    const x2=Math.max(dragStart.x,cur.x),y2=Math.max(dragStart.y,cur.y);
+    newBoxEl.remove();newBoxEl=null;
+    if(x2-x1<10||y2-y1<10){dragMode=null;return;}
+    const used=gates.map(g=>g.id);
+    const avail=GATE_PRESETS.filter(p=>!used.includes(p.id));
+    if(avail.length===0){dragMode=null;return;}
+    const preset=avail[0];
+    const g={id:preset.id,x:x1,y:y1,w:x2-x1,h:y2-y1};
+    gates.push(g);
+    createGateElement(g);
+    selectGate(g.id);
+    showHandles(g.id);
+    saveGates();
+    updateInfo();
+  }
+  if((dragMode==='gate-move'||dragMode==='gate-resize')&&selectedGate){
+    saveGates();
+  }
+  if(dragMode==='road-waypoint'){
+    saveRoads();
+    renderRoads();
+  }
+  if(dragMode==='road-move'){
+    saveRoads();
+    renderRoads();
+  }
+  dragMode=null;resizeHandle=null;waypointDrag=null;roadMove=null;
+});
+
+window.addEventListener('dblclick',e=>{e.preventDefault();}); // Block text selection only
+
+window.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&mode==='road'){
+    if(drawingStart){
+      // Enter → finalize at last mouse position, chain to new road
+      let ex=lastMouse.x, ey=lastMouse.y;
+      const dx0=Math.abs(ex-drawingStart.x), dy0=Math.abs(ey-drawingStart.y);
+      if(dx0<dy0) ex=drawingStart.x; else ey=drawingStart.y;
+      if(Math.abs(ex-drawingStart.x)>1||Math.abs(ey-drawingStart.y)>1){
+        roads.push({segments:[{x1:drawingStart.x,y1:drawingStart.y,x2:ex,y2:ey}]});
+        saveRoads();
+        drawingStart={x:ex,y:ey}; // chain: next road from here
+      } else {
+        drawingStart=null;
+      }
+      removePreview();renderRoads();updateInfo();
+    }
+    return;
+  }
+  if(e.key==='Delete'||e.key==='Backspace'){
+    if(mode==='road')deleteSelectedRoad();
+    else if(mode==='gate')deleteGate();
+  }
+  if(e.key==='Escape'){
+    if(mode==='road'){drawingStart=null;selectedRoad=null;removePreview();renderRoads();}
+    else selectGate(null);
+    updateInfo();
+  }
+});
+
+function exportData(){
+  // Auto-build graph if not already done
+  if(!graphData)buildGraph();
+  const out={
+    ...allData,
+    gates:gates.map(g=>({id:g.id,x:Math.round(g.x),y:Math.round(g.y),w:Math.round(g.w),h:Math.round(g.h)})),
+    roads:roads.map(r=>({segments:r.segments.map(s=>({x1:Math.round(s.x1),y1:Math.round(s.y1),x2:Math.round(s.x2),y2:Math.round(s.y2)})),direction:r.direction||'bidirectional'})),
+    total_gates:gates.length,
+    total_roads:roads.length,
+    road_graph:graphData?{
+      nodes:graphData.nodes.map(n=>({id:n.id,x:Math.round(n.x),y:Math.round(n.y),type:n.type})),
+      edges:graphData.edges
+    }:null
+  };
+  const json=JSON.stringify(out,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='parking_spots_buildings_gates_roads.json';
+  a.click();
+}
+
+async function init(){
+  document.getElementById('bgImg').src='../stitched_final.png';
+  
+  // Load all data
+  try{
+    const resp=await fetch('../parking_spots_and_buildings.json');
+    allData=await resp.json();
+    spots=allData.spots||[];
+    buildings=allData.buildings||[];
+  }catch(e){console.warn('No data loaded');}
+  
+  // Load saved gates & roads
+  loadGates();
+  loadRoads();
+  loadGraph();
+  
+  // Render spots
+  spots.forEach(s=>{
+    const rw=s.rect_w||25, rh=s.rect_h||54;
+    const isLand=s.landscape;
+    const sw=isLand?rh:rw, sh=isLand?rw:rh;
+    const el=document.createElement('div');
+    el.className='spot'+(isLand?' landscape':'');
+    el.style.left=(s.stitched_x/CW*100)+'%';
+    el.style.top=(s.stitched_y/CH*100)+'%';
+    el.style.width=(sw/CW*100)+'%';
+    el.style.height=(sh/CH*100)+'%';
+    el.style.backgroundColor=areaBg[s.area?.[0]]||'rgba(255,255,255,0.2)';
+    el.style.border='1px solid '+(areaColors[s.area?.[0]]||'#999');
+    document.getElementById('canvas').appendChild(el);
+  });
+  
+  // Render buildings
+  buildings.forEach(b=>{
+    const idx=parseInt(b.id)-2;
+    const color=bldColors[idx%bldColors.length];
+    const el=document.createElement('div');
+    el.className='building';
+    el.style.left=(b.x/CW*100)+'%';
+    el.style.top=(b.y/CH*100)+'%';
+    el.style.width=(b.w/CW*100)+'%';
+    el.style.height=(b.h/CH*100)+'%';
+    el.style.borderColor=color;
+    el.style.color=color;
+    el.style.background=color+'22';
+    el.textContent=b.id;
+    document.getElementById('canvas').appendChild(el);
+  });
+  
+  // Render gates
+  gates.forEach(g=>createGateElement(g));
+  
+  // Render roads
+  renderRoads();
+  
+  document.getElementById('stats').textContent=`车位 ${spots.length} | 楼栋 ${buildings.length} | 出入口 ${gates.length}/3 | 道路 ${roads.length}条`;
+  
+  vp.addEventListener('wheel',e=>{
+    if(e.ctrlKey||e.metaKey){e.preventDefault();if(e.deltaY<0)zoomIn();else zoomOut();}
+  },{passive:false});
+  
+  zoom=0.85;applyZoom();
+  updateInfo();
+}
+init();
+</script>
+</body>
+</html>

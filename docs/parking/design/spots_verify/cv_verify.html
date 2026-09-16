@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CV对齐验证 - A区</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui;background:#1a1a2e;color:#eee;overflow:hidden}
+.header{background:#16213e;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:12px}
+h1{font-size:15px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-left:auto;font-size:11px}
+label{display:flex;align-items:center;gap:3px;cursor:pointer}
+input[type=range]{width:50px}
+.viewport{position:relative;overflow:hidden;height:calc(100vh - 48px);cursor:grab}
+.viewport:active{cursor:grabbing}
+.canvas-wrap{position:absolute;transform-origin:0 0}
+.canvas-wrap img{display:block}
+.dot{position:absolute;width:6px;height:6px;border-radius:50%;transform:translate(-50%,-50%);z-index:3;pointer-events:none}
+.dot.old{background:#e94560}
+.dot.new{background:#00b894}
+.rect{position:absolute;border:1px solid #00b894;background:rgba(0,184,148,0.08);z-index:1;pointer-events:none}
+.line{position:absolute;height:1px;background:#ffd700;z-index:2;transform-origin:0 0;pointer-events:none}
+.info{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.85);padding:6px 12px;border-radius:6px;font-size:11px;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🔬 CV自动对齐验证 — A区</h1>
+<div class="toolbar">
+<label><input type="checkbox" id="showOld"> 旧位置(红)</label>
+<label><input type="checkbox" id="showNew" checked> 矩形框+编号</label>
+<label>缩放 <input type="range" id="zoom" min="10" max="300" value="40"> <span id="zoomVal">40%</span></label>
+<span id="stats" style="color:#00b894"></span>
+</div>
+</div>
+<div class="viewport" id="vp">
+<div class="canvas-wrap" id="canvas"></div>
+<div class="info" id="info">红=原始 | 绿=CV对齐 | 黄线=位移</div>
+</div>
+<script>
+// Load CV-aligned data and compare with original
+async function init(){
+  const [origResp, cvResp] = await Promise.all([
+    fetch('../parking_spots.json'),
+    fetch('../parking_spots_cv_aligned.json')
+  ]);
+  const orig = await origResp.json();
+  const cvBase = await cvResp.json();
+
+  // Merge localStorage adjustments (same as adjust.html)
+  let adjustments = {};
+  try {
+    const saved = localStorage.getItem('lanyuan_spot_adjustments');
+    if (saved) adjustments = JSON.parse(saved);
+  } catch(e) {}
+  
+  // Apply adjustments to cv data
+  const cv = cvBase.map(s => {
+    if (adjustments[s.id]) {
+      return { ...s, img_x: adjustments[s.id].img_x, img_y: adjustments[s.id].img_y,
+               landscape: adjustments[s.id].landscape || s.landscape };
+    }
+    return s;
+  });
+  
+  const canvas=document.getElementById('canvas');
+  const img=document.createElement('img');
+  img.src='A_bg_2566072e.png';
+  img.style.width='2670px';img.style.height='1339px';
+  img.draggable=false;
+  canvas.appendChild(img);
+  
+  const aOrig = orig.filter(s=>s.area[0]==='A');
+  const aCv = cv.filter(s=>s.area[0]==='A');
+  const mapCv = {}; aCv.forEach(s=>mapCv[s.id]=s);
+  
+  let totalD=0, count=0;
+  
+  aOrig.forEach(s=>{
+    const o = mapCv[s.id];
+    if(!o) return;
+    const dx=o.img_x-s.img_x, dy=o.img_y-s.img_y;
+    const d=Math.sqrt(dx*dx+dy*dy);
+    totalD+=d; count++;
+    
+    // Old position (red)
+    if(document.getElementById('showOld').checked){
+      const dot=document.createElement('div');
+      dot.className='dot old';
+      dot.style.left=s.img_x+'px';
+      dot.style.top=s.img_y+'px';
+      dot.title=s.id+' old';
+      canvas.appendChild(dot);
+    }
+    
+    // New position (green rect + label)
+    if(document.getElementById('showNew').checked){
+      let rw = o.rect_w || 30;
+      let rh = o.rect_h || 30;
+      // Swap if landscape
+      if (o.landscape) { const t = rw; rw = rh; rh = t; }
+      const rx = o.rect_x ?? (o.img_x - rw/2);
+      const ry = o.rect_y ?? (o.img_y - rh/2);
+      
+      const rect = document.createElement('div');
+      rect.className = 'rect';
+      rect.style.left = rx + 'px';
+      rect.style.top = ry + 'px';
+      rect.style.width = rw + 'px';
+      rect.style.height = rh + 'px';
+      canvas.appendChild(rect);
+      
+      // Label at center
+      const lbl = document.createElement('div');
+      lbl.style.cssText = `position:absolute;left:${o.img_x}px;top:${o.img_y}px;transform:translate(-50%,-50%);font-size:9px;color:#00b894;z-index:4;pointer-events:none;text-shadow:0 0 3px #000`;
+      lbl.textContent = s.id;
+      canvas.appendChild(lbl);
+    }
+    
+    // Line
+    if(d>1){
+      const line=document.createElement('div');
+      line.className='line';
+      line.style.left=s.img_x+'px';
+      line.style.top=s.img_y+'px';
+      line.style.width=d+'px';
+      const angle=Math.atan2(dy,dx)*180/Math.PI;
+      line.style.transform=`rotate(${angle}deg)`;
+      canvas.appendChild(line);
+    }
+  });
+  
+  document.getElementById('stats').textContent=
+    `${count}个 | 平均偏移 ${(totalD/count).toFixed(0)}px`;
+  document.getElementById('info').innerHTML=
+    `红=原始 | 绿=CV对齐 | 黄线=位移 | 平均 ${(totalD/count).toFixed(0)}px`;
+}
+
+function updateZoom(){
+  const z=document.getElementById('zoom').value;
+  document.getElementById('zoomVal').textContent=z+'%';
+  document.getElementById('canvas').style.transform=`scale(${z/100})`;
+}
+
+// Pan
+let px=0,py=0,panning=false,sx,sy;
+document.getElementById('vp').addEventListener('wheel',e=>{
+  e.preventDefault();
+  const s=document.getElementById('zoom');
+  s.value=Math.max(10,Math.min(300,parseInt(s.value)+(e.deltaY>0?-5:5)));
+  updateZoom();
+});
+document.getElementById('vp').addEventListener('mousedown',e=>{
+  panning=true;sx=e.clientX-px;sy=e.clientY-py;
+});
+window.addEventListener('mousemove',e=>{
+  if(!panning)return;
+  px=e.clientX-sx;py=e.clientY-sy;
+  document.getElementById('canvas').style.translate=`${px}px ${py}px`;
+});
+window.addEventListener('mouseup',()=>{panning=false});
+
+document.getElementById('zoom').oninput=updateZoom;
+document.getElementById('showOld').onchange=()=>location.reload();
+document.getElementById('showNew').onchange=()=>location.reload();
+updateZoom();
+init();
+</script>
+</body>
+</html>

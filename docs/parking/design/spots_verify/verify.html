@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>车位标注验证 - 东方兰园</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, system-ui, sans-serif; background: #1a1a2e; color: #eee; }
+.header { background: #16213e; padding: 12px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.header h1 { font-size: 18px; white-space:nowrap; }
+.tabs { display:flex; gap:4px; flex-wrap:wrap; }
+.tab { padding: 6px 16px; border: 1px solid #334; border-radius: 6px; cursor:pointer; font-size:13px; background:#1a1a2e; color:#aaa; }
+.tab.active { background:#e94560; color:#fff; border-color:#e94560; }
+.toolbar { display:flex; gap:10px; align-items:center; margin-left:auto; font-size:12px; }
+.toolbar label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+.toolbar input[type=range] { width:60px; }
+.viewport { position:relative; overflow:hidden; height:calc(100vh - 60px); cursor:grab; }
+.viewport:active { cursor:grabbing; }
+.canvas-wrap { position:absolute; transform-origin:0 0; }
+.canvas-wrap img { display:block; }
+.spot-marker { position:absolute; border:1px solid; font-size:6px; text-align:center; 
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+  pointer-events:none; line-height:1; }
+.spot-marker.show-label { font-size:9px; color:#000; }
+.info-bar { position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.8); 
+  padding:6px 12px; border-radius:6px; font-size:11px; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🅿️ 东方兰园车位标注验证</h1>
+  <div class="tabs" id="tabs"></div>
+  <div class="toolbar">
+    <label><input type="checkbox" id="showLabels" checked> 显示编号</label>
+    <label>缩放 <input type="range" id="zoom" min="10" max="200" value="40"> <span id="zoomVal">40%</span></label>
+    <span id="spotCount" style="color:#e94560"></span>
+  </div>
+</div>
+<div class="viewport" id="viewport">
+  <div class="canvas-wrap" id="canvas"></div>
+  <div class="info-bar" id="info">拖拽移动 | 滚轮缩放</div>
+</div>
+
+<script>
+// Parking data will be loaded from JSON
+let allSpots = [];
+let currentArea = 'A';
+
+// Color per area
+const colors = { 'A': '#e94560', 'B': '#0f3460', 'C': '#00b894', 'D': '#fdcb6e', 'F': '#6c5ce7' };
+
+// Background image mapping (area -> filename)
+const bgImages = {
+  'A': 'A_bg_2566072e.png',
+  'B': 'B_bg_829d9642.png',
+  'C': 'C_bg_5c1802ae.png',
+  'D': 'D_bg_1c1d521e.png',
+  'F': 'F_bg_a2613602.png',
+};
+
+async function init() {
+  const resp = await fetch('../parking_spots.json');
+  allSpots = await resp.json();
+  
+  const areas = [...new Set(allSpots.map(s => s.area[0]))];
+  
+  // Create tabs
+  const tabsEl = document.getElementById('tabs');
+  areas.forEach(a => {
+    const tab = document.createElement('div');
+    tab.className = 'tab';
+    tab.textContent = `${a}区 (${allSpots.filter(s=>s.area[0]===a).length})`;
+    tab.onclick = () => switchArea(a);
+    tabsEl.appendChild(tab);
+  });
+  
+  switchArea('A');
+  
+  // Controls
+  document.getElementById('showLabels').onchange = toggleLabels;
+  document.getElementById('zoom').oninput = updateZoom;
+  
+  // Pan & zoom
+  setupPanZoom();
+}
+
+function switchArea(area) {
+  currentArea = area;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.textContent.startsWith(area)) t.classList.add('active');
+  });
+  renderArea(area);
+}
+
+function renderArea(area) {
+  const spots = allSpots.filter(s => s.area[0] === area);
+  const bgFile = bgImages[area];
+  const bgInfo = spots[0]; // all spots in same area share bg dimensions
+  
+  const canvas = document.getElementById('canvas');
+  canvas.innerHTML = '';
+  
+  // Background image
+  const img = document.createElement('img');
+  img.src = bgFile;
+  img.style.width = bgInfo.bg_w + 'px';
+  img.style.height = bgInfo.bg_h + 'px';
+  canvas.appendChild(img);
+  
+  // Overlay spots
+  const showLabels = document.getElementById('showLabels').checked;
+  spots.forEach(s => {
+    const marker = document.createElement('div');
+    marker.className = 'spot-marker' + (showLabels ? ' show-label' : '');
+    marker.style.left = s.img_x + 'px';
+    marker.style.top = s.img_y + 'px';
+    marker.style.width = '28px';
+    marker.style.height = '14px';
+    marker.style.borderColor = colors[area];
+    marker.style.backgroundColor = colors[area] + '40';
+    marker.textContent = showLabels ? s.id : '';
+    marker.title = s.id;
+    canvas.appendChild(marker);
+  });
+  
+  document.getElementById('spotCount').textContent = `${area}区: ${spots.length} 个车位`;
+  
+  // Reset zoom
+  document.getElementById('zoom').value = 40;
+  document.getElementById('zoomVal').textContent = '40%';
+  canvas.style.transform = 'scale(0.4)';
+}
+
+function toggleLabels() {
+  const show = document.getElementById('showLabels').checked;
+  document.querySelectorAll('.spot-marker').forEach(m => {
+    m.classList.toggle('show-label', show);
+    m.textContent = show ? (m.title || '').slice(1) : '';
+  });
+}
+
+function updateZoom() {
+  const z = document.getElementById('zoom').value;
+  document.getElementById('zoomVal').textContent = z + '%';
+  document.getElementById('canvas').style.transform = `scale(${z/100})`;
+}
+
+function setupPanZoom() {
+  const vp = document.getElementById('viewport');
+  const canvas = document.getElementById('canvas');
+  let isPanning = false, startX, startY, panX = 0, panY = 0;
+  
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    const zoomSlider = document.getElementById('zoom');
+    const delta = e.deltaY > 0 ? -10 : 10;
+    zoomSlider.value = Math.max(10, Math.min(200, parseInt(zoomSlider.value) + delta));
+    updateZoom();
+  });
+  
+  vp.addEventListener('mousedown', e => {
+    isPanning = true;
+    startX = e.clientX - panX;
+    startY = e.clientY - panY;
+  });
+  
+  window.addEventListener('mousemove', e => {
+    if (!isPanning) return;
+    panX = e.clientX - startX;
+    panY = e.clientY - startY;
+    canvas.style.translate = `${panX}px ${panY}px`;
+  });
+  
+  window.addEventListener('mouseup', () => { isPanning = false; });
+}
+
+init();
+</script>
+</body>
+</html>

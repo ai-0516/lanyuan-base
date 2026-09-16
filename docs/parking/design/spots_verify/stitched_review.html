@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>全景车位确认 - 东方兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui;background:#1a1a2e;color:#eee;overflow:hidden}
+.header{background:#16213e;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:12px;border-bottom:1px solid #333}
+h1{font-size:15px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-left:auto;font-size:11px;flex-wrap:wrap}
+.toolbar button{padding:3px 10px;border:1px solid #444;background:#1a1a2e;color:#eee;border-radius:4px;cursor:pointer;font-size:11px}
+.toolbar button:hover{background:#333}
+.toolbar button.primary{background:#00b894;border-color:#00b894}
+.toolbar button.danger{background:#e17055;border-color:#e17055}
+label{display:flex;align-items:center;gap:3px;cursor:pointer}
+.viewport{position:relative;overflow:auto;height:calc(100vh - 48px)}
+.canvas-wrap{position:relative;width:3370px;height:4299px;transform-origin:0 0}
+.bg-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+.bg-layer img{width:100%;height:100%;pointer-events:none}
+.spot{position:absolute;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;color:#000;border-radius:2px;z-index:2;user-select:none}
+.spot.landscape{border-style:dashed}
+.spot.selected{outline:2px solid #ffd700!important;outline-offset:1px!important;z-index:5}
+.spot.dragging{z-index:100;opacity:.9}
+.select-box{position:absolute;border:1px dashed #ffd700;background:rgba(255,215,0,.08);z-index:50;pointer-events:none}
+.info{position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,0.85);padding:6px 12px;border-radius:6px;font-size:11px;z-index:100;line-height:1.6}
+.legend{position:fixed;top:56px;right:8px;background:rgba(0,0,0,0.85);padding:6px 10px;border-radius:6px;font-size:11px;z-index:100;line-height:1.8}
+.legend span{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🅿️ 全景车位 — 最终确认</h1>
+<div class="toolbar">
+<button onclick="zoomOut()">🔍−</button>
+<button onclick="zoomIn()">🔍+</button>
+<button onclick="zoomFit()">📐 适应</button>
+<span id="zoomLabel">100%</span>
+<button onclick="exportCorrected()">📥 导出修正</button>
+<label><input type="checkbox" id="showLabels"> 编号</label>
+<label>字号 <input type="range" id="fontSize" min="6" max="14" value="8"></label>
+<span id="stats"></span>
+</div>
+</div>
+<div class="viewport" id="vp">
+<div class="canvas-wrap" id="canvas">
+  <div class="bg-layer" id="bgLayer"><img id="bgImg" draggable="false"></div>
+</div>
+<div class="info" id="info"></div>
+<div class="legend" id="legend"></div>
+</div>
+<script>
+const colors = {A:'#e94560',B:'#4a90d9',C:'#00b894',D:'#fdcb6e',F:'#a55eea'};
+const colorBg = {A:'rgba(233,69,96,0.35)',B:'rgba(74,144,217,0.35)',C:'rgba(0,184,148,0.35)',D:'rgba(253,203,110,0.35)',F:'rgba(165,94,234,0.35)'};
+const CW = 3370, CH = 4299;
+
+let zoom = 1;
+let allSpots = [];
+let selected = new Set();
+let spotEls = {};
+let dragMode = null; // 'spot' | 'bg' | 'box'
+let dragStart = {}, dragSpots = [], dragOrigins = [];
+let boxEl = null, boxStartCanvas = null;
+
+function viewportToCanvas(clientX, clientY) {
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
+}
+
+function applyZoom() {
+  const c = document.getElementById('canvas');
+  c.style.transform = `scale(${zoom})`;
+  document.getElementById('zoomLabel').textContent = Math.round(zoom*100)+'%';
+}
+function zoomIn() { zoom=Math.min(5,zoom*1.25); applyZoom(); }
+function zoomOut() { zoom=Math.max(0.1,zoom/1.25); applyZoom(); }
+function zoomFit() {
+  const vp=document.getElementById('vp');
+  zoom=Math.min(vp.clientWidth/CW,vp.clientHeight/CH)*0.95;
+  applyZoom();
+}
+function updateInfo() {
+  const modCount = Object.keys(spotMods).length;
+  document.getElementById('info').textContent = 
+    `全景 ${CW}×${CH} | 选中${selected.size} | 已调${modCount} | 拖车位微调 | 方向键微调`;
+}
+
+function selectSpot(id, add) {
+  if (!add) selected.clear();
+  if (selected.has(id) && add) selected.delete(id);
+  else selected.add(id);
+  updateSelection();
+}
+function updateSelection() {
+  Object.entries(spotEls).forEach(([id,el]) => {
+    el.classList.toggle('selected', selected.has(id));
+  });
+  updateInfo();
+}
+function clearSelection() { selected.clear(); updateSelection(); }
+
+// Spot modifications persistence
+let spotMods = {};
+try { spotMods = JSON.parse(localStorage.getItem('stitched_mods')||'{}'); } catch(e) {}
+
+function getSpotPos(s) {
+  const m = spotMods[s.id];
+  if (m) return { x: m.x, y: m.y };
+  return { x: s.stitched_x, y: s.stitched_y };
+}
+
+// Mouse handlers on viewport
+const vp = document.getElementById('vp');
+
+vp.addEventListener('mousedown', e => {
+  const spotEl = e.target.closest('.spot');
+  
+  if (spotEl) {
+    const id = spotEl.dataset.id;
+    const ctrl = e.ctrlKey || e.metaKey;
+    const shift = e.shiftKey;
+    
+    if (ctrl) {
+      selectSpot(id, true);
+      return;
+    }
+    if (shift && selected.size > 0) {
+      // Range select by index
+      const ids = allSpots.map(s => s.id);
+      const last = Array.from(selected).pop();
+      const i1 = ids.indexOf(last), i2 = ids.indexOf(id);
+      if (i1>=0 && i2>=0) {
+        const [lo,hi] = i1<i2?[i1,i2]:[i2,i1];
+        selected.clear();
+        for (let i=lo;i<=hi;i++) selected.add(ids[i]);
+      }
+      updateSelection();
+      return;
+    }
+    
+    if (!selected.has(id)) { selected.clear(); selected.add(id); }
+    updateSelection();
+    
+    // Start spot drag
+    dragMode = 'spot';
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragSpots = Array.from(selected);
+    dragOrigins = dragSpots.map(id => {
+      const s = allSpots.find(s => s.id === id);
+      return getSpotPos(s);
+    });
+    spotEl.classList.add('dragging');
+    e.preventDefault(); e.stopPropagation();
+    return;
+  }
+  
+  // Box select on empty area
+  dragMode = 'box';
+  dragStart = { x: e.clientX, y: e.clientY };
+  boxStartCanvas = viewportToCanvas(e.clientX, e.clientY);
+  boxEl = document.createElement('div');
+  boxEl.className = 'select-box';
+  boxEl.style.left = boxStartCanvas.x + 'px';
+  boxEl.style.top = boxStartCanvas.y + 'px';
+  boxEl.style.width = '0px';
+  boxEl.style.height = '0px';
+  document.getElementById('canvas').appendChild(boxEl);
+});
+
+window.addEventListener('mousemove', e => {
+  if (dragMode === 'spot') {
+    const dx = (e.clientX - dragStart.x) / zoom;
+    const dy = (e.clientY - dragStart.y) / zoom;
+    
+    dragSpots.forEach((id, i) => {
+      const s = allSpots.find(s => s.id === id);
+      const nx = dragOrigins[i].x + dx;
+      const ny = dragOrigins[i].y + dy;
+      if (!spotMods[id]) spotMods[id] = { x: s.stitched_x, y: s.stitched_y };
+      spotMods[id].x = nx; spotMods[id].y = ny;
+      const el = spotEls[id];
+      if (el) {
+        el.style.left = (nx / CW * 100) + '%';
+        el.style.top = (ny / CH * 100) + '%';
+      }
+    });
+    return;
+  }
+  if (dragMode === 'box' && boxEl) {
+    const cur = viewportToCanvas(e.clientX, e.clientY);
+    const x1 = Math.min(boxStartCanvas.x, cur.x);
+    const y1 = Math.min(boxStartCanvas.y, cur.y);
+    const x2 = Math.max(boxStartCanvas.x, cur.x);
+    const y2 = Math.max(boxStartCanvas.y, cur.y);
+    boxEl.style.left = x1 + 'px';
+    boxEl.style.top = y1 + 'px';
+    boxEl.style.width = (x2 - x1) + 'px';
+    boxEl.style.height = (y2 - y1) + 'px';
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  if (dragMode === 'spot') {
+    Object.values(spotEls).forEach(el => el.classList.remove('dragging'));
+    localStorage.setItem('stitched_mods', JSON.stringify(spotMods));
+    updateInfo();
+  }
+  if (dragMode === 'box' && boxEl) {
+    const cur = viewportToCanvas(e.clientX, e.clientY);
+    const x1 = Math.min(boxStartCanvas.x, cur.x);
+    const y1 = Math.min(boxStartCanvas.y, cur.y);
+    const x2 = Math.max(boxStartCanvas.x, cur.x);
+    const y2 = Math.max(boxStartCanvas.y, cur.y);
+    boxEl.remove(); boxEl = null; boxStartCanvas = null;
+    
+    if (x2-x1 < 3 && y2-y1 < 3) { clearSelection(); dragMode=null; return; }
+    
+    if (!e.ctrlKey && !e.metaKey) selected.clear();
+    allSpots.forEach(s => {
+      const p = getSpotPos(s);
+      if (p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2) selected.add(s.id);
+    });
+    updateSelection();
+  }
+  dragMode = null;
+  dragSpots = []; dragOrigins = [];
+});
+
+window.addEventListener('keydown', e => {
+  if (selected.size === 0 || dragMode) return;
+  const step = e.shiftKey ? 10 : 1;
+  let dx = 0, dy = 0;
+  if (e.key === 'ArrowLeft') dx = -step;
+  else if (e.key === 'ArrowRight') dx = step;
+  else if (e.key === 'ArrowUp') dy = -step;
+  else if (e.key === 'ArrowDown') dy = step;
+  else return;
+  e.preventDefault();
+  
+  for (const id of selected) {
+    const s = allSpots.find(s => s.id === id);
+    if (!s) continue;
+    const p = getSpotPos(s);
+    if (!spotMods[id]) spotMods[id] = { x: s.stitched_x, y: s.stitched_y };
+    spotMods[id].x = p.x + dx;
+    spotMods[id].y = p.y + dy;
+    const el = spotEls[id];
+    if (el) {
+      el.style.left = (spotMods[id].x / CW * 100) + '%';
+      el.style.top = (spotMods[id].y / CH * 100) + '%';
+    }
+  }
+  localStorage.setItem('stitched_mods', JSON.stringify(spotMods));
+  updateInfo();
+});
+
+function exportCorrected() {
+  const out = allSpots.map(s => {
+    const p = getSpotPos(s);
+    return {
+      id: s.id, area: s.area, num: s.num,
+      stitched_x: Math.round(p.x * 100) / 100,
+      stitched_y: Math.round(p.y * 100) / 100,
+      rect_w: s.rect_w, rect_h: s.rect_h,
+      landscape: s.landscape || false
+    };
+  });
+  const json = JSON.stringify(out);
+  const blob = new Blob([json], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'parking_spots_corrected_stitched.json';
+  a.click();
+}
+
+async function init(){
+  document.getElementById('bgImg').src = '../stitched_final.png';
+  
+  const resp = await fetch('../parking_spots_stitched.json');
+  allSpots = await resp.json();
+  
+  const canvas = document.getElementById('canvas');
+  const areas = {};
+  
+  allSpots.forEach((s, i) => {
+    const a = s.area[0];
+    if (!areas[a]) areas[a] = [];
+    areas[a].push(s);
+    
+    const rw = s.rect_w || 25, rh = s.rect_h || 54;
+    const isLand = s.landscape;
+    const sw = isLand ? rh : rw, sh = isLand ? rw : rh;
+    const p = getSpotPos(s);
+    
+    const el = document.createElement('div');
+    el.className = 'spot' + (isLand ? ' landscape' : '');
+    el.style.left = (p.x / CW * 100) + '%';
+    el.style.top = (p.y / CH * 100) + '%';
+    el.style.width = (sw / CW * 100) + '%';
+    el.style.height = (sh / CH * 100) + '%';
+    el.style.backgroundColor = colorBg[a];
+    el.style.border = '1px solid ' + colors[a];
+    el.style.fontSize = '8px';
+    el.textContent = s.id;
+    el.dataset.id = s.id;
+    canvas.appendChild(el);
+    spotEls[s.id] = el;
+  });
+  
+  let total = 0, statsHtml = '', legendHtml = '';
+  for (const [a, ss] of Object.entries(areas)) {
+    total += ss.length;
+    statsHtml += `${a}:${ss.length} `;
+    legendHtml += `<span style="background:${colorBg[a]};border:1px solid ${colors[a]}"></span> ${a}区 ${ss.length}个<br>`;
+  }
+  document.getElementById('stats').textContent = `共 ${total} 个 | ` + statsHtml;
+  document.getElementById('legend').innerHTML = legendHtml;
+  
+  document.getElementById('showLabels').onchange = function(){
+    Object.values(spotEls).forEach(el => {
+      el.textContent = this.checked ? el.dataset.id : '';
+    });
+  };
+  document.getElementById('fontSize').oninput = function(){
+    Object.values(spotEls).forEach(el => { el.style.fontSize = this.value + 'px'; });
+  };
+  
+  vp.addEventListener('wheel', e => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (e.deltaY < 0) zoomIn(); else zoomOut();
+    }
+  }, {passive: false});
+  
+  zoom = 0.85; applyZoom();
+  updateInfo();
+}
+init();
+</script>
+</body>
+</html>

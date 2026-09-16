@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F区背景图拼接对齐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;color:#eee;font-family:system-ui;overflow:hidden;display:flex;flex-direction:column;height:100vh}
+.header{background:#16213e;padding:10px 16px;display:flex;align-items:center;gap:14px;font-size:13px;border-bottom:1px solid #333}
+.header h1{font-size:15px;white-space:nowrap}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.controls button{padding:5px 14px;border:1px solid #444;background:#1a1a2e;color:#eee;border-radius:5px;cursor:pointer;font-size:12px}
+.controls button:hover{background:#333}
+.controls button.primary{background:#00b894;border-color:#00b894;color:#fff}
+.controls label{font-size:11px;display:flex;align-items:center;gap:4px}
+.controls input[type=range]{width:80px}
+.viewport{flex:1;position:relative;overflow:hidden;cursor:grab;background:#111}
+.viewport:active{cursor:grabbing}
+.canvas{position:absolute;transform-origin:0 0}
+.canvas img{display:block}
+.lower-wrap{position:absolute}
+.lower-wrap img{display:block}
+.upper-wrap{position:absolute;transform-origin:0 0;cursor:move}
+.upper-wrap img{display:block;position:static;border:2px dashed #a55eea}
+.upper-wrap:hover img{border-color:#8e44e0}
+.handle{position:absolute;width:14px;height:14px;background:#a55eea;border:2px solid #fff;border-radius:2px;z-index:10}
+.handle:hover{background:#8e44e0;transform:scale(1.3)}
+.handle.nw{top:-7px;left:-7px;cursor:nw-resize}
+.handle.ne{top:-7px;right:-7px;cursor:ne-resize}
+.handle.sw{bottom:-7px;left:-7px;cursor:sw-resize}
+.handle.se{bottom:-7px;right:-7px;cursor:se-resize}
+.handle.mid-right{top:50%;right:-7px;margin-top:-7px;cursor:e-resize}
+.handle.mid-bottom{bottom:-7px;left:50%;margin-left:-7px;cursor:s-resize}
+.info{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.85);padding:6px 12px;border-radius:6px;font-size:11px;line-height:1.6;pointer-events:none}
+.help{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.7);padding:4px 10px;border-radius:4px;font-size:10px;color:#888;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🧩 F区底图拼接</h1>
+  <span style="color:#888">拖拽上层图对齐下层</span>
+  <div class="controls" style="margin-left:auto">
+    <label>缩放 <input type="range" id="zoom" min="0.3" max="3" step="0.01" value="1"></label>
+    <span id="zoomVal" style="font-size:11px;min-width:36px">1.00</span>
+    <label>不透明度 <input type="range" id="opacity" min="0" max="100" value="60"></label>
+    <button onclick="resetPos()">🔄 重置</button>
+    <button class="primary" onclick="exportConfig()">📋 复制配置</button>
+  </div>
+</div>
+<div class="viewport" id="vp">
+  <div class="canvas" id="canvas">
+    <div class="lower-wrap" id="lowerWrap">
+      <img src="F_bg_a2613602.png" id="lower" draggable="false">
+    </div>
+    <div class="upper-wrap" id="upperWrap">
+      <img src="F_bg_de5746eb.png" id="upper" draggable="false">
+      <div class="handle nw" data-handle="nw"></div>
+      <div class="handle ne" data-handle="ne"></div>
+      <div class="handle sw" data-handle="sw"></div>
+      <div class="handle se" data-handle="se"></div>
+      <div class="handle mid-right" data-handle="e"></div>
+      <div class="handle mid-bottom" data-handle="s"></div>
+    </div>
+  </div>
+  <div class="info" id="info">上层: (0, 0) scale=1.00</div>
+  <div class="help">拖拽框体移动 | 拖拐角缩放 | 滚轮缩放 | Shift+空白平移</div>
+</div>
+
+<script>
+const lower = document.getElementById('lower');
+const upper = document.getElementById('upper');
+const lowerWrap = document.getElementById('lowerWrap');
+const upperWrap = document.getElementById('upperWrap');
+const canvas = document.getElementById('canvas');
+const vp = document.getElementById('vp');
+const zoomSlider = document.getElementById('zoom');
+const opacitySlider = document.getElementById('opacity');
+const info = document.getElementById('info');
+
+let upperX = 0, upperY = 0, upperScale = 1;
+let panX = 0, panY = 0, panning = false, panStart = {};
+let dragMode = null, dragStart = {}, elemStart = {};
+
+function updateUpper() {
+  upperWrap.style.left = upperX + 'px';
+  upperWrap.style.top = upperY + 'px';
+  upperWrap.style.transform = `scale(${upperScale})`;
+  upperWrap.style.transformOrigin = '0 0';
+  upper.style.opacity = opacitySlider.value / 100;
+  zoomSlider.value = upperScale;
+  document.getElementById('zoomVal').textContent = upperScale.toFixed(2);
+  info.innerHTML = `上层: (${upperX.toFixed(0)}, ${upperY.toFixed(0)}) scale=${upperScale.toFixed(2)} | 下层: ${lower.naturalWidth}×${lower.naturalHeight} | 上层: ${upper.naturalWidth}×${upper.naturalHeight}`;
+}
+
+upperWrap.addEventListener('mousedown', e => {
+  const handle = e.target.closest('.handle');
+  if (handle) {
+    e.preventDefault(); e.stopPropagation();
+    dragMode = 'scale';
+    dragStart = { x: e.clientX, y: e.clientY };
+    const iw = upper.naturalWidth, ih = upper.naturalHeight;
+    const h = handle.dataset.handle;
+    let ax, ay, fx = 0, fy = 0;
+    if (h === 'se')      { ax = upperX; ay = upperY; fx = 0; fy = 0; }
+    else if (h === 'sw') { ax = upperX + iw * upperScale; ay = upperY; fx = 1; fy = 0; }
+    else if (h === 'ne') { ax = upperX; ay = upperY + ih * upperScale; fx = 0; fy = 1; }
+    else if (h === 'nw') { ax = upperX + iw * upperScale; ay = upperY + ih * upperScale; fx = 1; fy = 1; }
+    else if (h === 'e')  { ax = upperX; ay = upperY + ih * upperScale / 2; fx = 0; fy = 0.5; }
+    else if (h === 's')  { ax = upperX + iw * upperScale / 2; ay = upperY; fx = 0.5; fy = 0; }
+    elemStart = { anchorX: ax, anchorY: ay, scale: upperScale, fx: fx, fy: fy };
+    upperWrap.style.cursor = handle.style.cursor;
+    return;
+  }
+  if (e.shiftKey) return;
+  e.preventDefault(); e.stopPropagation();
+  dragMode = 'move';
+  dragStart = { x: e.clientX, y: e.clientY };
+  elemStart = { x: upperX, y: upperY };
+  upperWrap.style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', e => {
+  if (dragMode === 'move') {
+    upperX = elemStart.x + (e.clientX - dragStart.x);
+    upperY = elemStart.y + (e.clientY - dragStart.y);
+    updateUpper();
+    return;
+  }
+  if (dragMode === 'scale') {
+    const iw = upper.naturalWidth, ih = upper.naturalHeight;
+    const asx = elemStart.anchorX + panX, asy = elemStart.anchorY + panY;
+    const vx = e.clientX - asx, vy = e.clientY - asy;
+    const ox = dragStart.x - asx, oy = dragStart.y - asy;
+    const od = Math.sqrt(ox*ox + oy*oy), nd = Math.sqrt(vx*vx + vy*vy);
+    if (od > 3) upperScale = Math.max(0.3, Math.min(3, elemStart.scale * (nd / od)));
+    upperX = elemStart.anchorX - iw * upperScale * elemStart.fx;
+    upperY = elemStart.anchorY - ih * upperScale * elemStart.fy;
+    updateUpper();
+    return;
+  }
+  if (panning) {
+    panX = e.clientX - panStart.x; panY = e.clientY - panStart.y;
+    canvas.style.translate = `${panX}px ${panY}px`;
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (dragMode) { dragMode = null; upperWrap.style.cursor = 'move'; saveConfig(); }
+  panning = false;
+});
+
+vp.addEventListener('mousedown', e => {
+  if (e.target.closest('.upper-wrap') || e.target.closest('.lower-wrap')) return;
+  if (e.shiftKey) { panning = true; panStart = { x: e.clientX - panX, y: e.clientY - panY }; }
+});
+
+vp.addEventListener('wheel', e => {
+  e.preventDefault();
+  upperScale = Math.max(0.3, Math.min(3, upperScale + (e.deltaY > 0 ? -0.03 : 0.03)));
+  updateUpper(); saveConfig();
+});
+
+zoomSlider.addEventListener('input', () => {
+  upperScale = parseFloat(zoomSlider.value);
+  document.getElementById('zoomVal').textContent = upperScale.toFixed(2);
+  updateUpper(); saveConfig();
+});
+opacitySlider.addEventListener('input', () => updateUpper());
+
+function resetPos() { upperX = 0; upperY = 0; upperScale = 1; updateUpper(); saveConfig(); }
+function saveConfig() { localStorage.setItem('f_stitch_v1', JSON.stringify({ x: upperX, y: upperY, scale: upperScale })); }
+function exportConfig() {
+  const txt = JSON.stringify({ x: upperX, y: upperY, scale: upperScale }, null, 2);
+  prompt('复制以下配置（Ctrl+C），发给 PM：', txt);
+}
+
+function initPositions() {
+  if (!lower.naturalHeight || !upper.naturalHeight) return;
+  upperX = (lower.naturalWidth - upper.naturalWidth) / 2;
+  upperY = -upper.naturalHeight - 20;
+  try {
+    const cfg = JSON.parse(localStorage.getItem('f_stitch_v1'));
+    if (cfg && cfg.x !== undefined) { upperX = cfg.x; upperY = cfg.y; upperScale = cfg.scale || 1; }
+  } catch(e) {}
+  panX = 0; panY = 270;
+  canvas.style.translate = `${panX}px ${panY}px`;
+  updateUpper(); saveConfig();
+}
+lower.onload = () => { if (upper.naturalHeight) initPositions(); };
+upper.onload = () => { if (lower.naturalHeight) initPositions(); };
+if (lower.complete && upper.complete) initPositions();
+updateUpper();
+</script>
+</body>
+</html>

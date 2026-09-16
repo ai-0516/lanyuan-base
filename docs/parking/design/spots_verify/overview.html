@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>全景总览 - 东方兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui;background:#1a1a2e;color:#eee;overflow:hidden}
+.header{background:#16213e;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:12px;border-bottom:1px solid #333}
+h1{font-size:15px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-left:auto;font-size:11px;flex-wrap:wrap}
+.toolbar button{padding:3px 10px;border:1px solid #444;background:#1a1a2e;color:#eee;border-radius:4px;cursor:pointer;font-size:11px}
+.toolbar button:hover{background:#333}
+label{display:flex;align-items:center;gap:3px;cursor:pointer}
+.viewport{position:relative;overflow:auto;height:calc(100vh - 48px)}
+.canvas-wrap{position:relative;width:3370px;height:4299px;transform-origin:0 0}
+.bg-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+.bg-layer img{width:100%;height:100%;pointer-events:none}
+.spot{position:absolute;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;color:#000;border-radius:2px;z-index:2;user-select:none;pointer-events:none}
+.building{position:absolute;border:2px solid;z-index:3;display:flex;align-items:center;justify-content:center;font-size:60px;font-weight:bold;pointer-events:none}
+.info{position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,0.85);padding:6px 12px;border-radius:6px;font-size:11px;z-index:100}
+.legend{position:fixed;top:56px;right:8px;background:rgba(0,0,0,0.85);padding:8px 12px;border-radius:6px;font-size:11px;z-index:100;line-height:1.8}
+.legend span{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🅿️🏢 全景总览 — 东方兰园</h1>
+<div class="toolbar">
+<button onclick="zoomOut()">🔍−</button>
+<button onclick="zoomIn()">🔍+</button>
+<button onclick="zoomFit()">📐 适应</button>
+<span id="zoomLabel">100%</span>
+<label><input type="checkbox" id="showLabels"> 车位编号</label>
+<span id="stats"></span>
+</div>
+</div>
+<div class="viewport" id="vp">
+<div class="canvas-wrap" id="canvas">
+  <div class="bg-layer"><img id="bgImg" draggable="false"></div>
+</div>
+<div class="info" id="info"></div>
+<div class="legend" id="legend"></div>
+</div>
+<script>
+const CW=3370, CH=4299;
+let zoom=1;
+
+const areaColors={A:'#e94560',B:'#4a90d9',C:'#00b894',D:'#fdcb6e',F:'#a55eea'};
+const areaBg={A:'rgba(233,69,96,0.3)',B:'rgba(74,144,217,0.3)',C:'rgba(0,184,148,0.3)',D:'rgba(253,203,110,0.3)',F:'rgba(165,94,234,0.3)'};
+const bldColors=['#ff6b6b','#4ecdc4','#45b7d1','#f9ca24','#6c5ce7','#a29bfe',
+  '#fd79a8','#00b894','#e17055','#74b9ff','#ffeaa7','#dfe6e9',
+  '#fab1a0','#81ecec','#55a3e8','#b8e994','#e77f67','#cf6a87',
+  '#786fa6','#f19066','#e15f41','#c44569','#574b90','#546de5',
+  '#3dc1d3','#f5cd79','#f8a5c2','#63cdda','#ea8685','#596275','#778beb'];
+
+function applyZoom(){
+  const c=document.getElementById('canvas');
+  c.style.transform=`scale(${zoom})`;
+  document.getElementById('zoomLabel').textContent=Math.round(zoom*100)+'%';
+}
+function zoomIn(){zoom=Math.min(5,zoom*1.25);applyZoom();}
+function zoomOut(){zoom=Math.max(0.1,zoom/1.25);applyZoom();}
+function zoomFit(){
+  const vp=document.getElementById('vp');
+  zoom=Math.min(vp.clientWidth/CW,vp.clientHeight/CH)*0.95;
+  applyZoom();
+}
+
+async function init(){
+  document.getElementById('bgImg').src='../stitched_final.png';
+  
+  const resp=await fetch('../parking_spots_and_buildings.json');
+  const data=await resp.json();
+  const spots=data.spots||[], buildings=data.buildings||[];
+  
+  const canvas=document.getElementById('canvas');
+  const areas={};
+  
+  // Render spots
+  spots.forEach(s=>{
+    const a=s.area?.[0]||'?';
+    if(!areas[a])areas[a]=0;
+    areas[a]++;
+    
+    const rw=s.rect_w||25, rh=s.rect_h||54;
+    const isLand=s.landscape;
+    const sw=isLand?rh:rw, sh=isLand?rw:rh;
+    
+    const el=document.createElement('div');
+    el.className='spot'+(isLand?' landscape':'');
+    el.style.left=(s.stitched_x/CW*100)+'%';
+    el.style.top=(s.stitched_y/CH*100)+'%';
+    el.style.width=(sw/CW*100)+'%';
+    el.style.height=(sh/CH*100)+'%';
+    el.style.backgroundColor=areaBg[a]||'rgba(255,255,255,0.2)';
+    el.style.border='1px solid '+(areaColors[a]||'#999');
+    el.textContent=s.id;
+    canvas.appendChild(el);
+  });
+  
+  // Render buildings
+  buildings.forEach(b=>{
+    const idx=parseInt(b.id)-2;
+    const color=bldColors[idx%bldColors.length];
+    const el=document.createElement('div');
+    el.className='building';
+    el.style.left=(b.x/CW*100)+'%';
+    el.style.top=(b.y/CH*100)+'%';
+    el.style.width=(b.w/CW*100)+'%';
+    el.style.height=(b.h/CH*100)+'%';
+    el.style.borderColor=color;
+    el.style.color=color;
+    el.style.background=color+'22';
+    el.textContent=b.id;
+    canvas.appendChild(el);
+  });
+  
+  // Stats
+  let totalSpots=0, statsHtml='';
+  for(const[a,c]of Object.entries(areas)){
+    totalSpots+=c; statsHtml+=`${a}:${c} `;
+  }
+  document.getElementById('stats').textContent=`车位 ${totalSpots} | 楼栋 ${buildings.length} | `+statsHtml;
+  
+  // Legend
+  let legendHtml='<b>🏢 楼栋</b><br>';
+  buildings.forEach(b=>{
+    const color=bldColors[(parseInt(b.id)-2)%bldColors.length];
+    legendHtml+=`<span style="background:${color}"></span> ${b.id}<br>`;
+  });
+  legendHtml+='<br><b>🅿️ 车位</b><br>';
+  for(const[a,c]of Object.entries(areas)){
+    legendHtml+=`<span style="background:${areaBg[a]};border:1px solid ${areaColors[a]}"></span> ${a}区 ${c}个<br>`;
+  }
+  document.getElementById('legend').innerHTML=legendHtml;
+  
+  // Toggle labels
+  const allSpots=document.querySelectorAll('.spot');
+  allSpots.forEach(el=>el.dataset.id=el.textContent);
+  document.getElementById('showLabels').onchange=function(){
+    allSpots.forEach(el=>{
+      el.textContent=this.checked?el.dataset.id:'';
+    });
+  };
+  
+  document.getElementById('vp').addEventListener('wheel',e=>{
+    if(e.ctrlKey||e.metaKey){e.preventDefault();if(e.deltaY<0)zoomIn();else zoomOut();}
+  },{passive:false});
+  
+  zoom=0.85;applyZoom();
+}
+init();
+</script>
+</body>
+</html>

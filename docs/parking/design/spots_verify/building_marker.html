@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>楼栋标记 - 东方兰园</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui;background:#1a1a2e;color:#eee;overflow:hidden}
+.header{background:#16213e;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:12px;border-bottom:1px solid #333}
+h1{font-size:15px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-left:auto;font-size:11px;flex-wrap:wrap}
+.toolbar button{padding:3px 10px;border:1px solid #444;background:#1a1a2e;color:#eee;border-radius:4px;cursor:pointer;font-size:11px}
+.toolbar button:hover{background:#333}
+.toolbar button.primary{background:#00b894;border-color:#00b894}
+.toolbar button.danger{background:#e17055;border-color:#e17055}
+label{display:flex;align-items:center;gap:3px;cursor:pointer}
+.viewport{position:relative;overflow:auto;height:calc(100vh - 48px)}
+.canvas-wrap{position:relative;width:3370px;height:4299px;transform-origin:0 0}
+.bg-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+.bg-layer img{width:100%;height:100%;pointer-events:none}
+/* Building rectangle */
+.building{position:absolute;border:2px solid #ff6b6b;background:rgba(255,107,107,0.15);z-index:3;display:flex;align-items:center;justify-content:center;font-size:60px;font-weight:bold;color:#ff6b6b;cursor:move;user-select:none}
+.building.selected{border-color:#ffd700;background:rgba(255,215,0,0.15);color:#ffd700;z-index:5}
+/* Resize handles */
+.handle{position:absolute;width:8px;height:8px;background:#ffd700;border:1px solid #000;z-index:6}
+.handle.nw{top:-4px;left:-4px;cursor:nw-resize}
+.handle.n{top:-4px;left:50%;margin-left:-4px;cursor:n-resize}
+.handle.ne{top:-4px;right:-4px;cursor:ne-resize}
+.handle.e{top:50%;margin-top:-4px;right:-4px;cursor:e-resize}
+.handle.se{bottom:-4px;right:-4px;cursor:se-resize}
+.handle.s{bottom:-4px;left:50%;margin-left:-4px;cursor:s-resize}
+.handle.sw{bottom:-4px;left:-4px;cursor:sw-resize}
+.handle.w{top:50%;margin-top:-4px;left:-4px;cursor:w-resize}
+/* Spot (dimmed) */
+.spot{position:absolute;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:#000;border-radius:1px;z-index:2;user-select:none;pointer-events:none;opacity:0.7}
+.spot.landscape{border-style:dashed}
+.info{position:fixed;bottom:8px;left:8px;background:rgba(0,0,0,0.85);padding:6px 12px;border-radius:6px;font-size:11px;z-index:100;line-height:1.6}
+.help{position:fixed;top:56px;right:8px;background:rgba(0,0,0,0.85);padding:8px 12px;border-radius:6px;font-size:11px;z-index:100;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🏢 楼栋标记 — 东方兰园</h1>
+<div class="toolbar">
+<button onclick="zoomOut()">🔍−</button>
+<button onclick="zoomIn()">🔍+</button>
+<button onclick="zoomFit()">📐 适应</button>
+<span id="zoomLabel">100%</span>
+<button onclick="addBuilding()" class="primary">➕ 新建楼栋</button>
+<button onclick="deleteSelected()" class="danger">🗑 删除选中</button>
+<button onclick="exportData()">📥 导出全部</button>
+<span id="stats"></span>
+</div>
+</div>
+<div class="viewport" id="vp">
+<div class="canvas-wrap" id="canvas">
+  <div class="bg-layer"><img id="bgImg" draggable="false"></div>
+</div>
+<div class="info" id="info"></div>
+<div class="help" id="help">
+<b>🖱 操作：</b><br>
+• 拖拽空白 → 新建楼栋<br>
+• 点击楼栋 → 选中<br>
+• 拖拽楼栋 → 移动<br>
+• 拖拽手柄 → 调整大小<br>
+• Del → 删除选中<br>
+<b>📐 楼栋：</b><span id="buildingList">暂无</span>
+</div>
+</div>
+<script>
+const CW=3370,CH=4299;
+let zoom=1;
+let spots=[], buildings=[];
+let buildingEls={};
+let selectedBuilding=null;
+
+// Drag state
+let dragMode=null; // 'create','move','resize'
+let dragStart={}, dragStartRect={}, resizeHandle=null;
+let newBoxEl=null;
+
+// Pre-defined building list: 2#-32#
+const BUILDING_IDS = [];
+for (let i=2;i<=32;i++) BUILDING_IDS.push(i+'#');
+
+const colors=['#ff6b6b','#4ecdc4','#45b7d1','#f9ca24','#6c5ce7','#a29bfe',
+  '#fd79a8','#00b894','#e17055','#74b9ff','#ffeaa7','#dfe6e9',
+  '#fab1a0','#81ecec','#55a3e8','#b8e994','#e77f67','#cf6a87',
+  '#786fa6','#f19066','#e15f41','#c44569','#574b90','#546de5',
+  '#3dc1d3','#f5cd79','#f8a5c2','#63cdda','#ea8685','#596275','#778beb'];
+
+// localStorage persistence
+const STORAGE_KEY = 'lanyuan_buildings';
+function saveBuildings() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+}
+function loadBuildings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) buildings = JSON.parse(raw);
+  } catch(e) { buildings = []; }
+}
+
+function viewportToCanvas(cx,cy){
+  const r=document.getElementById('canvas').getBoundingClientRect();
+  return {x:(cx-r.left)/zoom, y:(cy-r.top)/zoom};
+}
+
+function applyZoom(){
+  const c=document.getElementById('canvas');
+  c.style.transform=`scale(${zoom})`;
+  document.getElementById('zoomLabel').textContent=Math.round(zoom*100)+'%';
+}
+function zoomIn(){zoom=Math.min(5,zoom*1.25);applyZoom();}
+function zoomOut(){zoom=Math.max(0.1,zoom/1.25);applyZoom();}
+function zoomFit(){
+  const vp=document.getElementById('vp');
+  zoom=Math.min(vp.clientWidth/CW,vp.clientHeight/CH)*0.92;
+  applyZoom();
+}
+
+function selectBuilding(id){
+  if(selectedBuilding && selectedBuilding!==id) {
+    const el=buildingEls[selectedBuilding];
+    if(el){el.classList.remove('selected');hideHandles(selectedBuilding);}
+  }
+  selectedBuilding=id;
+  if(id){
+    const el=buildingEls[id];
+    if(el){el.classList.add('selected');showHandles(id);}
+    updateInfo('选中: '+id);
+  } else {
+    updateInfo('');
+  }
+}
+
+function createBuildingElement(b){
+  const el=document.createElement('div');
+  el.className='building';
+  el.style.left=(b.x/CW*100)+'%';
+  el.style.top=(b.y/CH*100)+'%';
+  el.style.width=(b.w/CW*100)+'%';
+  el.style.height=(b.h/CH*100)+'%';
+  el.style.borderColor=colors[BUILDING_IDS.indexOf(b.id)%colors.length];
+  el.dataset.id=b.id;
+  
+  // Label span (separate from handles, won't be destroyed)
+  const label=document.createElement('span');
+  label.className='bld-label';
+  label.textContent=b.id;
+  label.style.cssText='position:relative;z-index:1;pointer-events:none';
+  el.appendChild(label);
+  
+  // Resize handles
+  ['nw','n','ne','e','se','s','sw','w'].forEach(pos=>{
+    const h=document.createElement('div');
+    h.className='handle '+pos;
+    h.dataset.handle=pos;
+    h.style.display='none';
+    el.appendChild(h);
+  });
+  
+  document.getElementById('canvas').appendChild(el);
+  buildingEls[b.id]=el;
+}
+
+function updateBuildingElement(b){
+  const el=buildingEls[b.id];
+  if(!el)return;
+  el.style.left=(b.x/CW*100)+'%';
+  el.style.top=(b.y/CH*100)+'%';
+  el.style.width=(b.w/CW*100)+'%';
+  el.style.height=(b.h/CH*100)+'%';
+  // Update label without destroying handles
+  const label=el.querySelector('.bld-label');
+  if(label)label.textContent=b.id;
+}
+
+function showHandles(id){
+  const el=buildingEls[id];
+  if(!el)return;
+  el.querySelectorAll('.handle').forEach(h=>h.style.display='block');
+}
+function hideHandles(id){
+  const el=buildingEls[id];
+  if(!el)return;
+  el.querySelectorAll('.handle').forEach(h=>h.style.display='none');
+}
+
+function addBuilding(){
+  const used=buildings.map(b=>b.id);
+  const avail=BUILDING_IDS.filter(id=>!used.includes(id));
+  if(avail.length===0){ alert('所有楼栋已标记！'); return; }
+  
+  // Place new building at center of viewport
+  const vp=document.getElementById('vp');
+  const center=viewportToCanvas(vp.clientWidth/2+vp.scrollLeft, vp.clientHeight/2+vp.scrollTop);
+  const b={id:avail[0], x:center.x-60, y:center.y-40, w:120, h:80};
+  buildings.push(b);
+  saveBuildings();
+  createBuildingElement(b);
+  selectBuilding(b.id);
+  updateBuildingList();
+  // Ensure the building is visible & handles rendered
+  requestAnimationFrame(()=>{
+    showHandles(b.id);
+    updateBuildingElement(b);
+  });
+}
+
+function deleteSelected(){
+  if(!selectedBuilding)return;
+  const el=buildingEls[selectedBuilding];
+  if(el)el.remove();
+  delete buildingEls[selectedBuilding];
+  buildings=buildings.filter(b=>b.id!==selectedBuilding);
+  saveBuildings();
+  selectedBuilding=null;
+  updateInfo('');
+  updateBuildingList();
+}
+
+function updateInfo(msg){
+  document.getElementById('info').textContent=msg||`全景 ${CW}×${CH} | 已标记 ${buildings.length}/31 栋`;
+}
+function updateBuildingList(){
+  const list=buildings.map(b=>b.id).join(', ')||'暂无';
+  document.getElementById('buildingList').textContent=list;
+}
+
+// Mouse events
+const vp=document.getElementById('vp');
+
+vp.addEventListener('mousedown',e=>{
+  // Check resize handles first
+  const handleEl=e.target.closest('.handle');
+  if(handleEl){
+    const bldEl=handleEl.closest('.building');
+    const id=bldEl.dataset.id;
+    selectBuilding(id);
+    dragMode='resize';
+    resizeHandle=handleEl.dataset.handle;
+    const b=buildings.find(b=>b.id===id);
+    dragStart=viewportToCanvas(e.clientX,e.clientY);
+    dragStartRect={x:b.x,y:b.y,w:b.w,h:b.h};
+    e.preventDefault();e.stopPropagation();
+    return;
+  }
+  
+  // Check building click
+  const bldEl=e.target.closest('.building');
+  if(bldEl){
+    const id=bldEl.dataset.id;
+    selectBuilding(id);
+    dragMode='move';
+    const b=buildings.find(b=>b.id===id);
+    dragStart=viewportToCanvas(e.clientX,e.clientY);
+    dragStartRect={x:b.x,y:b.y};
+    e.preventDefault();e.stopPropagation();
+    return;
+  }
+  
+  // Create new building on empty area
+  selectBuilding(null);
+  dragMode='create';
+  dragStart=viewportToCanvas(e.clientX,e.clientY);
+  newBoxEl=document.createElement('div');
+  newBoxEl.style.cssText='position:absolute;border:1px dashed #ffd700;background:rgba(255,215,0,.08);z-index:50;pointer-events:none';
+  newBoxEl.style.left=dragStart.x+'px';
+  newBoxEl.style.top=dragStart.y+'px';
+  newBoxEl.style.width='0px';
+  newBoxEl.style.height='0px';
+  document.getElementById('canvas').appendChild(newBoxEl);
+});
+
+window.addEventListener('mousemove',e=>{
+  if(!dragMode)return;
+  const cur=viewportToCanvas(e.clientX,e.clientY);
+  
+  if(dragMode==='create'&&newBoxEl){
+    const x1=Math.min(dragStart.x,cur.x),y1=Math.min(dragStart.y,cur.y);
+    const x2=Math.max(dragStart.x,cur.x),y2=Math.max(dragStart.y,cur.y);
+    newBoxEl.style.left=x1+'px';
+    newBoxEl.style.top=y1+'px';
+    newBoxEl.style.width=(x2-x1)+'px';
+    newBoxEl.style.height=(y2-y1)+'px';
+  }
+  
+  if(dragMode==='move'&&selectedBuilding){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    const b=buildings.find(b=>b.id===selectedBuilding);
+    b.x=dragStartRect.x+dx;
+    b.y=dragStartRect.y+dy;
+    updateBuildingElement(b);
+  }
+  
+  if(dragMode==='resize'&&selectedBuilding){
+    const dx=cur.x-dragStart.x, dy=cur.y-dragStart.y;
+    const b=buildings.find(b=>b.id===selectedBuilding);
+    const r=dragStartRect;
+    
+    if(resizeHandle.includes('e')){ b.w=Math.max(20,r.w+dx); }
+    if(resizeHandle.includes('w')){ b.x=r.x+dx; b.w=Math.max(20,r.w-dx); if(b.w===20)b.x=r.x+r.w-20; }
+    if(resizeHandle.includes('s')){ b.h=Math.max(20,r.h+dy); }
+    if(resizeHandle.includes('n')){ b.y=r.y+dy; b.h=Math.max(20,r.h-dy); if(b.h===20)b.y=r.y+r.h-20; }
+    
+    updateBuildingElement(b);
+  }
+});
+
+window.addEventListener('mouseup',e=>{
+  if(dragMode==='create'&&newBoxEl){
+    const cur=viewportToCanvas(e.clientX,e.clientY);
+    const x1=Math.min(dragStart.x,cur.x),y1=Math.min(dragStart.y,cur.y);
+    const x2=Math.max(dragStart.x,cur.x),y2=Math.max(dragStart.y,cur.y);
+    newBoxEl.remove();newBoxEl=null;
+    
+    if(x2-x1<10||y2-y1<10){ dragMode=null;return; }
+    
+    const used=buildings.map(b=>b.id);
+    const avail=BUILDING_IDS.filter(id=>!used.includes(id));
+    if(avail.length===0){ alert('所有楼栋已标记！'); dragMode=null;return; }
+    
+    const b={id:avail[0], x:x1, y:y1, w:x2-x1, h:y2-y1};
+    buildings.push(b);
+    saveBuildings();
+    createBuildingElement(b);
+    selectBuilding(b.id);
+    showHandles(b.id);
+    updateBuildingList();
+  }
+  dragMode=null;
+  resizeHandle=null;
+});
+
+window.addEventListener('keydown',e=>{
+  if(e.key==='Delete'||e.key==='Backspace'){
+    if(selectedBuilding)deleteSelected();
+  }
+  if(e.key==='Escape'){
+    if(selectedBuilding)hideHandles(selectedBuilding);
+    selectBuilding(null);
+  }
+});
+
+function exportData(){
+  const out={
+    spots: spots,
+    buildings: buildings.map(b=>({
+      id:b.id, x:Math.round(b.x), y:Math.round(b.y),
+      w:Math.round(b.w), h:Math.round(b.h)
+    })),
+    total_spots: spots.length,
+    total_buildings: buildings.length
+  };
+  const json=JSON.stringify(out,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='parking_spots_and_buildings.json';
+  a.click();
+}
+
+async function init(){
+  document.getElementById('bgImg').src='../stitched_final.png';
+  
+  // Load saved buildings from localStorage
+  loadBuildings();
+  // Render saved buildings
+  buildings.forEach(b => createBuildingElement(b));
+  updateBuildingList();
+  
+  // Load spots data
+  try{
+    const resp=await fetch('../parking_spots_stitched.json');
+    spots=await resp.json();
+  }catch(e){console.warn('No spots data loaded');}
+  
+  // Render spots (dimmed)
+  spots.forEach(s=>{
+    const rw=s.rect_w||25, rh=s.rect_h||54;
+    const isLand=s.landscape;
+    const sw=isLand?rh:rw, sh=isLand?rw:rh;
+    const el=document.createElement('div');
+    el.className='spot'+(isLand?' landscape':'');
+    el.style.left=(s.stitched_x/CW*100)+'%';
+    el.style.top=(s.stitched_y/CH*100)+'%';
+    el.style.width=(sw/CW*100)+'%';
+    el.style.height=(sh/CH*100)+'%';
+    el.textContent=s.id;
+    document.getElementById('canvas').appendChild(el);
+  });
+  
+  document.getElementById('stats').textContent=`车位 ${spots.length} | 楼栋 ${buildings.length}/31`;
+  
+  vp.addEventListener('wheel',e=>{
+    if(e.ctrlKey||e.metaKey){e.preventDefault();if(e.deltaY<0)zoomIn();else zoomOut();}
+  },{passive:false});
+  
+  zoom=0.85;applyZoom();
+  updateInfo();
+}
+init();
+</script>
+</body>
+</html>
