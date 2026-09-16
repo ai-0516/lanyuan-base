@@ -788,10 +788,13 @@ App (app.js)
 ### 停车地图数据与渲染
 
 - 原始地图保存在微信云存储，`PARKING_MAP_URL` 配置其 `cloud://` fileID，避免 7 MB 图片进入小程序主包
-- `docs/parking/parking_spots_buildings_gates_roads.json` 是数据源；`scripts/generate-parking-data.js` 生成前端只读搜索索引
-- 搜索索引包含 1385 个车位、31 栋楼和 3 个出入口，坐标归一化为原图宽高比例
+- `docs/parking/parking_spots_buildings_gates_roads.json` 是数据源；`scripts/generate-parking-data.js` 生成前端只读搜索索引和道路图
+- 搜索索引包含 1385 个车位、31 栋楼和 3 个出入口；道路图包含 161 个节点、185 条边及单向/双向属性
 - 地图使用 `movable-area` / `movable-view` 实现原生缩放与拖动，仅渲染当前选中标记，避免同时创建 1385 个视图节点
-- 路线规划、出租车位和闲时共享不在本期实现，但复用同一坐标系和停车页面入口
+- 路线规划将起终点投影到距离最近的道路边，在临时图中切分对应边，再用 Dijkstra 计算最短路径；单向边只建立正向连接
+- 路径以地图原始像素坐标计算，以绝对定位线段叠加在同一 `movable-view` 中，随底图同步缩放和拖动
+- 估算距离使用车位标准宽度校准的 `0.1 米/像素` 比例，界面使用“约”标识其估算属性
+- 出租车位和闲时共享不在本期实现，但复用同一坐标系和停车页面入口
 
 ---
 

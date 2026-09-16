@@ -110,7 +110,7 @@ e2e('服务异常（500）时 Feed 加载失败并优雅降级', async () => {
   expect(settled.posts).toHaveLength(0);
 });
 
-e2e('停车地图加载并可搜索定位车位', async () => {
+e2e('停车地图支持搜索定位和路线规划', async () => {
   await miniProgram.open('/pages/parking/index');
   const parking = await waitForPath(miniProgram, 'pages/parking/index');
   const loaded = await waitForData(parking, data => data.mapReady === true);
@@ -123,6 +123,15 @@ e2e('停车地图加载并可搜索定位车位', async () => {
   await parking.callMethod('onResultTap', { currentTarget: { dataset: { index: 0 } } });
   const focused = await waitForData(parking, data => data.selectedTarget?.id === 'A001');
   expect(focused.mapScale).toBe(2.4);
+
+  await parking.tap('.endpoint-button-start', 'onSetRouteEndpoint');
+  await parking.callMethod('onSearchInput', { detail: { value: 'B194' } });
+  await parking.callMethod('onResultTap', { currentTarget: { dataset: { index: 0 } } });
+  await parking.tap('.endpoint-button-end', 'onSetRouteEndpoint');
+  const routed = await waitForData(parking, data => data.routeSegments.length > 0);
+  expect(routed.routeStart.id).toBe('A001');
+  expect(routed.routeEnd.id).toBe('B194');
+  expect(routed.routeDistance).toBeGreaterThan(0);
 });
 
 // 进入非 Tab 发布页后，当前 DevTools 的自动化协议不稳定；将该终止性导航

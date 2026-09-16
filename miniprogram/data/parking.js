@@ -19699,5 +19699,2024 @@ module.exports = {
       "x": 0.88546,
       "y": 0.415911
     }
-  ]
+  ],
+  "roadGraph": {
+    "nodes": [
+      {
+        "id": 0,
+        "x": 578,
+        "y": 939
+      },
+      {
+        "id": 1,
+        "x": 2041,
+        "y": 1439
+      },
+      {
+        "id": 2,
+        "x": 2422,
+        "y": 285
+      },
+      {
+        "id": 3,
+        "x": 2478,
+        "y": 1265
+      },
+      {
+        "id": 4,
+        "x": 905,
+        "y": 2064
+      },
+      {
+        "id": 5,
+        "x": 2042,
+        "y": 2709
+      },
+      {
+        "id": 6,
+        "x": 1154,
+        "y": 3449
+      },
+      {
+        "id": 7,
+        "x": 841,
+        "y": 941
+      },
+      {
+        "id": 8,
+        "x": 612,
+        "y": 1247
+      },
+      {
+        "id": 9,
+        "x": 1346,
+        "y": 1434
+      },
+      {
+        "id": 10,
+        "x": 845,
+        "y": 1899
+      },
+      {
+        "id": 11,
+        "x": 2381,
+        "y": 282
+      },
+      {
+        "id": 12,
+        "x": 2813,
+        "y": 287
+      },
+      {
+        "id": 13,
+        "x": 2813,
+        "y": 454
+      },
+      {
+        "id": 14,
+        "x": 2341,
+        "y": 503
+      },
+      {
+        "id": 15,
+        "x": 2420,
+        "y": 766
+      },
+      {
+        "id": 16,
+        "x": 2864,
+        "y": 770
+      },
+      {
+        "id": 17,
+        "x": 2476,
+        "y": 3255
+      },
+      {
+        "id": 18,
+        "x": 2868,
+        "y": 1230
+      },
+      {
+        "id": 19,
+        "x": 2869,
+        "y": 2163
+      },
+      {
+        "id": 20,
+        "x": 2869,
+        "y": 2334
+      },
+      {
+        "id": 21,
+        "x": 2043,
+        "y": 2373
+      },
+      {
+        "id": 22,
+        "x": 2812,
+        "y": 2641
+      },
+      {
+        "id": 23,
+        "x": 2478,
+        "y": 2811
+      },
+      {
+        "id": 24,
+        "x": 2812,
+        "y": 2802
+      },
+      {
+        "id": 25,
+        "x": 1232,
+        "y": 1723
+      },
+      {
+        "id": 26,
+        "x": 1235,
+        "y": 2061
+      },
+      {
+        "id": 27,
+        "x": 524,
+        "y": 2188
+      },
+      {
+        "id": 28,
+        "x": 905,
+        "y": 2191
+      },
+      {
+        "id": 29,
+        "x": 1323,
+        "y": 2403
+      },
+      {
+        "id": 30,
+        "x": 578,
+        "y": 2527
+      },
+      {
+        "id": 31,
+        "x": 891,
+        "y": 2739
+      },
+      {
+        "id": 32,
+        "x": 1324,
+        "y": 3234
+      },
+      {
+        "id": 33,
+        "x": 2041,
+        "y": 2859
+      },
+      {
+        "id": 34,
+        "x": 2153,
+        "y": 3257
+      },
+      {
+        "id": 35,
+        "x": 2705,
+        "y": 3549
+      },
+      {
+        "id": 36,
+        "x": 844,
+        "y": 1106
+      },
+      {
+        "id": 37,
+        "x": 844,
+        "y": 1246
+      },
+      {
+        "id": 38,
+        "x": 844,
+        "y": 1607
+      },
+      {
+        "id": 39,
+        "x": 844,
+        "y": 1434
+      },
+      {
+        "id": 40,
+        "x": 2478,
+        "y": 1099
+      },
+      {
+        "id": 41,
+        "x": 844,
+        "y": 1266
+      },
+      {
+        "id": 42,
+        "x": 1348,
+        "y": 1266
+      },
+      {
+        "id": 43,
+        "x": 1348,
+        "y": 1099
+      },
+      {
+        "id": 44,
+        "x": 2478,
+        "y": 1439
+      },
+      {
+        "id": 45,
+        "x": 2041,
+        "y": 1099
+      },
+      {
+        "id": 46,
+        "x": 2422,
+        "y": 458
+      },
+      {
+        "id": 47,
+        "x": 2422,
+        "y": 505
+      },
+      {
+        "id": 48,
+        "x": 2478,
+        "y": 931
+      },
+      {
+        "id": 49,
+        "x": 2865,
+        "y": 931
+      },
+      {
+        "id": 50,
+        "x": 2478,
+        "y": 768
+      },
+      {
+        "id": 51,
+        "x": 2478,
+        "y": 1868
+      },
+      {
+        "id": 52,
+        "x": 2478,
+        "y": 1229
+      },
+      {
+        "id": 53,
+        "x": 2478,
+        "y": 1399
+      },
+      {
+        "id": 54,
+        "x": 2869,
+        "y": 1399
+      },
+      {
+        "id": 55,
+        "x": 2041,
+        "y": 1265
+      },
+      {
+        "id": 56,
+        "x": 2478,
+        "y": 1786
+      },
+      {
+        "id": 57,
+        "x": 2478,
+        "y": 2161
+      },
+      {
+        "id": 58,
+        "x": 2478,
+        "y": 2334
+      },
+      {
+        "id": 59,
+        "x": 2478,
+        "y": 2372
+      },
+      {
+        "id": 60,
+        "x": 2478,
+        "y": 2640
+      },
+      {
+        "id": 61,
+        "x": 844,
+        "y": 1723
+      },
+      {
+        "id": 62,
+        "x": 1235,
+        "y": 1901
+      },
+      {
+        "id": 63,
+        "x": 844,
+        "y": 1687
+      },
+      {
+        "id": 64,
+        "x": 886,
+        "y": 2200
+      },
+      {
+        "id": 65,
+        "x": 576,
+        "y": 2360
+      },
+      {
+        "id": 66,
+        "x": 886,
+        "y": 2360
+      },
+      {
+        "id": 67,
+        "x": 886,
+        "y": 2400
+      },
+      {
+        "id": 68,
+        "x": 905,
+        "y": 1901
+      },
+      {
+        "id": 69,
+        "x": 576,
+        "y": 2191
+      },
+      {
+        "id": 70,
+        "x": 886,
+        "y": 2529
+      },
+      {
+        "id": 71,
+        "x": 1324,
+        "y": 2569
+      },
+      {
+        "id": 72,
+        "x": 1324,
+        "y": 2736
+      },
+      {
+        "id": 73,
+        "x": 2042,
+        "y": 2543
+      },
+      {
+        "id": 74,
+        "x": 2478,
+        "y": 2543
+      },
+      {
+        "id": 75,
+        "x": 2478,
+        "y": 2709
+      },
+      {
+        "id": 76,
+        "x": 2042,
+        "y": 2819
+      },
+      {
+        "id": 77,
+        "x": 1324,
+        "y": 2858
+      },
+      {
+        "id": 78,
+        "x": 1324,
+        "y": 2898
+      },
+      {
+        "id": 79,
+        "x": 1154,
+        "y": 3235
+      },
+      {
+        "id": 80,
+        "x": 2478,
+        "y": 3088
+      },
+      {
+        "id": 81,
+        "x": 1154,
+        "y": 3547
+      },
+      {
+        "id": 82,
+        "x": 2151,
+        "y": 3547
+      },
+      {
+        "id": 83,
+        "x": 2297,
+        "y": 3547
+      },
+      {
+        "id": 84,
+        "x": 2297,
+        "y": 3899
+      },
+      {
+        "id": 85,
+        "x": 1579,
+        "y": 3547
+      },
+      {
+        "id": 86,
+        "x": 1579,
+        "y": 3899
+      },
+      {
+        "id": 87,
+        "x": 1086,
+        "y": 1099
+      },
+      {
+        "id": 88,
+        "x": 2488,
+        "y": 285
+      },
+      {
+        "id": 89,
+        "x": 2771,
+        "y": 285
+      },
+      {
+        "id": 90,
+        "x": 2180,
+        "y": 1099
+      },
+      {
+        "id": 91,
+        "x": 1718,
+        "y": 1099
+      },
+      {
+        "id": 92,
+        "x": 1664,
+        "y": 1439
+      },
+      {
+        "id": 93,
+        "x": 1171,
+        "y": 1434
+      },
+      {
+        "id": 94,
+        "x": 2115,
+        "y": 1439
+      },
+      {
+        "id": 95,
+        "x": 905,
+        "y": 1940
+      },
+      {
+        "id": 96,
+        "x": 1061,
+        "y": 2400
+      },
+      {
+        "id": 97,
+        "x": 2276,
+        "y": 2372
+      },
+      {
+        "id": 98,
+        "x": 643,
+        "y": 2529
+      },
+      {
+        "id": 99,
+        "x": 1734,
+        "y": 2858
+      },
+      {
+        "id": 100,
+        "x": 1016,
+        "y": 2898
+      },
+      {
+        "id": 101,
+        "x": 2183,
+        "y": 2819
+      },
+      {
+        "id": 102,
+        "x": 1748,
+        "y": 3547
+      },
+      {
+        "id": 103,
+        "x": 2644,
+        "y": 458
+      },
+      {
+        "id": 104,
+        "x": 2656,
+        "y": 931
+      },
+      {
+        "id": 105,
+        "x": 2641,
+        "y": 1868
+      },
+      {
+        "id": 106,
+        "x": 2657,
+        "y": 2334
+      },
+      {
+        "id": 107,
+        "x": 2666,
+        "y": 2804
+      },
+      {
+        "id": 108,
+        "x": 2350,
+        "y": 3256
+      },
+      {
+        "id": 109,
+        "x": 2056,
+        "y": 3547
+      },
+      {
+        "id": 110,
+        "x": 1345,
+        "y": 3899
+      },
+      {
+        "id": 111,
+        "x": 1872,
+        "y": 3899
+      },
+      {
+        "id": 112,
+        "x": 2536,
+        "y": 3899
+      },
+      {
+        "id": 113,
+        "x": 558,
+        "y": 939
+      },
+      {
+        "id": 114,
+        "x": 551,
+        "y": 1106
+      },
+      {
+        "id": 115,
+        "x": 996,
+        "y": 1607
+      },
+      {
+        "id": 116,
+        "x": 2865,
+        "y": 1016
+      },
+      {
+        "id": 117,
+        "x": 2886,
+        "y": 1868
+      },
+      {
+        "id": 118,
+        "x": 2869,
+        "y": 1490
+      },
+      {
+        "id": 119,
+        "x": 2339,
+        "y": 57
+      },
+      {
+        "id": 120,
+        "x": 2995,
+        "y": 1786
+      },
+      {
+        "id": 121,
+        "x": 348,
+        "y": 1687
+      },
+      {
+        "id": 122,
+        "x": 923,
+        "y": 2569
+      },
+      {
+        "id": 123,
+        "x": 993,
+        "y": 2898
+      },
+      {
+        "id": 124,
+        "x": 1154,
+        "y": 3148
+      },
+      {
+        "id": 125,
+        "x": 1154,
+        "y": 3649
+      },
+      {
+        "id": 126,
+        "x": 2138,
+        "y": 3088
+      },
+      {
+        "id": 127,
+        "x": 1139,
+        "y": 3899
+      },
+      {
+        "id": 128,
+        "x": 2792,
+        "y": 3899
+      },
+      {
+        "id": 129,
+        "x": 2705,
+        "y": 3627
+      },
+      {
+        "id": 130,
+        "x": 578,
+        "y": 852
+      },
+      {
+        "id": 131,
+        "x": 1086,
+        "y": 974
+      },
+      {
+        "id": 132,
+        "x": 2381,
+        "y": 187
+      },
+      {
+        "id": 133,
+        "x": 2488,
+        "y": 209
+      },
+      {
+        "id": 134,
+        "x": 2771,
+        "y": 204
+      },
+      {
+        "id": 135,
+        "x": 2180,
+        "y": 996
+      },
+      {
+        "id": 136,
+        "x": 608,
+        "y": 1276
+      },
+      {
+        "id": 137,
+        "x": 1718,
+        "y": 1182
+      },
+      {
+        "id": 138,
+        "x": 1664,
+        "y": 1357
+      },
+      {
+        "id": 139,
+        "x": 1171,
+        "y": 1506
+      },
+      {
+        "id": 140,
+        "x": 2115,
+        "y": 1515
+      },
+      {
+        "id": 141,
+        "x": 524,
+        "y": 2127
+      },
+      {
+        "id": 142,
+        "x": 691,
+        "y": 1940
+      },
+      {
+        "id": 143,
+        "x": 1061,
+        "y": 2311
+      },
+      {
+        "id": 144,
+        "x": 2276,
+        "y": 2288
+      },
+      {
+        "id": 145,
+        "x": 643,
+        "y": 2614
+      },
+      {
+        "id": 146,
+        "x": 1734,
+        "y": 2782
+      },
+      {
+        "id": 147,
+        "x": 1016,
+        "y": 2977
+      },
+      {
+        "id": 148,
+        "x": 2183,
+        "y": 2893
+      },
+      {
+        "id": 149,
+        "x": 848,
+        "y": 3449
+      },
+      {
+        "id": 150,
+        "x": 1748,
+        "y": 3426
+      },
+      {
+        "id": 151,
+        "x": 2644,
+        "y": 539
+      },
+      {
+        "id": 152,
+        "x": 2656,
+        "y": 1019
+      },
+      {
+        "id": 153,
+        "x": 2641,
+        "y": 1953
+      },
+      {
+        "id": 154,
+        "x": 2657,
+        "y": 2424
+      },
+      {
+        "id": 155,
+        "x": 2666,
+        "y": 2885
+      },
+      {
+        "id": 156,
+        "x": 2350,
+        "y": 3307
+      },
+      {
+        "id": 157,
+        "x": 2056,
+        "y": 3656
+      },
+      {
+        "id": 158,
+        "x": 1345,
+        "y": 4000
+      },
+      {
+        "id": 159,
+        "x": 1872,
+        "y": 3991
+      },
+      {
+        "id": 160,
+        "x": 2536,
+        "y": 3989
+      }
+    ],
+    "edges": [
+      {
+        "from": 113,
+        "to": 0,
+        "roadIndex": 0,
+        "length": 20
+      },
+      {
+        "from": 0,
+        "to": 7,
+        "roadIndex": 0,
+        "length": 263
+      },
+      {
+        "from": 114,
+        "to": 36,
+        "roadIndex": 1,
+        "length": 293
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "roadIndex": 1,
+        "length": 7
+      },
+      {
+        "from": 8,
+        "to": 37,
+        "roadIndex": 2,
+        "length": 232
+      },
+      {
+        "from": 38,
+        "to": 115,
+        "roadIndex": 3,
+        "length": 153
+      },
+      {
+        "from": 39,
+        "to": 93,
+        "roadIndex": 4,
+        "length": 328
+      },
+      {
+        "from": 93,
+        "to": 9,
+        "roadIndex": 4,
+        "length": 175
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "roadIndex": 4,
+        "length": 3
+      },
+      {
+        "from": 40,
+        "to": 90,
+        "roadIndex": 5,
+        "length": 298
+      },
+      {
+        "from": 90,
+        "to": 45,
+        "roadIndex": 5,
+        "length": 139
+      },
+      {
+        "from": 45,
+        "to": 91,
+        "roadIndex": 5,
+        "length": 324
+      },
+      {
+        "from": 91,
+        "to": 43,
+        "roadIndex": 5,
+        "length": 369
+      },
+      {
+        "from": 43,
+        "to": 87,
+        "roadIndex": 5,
+        "length": 262
+      },
+      {
+        "from": 87,
+        "to": 36,
+        "roadIndex": 5,
+        "length": 242
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "roadIndex": 6,
+        "length": 505
+      },
+      {
+        "from": 9,
+        "to": 42,
+        "roadIndex": 7,
+        "length": 167
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "roadIndex": 7,
+        "length": 167
+      },
+      {
+        "from": 9,
+        "to": 92,
+        "roadIndex": 8,
+        "length": 316
+      },
+      {
+        "from": 92,
+        "to": 1,
+        "roadIndex": 8,
+        "length": 378
+      },
+      {
+        "from": 1,
+        "to": 94,
+        "roadIndex": 8,
+        "length": 74
+      },
+      {
+        "from": 94,
+        "to": 44,
+        "roadIndex": 8,
+        "length": 362
+      },
+      {
+        "from": 45,
+        "to": 55,
+        "roadIndex": 9,
+        "length": 166
+      },
+      {
+        "from": 55,
+        "to": 1,
+        "roadIndex": 9,
+        "length": 173
+      },
+      {
+        "from": 7,
+        "to": 36,
+        "roadIndex": 10,
+        "length": 159
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "roadIndex": 10,
+        "length": 140
+      },
+      {
+        "from": 37,
+        "to": 41,
+        "roadIndex": 10,
+        "length": 20
+      },
+      {
+        "from": 41,
+        "to": 39,
+        "roadIndex": 10,
+        "length": 168
+      },
+      {
+        "from": 39,
+        "to": 38,
+        "roadIndex": 10,
+        "length": 172
+      },
+      {
+        "from": 38,
+        "to": 63,
+        "roadIndex": 10,
+        "length": 81
+      },
+      {
+        "from": 63,
+        "to": 61,
+        "roadIndex": 10,
+        "length": 36
+      },
+      {
+        "from": 61,
+        "to": 10,
+        "roadIndex": 10,
+        "length": 176
+      },
+      {
+        "from": 11,
+        "to": 2,
+        "roadIndex": 11,
+        "length": 41
+      },
+      {
+        "from": 2,
+        "to": 88,
+        "roadIndex": 11,
+        "length": 66
+      },
+      {
+        "from": 88,
+        "to": 89,
+        "roadIndex": 11,
+        "length": 282
+      },
+      {
+        "from": 89,
+        "to": 12,
+        "roadIndex": 11,
+        "length": 43
+      },
+      {
+        "from": 46,
+        "to": 103,
+        "roadIndex": 12,
+        "length": 222
+      },
+      {
+        "from": 103,
+        "to": 13,
+        "roadIndex": 12,
+        "length": 169
+      },
+      {
+        "from": 14,
+        "to": 47,
+        "roadIndex": 13,
+        "length": 80
+      },
+      {
+        "from": 15,
+        "to": 50,
+        "roadIndex": 14,
+        "length": 58
+      },
+      {
+        "from": 50,
+        "to": 16,
+        "roadIndex": 14,
+        "length": 387
+      },
+      {
+        "from": 48,
+        "to": 104,
+        "roadIndex": 15,
+        "length": 179
+      },
+      {
+        "from": 104,
+        "to": 49,
+        "roadIndex": 15,
+        "length": 208
+      },
+      {
+        "from": 2,
+        "to": 46,
+        "roadIndex": 16,
+        "length": 173
+      },
+      {
+        "from": 46,
+        "to": 47,
+        "roadIndex": 16,
+        "length": 47
+      },
+      {
+        "from": 47,
+        "to": 15,
+        "roadIndex": 16,
+        "length": 261
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "roadIndex": 17,
+        "length": 167
+      },
+      {
+        "from": 50,
+        "to": 48,
+        "roadIndex": 18,
+        "length": 162
+      },
+      {
+        "from": 48,
+        "to": 40,
+        "roadIndex": 18,
+        "length": 169
+      },
+      {
+        "from": 40,
+        "to": 52,
+        "roadIndex": 18,
+        "length": 130
+      },
+      {
+        "from": 52,
+        "to": 3,
+        "roadIndex": 18,
+        "length": 36
+      },
+      {
+        "from": 3,
+        "to": 53,
+        "roadIndex": 18,
+        "length": 134
+      },
+      {
+        "from": 53,
+        "to": 44,
+        "roadIndex": 18,
+        "length": 39
+      },
+      {
+        "from": 44,
+        "to": 56,
+        "roadIndex": 18,
+        "length": 348
+      },
+      {
+        "from": 56,
+        "to": 51,
+        "roadIndex": 18,
+        "length": 81
+      },
+      {
+        "from": 51,
+        "to": 57,
+        "roadIndex": 18,
+        "length": 294
+      },
+      {
+        "from": 57,
+        "to": 58,
+        "roadIndex": 18,
+        "length": 173
+      },
+      {
+        "from": 58,
+        "to": 59,
+        "roadIndex": 18,
+        "length": 38
+      },
+      {
+        "from": 59,
+        "to": 74,
+        "roadIndex": 18,
+        "length": 171
+      },
+      {
+        "from": 74,
+        "to": 60,
+        "roadIndex": 18,
+        "length": 98
+      },
+      {
+        "from": 60,
+        "to": 75,
+        "roadIndex": 18,
+        "length": 68
+      },
+      {
+        "from": 75,
+        "to": 23,
+        "roadIndex": 18,
+        "length": 95
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "roadIndex": 18,
+        "length": 8
+      },
+      {
+        "from": 23,
+        "to": 80,
+        "roadIndex": 18,
+        "length": 269
+      },
+      {
+        "from": 80,
+        "to": 17,
+        "roadIndex": 18,
+        "length": 168
+      },
+      {
+        "from": 16,
+        "to": 49,
+        "roadIndex": 19,
+        "length": 161
+      },
+      {
+        "from": 49,
+        "to": 116,
+        "roadIndex": 19,
+        "length": 86
+      },
+      {
+        "from": 51,
+        "to": 105,
+        "roadIndex": 20,
+        "length": 163
+      },
+      {
+        "from": 105,
+        "to": 117,
+        "roadIndex": 20,
+        "length": 245
+      },
+      {
+        "from": 52,
+        "to": 18,
+        "roadIndex": 21,
+        "length": 390
+      },
+      {
+        "from": 53,
+        "to": 54,
+        "roadIndex": 22,
+        "length": 392
+      },
+      {
+        "from": 18,
+        "to": 54,
+        "roadIndex": 23,
+        "length": 169
+      },
+      {
+        "from": 54,
+        "to": 118,
+        "roadIndex": 23,
+        "length": 91
+      },
+      {
+        "from": 55,
+        "to": 3,
+        "roadIndex": 24,
+        "length": 436
+      },
+      {
+        "from": 119,
+        "to": 14,
+        "roadIndex": 25,
+        "length": 445
+      },
+      {
+        "from": 56,
+        "to": 120,
+        "roadIndex": 26,
+        "length": 518
+      },
+      {
+        "from": 57,
+        "to": 19,
+        "roadIndex": 27,
+        "length": 392
+      },
+      {
+        "from": 58,
+        "to": 106,
+        "roadIndex": 28,
+        "length": 179
+      },
+      {
+        "from": 106,
+        "to": 20,
+        "roadIndex": 28,
+        "length": 212
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "roadIndex": 29,
+        "length": 171
+      },
+      {
+        "from": 21,
+        "to": 97,
+        "roadIndex": 30,
+        "length": 233
+      },
+      {
+        "from": 97,
+        "to": 59,
+        "roadIndex": 30,
+        "length": 202
+      },
+      {
+        "from": 60,
+        "to": 22,
+        "roadIndex": 31,
+        "length": 335
+      },
+      {
+        "from": 23,
+        "to": 107,
+        "roadIndex": 32,
+        "length": 188
+      },
+      {
+        "from": 107,
+        "to": 24,
+        "roadIndex": 32,
+        "length": 146
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "roadIndex": 33,
+        "length": 161
+      },
+      {
+        "from": 61,
+        "to": 25,
+        "roadIndex": 34,
+        "length": 388
+      },
+      {
+        "from": 10,
+        "to": 68,
+        "roadIndex": 35,
+        "length": 61
+      },
+      {
+        "from": 68,
+        "to": 62,
+        "roadIndex": 35,
+        "length": 329
+      },
+      {
+        "from": 4,
+        "to": 26,
+        "roadIndex": 36,
+        "length": 330
+      },
+      {
+        "from": 25,
+        "to": 62,
+        "roadIndex": 37,
+        "length": 178
+      },
+      {
+        "from": 62,
+        "to": 26,
+        "roadIndex": 37,
+        "length": 161
+      },
+      {
+        "from": 121,
+        "to": 63,
+        "roadIndex": 38,
+        "length": 495
+      },
+      {
+        "from": 27,
+        "to": 69,
+        "roadIndex": 39,
+        "length": 52
+      },
+      {
+        "from": 69,
+        "to": 64,
+        "roadIndex": 39,
+        "length": 309
+      },
+      {
+        "from": 64,
+        "to": 64,
+        "roadIndex": 39,
+        "length": 9
+      },
+      {
+        "from": 64,
+        "to": 28,
+        "roadIndex": 39,
+        "length": 21
+      },
+      {
+        "from": 65,
+        "to": 66,
+        "roadIndex": 40,
+        "length": 309
+      },
+      {
+        "from": 67,
+        "to": 96,
+        "roadIndex": 41,
+        "length": 176
+      },
+      {
+        "from": 96,
+        "to": 29,
+        "roadIndex": 41,
+        "length": 262
+      },
+      {
+        "from": 68,
+        "to": 95,
+        "roadIndex": 42,
+        "length": 39
+      },
+      {
+        "from": 95,
+        "to": 4,
+        "roadIndex": 42,
+        "length": 125
+      },
+      {
+        "from": 4,
+        "to": 64,
+        "roadIndex": 42,
+        "length": 128
+      },
+      {
+        "from": 69,
+        "to": 65,
+        "roadIndex": 43,
+        "length": 169
+      },
+      {
+        "from": 65,
+        "to": 30,
+        "roadIndex": 43,
+        "length": 168
+      },
+      {
+        "from": 30,
+        "to": 98,
+        "roadIndex": 44,
+        "length": 65
+      },
+      {
+        "from": 98,
+        "to": 70,
+        "roadIndex": 44,
+        "length": 243
+      },
+      {
+        "from": 64,
+        "to": 66,
+        "roadIndex": 45,
+        "length": 160
+      },
+      {
+        "from": 66,
+        "to": 67,
+        "roadIndex": 45,
+        "length": 40
+      },
+      {
+        "from": 67,
+        "to": 70,
+        "roadIndex": 45,
+        "length": 129
+      },
+      {
+        "from": 70,
+        "to": 31,
+        "roadIndex": 45,
+        "length": 210
+      },
+      {
+        "from": 122,
+        "to": 71,
+        "roadIndex": 46,
+        "length": 401
+      },
+      {
+        "from": 31,
+        "to": 72,
+        "roadIndex": 47,
+        "length": 433
+      },
+      {
+        "from": 29,
+        "to": 71,
+        "roadIndex": 48,
+        "length": 166
+      },
+      {
+        "from": 71,
+        "to": 72,
+        "roadIndex": 48,
+        "length": 168
+      },
+      {
+        "from": 72,
+        "to": 77,
+        "roadIndex": 48,
+        "length": 122
+      },
+      {
+        "from": 77,
+        "to": 78,
+        "roadIndex": 48,
+        "length": 40
+      },
+      {
+        "from": 78,
+        "to": 32,
+        "roadIndex": 48,
+        "length": 336
+      },
+      {
+        "from": 73,
+        "to": 74,
+        "roadIndex": 49,
+        "length": 435
+      },
+      {
+        "from": 5,
+        "to": 75,
+        "roadIndex": 50,
+        "length": 435
+      },
+      {
+        "from": 76,
+        "to": 101,
+        "roadIndex": 51,
+        "length": 141
+      },
+      {
+        "from": 101,
+        "to": 23,
+        "roadIndex": 51,
+        "length": 295
+      },
+      {
+        "from": 21,
+        "to": 73,
+        "roadIndex": 52,
+        "length": 170
+      },
+      {
+        "from": 73,
+        "to": 5,
+        "roadIndex": 52,
+        "length": 166
+      },
+      {
+        "from": 5,
+        "to": 76,
+        "roadIndex": 52,
+        "length": 111
+      },
+      {
+        "from": 76,
+        "to": 33,
+        "roadIndex": 52,
+        "length": 39
+      },
+      {
+        "from": 77,
+        "to": 99,
+        "roadIndex": 53,
+        "length": 411
+      },
+      {
+        "from": 99,
+        "to": 33,
+        "roadIndex": 53,
+        "length": 307
+      },
+      {
+        "from": 123,
+        "to": 100,
+        "roadIndex": 54,
+        "length": 23
+      },
+      {
+        "from": 100,
+        "to": 78,
+        "roadIndex": 54,
+        "length": 307
+      },
+      {
+        "from": 79,
+        "to": 32,
+        "roadIndex": 55,
+        "length": 170
+      },
+      {
+        "from": 124,
+        "to": 79,
+        "roadIndex": 56,
+        "length": 87
+      },
+      {
+        "from": 79,
+        "to": 6,
+        "roadIndex": 56,
+        "length": 214
+      },
+      {
+        "from": 6,
+        "to": 81,
+        "roadIndex": 56,
+        "length": 98
+      },
+      {
+        "from": 81,
+        "to": 125,
+        "roadIndex": 56,
+        "length": 102
+      },
+      {
+        "from": 126,
+        "to": 80,
+        "roadIndex": 57,
+        "length": 339
+      },
+      {
+        "from": 34,
+        "to": 108,
+        "roadIndex": 58,
+        "length": 197
+      },
+      {
+        "from": 108,
+        "to": 17,
+        "roadIndex": 58,
+        "length": 126
+      },
+      {
+        "from": 81,
+        "to": 85,
+        "roadIndex": 59,
+        "length": 425
+      },
+      {
+        "from": 85,
+        "to": 102,
+        "roadIndex": 59,
+        "length": 169
+      },
+      {
+        "from": 102,
+        "to": 109,
+        "roadIndex": 59,
+        "length": 308
+      },
+      {
+        "from": 109,
+        "to": 82,
+        "roadIndex": 59,
+        "length": 95
+      },
+      {
+        "from": 82,
+        "to": 83,
+        "roadIndex": 59,
+        "length": 146
+      },
+      {
+        "from": 83,
+        "to": 35,
+        "roadIndex": 59,
+        "length": 408
+      },
+      {
+        "from": 34,
+        "to": 82,
+        "roadIndex": 60,
+        "length": 289
+      },
+      {
+        "from": 127,
+        "to": 110,
+        "roadIndex": 61,
+        "length": 206
+      },
+      {
+        "from": 110,
+        "to": 86,
+        "roadIndex": 61,
+        "length": 234
+      },
+      {
+        "from": 86,
+        "to": 111,
+        "roadIndex": 61,
+        "length": 293
+      },
+      {
+        "from": 111,
+        "to": 84,
+        "roadIndex": 61,
+        "length": 425
+      },
+      {
+        "from": 84,
+        "to": 112,
+        "roadIndex": 61,
+        "length": 239
+      },
+      {
+        "from": 112,
+        "to": 128,
+        "roadIndex": 61,
+        "length": 256
+      },
+      {
+        "from": 83,
+        "to": 84,
+        "roadIndex": 62,
+        "length": 352
+      },
+      {
+        "from": 35,
+        "to": 129,
+        "roadIndex": 63,
+        "length": 79
+      },
+      {
+        "from": 85,
+        "to": 86,
+        "roadIndex": 64,
+        "length": 352
+      },
+      {
+        "from": 0,
+        "to": 130,
+        "roadIndex": 65,
+        "length": 87
+      },
+      {
+        "from": 131,
+        "to": 87,
+        "roadIndex": 66,
+        "length": 125
+      },
+      {
+        "from": 132,
+        "to": 11,
+        "roadIndex": 67,
+        "length": 95
+      },
+      {
+        "from": 133,
+        "to": 88,
+        "roadIndex": 68,
+        "length": 76
+      },
+      {
+        "from": 134,
+        "to": 89,
+        "roadIndex": 69,
+        "length": 80
+      },
+      {
+        "from": 135,
+        "to": 90,
+        "roadIndex": 70,
+        "length": 104
+      },
+      {
+        "from": 8,
+        "to": 136,
+        "roadIndex": 71,
+        "length": 29
+      },
+      {
+        "from": 137,
+        "to": 91,
+        "roadIndex": 72,
+        "length": 83
+      },
+      {
+        "from": 138,
+        "to": 92,
+        "roadIndex": 73,
+        "length": 81
+      },
+      {
+        "from": 93,
+        "to": 139,
+        "roadIndex": 74,
+        "length": 71
+      },
+      {
+        "from": 94,
+        "to": 140,
+        "roadIndex": 75,
+        "length": 76
+      },
+      {
+        "from": 141,
+        "to": 27,
+        "roadIndex": 76,
+        "length": 62
+      },
+      {
+        "from": 142,
+        "to": 95,
+        "roadIndex": 77,
+        "length": 214
+      },
+      {
+        "from": 143,
+        "to": 96,
+        "roadIndex": 78,
+        "length": 89
+      },
+      {
+        "from": 144,
+        "to": 97,
+        "roadIndex": 79,
+        "length": 84
+      },
+      {
+        "from": 98,
+        "to": 145,
+        "roadIndex": 80,
+        "length": 85
+      },
+      {
+        "from": 146,
+        "to": 99,
+        "roadIndex": 81,
+        "length": 76
+      },
+      {
+        "from": 100,
+        "to": 147,
+        "roadIndex": 82,
+        "length": 79
+      },
+      {
+        "from": 148,
+        "to": 101,
+        "roadIndex": 83,
+        "length": 74
+      },
+      {
+        "from": 149,
+        "to": 6,
+        "roadIndex": 84,
+        "length": 306
+      },
+      {
+        "from": 150,
+        "to": 102,
+        "roadIndex": 85,
+        "length": 121
+      },
+      {
+        "from": 103,
+        "to": 151,
+        "roadIndex": 86,
+        "length": 81
+      },
+      {
+        "from": 104,
+        "to": 152,
+        "roadIndex": 87,
+        "length": 89
+      },
+      {
+        "from": 105,
+        "to": 153,
+        "roadIndex": 88,
+        "length": 86
+      },
+      {
+        "from": 106,
+        "to": 154,
+        "roadIndex": 89,
+        "length": 89
+      },
+      {
+        "from": 107,
+        "to": 155,
+        "roadIndex": 90,
+        "length": 81
+      },
+      {
+        "from": 108,
+        "to": 156,
+        "roadIndex": 91,
+        "length": 51
+      },
+      {
+        "from": 109,
+        "to": 157,
+        "roadIndex": 92,
+        "length": 109
+      },
+      {
+        "from": 110,
+        "to": 158,
+        "roadIndex": 93,
+        "length": 101
+      },
+      {
+        "from": 111,
+        "to": 159,
+        "roadIndex": 94,
+        "length": 92
+      },
+      {
+        "from": 112,
+        "to": 160,
+        "roadIndex": 95,
+        "length": 89
+      }
+    ],
+    "directions": [
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "oneway",
+      "oneway",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional",
+      "bidirectional"
+    ]
+  }
 };
