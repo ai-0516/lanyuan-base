@@ -3,10 +3,15 @@
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.moderation import (
+    MediaModerationResourceType,
+    MediaModerationTaskStatus,
+    PostModerationStatus,
+)
 from app.core.parking import ParkingRentalStatus
 from app.data.parking_spots import PARKING_SPOT_IDS
-from app.models.parking_rental import ParkingRental, ParkingRentalMediaModerationTask
+from app.models.parking_rental import ParkingRental
+from app.models.post import MediaModerationTask
 from app.models.user import User
 from app.schemas.common import UserBrief
 from app.schemas.parking_rental import (
@@ -25,8 +30,11 @@ async def _response(db: AsyncSession, rental: ParkingRental, current_user_id: in
     statuses = []
     if images and rental.user_id == current_user_id:
         result = await db.execute(
-            select(ParkingRentalMediaModerationTask.file_id, ParkingRentalMediaModerationTask.status)
-            .where(ParkingRentalMediaModerationTask.rental_id == rental.id)
+            select(MediaModerationTask.file_id, MediaModerationTask.status).where(
+                MediaModerationTask.resource_type
+                == MediaModerationResourceType.PARKING_RENTAL,
+                MediaModerationTask.resource_id == rental.id,
+            )
         )
         by_file = dict(result.all())
         fallback = (
@@ -139,8 +147,10 @@ async def update(db: AsyncSession, rental_id: int, user_id: int, data: ParkingRe
         return None
     values = data.model_dump(exclude_unset=True, exclude={"image_urls"})
     if "images" in values:
-        await db.execute(delete(ParkingRentalMediaModerationTask).where(
-            ParkingRentalMediaModerationTask.rental_id == rental.id
+        await db.execute(delete(MediaModerationTask).where(
+            MediaModerationTask.resource_type
+            == MediaModerationResourceType.PARKING_RENTAL,
+            MediaModerationTask.resource_id == rental.id,
         ))
         rental.moderation_status = (
             PostModerationStatus.PENDING

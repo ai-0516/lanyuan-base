@@ -5,7 +5,11 @@ from datetime import datetime
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.moderation import (
+    MediaModerationResourceType,
+    MediaModerationTaskStatus,
+    PostModerationStatus,
+)
 from app.models.post import MediaModerationTask, Post
 from app.models.comment import Comment
 from app.models.like import Like
@@ -278,7 +282,8 @@ async def _get_image_moderation_statuses(
         return []
     result = await db.execute(
         select(MediaModerationTask.file_id, MediaModerationTask.status).where(
-            MediaModerationTask.post_id == post.id
+            MediaModerationTask.resource_type == MediaModerationResourceType.POST,
+            MediaModerationTask.resource_id == post.id,
         )
     )
     statuses = {file_id: status for file_id, status in result.all()}
@@ -303,6 +308,10 @@ async def delete_post(db: AsyncSession, post_id: int, user_id: int) -> bool:
     await db.execute(delete(Comment).where(Comment.post_id == post_id))
     await db.execute(delete(Like).where(Like.post_id == post_id))
     await db.execute(delete(Notification).where(Notification.post_id == post_id))
+    await db.execute(delete(MediaModerationTask).where(
+        MediaModerationTask.resource_type == MediaModerationResourceType.POST,
+        MediaModerationTask.resource_id == post_id,
+    ))
     await db.delete(post)
     return True
 

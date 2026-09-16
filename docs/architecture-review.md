@@ -81,7 +81,7 @@ MySQL 8.0 (云数据库) · 云存储 · DeepSeek API
 | llm_usage | req_id / session_id / user_id / tokens / cache_rate | token 统计 |
 | user_memories | user_id(FK) / name / type / description / body | 跨会话记忆 |
 | parking_rentals | user_id(FK) / spot_id / area / price_monthly / rental_term / contact / images / status / moderation_status | 长期出租；业务状态与审核状态分离 |
-| parking_rental_media_moderation_tasks | rental_id(FK) / trace_id / file_id / status | 出租图片异步审核回调关联 |
+| media_moderation_tasks | resource_type / resource_id / trace_id(唯一) / file_id / status | 帖子、长期出租等公开图片的统一异步审核任务 |
 
 ### 1.4 小程序端
 

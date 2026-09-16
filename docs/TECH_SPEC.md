@@ -799,6 +799,7 @@ App (app.js)
 - 长期出租从停车地图左上入口进入；列表支持区域、附近楼栋及价格筛选，出租卡片通过 storage 传递车位号并切回 Tab 定位
 - `parking_rentals` 独立保存长期出租业务状态（`active/inactive`）与内容审核状态（`pending/approved/rejected`），二者不混用
 - 联系方式不随游客列表/详情返回；登录后通过独立接口按需读取。图片沿用微信 `mediaCheckAsync` 异步回调，审核中仅作者可见
+- 帖子与出租图片共用 `media_moderation_tasks`；`trace_id` 全局唯一，回调通过 `resource_type`（`post` / `parking_rental`）和 `resource_id` 明确分发
 - 闲时共享仍不在本期实现，但后续复用同一坐标系和停车页面入口
 
 ---
