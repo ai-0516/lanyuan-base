@@ -1,0 +1,36 @@
+<view class="form-page">
+  <view class="form-section spot-section">
+    <text class="section-title">车位</text>
+    <input class="form-input" disabled="{{rentalId}}" value="{{spotId}}" placeholder="输入车位号搜索，如 B194" bindinput="onSpotInput" />
+    <view class="spot-results" wx:if="{{spotResults.length}}">
+      <view class="spot-result" wx:for="{{spotResults}}" wx:key="id" data-id="{{item.id}}" bindtap="selectSpot">
+        <text>{{item.title}}</text><text>{{item.subtitle}}</text>
+      </view>
+    </view>
+    <input class="form-input" value="{{nearbyBuilding}}" placeholder="附近楼栋（选填）" data-field="nearbyBuilding" bindinput="onFieldInput" />
+  </view>
+  <view class="form-section">
+    <text class="section-title">出租条件</text>
+    <view class="price-input"><text>¥</text><input type="number" value="{{priceMonthly}}" placeholder="月租价格" data-field="priceMonthly" bindinput="onFieldInput" /><text>元/月</text></view>
+    <input class="form-input" value="{{rentalTerm}}" placeholder="租期，如：一年起租" data-field="rentalTerm" bindinput="onFieldInput" />
+    <textarea class="description-input" value="{{description}}" maxlength="1000" placeholder="描述车位位置、可租时间等" data-field="description" bindinput="onFieldInput" />
+  </view>
+  <view class="form-section">
+    <text class="section-title">联系方式</text>
+    <input class="form-input" value="{{contact}}" maxlength="128" placeholder="手机号或微信号（仅登录用户按需查看）" data-field="contact" bindinput="onFieldInput" />
+  </view>
+  <view class="form-section">
+    <text class="section-title">车位图片 <text class="optional">（选填，最多 9 张）</text></text>
+    <view class="image-grid">
+      <view class="image-wrap" wx:if="{{!replaceImages}}" wx:for="{{existingImages}}" wx:key="*this"><image src="{{item}}" mode="aspectFill" /></view>
+      <view class="image-wrap" wx:for="{{tempImages}}" wx:key="*this"><image src="{{item}}" mode="aspectFill" /><text class="remove-image" data-index="{{index}}" bindtap="removeImage">×</text></view>
+      <view class="add-image" wx:if="{{(!rentalId || replaceImages) && tempImages.length < 9}}" bindtap="chooseImage"><text>＋</text><text>添加图片</text></view>
+    </view>
+    <view class="image-edit-actions" wx:if="{{rentalId}}">
+      <text wx:if="{{!replaceImages}}" bindtap="replaceImages">重新选择图片</text>
+      <text wx:else bindtap="cancelReplaceImages">保留原图片</text>
+    </view>
+  </view>
+  <button class="submit-button" loading="{{submitting}}" bindtap="submit">{{rentalId ? '保存修改' : '发布出租'}}</button>
+  <button class="status-button" wx:if="{{rentalId}}" disabled="{{submitting}}" bindtap="toggleStatus">{{status === 'active' ? '下架该信息' : '重新上架'}}</button>
+</view>

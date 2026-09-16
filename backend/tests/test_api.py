@@ -26,7 +26,8 @@ async def _clear_db():
         async with async_session_factory() as session:
             for t in [
                 "user_memories", "messages", "conversations", "notifications",
-                "likes", "comments", "media_moderation_tasks", "posts", "users",
+                "likes", "comments", "parking_rental_media_moderation_tasks",
+                "parking_rentals", "media_moderation_tasks", "posts", "users",
             ]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
@@ -183,6 +184,148 @@ async def test_auth_check_unauthorized(client: AsyncClient):
     """未认证请求返回 401"""
     response = await client.get("/api/v1/auth/check")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_guest_browse_and_owner_management(
+    client: AsyncClient, auth_headers: dict
+):
+    """游客可浏览；联系方式需登录；作者可编辑和下架，下架后游客不可见。"""
+    created = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B194",
+            "nearby_building": "6号楼",
+            "price_monthly": 420,
+            "rental_term": "一年起租",
+            "description": "固定车位，随时可用",
+            "contact": "wx-test-001",
+            "images": [],
+            "image_urls": [],
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 200
+    rental = created.json()["data"]
+    assert rental["spot_id"] == "B194"
+    assert rental["area"] == "B"
+    assert "contact" not in rental
+
+    guest_list = await client.get("/api/v1/parking-rentals?area=B&max_price=500")
+    assert guest_list.status_code == 200
+    assert guest_list.json()["data"]["total"] == 1
+    assert guest_list.json()["data"]["items"][0]["is_owner"] is False
+
+    unauthorized_contact = await client.get(
+        f"/api/v1/parking-rentals/{rental['id']}/contact"
+    )
+    assert unauthorized_contact.status_code == 401
+    contact = await client.get(
+        f"/api/v1/parking-rentals/{rental['id']}/contact", headers=auth_headers
+    )
+    assert contact.json()["data"]["contact"] == "wx-test-001"
+
+    updated = await client.patch(
+        f"/api/v1/parking-rentals/{rental['id']}",
+        json={"price_monthly": 460, "status": "inactive"},
+        headers=auth_headers,
+    )
+    assert updated.json()["data"]["status"] == "inactive"
+    assert updated.json()["data"]["price_monthly"] == 460
+    assert (await client.get("/api/v1/parking-rentals")).json()["data"]["total"] == 0
+
+    mine = await client.get("/api/v1/parking-rentals?mine=true", headers=auth_headers)
+    assert mine.json()["data"]["total"] == 1
+    assert mine.json()["data"]["items"][0]["is_owner"] is True
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_owner_only_edit(client: AsyncClient, auth_headers: dict):
+    """非作者不能编辑出租信息。"""
+    created = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "A001", "price_monthly": 300, "rental_term": "半年",
+            "description": "测试车位", "contact": "owner-contact",
+        },
+        headers=auth_headers,
+    )
+    rental_id = created.json()["data"]["id"]
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other-rental-user"})
+    other_headers = {"Authorization": f"Bearer {other_login.json()['data']['token']}"}
+    response = await client.patch(
+        f"/api/v1/parking-rentals/{rental_id}", json={"price_monthly": 1}, headers=other_headers
+    )
+    assert response.json()["code"] == 40301
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_rejects_unknown_spot(client: AsyncClient, auth_headers: dict):
+    """API 不能绕过前端选择器发布地图中不存在的车位。"""
+    response = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B9999", "price_monthly": 300, "rental_term": "半年",
+            "description": "不存在的车位", "contact": "owner-contact",
+        },
+        headers=auth_headers,
+    )
+    assert response.json() == {"code": 40021, "message": "车位编号不存在，请从地图车位中选择"}
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_image_hidden_until_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """带图出租先仅作者可见，微信回调通过后才进入游客列表。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    async def submit(media_url, openid, scene):
+        assert media_url == "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"
+        assert openid.startswith("mock_openid_")
+        assert scene == 3
+        return "trace-rental-a"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B194", "price_monthly": 400, "rental_term": "一年",
+            "description": "带图车位", "contact": "wx-rental",
+            "images": ["cloud://test-env/parking-rentals/a.jpg"],
+            "image_urls": ["https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["moderation_status"] == "pending"
+    assert response.json()["data"]["image_moderation_statuses"] == ["pending"]
+    assert (await client.get("/api/v1/parking-rentals")).json()["data"]["total"] == 0
+    mine = await client.get("/api/v1/parking-rentals?mine=true", headers=auth_headers)
+    assert mine.json()["data"]["items"][0]["image_moderation_statuses"] == ["pending"]
+
+    callback = await client.post(
+        "/api/v1/wechat/events",
+        json={
+            "Event": "wxa_media_check", "appid": "wx_dev_appid",
+            "trace_id": "trace-rental-a", "errcode": 0,
+            "result": {"suggest": "pass"},
+        },
+    )
+    assert callback.status_code == 200
+    guest = await client.get("/api/v1/parking-rentals")
+    assert guest.json()["data"]["total"] == 1
+    assert guest.json()["data"]["items"][0]["image_moderation_statuses"] == []
+
+    cleared = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={"images": [], "image_urls": []},
+        headers=auth_headers,
+    )
+    assert cleared.json()["data"]["images"] == []
+    assert cleared.json()["data"]["moderation_status"] == "approved"
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.wechat import WeChatSecurityScene, wechat_client
 from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
 from app.models.post import MediaModerationTask, Post
+from app.models.parking_rental import ParkingRental, ParkingRentalMediaModerationTask
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,51 @@ async def submit_post_images(
     return False
 
 
+async def submit_parking_rental_images(
+    db: AsyncSession,
+    user_id: int,
+    rental_id: int,
+    file_ids: list[str],
+    media_urls: list[str],
+) -> bool:
+    """为长期出租图片创建异步检测任务；本地 mock 直接通过。"""
+    if len(file_ids) != len(media_urls) or not file_ids:
+        raise InvalidImageParamsError("图片检测参数不完整")
+    result = await db.execute(select(User.openid).where(User.id == user_id))
+    openid = result.scalar_one_or_none()
+    if not openid:
+        raise ContentSecurityUnavailableError("用户 openid 不存在")
+    traces: list[tuple[str, str]] = []
+    try:
+        for file_id, media_url in zip(file_ids, media_urls, strict=True):
+            _validate_image_pair(file_id, media_url)
+            trace_id = await wechat_client.media_check_async(
+                media_url, openid, scene=WeChatSecurityScene.FORUM
+            )
+            if trace_id:
+                traces.append((trace_id, file_id))
+    except InvalidImageParamsError:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "Media security submission unavailable for user_id=%s rental_id=%s",
+            user_id, rental_id, exc_info=True,
+        )
+        raise ContentSecurityUnavailableError from exc
+
+    if not traces:
+        rental = await db.get(ParkingRental, rental_id)
+        if not rental:
+            raise ContentSecurityUnavailableError("出租信息不存在")
+        rental.moderation_status = PostModerationStatus.APPROVED
+        return True
+    for trace_id, file_id in traces:
+        db.add(ParkingRentalMediaModerationTask(
+            rental_id=rental_id, trace_id=trace_id, file_id=file_id
+        ))
+    return False
+
+
 async def apply_media_result(
     db: AsyncSession, trace_id: str, suggestion: str, errcode: int
 ) -> bool:
@@ -168,7 +214,17 @@ async def apply_media_result(
     )
     task = result.scalar_one_or_none()
     if not task:
-        return False
+        rental_result = await db.execute(
+            select(ParkingRentalMediaModerationTask).where(
+                ParkingRentalMediaModerationTask.trace_id == trace_id
+            )
+        )
+        rental_task = rental_result.scalar_one_or_none()
+        if not rental_task:
+            return False
+        return await _apply_parking_rental_media_result(
+            db, rental_task, suggestion, errcode
+        )
     if task.status == MediaModerationTaskStatus.REJECTED:
         # 吸收态：重复或乱序回调不得把已拒绝的图片改回通过
         return True
@@ -195,4 +251,36 @@ async def apply_media_result(
         # approved 只能从 pending 进入；rejected 是单调终态
         if post.moderation_status == PostModerationStatus.PENDING:
             post.moderation_status = PostModerationStatus.APPROVED
+    return True
+
+
+async def _apply_parking_rental_media_result(
+    db: AsyncSession,
+    task: ParkingRentalMediaModerationTask,
+    suggestion: str,
+    errcode: int,
+) -> bool:
+    """将图片回调幂等应用到长期出租信息。"""
+    if task.status == MediaModerationTaskStatus.REJECTED:
+        return True
+    task.status = (
+        MediaModerationTaskStatus.PASSED
+        if errcode == 0 and suggestion == "pass"
+        else MediaModerationTaskStatus.REJECTED
+    )
+    rental = await db.get(ParkingRental, task.rental_id)
+    if not rental:
+        return True
+    if task.status == MediaModerationTaskStatus.REJECTED:
+        rental.moderation_status = PostModerationStatus.REJECTED
+        return True
+    result = await db.execute(
+        select(ParkingRentalMediaModerationTask.status).where(
+            ParkingRentalMediaModerationTask.rental_id == rental.id
+        )
+    )
+    statuses = list(result.scalars())
+    if statuses and all(status == MediaModerationTaskStatus.PASSED for status in statuses):
+        if rental.moderation_status == PostModerationStatus.PENDING:
+            rental.moderation_status = PostModerationStatus.APPROVED
     return True

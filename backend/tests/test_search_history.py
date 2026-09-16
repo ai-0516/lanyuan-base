@@ -17,7 +17,8 @@ async def _clear_db():
     try:
         async with async_session_factory() as session:
             for t in ["user_memories", "messages", "conversations", "notifications",
-                      "likes", "comments", "posts", "users"]:
+                      "likes", "comments", "parking_rental_media_moderation_tasks",
+                      "parking_rentals", "media_moderation_tasks", "posts", "users"]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
     except Exception:

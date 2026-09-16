@@ -298,6 +298,8 @@ miniprogram/
 │   ├── create-post/            # 发布帖子
 │   ├── ai-chat/                # AI 对话页
 │   ├── parking/                # 停车地图、搜索与定位
+│   ├── parking-rentals/        # 长期车位出租列表与筛选
+│   ├── parking-rental-form/    # 出租发布、编辑与上下架
 │   ├── profile/                # 个人中心
 │   ├── edit-profile/           # 编辑资料
 │   └── notifications/          # 消息通知
@@ -794,7 +796,10 @@ App (app.js)
 - 路线规划将起终点投影到距离最近的道路边，在临时图中切分对应边，再用 Dijkstra 计算最短路径；单向边只建立正向连接
 - 路径以地图原始像素坐标计算，以绝对定位线段叠加在同一 `movable-view` 中，随底图同步缩放和拖动
 - 估算距离使用车位标准宽度校准的 `0.1 米/像素` 比例，界面使用“约”标识其估算属性
-- 出租车位和闲时共享不在本期实现，但复用同一坐标系和停车页面入口
+- 长期出租从停车地图左上入口进入；列表支持区域、附近楼栋及价格筛选，出租卡片通过 storage 传递车位号并切回 Tab 定位
+- `parking_rentals` 独立保存长期出租业务状态（`active/inactive`）与内容审核状态（`pending/approved/rejected`），二者不混用
+- 联系方式不随游客列表/详情返回；登录后通过独立接口按需读取。图片沿用微信 `mediaCheckAsync` 异步回调，审核中仅作者可见
+- 闲时共享仍不在本期实现，但后续复用同一坐标系和停车页面入口
 
 ---
 
@@ -821,8 +826,8 @@ App (app.js)
 | API 鉴权 | JWT middleware 校验，user_id 从 token 解析 |
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
-| 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
-| 公开文本安全范围 | 本期仅覆盖帖子与评论。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检 `mediaCheckAsync`，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
+| 公开文本安全 | 帖子和长期出租（scene=3）、评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
+| 公开内容安全范围 | 帖子与长期出租图片通过 `mediaCheckAsync` 异步审核。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
 | 公开图片安全 | 图片直传微信云存储后调用 `mediaCheckAsync` v2；帖子审核通过前不可见，非 `pass` 或异常均不公开；云存储写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |

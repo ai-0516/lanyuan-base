@@ -51,6 +51,7 @@ const STORAGE_KEYS = {
   TOKEN: 'token',           // JWT token
   USER_INFO: 'user_info',   // 用户信息缓存
   LOGIN_RETURN_URL: 'login_return_url', // 登录成功后恢复用户原目标
+  PARKING_TARGET_ID: 'parking_target_id', // 从出租信息跳转地图后待定位的车位
 }
 
 /** 颜色常量（与 variables.wxss 保持一致，供 JS 动态使用） */
@@ -87,6 +88,8 @@ const PAGES = {
   ABOUT: '/pages/about/index',
   LOGIN: '/pages/login/index',
   POST_DETAIL: '/pages/post-detail/index',
+  PARKING_RENTALS: '/pages/parking-rentals/index',
+  PARKING_RENTAL_FORM: '/pages/parking-rental-form/index',
 }
 
 /** 应用版本号 — 集中管理，所有页面统一读取 */

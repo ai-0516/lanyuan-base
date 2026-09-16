@@ -1,0 +1,14 @@
+page { background: var(--cream); }
+.form-page { padding: 24rpx 24rpx 70rpx; }
+.form-section { position: relative; margin-bottom: 22rpx; padding: 26rpx; background: var(--warm-white); border-radius: 24rpx; }
+.section-title { display: block; margin-bottom: 20rpx; color: var(--bark); font-size: 29rpx; font-weight: 600; }.optional { color: #9c8f84; font-size: 21rpx; font-weight: 400; }
+.form-input, .price-input { height: 76rpx; margin-top: 14rpx; padding: 0 20rpx; border-radius: 16rpx; background: var(--cream); color: var(--bark); font-size: 26rpx; box-sizing: border-box; }
+.price-input { display: flex; align-items: center; gap: 12rpx; }.price-input input { flex: 1; }
+.description-input { width: 100%; height: 220rpx; margin-top: 14rpx; padding: 20rpx; border-radius: 16rpx; background: var(--cream); color: var(--bark); font-size: 26rpx; box-sizing: border-box; }
+.spot-results { position: absolute; z-index: 10; top: 126rpx; left: 26rpx; right: 26rpx; max-height: 400rpx; overflow-y: auto; background: #fff; border-radius: 14rpx; box-shadow: 0 10rpx 30rpx rgba(61,43,31,.15); }
+.spot-result { display: flex; justify-content: space-between; padding: 22rpx; border-bottom: 1rpx solid #eee5dc; color: var(--bark); font-size: 25rpx; }.spot-result text:last-child { color: #9c8f84; font-size: 22rpx; }
+.image-grid { display: flex; flex-wrap: wrap; gap: 14rpx; }.image-wrap, .add-image { position: relative; width: 190rpx; height: 150rpx; border-radius: 14rpx; overflow: hidden; }.image-wrap image { width: 100%; height: 100%; }
+.remove-image { position: absolute; top: 6rpx; right: 6rpx; display: flex; align-items: center; justify-content: center; width: 38rpx; height: 38rpx; border-radius: 50%; color: #fff; background: rgba(0,0,0,.55); }
+.add-image { display: flex; align-items: center; justify-content: center; flex-direction: column; color: #9c8f84; background: var(--cream); font-size: 22rpx; }.add-image text:first-child { font-size: 42rpx; }
+.image-edit-actions { margin-top: 18rpx; color: var(--terracotta); font-size: 23rpx; }
+.submit-button, .status-button { height: 84rpx; border-radius: 42rpx; font-size: 28rpx; line-height: 84rpx; }.submit-button { color: #fff; background: var(--terracotta); }.status-button { margin-top: 18rpx; color: var(--terracotta-deep); background: #f2e8dc; }.submit-button::after, .status-button::after { border: 0; }

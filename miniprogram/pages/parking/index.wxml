@@ -92,6 +92,10 @@
       <view class="map-tool" bindtap="onZoomOut">－</view>
     </view>
     <view class="reset-tool" bindtap="resetMap">全览</view>
+    <view class="rental-tool" bindtap="openRentals">
+      <text class="rental-tool-title">出租车位</text>
+      <text class="rental-tool-subtitle">长期车位租赁</text>
+    </view>
 
     <view class="selection-card {{routeStart || routeEnd ? 'selection-card-raised' : ''}}" wx:if="{{selectedTarget}}">
       <view>

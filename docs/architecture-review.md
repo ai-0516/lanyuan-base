@@ -80,10 +80,12 @@ MySQL 8.0 (云数据库) · 云存储 · DeepSeek API
 | conversations / messages | 会话 + 消息（role / content / tool_calls / tool_call_id / tool_name） | 列式存储中立，适配 canonical |
 | llm_usage | req_id / session_id / user_id / tokens / cache_rate | token 统计 |
 | user_memories | user_id(FK) / name / type / description / body | 跨会话记忆 |
+| parking_rentals | user_id(FK) / spot_id / area / price_monthly / rental_term / contact / images / status / moderation_status | 长期出租；业务状态与审核状态分离 |
+| parking_rental_media_moderation_tasks | rental_id(FK) / trace_id / file_id / status | 出租图片异步审核回调关联 |
 
 ### 1.4 小程序端
 
-- 12 页 4 Tab（AI/发现/停车/我），发现页为首屏，发现与停车支持游客访问；停车页支持本地目标搜索、道路图最短路径规划与地图叠加渲染。身份操作按需跳转登录，成功后返回原目标。`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo 与登录返回目标。
+- 14 页 4 Tab（AI/发现/停车/我），发现页为首屏，发现、停车及出租列表支持游客访问；停车页支持本地目标搜索、道路图最短路径规划、地图叠加渲染和长期出租入口。出租信息支持筛选、地图定位，发布/编辑/联系按需登录。`utils/request.js` 封装统一解包 `{code:0,data}` + token 注入；`utils/auth.js` 管理 token/userInfo 与登录返回目标。
 - AI 对话页实现较完整的 SSE 解析器（事件类型跟踪、行级 buffer、多轮气泡、tool 消息过滤、TextDecoder 解码）。
 - post-card 组件化 + 事件冒泡（feed 与详情页复用），乐观更新 + 失败回滚。
 - 设计系统：CSS 变量（陶土暖色系）+ JS 侧 COLORS 同步。

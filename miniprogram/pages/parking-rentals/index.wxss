@@ -1,0 +1,29 @@
+page { background: var(--cream); }
+.rental-page { min-height: 100vh; padding: 24rpx 24rpx 60rpx; box-sizing: border-box; }
+.hero { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 8rpx 24rpx; }
+.hero-title, .hero-subtitle { display: block; }
+.hero-title { color: var(--bark); font-size: 40rpx; font-weight: 600; }
+.hero-subtitle { margin-top: 8rpx; color: #9c8f84; font-size: 24rpx; }
+.publish-button { width: 124rpx; height: 68rpx; margin: 0; border-radius: 34rpx; color: #fff; background: var(--terracotta); font-size: 26rpx; line-height: 68rpx; }
+.publish-button::after, .filter-button::after { border: 0; }
+.filters { display: grid; grid-template-columns: 120rpx 1fr; gap: 14rpx; padding: 20rpx; background: var(--warm-white); border-radius: 24rpx; }
+.filter-input, .price-picker { height: 64rpx; padding: 0 18rpx; border-radius: 14rpx; background: var(--cream); color: var(--bark); font-size: 24rpx; line-height: 64rpx; box-sizing: border-box; }
+.filter-button { height: 64rpx; margin: 0; border-radius: 14rpx; color: #fff; background: #6b8e5a; font-size: 24rpx; line-height: 64rpx; }
+.list-switch { padding: 24rpx 10rpx 16rpx; color: var(--terracotta-deep); font-size: 24rpx; text-align: right; }
+.rental-card { margin-bottom: 20rpx; padding: 26rpx; background: var(--warm-white); border-radius: 24rpx; box-shadow: 0 5rpx 18rpx rgba(61,43,31,.06); }
+.card-head, .owner-row, .card-actions { display: flex; align-items: center; justify-content: space-between; }
+.spot-id { display: block; color: var(--bark); font-size: 38rpx; font-weight: 600; }
+.spot-area { display: block; margin-top: 5rpx; color: #9c8f84; font-size: 22rpx; }
+.price { color: var(--terracotta-deep); }
+.price-number { font-size: 42rpx; font-weight: 600; }.price-unit { margin-left: 4rpx; font-size: 22rpx; }
+.term { display: block; margin-top: 20rpx; color: #6b7f61; font-size: 24rpx; }
+.description { display: block; margin-top: 12rpx; color: var(--bark); font-size: 27rpx; line-height: 1.6; }
+.image-row { width: 100%; margin-top: 20rpx; white-space: nowrap; }
+.rental-image-wrap { position: relative; display: inline-block; width: 180rpx; height: 136rpx; margin-right: 12rpx; overflow: hidden; border-radius: 14rpx; }
+.rental-image { width: 100%; height: 100%; }
+.image-review-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 7rpx 4rpx; color: #fff; background: rgba(200,150,62,.88); font-size: 19rpx; text-align: center; }
+.image-review-rejected { background: rgba(155,61,26,.9); }
+.owner-row { margin-top: 20rpx; padding-top: 18rpx; border-top: 1rpx solid rgba(61,43,31,.08); color: #9c8f84; font-size: 22rpx; }
+.review-label { color: var(--gold); }.status-label { color: #6b8e5a; }
+.card-actions { justify-content: flex-end; gap: 34rpx; margin-top: 20rpx; color: var(--terracotta); font-size: 25rpx; }
+.empty { display: flex; align-items: center; flex-direction: column; padding: 120rpx 30rpx; }.empty-title { color: var(--bark); font-size: 28rpx; }.empty-copy, .loading { margin-top: 14rpx; color: #9c8f84; font-size: 23rpx; text-align: center; }

@@ -219,6 +219,21 @@ page {
   font-size: 24rpx;
 }
 
+.rental-tool {
+  position: absolute;
+  z-index: 20;
+  left: 24rpx;
+  top: 24rpx;
+  display: flex;
+  flex-direction: column;
+  padding: 16rpx 22rpx;
+  background: rgba(255, 250, 245, 0.95);
+  border-radius: 18rpx;
+  box-shadow: 0 6rpx 20rpx rgba(61, 43, 31, 0.12);
+}
+.rental-tool-title { color: var(--terracotta-deep); font-size: 25rpx; font-weight: 500; }
+.rental-tool-subtitle { margin-top: 2rpx; color: #9c8f84; font-size: 19rpx; }
+
 .selection-card {
   position: absolute;
   z-index: 20;

@@ -1,0 +1,42 @@
+<view class="rental-page">
+  <view class="hero">
+    <view><text class="hero-title">长期车位出租</text><text class="hero-subtitle">找一个离家更近的固定车位</text></view>
+    <button class="publish-button" bindtap="createRental">发布</button>
+  </view>
+  <view class="filters">
+    <input class="filter-input area-input" maxlength="2" placeholder="区域，如 B" value="{{area}}" bindinput="onAreaInput" />
+    <input class="filter-input" placeholder="附近楼栋" value="{{building}}" bindinput="onBuildingInput" />
+    <picker range="{{priceRanges}}" range-key="label" value="{{priceIndex}}" bindchange="onPriceChange">
+      <view class="price-picker">{{priceRanges[priceIndex].label}}⌄</view>
+    </picker>
+    <button class="filter-button" bindtap="applyFilters">筛选</button>
+  </view>
+  <view class="list-switch" bindtap="toggleMine">{{mine ? '查看全部出租' : '只看我的发布'}} →</view>
+
+  <view class="empty" wx:if="{{!loading && items.length === 0}}">
+    <text class="empty-title">{{mine ? '还没有发布出租信息' : '暂时没有符合条件的车位'}}</text>
+    <text class="empty-copy">可以换个筛选条件，或者发布一个车位</text>
+  </view>
+  <view class="rental-card" wx:for="{{items}}" wx:key="id">
+    <view class="card-head">
+      <view><text class="spot-id">{{item.spot_id}}</text><text class="spot-area">{{item.area}}区{{item.nearby_building ? ' · ' + item.nearby_building : ''}}</text></view>
+      <view class="price"><text class="price-number">{{item.price_monthly}}</text><text class="price-unit">元/月</text></view>
+    </view>
+    <scroll-view class="image-row" scroll-x wx:if="{{item.images.length}}">
+      <view class="rental-image-wrap" wx:for="{{item.images}}" wx:for-item="image" wx:for-index="imageIndex" wx:key="*this">
+        <image class="rental-image" src="{{image}}" mode="aspectFill" />
+        <text class="image-review-label" wx:if="{{item.image_moderation_statuses[imageIndex] === 'pending'}}">图片审核中</text>
+        <text class="image-review-label image-review-rejected" wx:elif="{{item.image_moderation_statuses[imageIndex] === 'rejected'}}">审核未通过</text>
+      </view>
+    </scroll-view>
+    <text class="term">{{item.rental_term}}</text>
+    <text class="description">{{item.description}}</text>
+    <view class="owner-row"><text>{{item.user.nickname}}</text><text wx:if="{{item.moderationText}}" class="review-label">{{item.moderationText}}</text><text wx:elif="{{item.is_owner}}" class="status-label">{{item.statusText}}</text></view>
+    <view class="card-actions">
+      <text data-spot="{{item.spot_id}}" bindtap="locateRental">地图定位</text>
+      <text wx:if="{{!item.is_owner}}" data-id="{{item.id}}" bindtap="showContact">联系出租人</text>
+      <text wx:if="{{item.is_owner}}" data-id="{{item.id}}" bindtap="editRental">编辑管理</text>
+    </view>
+  </view>
+  <view class="loading" wx:if="{{loading}}">加载中…</view>
+</view>
