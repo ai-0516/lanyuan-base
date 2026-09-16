@@ -20,8 +20,11 @@ describe('custom tab bar login interception', () => {
     component.onTabTap({ currentTarget: { dataset: { index: 1 } } });
     expect(wx.switchTab).toHaveBeenLastCalledWith({ url: '/pages/feed/index' });
 
-    wx.__storage.set('token', 'valid-token');
     component.onTabTap({ currentTarget: { dataset: { index: 2 } } });
+    expect(wx.switchTab).toHaveBeenLastCalledWith({ url: '/pages/parking/index' });
+
+    wx.__storage.set('token', 'valid-token');
+    component.onTabTap({ currentTarget: { dataset: { index: 3 } } });
     expect(wx.switchTab).toHaveBeenLastCalledWith({ url: '/pages/profile/index' });
   });
 });
