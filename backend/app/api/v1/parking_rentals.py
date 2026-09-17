@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_optional_user
 from app.api.response import api_error, api_success
-from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.moderation import PostModerationStatus
 from app.core.parking import ParkingRentalListingType
 from app.core.wechat import WeChatSecurityScene
 from app.schemas.parking_rental import ParkingRentalCreate, ParkingRentalUpdate
@@ -66,15 +66,14 @@ async def create_parking_rental(
             )
             if approved:
                 response.moderation_status = PostModerationStatus.APPROVED
-                response.image_moderation_statuses = [
-                    MediaModerationTaskStatus.PASSED for _ in data.images
-                ]
         except content_security_service.InvalidImageParamsError:
             await db.rollback()
             return api_error(40014, "图片送检参数有误，请重新选择图片后发布")
         except content_security_service.ContentSecurityUnavailableError:
             await db.rollback()
             return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
+        await db.flush()
+        response = await parking_rental_service.get(db, rental.id, user_id)
     return api_success(response)
 
 
@@ -112,25 +111,27 @@ async def update_parking_rental(
             return api_error(40010, "发布内容含有违规信息，请修改后重试")
         except content_security_service.ContentSecurityUnavailableError:
             return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
-    result = await parking_rental_service.update(db, rental_id, user_id, data)
-    if not result:
+    update_result = await parking_rental_service.update(db, rental_id, user_id, data)
+    if not update_result:
         return api_error(40301, "无权编辑此出租信息")
-    if data.images:
+    result, new_image_pairs = update_result
+    if new_image_pairs:
+        new_file_ids = [pair[0] for pair in new_image_pairs]
+        new_media_urls = [pair[1] for pair in new_image_pairs]
         try:
             approved = await content_security_service.submit_parking_rental_images(
-                db, user_id, rental_id, data.images, data.image_urls or []
+                db, user_id, rental_id, new_file_ids, new_media_urls
             )
             if approved:
                 result.moderation_status = PostModerationStatus.APPROVED
-                result.image_moderation_statuses = [
-                    MediaModerationTaskStatus.PASSED for _ in data.images
-                ]
         except content_security_service.InvalidImageParamsError:
             await db.rollback()
             return api_error(40014, "图片送检参数有误，请重新选择图片后保存")
         except content_security_service.ContentSecurityUnavailableError:
             await db.rollback()
             return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
+        await db.flush()
+        result = await parking_rental_service.get(db, rental_id, user_id)
     return api_success(result)
 
 

@@ -37,11 +37,9 @@ async def _response(db: AsyncSession, rental: ParkingRental, current_user_id: in
             )
         )
         by_file = dict(result.all())
-        fallback = (
-            MediaModerationTaskStatus.PASSED
-            if rental.moderation_status == PostModerationStatus.APPROVED
-            else MediaModerationTaskStatus.PENDING
-        )
+        # 新图片一定有对应任务；没有任务的是历史已通过图片（例如本地 mock
+        # 环境直接通过），不能因为同一信息里有新图待审就误标为 pending。
+        fallback = MediaModerationTaskStatus.PASSED
         statuses = [MediaModerationTaskStatus(by_file.get(image, fallback)) for image in images]
     return ParkingRentalResponse(
         id=rental.id,
@@ -143,7 +141,9 @@ async def update(db: AsyncSession, rental_id: int, user_id: int, data: ParkingRe
     rental = result.scalar_one_or_none()
     if not rental:
         return None
+    old_images = rental.images if isinstance(rental.images, list) else []
     values = data.model_dump(exclude_unset=True, exclude={"image_urls"})
+    new_image_pairs: list[tuple[str, str]] = []
     if rental.listing_type == ParkingRentalListingType.OFFER:
         values.pop("area", None)
         values.pop("nearby_building", None)
@@ -152,20 +152,40 @@ async def update(db: AsyncSession, rental_id: int, user_id: int, data: ParkingRe
     if values.get("area"):
         values["area"] = values["area"].strip().upper()
     if "images" in values:
-        await db.execute(delete(MediaModerationTask).where(
+        final_images = values["images"]
+        old_image_set = set(old_images)
+        new_image_pairs = [
+            (file_id, media_url)
+            for file_id, media_url in zip(final_images, data.image_urls or [], strict=True)
+            if file_id not in old_image_set
+        ]
+        removed_task_filter = [
             MediaModerationTask.resource_type
             == MediaModerationResourceType.PARKING_RENTAL,
             MediaModerationTask.resource_id == rental.id,
-        ))
-        rental.moderation_status = (
-            PostModerationStatus.PENDING
-            if values["images"]
-            else PostModerationStatus.APPROVED
-        )
+        ]
+        if final_images:
+            removed_task_filter.append(MediaModerationTask.file_id.not_in(final_images))
+        await db.execute(delete(MediaModerationTask).where(*removed_task_filter))
+        if new_image_pairs:
+            rental.moderation_status = PostModerationStatus.PENDING
+        else:
+            statuses = list((await db.execute(select(MediaModerationTask.status).where(
+                MediaModerationTask.resource_type
+                == MediaModerationResourceType.PARKING_RENTAL,
+                MediaModerationTask.resource_id == rental.id,
+            ))).scalars())
+            rental.moderation_status = (
+                PostModerationStatus.REJECTED
+                if MediaModerationTaskStatus.REJECTED in statuses
+                else PostModerationStatus.PENDING
+                if MediaModerationTaskStatus.PENDING in statuses
+                else PostModerationStatus.APPROVED
+            )
     for field, value in values.items():
         setattr(rental, field, value)
     await db.flush()
-    return await _response(db, rental, user_id)
+    return await _response(db, rental, user_id), new_image_pairs
 
 
 async def contact(db: AsyncSession, rental_id: int, current_user_id: int):

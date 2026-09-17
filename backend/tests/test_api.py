@@ -334,11 +334,13 @@ async def test_parking_rental_image_hidden_until_callback(
     from app.config import settings
     from app.services import content_security_service
 
+    submitted_urls = []
+
     async def submit(media_url, openid, scene):
-        assert media_url == "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"
+        submitted_urls.append(media_url)
         assert openid.startswith("mock_openid_")
         assert scene == 3
-        return "trace-rental-a"
+        return f"trace-rental-{len(submitted_urls)}"
 
     monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
     monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
@@ -353,6 +355,7 @@ async def test_parking_rental_image_hidden_until_callback(
         headers=auth_headers,
     )
     assert response.status_code == 200
+    assert submitted_urls == ["https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"]
     assert response.json()["data"]["moderation_status"] == "pending"
     assert response.json()["data"]["image_moderation_statuses"] == ["pending"]
     assert (await client.get("/api/v1/parking-rentals")).json()["data"]["total"] == 0
@@ -366,7 +369,7 @@ async def test_parking_rental_image_hidden_until_callback(
         "/api/v1/wechat/events",
         json={
             "Event": "wxa_media_check", "appid": "wx_dev_appid",
-            "trace_id": "trace-rental-a", "errcode": 0,
+            "trace_id": "trace-rental-1", "errcode": 0,
             "result": {"suggest": "pass"},
         },
     )
@@ -374,6 +377,52 @@ async def test_parking_rental_image_hidden_until_callback(
     guest = await client.get("/api/v1/parking-rentals")
     assert guest.json()["data"]["total"] == 1
     assert guest.json()["data"]["items"][0]["image_moderation_statuses"] == []
+
+    updated = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={
+            "images": [
+                "cloud://test-env/parking-rentals/a.jpg",
+                "cloud://test-env/parking-rentals/b.jpg",
+            ],
+            "image_urls": [
+                "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg",
+                "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    assert submitted_urls == [
+        "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg",
+        "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+    ]
+    assert updated.json()["data"]["image_moderation_statuses"] == ["passed", "pending"]
+
+    await client.post(
+        "/api/v1/wechat/events",
+        json={
+            "Event": "wxa_media_check", "appid": "wx_dev_appid",
+            "trace_id": "trace-rental-2", "errcode": 0,
+            "result": {"suggest": "pass"},
+        },
+    )
+    replaced = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={
+            "images": [
+                "cloud://test-env/parking-rentals/b.jpg",
+                "cloud://test-env/parking-rentals/c.jpg",
+            ],
+            "image_urls": [
+                "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+                "https://test-env.tcb.qcloud.la/parking-rentals/c.jpg",
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert submitted_urls[-1] == "https://test-env.tcb.qcloud.la/parking-rentals/c.jpg"
+    assert replaced.json()["data"]["image_moderation_statuses"] == ["passed", "pending"]
 
     cleared = await client.patch(
         f"/api/v1/parking-rentals/{response.json()['data']['id']}",
