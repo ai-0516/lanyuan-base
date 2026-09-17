@@ -796,9 +796,10 @@ App (app.js)
 - 路线规划将起终点投影到距离最近的道路边，在临时图中切分对应边，再用 Dijkstra 计算最短路径；单向边只建立正向连接
 - 路径以地图原始像素坐标计算，以绝对定位线段叠加在同一 `movable-view` 中，随底图同步缩放和拖动
 - 估算距离使用车位标准宽度校准的 `0.1 米/像素` 比例，界面使用“约”标识其估算属性
-- 长期出租从停车地图左上入口进入；列表支持区域、附近楼栋及价格筛选，出租卡片通过 storage 传递车位号并切回 Tab 定位
-- `parking_rentals` 独立保存长期出租业务状态（`active/inactive`）与内容审核状态（`pending/approved/rejected`），二者不混用
-- 联系方式不随游客列表/详情返回；登录后通过独立接口按需读取。图片沿用微信 `mediaCheckAsync` 异步回调，审核中仅作者可见
+- 车位租赁从地图下方“停车服务”区域进入；列表按 `wanted/offer` 切换，出租卡片通过 storage 传递车位号并切回 Tab 定位
+- `parking_rentals.listing_type` 区分出租与求租；出租必须关联具体车位，求租必须选择楼栋，区域由最近车位自动推导并用于分组
+- `parking_rentals` 独立保存业务状态（`active/inactive`）与内容审核状态（`pending/approved/rejected`），二者不混用
+- 联系方式仅在发布者自己的列表/详情中直接返回；其他用户登录后通过独立接口按需读取。出租说明和求租需求均调用 `msgSecCheck`；出租图片沿用微信 `mediaCheckAsync` 异步回调，审核中或拒绝后仍仅作者可见并逐张返回审核状态
 - 帖子与出租图片共用 `media_moderation_tasks`；`trace_id` 全局唯一，回调通过 `resource_type`（`post` / `parking_rental`）和 `resource_id` 明确分发
 - 闲时共享仍不在本期实现，但后续复用同一坐标系和停车页面入口
 

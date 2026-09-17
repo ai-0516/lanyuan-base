@@ -4,7 +4,7 @@ from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 
 from app.core.database import Base
 from app.core.moderation import PostModerationStatus
-from app.core.parking import ParkingRentalStatus
+from app.core.parking import ParkingRentalListingType, ParkingRentalStatus
 
 
 class ParkingRental(Base):
@@ -12,11 +12,12 @@ class ParkingRental(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    spot_id = Column(String(16), nullable=False, index=True)
+    listing_type = Column(String(16), nullable=False, default=ParkingRentalListingType.OFFER, index=True)
+    spot_id = Column(String(16), nullable=True, index=True)
     area = Column(String(8), nullable=False, index=True)
     nearby_building = Column(String(32), nullable=True, index=True)
-    price_monthly = Column(Integer, nullable=False, index=True)
-    rental_term = Column(String(64), nullable=False)
+    price_monthly = Column(Integer, nullable=True, index=True)
+    rental_term = Column(String(64), nullable=True)
     description = Column(Text, nullable=False)
     contact = Column(String(128), nullable=False)
     images = Column(JSON, nullable=False, default=list)

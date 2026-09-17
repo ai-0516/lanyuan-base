@@ -2,17 +2,11 @@ const { request } = require('../../utils/request');
 const auth = require('../../utils/auth');
 const { PAGES, TAB_PAGES, STORAGE_KEYS } = require('../../utils/constants');
 
-const PRICE_RANGES = [
-  { label: '不限价格', min: '', max: '' },
-  { label: '300元以下', min: '', max: 300 },
-  { label: '300-500元', min: 300, max: 500 },
-  { label: '500元以上', min: 500, max: '' },
-];
 
 Page({
   data: {
-    items: [], loading: false, area: '', building: '', priceIndex: 0,
-    priceRanges: PRICE_RANGES, mine: false, hasMore: true, page: 1,
+    items: [], loading: false, hasMore: true, page: 1,
+    listingType: 'wanted',
   },
 
   onLoad() { this.loadRentals(true); },
@@ -20,24 +14,27 @@ Page({
   onPullDownRefresh() { this.loadRentals(true).finally(() => wx.stopPullDownRefresh()); },
   onReachBottom() { if (this.data.hasMore) this.loadRentals(false); },
 
+  onListingTypeChange(e) {
+    const listingType = e.currentTarget.dataset.type;
+    if (listingType === this.data.listingType) return;
+    this.setData({ listingType, items: [], page: 1, hasMore: true }, () => {
+      this.loadRentals(true);
+    });
+  },
+
   async loadRentals(reset) {
     if (this.data.loading) return;
     const page = reset ? 1 : this.data.page;
-    const range = PRICE_RANGES[this.data.priceIndex];
-    const query = [
-      `page=${page}`, 'size=20', `mine=${this.data.mine}`,
-      this.data.area && `area=${encodeURIComponent(this.data.area)}`,
-      this.data.building && `nearby_building=${encodeURIComponent(this.data.building)}`,
-      range.min !== '' && `min_price=${range.min}`,
-      range.max !== '' && `max_price=${range.max}`,
-    ].filter(Boolean).join('&');
     this.setData({ loading: true });
     try {
-      const result = await request({ url: `/parking-rentals?${query}` });
+      const result = await request({
+        url: `/parking-rentals?page=${page}&size=20&listing_type=${this.data.listingType}`,
+      });
       const nextItems = (result.items || []).map(item => ({
         ...item,
-        statusText: item.status === 'active' ? '出租中' : '已下架',
-        moderationText: item.moderation_status === 'pending' ? '审核中' : item.moderation_status === 'rejected' ? '未通过' : '',
+        moderationText: item.moderation_status === 'pending'
+          ? '审核中'
+          : item.moderation_status === 'rejected' ? '未通过' : '',
       }));
       this.setData({
         items: reset ? nextItems : [...this.data.items, ...nextItems],
@@ -45,21 +42,14 @@ Page({
         hasMore: nextItems.length === 20,
       });
     } catch (error) {
-      console.error('加载出租信息失败', error);
+      console.error('加载车位租赁信息失败', error);
       wx.showToast({ title: '加载失败', icon: 'none' });
     } finally { this.setData({ loading: false }); }
   },
 
-  onAreaInput(e) { this.setData({ area: e.detail.value.toUpperCase() }); },
-  onBuildingInput(e) { this.setData({ building: e.detail.value }); },
-  onPriceChange(e) { this.setData({ priceIndex: Number(e.detail.value) }, () => this.loadRentals(true)); },
-  applyFilters() { this.loadRentals(true); },
-  toggleMine() {
-    if (!this.data.mine && !auth.checkLogin(PAGES.PARKING_RENTALS)) return;
-    this.setData({ mine: !this.data.mine }, () => this.loadRentals(true));
-  },
   createRental() {
-    if (auth.checkLogin(PAGES.PARKING_RENTAL_FORM)) wx.navigateTo({ url: PAGES.PARKING_RENTAL_FORM });
+    const target = `${PAGES.PARKING_RENTAL_FORM}?type=${this.data.listingType}`;
+    if (auth.checkLogin(target)) wx.navigateTo({ url: target });
   },
   editRental(e) { wx.navigateTo({ url: `${PAGES.PARKING_RENTAL_FORM}?id=${e.currentTarget.dataset.id}` }); },
   locateRental(e) {

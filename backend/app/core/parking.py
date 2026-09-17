@@ -8,3 +8,8 @@ class ParkingRentalStatus(str, Enum):
 
     ACTIVE = "active"
     INACTIVE = "inactive"
+
+
+class ParkingRentalListingType(str, Enum):
+    OFFER = "offer"
+    WANTED = "wanted"

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db, get_optional_user
 from app.api.response import api_error, api_success
 from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.parking import ParkingRentalListingType
 from app.core.wechat import WeChatSecurityScene
 from app.schemas.parking_rental import ParkingRentalCreate, ParkingRentalUpdate
 from app.services import content_security_service, parking_rental_service
@@ -19,8 +20,7 @@ async def list_parking_rentals(
     size: int = Query(default=20, ge=1, le=50),
     area: str | None = Query(default=None, max_length=8),
     nearby_building: str | None = Query(default=None, max_length=32),
-    min_price: int | None = Query(default=None, ge=0),
-    max_price: int | None = Query(default=None, ge=0),
+    listing_type: ParkingRentalListingType = ParkingRentalListingType.OFFER,
     mine: bool = False,
     db: AsyncSession = Depends(get_db),
     user_id: int | None = Depends(get_optional_user),
@@ -28,10 +28,8 @@ async def list_parking_rentals(
     """游客可浏览公开出租信息；mine=true 时仅返回本人发布。"""
     if mine and user_id is None:
         return api_error(40101, "请先登录", status_code=401)
-    if min_price is not None and max_price is not None and min_price > max_price:
-        return api_error(40020, "最低价格不能高于最高价格")
     result = await parking_rental_service.list_rentals(
-        db, user_id, page, size, area, nearby_building, min_price, max_price, mine
+        db, user_id, page, size, area, nearby_building, mine, listing_type
     )
     return api_success(result)
 
@@ -42,12 +40,14 @@ async def create_parking_rental(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """发布长期车位出租信息。"""
-    if not parking_rental_service.is_valid_spot(data.spot_id):
+    """发布车位出租或求租信息。"""
+    if (
+        data.listing_type == ParkingRentalListingType.OFFER
+        and not parking_rental_service.is_valid_spot(data.spot_id or "")
+    ):
         return api_error(40021, "车位编号不存在，请从地图车位中选择")
     text = "\n".join(filter(None, [
-        data.spot_id, data.nearby_building, data.rental_term,
-        data.description, data.contact,
+        data.spot_id, data.area, data.nearby_building, data.description, data.contact,
     ]))
     try:
         await content_security_service.check_public_text(
@@ -59,7 +59,7 @@ async def create_parking_rental(
         return api_error(50310, "内容安全验证暂时不可用，请稍后重试", status_code=503)
 
     rental, response = await parking_rental_service.create(db, user_id, data)
-    if data.images:
+    if data.listing_type == ParkingRentalListingType.OFFER and data.images:
         try:
             approved = await content_security_service.submit_parking_rental_images(
                 db, user_id, rental.id, data.images, data.image_urls

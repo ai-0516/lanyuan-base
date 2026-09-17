@@ -8,7 +8,7 @@ from app.core.moderation import (
     MediaModerationTaskStatus,
     PostModerationStatus,
 )
-from app.core.parking import ParkingRentalStatus
+from app.core.parking import ParkingRentalListingType, ParkingRentalStatus
 from app.data.parking_spots import PARKING_SPOT_IDS
 from app.models.parking_rental import ParkingRental
 from app.models.post import MediaModerationTask
@@ -46,17 +46,17 @@ async def _response(db: AsyncSession, rental: ParkingRental, current_user_id: in
     return ParkingRentalResponse(
         id=rental.id,
         user=UserBrief(id=user.id, nickname=user.nickname, avatar=user.avatar),
+        listing_type=rental.listing_type,
         spot_id=rental.spot_id,
         area=rental.area,
         nearby_building=rental.nearby_building,
-        price_monthly=rental.price_monthly,
-        rental_term=rental.rental_term,
         description=rental.description,
         images=images,
         status=rental.status,
         moderation_status=rental.moderation_status,
         image_moderation_statuses=statuses,
         is_owner=rental.user_id == current_user_id,
+        contact=rental.contact if rental.user_id == current_user_id else None,
         created_at=rental.created_at,
     )
 
@@ -64,11 +64,10 @@ async def _response(db: AsyncSession, rental: ParkingRental, current_user_id: in
 async def create(db: AsyncSession, user_id: int, data: ParkingRentalCreate):
     rental = ParkingRental(
         user_id=user_id,
+        listing_type=data.listing_type,
         spot_id=data.spot_id,
-        area=data.spot_id[0].upper(),
+        area=data.area,
         nearby_building=data.nearby_building,
-        price_monthly=data.price_monthly,
-        rental_term=data.rental_term,
         description=data.description,
         contact=data.contact,
         images=data.images,
@@ -76,6 +75,9 @@ async def create(db: AsyncSession, user_id: int, data: ParkingRentalCreate):
     )
     db.add(rental)
     await db.flush()
+    # MySQL/asyncmy 不会像 SQLite RETURNING 一样自动填充服务端默认时间；
+    # 显式刷新，避免读取 created_at 时触发异步上下文外的隐式 IO。
+    await db.refresh(rental)
     return rental, await _response(db, rental, user_id)
 
 
@@ -93,25 +95,21 @@ async def is_owner(db: AsyncSession, rental_id: int, user_id: int) -> bool:
 
 async def list_rentals(
     db: AsyncSession, current_user_id: int | None, page: int, size: int,
-    area: str | None, nearby_building: str | None, min_price: int | None,
-    max_price: int | None, mine: bool,
+    area: str | None, nearby_building: str | None, mine: bool,
+    listing_type: ParkingRentalListingType,
 ):
-    filters = []
+    filters = [ParkingRental.listing_type == listing_type]
     if mine and current_user_id is not None:
         filters.append(ParkingRental.user_id == current_user_id)
     else:
-        filters.extend([
-            ParkingRental.status == ParkingRentalStatus.ACTIVE,
-            ParkingRental.moderation_status == PostModerationStatus.APPROVED,
-        ])
+        visibility = ParkingRental.moderation_status == PostModerationStatus.APPROVED
+        if current_user_id is not None:
+            visibility = or_(visibility, ParkingRental.user_id == current_user_id)
+        filters.extend([ParkingRental.status == ParkingRentalStatus.ACTIVE, visibility])
     if area:
         filters.append(ParkingRental.area == area.upper())
     if nearby_building:
         filters.append(ParkingRental.nearby_building.ilike(f"%{nearby_building}%"))
-    if min_price is not None:
-        filters.append(ParkingRental.price_monthly >= min_price)
-    if max_price is not None:
-        filters.append(ParkingRental.price_monthly <= max_price)
     total = (await db.execute(select(func.count(ParkingRental.id)).where(*filters))).scalar() or 0
     result = await db.execute(
         select(ParkingRental).where(*filters)
@@ -146,6 +144,13 @@ async def update(db: AsyncSession, rental_id: int, user_id: int, data: ParkingRe
     if not rental:
         return None
     values = data.model_dump(exclude_unset=True, exclude={"image_urls"})
+    if rental.listing_type == ParkingRentalListingType.OFFER:
+        values.pop("area", None)
+        values.pop("nearby_building", None)
+    elif values.get("images"):
+        raise ValueError("求租信息不能上传图片")
+    if values.get("area"):
+        values["area"] = values["area"].strip().upper()
     if "images" in values:
         await db.execute(delete(MediaModerationTask).where(
             MediaModerationTask.resource_type

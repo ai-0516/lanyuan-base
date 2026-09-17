@@ -25,6 +25,24 @@ function searchParkingTargets(query, limit = 30) {
     .map(target => ({ ...target, typeLabel: TYPE_LABELS[target.type] }));
 }
 
+function getParkingBuildings() {
+  const spots = parkingData.targets.filter(target => target.type === 'spot');
+  return parkingData.targets
+    .filter(target => target.type === 'building')
+    .map(building => {
+      const nearestSpot = spots.reduce((nearest, spot) => {
+        const distance = (spot.x - building.x) ** 2 + (spot.y - building.y) ** 2;
+        return !nearest || distance < nearest.distance ? { spot, distance } : nearest;
+      }, null)?.spot;
+      return {
+        id: building.id,
+        label: building.title,
+        area: nearestSpot?.id?.charAt(0) || '',
+      };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN', { numeric: true }));
+}
+
 function calculateViewportTransform(target, viewport, map, scale = 2.4) {
   const scaledWidth = map.width * scale;
   const scaledHeight = map.height * scale;
@@ -78,6 +96,7 @@ module.exports = {
   TYPE_LABELS,
   normalizeQuery,
   searchParkingTargets,
+  getParkingBuildings,
   calculateViewportTransform,
   calculateRouteViewportTransform,
 };
