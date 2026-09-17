@@ -1,6 +1,6 @@
 <view class="rental-page">
   <view class="hero">
-    <view class="hero-copy"><text class="hero-title">车位租赁</text><text class="hero-subtitle">{{listingType === 'offer' ? '找一个离家更近的固定车位' : '发布需求，匹配合适车位'}}</text></view>
+    <view class="hero-copy"><text class="hero-title">车位租赁</text><text class="hero-subtitle">{{listingType === 'offer' ? '把闲置车位租给附近住户' : '找一个离家更近的固定车位'}}</text></view>
     <button class="publish-button" bindtap="createRental">{{listingType === 'offer' ? '发布出租' : '发布求租'}}</button>
   </view>
   <view class="listing-tabs">
