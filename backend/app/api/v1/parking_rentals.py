@@ -1,5 +1,7 @@
 """长期车位出租 API。"""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,18 +10,47 @@ from app.api.response import api_error, api_success
 from app.core.moderation import PostModerationStatus
 from app.core.parking import ParkingRentalListingType
 from app.core.wechat import WeChatSecurityScene
+from app.harness.tool_registry import dumps, strip_keys, tool
 from app.schemas.parking_rental import ParkingRentalCreate, ParkingRentalUpdate
 from app.services import content_security_service, parking_rental_service
+from tools.mcp_server.decorator import mcp_tool
 
 router = APIRouter(prefix="/parking-rentals", tags=["车位出租"])
 
 
+def _format_list_parking_rentals(data) -> str:
+    """删减：发布者 avatar（LLM 不需要）。保留分页、供需、审核状态和本人联系方式。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_create_parking_rental(data) -> str:
+    """删减：发布者 avatar。返回新建的出租或求租信息。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_get_parking_rental(data) -> str:
+    """删减：发布者 avatar。其余车位租赁详情原样保留。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_update_parking_rental(data) -> str:
+    """删减：发布者 avatar。返回更新后的车位租赁信息。"""
+    return dumps(strip_keys(data, {"avatar"}))
+
+
+def _format_get_parking_rental_contact(data) -> str:
+    """无删减：返回登录用户按需查询到的联系方式。"""
+    return dumps(data)
+
+
 @router.get("")
+@mcp_tool(result_formatter=_format_list_parking_rentals)
+@tool(result_formatter=_format_list_parking_rentals)
 async def list_parking_rentals(
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=50),
-    area: str | None = Query(default=None, max_length=8),
-    nearby_building: str | None = Query(default=None, max_length=32),
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=50)] = 20,
+    area: Annotated[str | None, Query(max_length=8)] = None,
+    nearby_building: Annotated[str | None, Query(max_length=32)] = None,
     listing_type: ParkingRentalListingType = ParkingRentalListingType.OFFER,
     mine: bool = False,
     db: AsyncSession = Depends(get_db),
@@ -35,6 +66,8 @@ async def list_parking_rentals(
 
 
 @router.post("")
+@mcp_tool(result_formatter=_format_create_parking_rental)
+@tool(result_formatter=_format_create_parking_rental)
 async def create_parking_rental(
     data: ParkingRentalCreate,
     db: AsyncSession = Depends(get_db),
@@ -78,6 +111,8 @@ async def create_parking_rental(
 
 
 @router.get("/{rental_id}")
+@mcp_tool(result_formatter=_format_get_parking_rental)
+@tool(result_formatter=_format_get_parking_rental)
 async def get_parking_rental(
     rental_id: int,
     db: AsyncSession = Depends(get_db),
@@ -88,6 +123,8 @@ async def get_parking_rental(
 
 
 @router.patch("/{rental_id}")
+@mcp_tool(result_formatter=_format_update_parking_rental)
+@tool(result_formatter=_format_update_parking_rental)
 async def update_parking_rental(
     rental_id: int,
     data: ParkingRentalUpdate,
@@ -136,6 +173,8 @@ async def update_parking_rental(
 
 
 @router.get("/{rental_id}/contact")
+@mcp_tool(result_formatter=_format_get_parking_rental_contact)
+@tool(result_formatter=_format_get_parking_rental_contact)
 async def get_parking_rental_contact(
     rental_id: int,
     db: AsyncSession = Depends(get_db),

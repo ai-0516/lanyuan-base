@@ -25,8 +25,8 @@ import app.main  # noqa: F401  # 触发全部 @mcp_tool 注册（业务文件 im
 from app.models.user import User
 from tools.mcp_server.decorator import _REGISTERED_TOOLS, _user_id_from_meta, mcp
 
-# MCP 工具面 = 21 个业务工具（search_history 不迁移，v2 用 DSH session-query；
-# wiki_index/wiki_read = issue #103 小区知识库只读工具）
+# MCP 工具面 = 26 个业务工具（search_history 不迁移，v2 用 DSH session-query；
+# wiki_index/wiki_read = issue #103 小区知识库只读工具；车位租赁 5 个）
 ALL_TOOLS = {
     "get_my_profile", "update_my_profile", "get_user_public",
     "list_posts", "create_post", "get_post", "delete_post", "like_post", "unlike_post",
@@ -34,6 +34,8 @@ ALL_TOOLS = {
     "list_notifications", "notification_count", "mark_all_read",
     "memory_list", "memory_add", "memory_get", "memory_delete",
     "wiki_index", "wiki_read",
+    "list_parking_rentals", "create_parking_rental", "get_parking_rental",
+    "update_parking_rental", "get_parking_rental_contact",
 }
 
 
@@ -213,6 +215,38 @@ class TestModelFlatten:
         assert "add_memory" not in tools, "应使用 v1 工具名 memory_add（非函数名）"
 
 
+class TestParkingRentalTools:
+    @pytest.mark.asyncio
+    async def test_list_injects_optional_user_and_formats_result(self):
+        """get_optional_user 同样从 _meta 注入；formatter 删除头像并保留业务字段。"""
+        fake = FakeSession(FakeScalarResult([]))
+        captured = {}
+
+        async def fake_list(db, user_id, page, size, area, nearby_building, mine, listing_type):
+            captured["user_id"] = user_id
+            return {
+                "items": [{
+                    "id": 8,
+                    "user": {"id": 42, "nickname": "业主", "avatar": "base64-avatar"},
+                    "spot_id": "B194",
+                }],
+                "total": 1,
+                "page": page,
+                "size": size,
+            }
+
+        with patch("tools.mcp_server.decorator.async_session_factory", return_value=fake), \
+             patch("app.api.v1.parking_rentals.parking_rental_service.list_rentals", new=fake_list):
+            result = await _REGISTERED_TOOLS["list_parking_rentals"](
+                ctx=_ctx_with_meta(SimpleNamespace(user_id=42))
+            )
+
+        data = json.loads(result)
+        assert captured["user_id"] == 42
+        assert data["items"][0]["spot_id"] == "B194"
+        assert "avatar" not in data["items"][0]["user"]
+
+
 class TestHttpEndpoint:
     """双形态验证：@mcp_tool 写在业务 endpoint 上 → HTTP 模式走 FastAPI Depends
     （/api/v1 原路径，endpoint 行为不变——v1/v2 仅限 /ai/chat）"""
@@ -282,7 +316,7 @@ class TestMcpToolSchema:
     @pytest.mark.asyncio
     async def test_schema_excludes_injected_params(self):
         tools = {t.name: t for t in await mcp.list_tools()}
-        for name in ("get_my_profile", "list_posts", "memory_add"):
+        for name in ("get_my_profile", "list_posts", "memory_add", "list_parking_rentals"):
             params = tools[name].parameters
             assert "user_id" not in params["properties"], f"{name}: user_id 不应暴露"
             assert "db" not in params["properties"], f"{name}: db 不应暴露"

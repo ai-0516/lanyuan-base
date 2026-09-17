@@ -213,7 +213,7 @@ class ToolDef:
                 dep_name = _get_dep_name(default)
                 if dep_name == "get_db":
                     kwargs[param_name] = db
-                elif dep_name in ("get_current_user",):
+                elif dep_name in ("get_current_user", "get_optional_user"):
                     kwargs[param_name] = user_id
                 continue
 
