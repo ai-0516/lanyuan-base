@@ -17,3 +17,10 @@ class MediaModerationTaskStatus(str, Enum):
     PENDING = "pending"
     PASSED = "passed"
     REJECTED = "rejected"
+
+
+class MediaModerationResourceType(str, Enum):
+    """图片审核任务所属的业务资源。"""
+
+    POST = "post"
+    PARKING_RENTAL = "parking_rental"

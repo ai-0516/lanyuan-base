@@ -9,7 +9,9 @@
     "pages/notifications/index",
     "pages/edit-profile/index",
     "pages/about/index",
-    "pages/post-detail/index"
+    "pages/post-detail/index",
+    "pages/parking-rentals/index",
+    "pages/parking-rental-form/index"
   ],
   "window": {
     "navigationBarBackgroundColor": "#faf7f2",

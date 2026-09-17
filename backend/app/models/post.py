@@ -1,9 +1,13 @@
 """帖子模型"""
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, JSON, func
+from sqlalchemy import Column, DateTime, Index, Integer, String, Text, JSON, func
 
 from app.core.database import Base
-from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.moderation import (
+    MediaModerationResourceType,
+    MediaModerationTaskStatus,
+    PostModerationStatus,
+)
 
 
 class Post(Base):
@@ -22,9 +26,15 @@ class Post(Base):
 
 class MediaModerationTask(Base):
     __tablename__ = "media_moderation_tasks"
+    __table_args__ = (
+        Index("ix_media_moderation_tasks_resource", "resource_type", "resource_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    resource_type = Column(
+        String(32), nullable=False, default=MediaModerationResourceType.POST
+    )
+    resource_id = Column(Integer, nullable=False)
     trace_id = Column(String(128), nullable=False, unique=True, index=True)
     file_id = Column(Text, nullable=False)
     status = Column(

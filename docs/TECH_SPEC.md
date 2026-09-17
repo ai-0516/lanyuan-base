@@ -298,6 +298,8 @@ miniprogram/
 │   ├── create-post/            # 发布帖子
 │   ├── ai-chat/                # AI 对话页
 │   ├── parking/                # 停车地图、搜索与定位
+│   ├── parking-rentals/        # 长期车位出租列表与筛选
+│   ├── parking-rental-form/    # 出租发布、编辑与上下架
 │   ├── profile/                # 个人中心
 │   ├── edit-profile/           # 编辑资料
 │   └── notifications/          # 消息通知
@@ -347,6 +349,11 @@ code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签
 两条路径共用查/建用户与 JWT 签发逻辑（auth_service.login 的 openid 参数化）。
 内容安全与登录模式分开：本地登录是真实 code2session，但内容安全 API 使用 mock；
 云托管登录使用可信 header，内容安全 API 才调用微信云托管内部地址。
+
+本地需要模拟不同用户时，可在 `.env` 设置 `WECHAT_MOCK_OPENID=mock_user_001`。
+该值非空且 `WECHAT_CLOUD_DEPLOYMENT=False` 时，后端跳过 code2session，并以固定
+openid 查/建用户；修改值、重启后端、清除小程序登录状态后即可切换模拟用户。
+云托管模式始终忽略此配置，生产身份仍只来自可信 `x-wx-openid`。
 
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
@@ -794,7 +801,12 @@ App (app.js)
 - 路线规划将起终点投影到距离最近的道路边，在临时图中切分对应边，再用 Dijkstra 计算最短路径；单向边只建立正向连接
 - 路径以地图原始像素坐标计算，以绝对定位线段叠加在同一 `movable-view` 中，随底图同步缩放和拖动
 - 估算距离使用车位标准宽度校准的 `0.1 米/像素` 比例，界面使用“约”标识其估算属性
-- 出租车位和闲时共享不在本期实现，但复用同一坐标系和停车页面入口
+- 车位租赁从地图下方“停车服务”区域进入；列表按 `wanted/offer` 切换，出租卡片通过 storage 传递车位号并切回 Tab 定位
+- `parking_rentals.listing_type` 区分出租与求租；出租必须关联具体车位，求租必须选择楼栋，区域由最近车位自动推导并用于分组
+- `parking_rentals` 独立保存业务状态（`active/inactive`）与内容审核状态（`pending/approved/rejected`），二者不混用
+- 联系方式仅在发布者自己的列表/详情中直接返回；其他用户登录后通过独立接口按需读取。出租说明和求租需求均调用 `msgSecCheck`；出租图片沿用微信 `mediaCheckAsync` 异步回调，审核中或拒绝后仍仅作者可见并逐张返回审核状态
+- 帖子与出租图片共用 `media_moderation_tasks`；`trace_id` 全局唯一，回调通过 `resource_type`（`post` / `parking_rental`）和 `resource_id` 明确分发
+- 闲时共享仍不在本期实现，但后续复用同一坐标系和停车页面入口
 
 ---
 
@@ -821,8 +833,8 @@ App (app.js)
 | API 鉴权 | JWT middleware 校验，user_id 从 token 解析 |
 | CORS | 仅允许小程序域名(可在微信小程序设置request合法域名) |
 | XSS | 用户输入 HTML 转义，rich text 限制 |
-| 公开文本安全 | 帖子（scene=3）和评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
-| 公开文本安全范围 | 本期仅覆盖帖子与评论。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检 `mediaCheckAsync`，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
+| 公开文本安全 | 帖子和长期出租（scene=3）、评论（scene=2）写库前由后端调用微信 `msgSecCheck` v2；仅 `pass` 放行，`review/risky` 统一提示违规，接口异常 fail closed |
+| 公开内容安全范围 | 帖子与长期出租图片通过 `mediaCheckAsync` 异步审核。昵称/头像（`scene=1` 资料场景）未接入：头像以 base64 存库、无云存储临时 URL，无法送检，需先改造头像存储；若审核要求覆盖资料场景，另行开 issue 跟踪 |
 | 公开图片安全 | 图片直传微信云存储后调用 `mediaCheckAsync` v2；帖子审核通过前不可见，非 `pass` 或异常均不公开；云存储写权限限制为文件所有者 |
 | 防刷 | 评论/点赞频率限制 (Redis + 10s/次) |
 | 隐私 | 房号默认不公开 (show_room default 0) |

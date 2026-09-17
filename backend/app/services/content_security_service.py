@@ -7,8 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.wechat import WeChatSecurityScene, wechat_client
-from app.core.moderation import MediaModerationTaskStatus, PostModerationStatus
+from app.core.moderation import (
+    MediaModerationResourceType,
+    MediaModerationTaskStatus,
+    PostModerationStatus,
+)
 from app.models.post import MediaModerationTask, Post
+from app.models.parking_rental import ParkingRental
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -150,14 +155,67 @@ async def submit_post_images(
         db_post.moderation_status = PostModerationStatus.APPROVED
         return True
     for trace_id, file_id in traces:
-        db.add(MediaModerationTask(post_id=post_id, trace_id=trace_id, file_id=file_id))
+        db.add(MediaModerationTask(
+            resource_type=MediaModerationResourceType.POST,
+            resource_id=post_id,
+            trace_id=trace_id,
+            file_id=file_id,
+        ))
+    return False
+
+
+async def submit_parking_rental_images(
+    db: AsyncSession,
+    user_id: int,
+    rental_id: int,
+    file_ids: list[str],
+    media_urls: list[str],
+) -> bool:
+    """为长期出租图片创建异步检测任务；本地 mock 直接通过。"""
+    if len(file_ids) != len(media_urls) or not file_ids:
+        raise InvalidImageParamsError("图片检测参数不完整")
+    result = await db.execute(select(User.openid).where(User.id == user_id))
+    openid = result.scalar_one_or_none()
+    if not openid:
+        raise ContentSecurityUnavailableError("用户 openid 不存在")
+    traces: list[tuple[str, str]] = []
+    try:
+        for file_id, media_url in zip(file_ids, media_urls, strict=True):
+            _validate_image_pair(file_id, media_url)
+            trace_id = await wechat_client.media_check_async(
+                media_url, openid, scene=WeChatSecurityScene.FORUM
+            )
+            if trace_id:
+                traces.append((trace_id, file_id))
+    except InvalidImageParamsError:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "Media security submission unavailable for user_id=%s rental_id=%s",
+            user_id, rental_id, exc_info=True,
+        )
+        raise ContentSecurityUnavailableError from exc
+
+    if not traces:
+        rental = await db.get(ParkingRental, rental_id)
+        if not rental:
+            raise ContentSecurityUnavailableError("出租信息不存在")
+        rental.moderation_status = PostModerationStatus.APPROVED
+        return True
+    for trace_id, file_id in traces:
+        db.add(MediaModerationTask(
+            resource_type=MediaModerationResourceType.PARKING_RENTAL,
+            resource_id=rental_id,
+            trace_id=trace_id,
+            file_id=file_id,
+        ))
     return False
 
 
 async def apply_media_result(
     db: AsyncSession, trace_id: str, suggestion: str, errcode: int
 ) -> bool:
-    """幂等应用微信图片检测回调；所有图片通过后才公开帖子。
+    """幂等应用微信图片检测回调，并按资源类型分发审核结果。
 
     判定语义：``rejected`` 是吸收态——同一 ``trace_id`` 的后续回调不再改判；
     反之，非 ``pass`` 回调优先于已判定的 ``passed``（乱序/伪造的 pass 不能
@@ -177,7 +235,23 @@ async def apply_media_result(
         if errcode == 0 and suggestion == "pass"
         else MediaModerationTaskStatus.REJECTED
     )
-    post = await db.get(Post, task.post_id)
+    if task.resource_type == MediaModerationResourceType.POST:
+        return await _apply_post_media_result(db, task)
+    if task.resource_type == MediaModerationResourceType.PARKING_RENTAL:
+        return await _apply_parking_rental_media_result(db, task)
+    logger.error(
+        "Unknown moderation resource type for trace_id=%r: %r",
+        trace_id[:200], task.resource_type,
+    )
+    return False
+
+
+async def _apply_post_media_result(
+    db: AsyncSession,
+    task: MediaModerationTask,
+) -> bool:
+    """将已判定的通用审核任务应用到帖子。"""
+    post = await db.get(Post, task.resource_id)
     if not post:
         # 帖子已删除：无需撤回、重试也不会有结果，幂等视为已处理完（与
         # submit_post_images 对同一情形的 fail closed 口径不同，那是「无法确认结论」）
@@ -186,7 +260,10 @@ async def apply_media_result(
         post.moderation_status = PostModerationStatus.REJECTED
         return True
     statuses_result = await db.execute(
-        select(MediaModerationTask.status).where(MediaModerationTask.post_id == post.id)
+        select(MediaModerationTask.status).where(
+            MediaModerationTask.resource_type == MediaModerationResourceType.POST,
+            MediaModerationTask.resource_id == post.id,
+        )
     )
     statuses = list(statuses_result.scalars())
     if statuses and all(
@@ -195,4 +272,29 @@ async def apply_media_result(
         # approved 只能从 pending 进入；rejected 是单调终态
         if post.moderation_status == PostModerationStatus.PENDING:
             post.moderation_status = PostModerationStatus.APPROVED
+    return True
+
+
+async def _apply_parking_rental_media_result(
+    db: AsyncSession,
+    task: MediaModerationTask,
+) -> bool:
+    """将图片回调幂等应用到长期出租信息。"""
+    rental = await db.get(ParkingRental, task.resource_id)
+    if not rental:
+        return True
+    if task.status == MediaModerationTaskStatus.REJECTED:
+        rental.moderation_status = PostModerationStatus.REJECTED
+        return True
+    result = await db.execute(
+        select(MediaModerationTask.status).where(
+            MediaModerationTask.resource_type
+            == MediaModerationResourceType.PARKING_RENTAL,
+            MediaModerationTask.resource_id == rental.id,
+        )
+    )
+    statuses = list(result.scalars())
+    if statuses and all(status == MediaModerationTaskStatus.PASSED for status in statuses):
+        if rental.moderation_status == PostModerationStatus.PENDING:
+            rental.moderation_status = PostModerationStatus.APPROVED
     return True

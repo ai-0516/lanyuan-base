@@ -80,7 +80,7 @@ def _classify(
             dep = _dep_name(default)
             if dep == "get_db":
                 db_param = pname
-            elif dep == "get_current_user":
+            elif dep in ("get_current_user", "get_optional_user"):
                 user_param = pname
             continue
         hint = hints.get(pname, param.annotation)

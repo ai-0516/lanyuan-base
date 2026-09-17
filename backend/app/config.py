@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # 云托管服务开启公网访问时必须置 True：消息推送接口要求非路径检测事件
     # 携带微信侧注入的 x-wx-source 头，否则 403（官方「确认消息来源」）
     WECHAT_CLOUDRUN_PUBLIC_ACCESS: bool = False
+    # 仅本地开发：非空时跳过 code2session，并以此固定 openid 模拟用户。
+    # 云托管模式始终忽略，避免生产环境使用伪造身份。
+    WECHAT_MOCK_OPENID: str = ""
     WECHAT_APPID: str = ""
     WECHAT_SECRET: str = ""
 

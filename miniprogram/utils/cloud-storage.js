@@ -7,18 +7,18 @@ function fileExtension(filePath) {
   return ALLOWED_EXTENSIONS.has(extension) ? extension : 'jpg';
 }
 
-function createCloudPath(filePath) {
+function createCloudPath(filePath, directory = 'posts') {
   const random = Math.random().toString(36).slice(2, 10);
-  return `posts/${Date.now()}-${random}.${fileExtension(filePath)}`;
+  return `${directory}/${Date.now()}-${random}.${fileExtension(filePath)}`;
 }
 
-function uploadPostImage(filePath) {
+function uploadImage(filePath, directory = 'posts') {
   if (!wx.cloud || typeof wx.cloud.uploadFile !== 'function') {
     return Promise.reject(new Error('云存储不可用：请检查云环境配置后重试'));
   }
   return new Promise((resolve, reject) => {
     wx.cloud.uploadFile({
-      cloudPath: createCloudPath(filePath),
+      cloudPath: createCloudPath(filePath, directory),
       filePath,
       success: ({ fileID }) => {
         if (fileID) resolve(fileID);
@@ -27,6 +27,10 @@ function uploadPostImage(filePath) {
       fail: reject,
     });
   });
+}
+
+function uploadPostImage(filePath) {
+  return uploadImage(filePath, 'posts');
 }
 
 function deleteCloudFiles(fileIDs) {
@@ -58,6 +62,21 @@ async function uploadPostImages(filePaths) {
   return uploadedFileIDs;
 }
 
+async function uploadParkingRentalImages(filePaths) {
+  const results = await Promise.all((filePaths || []).map(filePath =>
+    uploadImage(filePath, 'parking-rentals')
+      .then(fileID => ({ fileID }))
+      .catch(error => ({ error }))
+  ));
+  const uploadedFileIDs = results.filter(result => result.fileID).map(result => result.fileID);
+  const failedResult = results.find(result => result.error);
+  if (failedResult) {
+    await deleteCloudFiles(uploadedFileIDs);
+    throw failedResult.error;
+  }
+  return uploadedFileIDs;
+}
+
 function getTempFileURLs(fileIDs) {
   if (!fileIDs?.length) return Promise.resolve([]);
   if (!wx.cloud || typeof wx.cloud.getTempFileURL !== 'function') {
@@ -80,6 +99,7 @@ module.exports = {
   createCloudPath,
   uploadPostImage,
   uploadPostImages,
+  uploadParkingRentalImages,
   getTempFileURLs,
   deleteCloudFiles,
 };

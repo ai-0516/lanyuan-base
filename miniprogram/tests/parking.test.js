@@ -29,6 +29,13 @@ describe('parking search', () => {
 });
 
 describe('parking map positioning', () => {
+  test('opens the rental service from the parking page', () => {
+    const page = loadPage(pagePath);
+    page.openRentals();
+
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/parking-rentals/index' });
+  });
+
   test('centers a target while keeping the map inside viewport bounds', () => {
     const transform = calculateViewportTransform(
       { x: 0.5, y: 0.5 },

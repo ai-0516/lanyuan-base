@@ -1,5 +1,5 @@
 const parkingData = require('../../data/parking');
-const { PARKING_MAP_URL } = require('../../utils/constants');
+const { PARKING_MAP_URL, STORAGE_KEYS, PAGES } = require('../../utils/constants');
 const {
   searchParkingTargets,
   calculateViewportTransform,
@@ -33,6 +33,12 @@ Page({
 
   onShow() {
     this.getTabBar?.()?.setData({ selected: 2 });
+    const targetId = wx.getStorageSync(STORAGE_KEYS.PARKING_TARGET_ID);
+    if (targetId) {
+      wx.removeStorageSync(STORAGE_KEYS.PARKING_TARGET_ID);
+      this._pendingTargetId = targetId;
+      this.focusPendingTarget();
+    }
   },
 
   onReady() {
@@ -59,9 +65,21 @@ Page({
           mapX: this._fullViewPosition.x,
           mapY: this._fullViewPosition.y,
           mapScale: DEFAULT_SCALE,
-        });
+        }, () => this.focusPendingTarget());
       })
       .exec();
+  },
+
+  focusPendingTarget() {
+    if (!this._pendingTargetId || !this._viewport || !this._map) return;
+    const target = searchParkingTargets(this._pendingTargetId, 1)
+      .find(item => item.type === 'spot' && item.id === this._pendingTargetId);
+    this._pendingTargetId = '';
+    if (target) this.focusTarget(target);
+  },
+
+  openRentals() {
+    wx.navigateTo({ url: PAGES.PARKING_RENTALS });
   },
 
   onMapLoad() {

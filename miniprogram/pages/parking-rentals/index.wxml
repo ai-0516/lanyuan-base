@@ -1,0 +1,44 @@
+<view class="rental-page">
+  <view class="hero">
+    <view class="hero-copy"><text class="hero-title">车位租赁</text><text class="hero-subtitle">{{listingType === 'offer' ? '把闲置车位租给附近住户' : '找一个离家更近的固定车位'}}</text></view>
+    <button class="publish-button" bindtap="createRental">{{listingType === 'offer' ? '发布出租' : '发布求租'}}</button>
+  </view>
+  <view class="listing-tabs">
+    <view id="wanted-listing-tab" class="listing-tab {{listingType === 'wanted' ? 'listing-tab-active' : ''}}" data-type="wanted" bindtap="onListingTypeChange">车位求租</view>
+    <view id="offer-listing-tab" class="listing-tab {{listingType === 'offer' ? 'listing-tab-active' : ''}}" data-type="offer" bindtap="onListingTypeChange">车位出租</view>
+  </view>
+  <view class="empty" wx:if="{{!loading && items.length === 0}}">
+    <text class="empty-title">{{listingType === 'offer' ? '暂时没有可租车位' : '暂时没有求租需求'}}</text>
+    <text class="empty-copy">现在就{{listingType === 'offer' ? '发布出租' : '发布求租'}}吧</text>
+  </view>
+  <view class="rental-card {{item.listing_type === 'wanted' ? 'wanted-card' : ''}}" wx:for="{{items}}" wx:key="id">
+    <view class="card-head">
+      <view wx:if="{{item.listing_type === 'offer'}}"><text class="spot-id">{{item.spot_id}}</text><text class="spot-area">{{item.area}}区</text></view>
+      <view wx:else><view class="wanted-heading"><text class="wanted-badge">求租</text><text class="wanted-title">{{item.nearby_building || '楼栋未填写'}}</text><text class="wanted-title-suffix">附近车位</text></view></view>
+    </view>
+    <scroll-view class="image-row" scroll-x wx:if="{{item.listing_type === 'offer' && item.images.length}}">
+      <view class="rental-image-wrap" wx:for="{{item.images}}" wx:for-item="image" wx:for-index="imageIndex" wx:key="*this">
+        <image class="rental-image" src="{{image}}" mode="aspectFill" data-id="{{item.id}}" data-index="{{imageIndex}}" bindtap="previewRentalImage" />
+        <text class="image-review-label" wx:if="{{item.image_moderation_statuses[imageIndex] === 'pending'}}">图片审核中</text>
+        <text class="image-review-label image-review-rejected" wx:elif="{{item.image_moderation_statuses[imageIndex] === 'rejected'}}">审核未通过</text>
+      </view>
+    </scroll-view>
+    <text class="description">{{item.description}}</text>
+    <view class="owner-row">
+      <view class="publisher">
+        <image class="publisher-avatar" src="{{item.user.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <text class="publisher-name">{{item.user.nickname}}</text>
+      </view>
+      <view class="owner-meta">
+        <text wx:if="{{item.moderationText}}" class="review-label">{{item.moderationText}}</text>
+        <text wx:if="{{item.is_owner && item.contact}}" class="contact-text">{{item.contact}}</text>
+      </view>
+    </view>
+    <view class="card-actions">
+      <text wx:if="{{item.listing_type === 'offer'}}" data-spot="{{item.spot_id}}" bindtap="locateRental">地图定位</text>
+      <text wx:if="{{!item.is_owner}}" data-id="{{item.id}}" bindtap="showContact">{{item.listing_type === 'offer' ? '联系出租人' : '联系求租人'}}</text>
+      <text wx:if="{{item.is_owner}}" data-id="{{item.id}}" bindtap="editRental">编辑管理</text>
+    </view>
+  </view>
+  <view class="loading" wx:if="{{loading}}">加载中…</view>
+</view>

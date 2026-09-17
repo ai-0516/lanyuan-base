@@ -15,6 +15,7 @@ from app.api.v1.ai import _format_search_history
 from app.api.v1.comments import _format_list_comments
 from app.api.v1.memory import _format_memory_list
 from app.api.v1.notifications import _format_list_notifications
+from app.api.v1.parking_rentals import _format_get_parking_rental
 from app.api.v1.posts import _format_get_post
 from app.api.v1.profile import _format_get_my_profile
 from app.schemas.comment import CommentResponse
@@ -66,6 +67,23 @@ def test_post_formatter_drops_avatar():
     assert "avatar" not in parsed["user"]
     assert "avatar" not in parsed["comments"][0]["user"]
     assert "avatar" not in parsed["likers"][0]
+
+
+def test_parking_rental_formatter_drops_avatar_and_keeps_business_fields():
+    """车位租赁 formatter 仅删头像，保留审核状态和本人联系方式。"""
+    data = {
+        "id": 8,
+        "user": {"id": 2, "nickname": "业主", "avatar": "data:image/png;base64,AAAA"},
+        "listing_type": "offer",
+        "spot_id": "B194",
+        "image_moderation_statuses": ["pending"],
+        "contact": "wx-owner",
+    }
+    parsed = json.loads(_format_get_parking_rental(data))
+    assert "avatar" not in parsed["user"]
+    assert parsed["spot_id"] == "B194"
+    assert parsed["image_moderation_statuses"] == ["pending"]
+    assert parsed["contact"] == "wx-owner"
 
 
 def test_search_history_formatter_preserves_structure():

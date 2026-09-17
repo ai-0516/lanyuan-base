@@ -1,0 +1,36 @@
+<view class="form-page">
+  <view class="form-mode">
+    <text class="form-mode-label">{{listingType === 'offer' ? '发布出租' : '发布求租'}}</text>
+    <text class="form-mode-copy">{{listingType === 'offer' ? '把闲置车位租给附近住户' : '告诉大家你想找什么样的车位'}}</text>
+  </view>
+  <view class="form-section spot-section">
+    <text class="section-title">{{listingType === 'offer' ? '车位位置' : '期望位置'}}</text>
+    <input wx:if="{{listingType === 'offer'}}" class="form-input" disabled="{{rentalId}}" value="{{spotId}}" placeholder="输入车位号搜索，如 B194" bindinput="onSpotInput" />
+    <picker wx:else mode="selector" range="{{buildingOptions}}" range-key="label" value="{{buildingIndex}}" bindchange="onBuildingChange">
+      <view class="form-input building-picker {{nearbyBuilding ? '' : 'building-placeholder'}}">{{nearbyBuilding || '请选择期望楼栋'}}</view>
+    </picker>
+    <view class="spot-results" wx:if="{{listingType === 'offer' && spotResults.length}}">
+      <view class="spot-result" wx:for="{{spotResults}}" wx:key="id" data-id="{{item.id}}" bindtap="selectSpot">
+        <text>{{item.title}}</text><text>{{item.subtitle}}</text>
+      </view>
+    </view>
+  </view>
+  <view class="form-section">
+    <text class="section-title">{{listingType === 'offer' ? '出租说明' : '求租需求'}}</text>
+    <textarea class="description-input" value="{{description}}" maxlength="1000" placeholder="{{listingType === 'offer' ? '描述车位位置、可租时间等' : '描述位置偏好、使用时间等需求'}}" data-field="description" bindinput="onFieldInput" />
+  </view>
+  <view class="form-section">
+    <text class="section-title">联系方式</text>
+    <input class="form-input" value="{{contact}}" maxlength="128" placeholder="手机号或微信号（仅登录用户按需查看）" data-field="contact" bindinput="onFieldInput" />
+  </view>
+  <view class="form-section" wx:if="{{listingType === 'offer'}}">
+    <text class="section-title">车位图片 <text class="optional">（选填，最多 9 张）</text></text>
+    <view class="image-grid">
+      <view class="image-wrap" wx:for="{{existingImages}}" wx:key="*this"><image src="{{item}}" mode="aspectFill" /><text class="remove-image" data-index="{{index}}" bindtap="removeExistingImage">×</text></view>
+      <view class="image-wrap" wx:for="{{tempImages}}" wx:key="*this"><image src="{{item}}" mode="aspectFill" /><text class="remove-image" data-index="{{index}}" bindtap="removeImage">×</text></view>
+      <view class="add-image" wx:if="{{existingImages.length + tempImages.length < 9}}" bindtap="chooseImage"><text>＋</text><text>添加图片</text></view>
+    </view>
+  </view>
+  <button class="submit-button" loading="{{submitting}}" bindtap="submit">{{rentalId ? '保存修改' : (listingType === 'offer' ? '发布出租' : '发布求租')}}</button>
+  <button class="status-button" wx:if="{{rentalId && status === 'active'}}" disabled="{{submitting}}" bindtap="toggleStatus">下架该信息</button>
+</view>

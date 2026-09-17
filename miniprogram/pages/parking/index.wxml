@@ -92,7 +92,6 @@
       <view class="map-tool" bindtap="onZoomOut">－</view>
     </view>
     <view class="reset-tool" bindtap="resetMap">全览</view>
-
     <view class="selection-card {{routeStart || routeEnd ? 'selection-card-raised' : ''}}" wx:if="{{selectedTarget}}">
       <view>
         <text class="selection-kind">{{selectedTarget.typeLabel}}</text>
@@ -127,4 +126,18 @@
       </view>
     </view>
   </movable-area>
+
+  <view class="service-area">
+    <text class="service-heading">停车服务</text>
+    <view class="service-grid">
+      <view class="service-item" bindtap="openRentals">
+        <view class="service-icon">租</view>
+        <view class="service-copy">
+          <text class="service-title">出租车位</text>
+          <text class="service-subtitle">长期车位租赁</text>
+        </view>
+        <text class="service-arrow">›</text>
+      </view>
+    </view>
+  </view>
 </view>

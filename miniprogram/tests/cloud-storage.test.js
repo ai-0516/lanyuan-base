@@ -2,6 +2,7 @@ const {
   createCloudPath,
   uploadPostImage,
   uploadPostImages,
+  uploadParkingRentalImages,
   getTempFileURLs,
   deleteCloudFiles,
 } = require('../utils/cloud-storage');
@@ -35,6 +36,18 @@ describe('utils/cloud-storage', () => {
       expect.stringMatching(/^cloud:\/\/test-env\.posts\//),
     ]);
     expect(wx.cloud.uploadFile).toHaveBeenCalledTimes(2);
+  });
+
+  test('stores rental images in an isolated cloud directory', async () => {
+    wx.cloud = {
+      uploadFile: jest.fn(({ cloudPath, success }) => {
+        success({ fileID: `cloud://test-env.${cloudPath}` });
+      }),
+    };
+
+    const result = await uploadParkingRentalImages(['space.jpg']);
+    expect(result[0]).toMatch(/^cloud:\/\/test-env\.parking-rentals\//);
+    expect(wx.cloud.uploadFile.mock.calls[0][0].cloudPath).toMatch(/^parking-rentals\//);
   });
 
   test('removes successful uploads when another image fails', async () => {

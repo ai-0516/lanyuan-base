@@ -26,7 +26,8 @@ async def _clear_db():
         async with async_session_factory() as session:
             for t in [
                 "user_memories", "messages", "conversations", "notifications",
-                "likes", "comments", "media_moderation_tasks", "posts", "users",
+                "likes", "comments", "parking_rentals", "media_moderation_tasks",
+                "posts", "users",
             ]:
                 await session.execute(text(f"DELETE FROM {t}"))
             await session.commit()
@@ -118,6 +119,52 @@ async def test_login_with_wx_openid_header(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_local_mock_openid_is_stable_across_login_codes(client: AsyncClient, monkeypatch):
+    """本地固定 mock openid：不同 wx.login code 仍复用同一个模拟用户。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", False)
+    monkeypatch.setattr(settings, "WECHAT_MOCK_OPENID", "mock_parking_viewer_002")
+
+    first = await client.post("/api/v1/auth/login", json={"code": "code-one"})
+    second = await client.post("/api/v1/auth/login", json={"code": "code-two"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["data"]["user"]["id"] == second.json()["data"]["user"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_cloud_login_ignores_local_mock_openid(client: AsyncClient, monkeypatch):
+    """云托管只信任平台 header，不能被本地 mock 配置覆盖。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
+    monkeypatch.setattr(settings, "WECHAT_MOCK_OPENID", "mock_must_not_be_used")
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"code": "ignored"},
+        headers={"x-wx-openid": "cloud_real_openid_003"},
+    )
+    assert response.status_code == 200
+
+    from sqlalchemy import select
+
+    from app.core.database import async_session_factory
+    from app.models.user import User
+
+    async with async_session_factory() as session:
+        cloud_user = (await session.execute(
+            select(User).where(User.openid == "cloud_real_openid_003")
+        )).scalar_one_or_none()
+        mock_user = (await session.execute(
+            select(User).where(User.openid == "mock_must_not_be_used")
+        )).scalar_one_or_none()
+    assert cloud_user is not None
+    assert mock_user is None
+
+
+@pytest.mark.asyncio
 async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient, monkeypatch):
     """非法 openid（超长/非法字符）→ 400 拒绝、不落库
 
@@ -183,6 +230,253 @@ async def test_auth_check_unauthorized(client: AsyncClient):
     """未认证请求返回 401"""
     response = await client.get("/api/v1/auth/check")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_guest_browse_and_owner_management(
+    client: AsyncClient, auth_headers: dict
+):
+    """游客可浏览；联系方式需登录；作者可编辑和下架，下架后游客不可见。"""
+    created = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B194",
+            "nearby_building": "6号楼",
+            "description": "固定车位，随时可用",
+            "contact": "wx-test-001",
+            "images": [],
+            "image_urls": [],
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 200
+    rental = created.json()["data"]
+    assert rental["spot_id"] == "B194"
+    assert rental["area"] == "B"
+    assert rental["contact"] == "wx-test-001"
+
+    guest_list = await client.get("/api/v1/parking-rentals?area=B&listing_type=offer")
+    assert guest_list.status_code == 200
+    assert guest_list.json()["data"]["total"] == 1
+    guest_item = guest_list.json()["data"]["items"][0]
+    assert guest_item["is_owner"] is False
+    assert guest_item["contact"] is None
+
+    unauthorized_contact = await client.get(
+        f"/api/v1/parking-rentals/{rental['id']}/contact"
+    )
+    assert unauthorized_contact.status_code == 401
+    contact = await client.get(
+        f"/api/v1/parking-rentals/{rental['id']}/contact", headers=auth_headers
+    )
+    assert contact.json()["data"]["contact"] == "wx-test-001"
+
+    updated = await client.patch(
+        f"/api/v1/parking-rentals/{rental['id']}",
+        json={"description": "更新说明", "status": "inactive"},
+        headers=auth_headers,
+    )
+    assert updated.json()["data"]["status"] == "inactive"
+    assert (await client.get("/api/v1/parking-rentals")).json()["data"]["total"] == 0
+
+    mine = await client.get("/api/v1/parking-rentals?mine=true", headers=auth_headers)
+    assert mine.json()["data"]["total"] == 1
+    assert mine.json()["data"]["items"][0]["is_owner"] is True
+    assert mine.json()["data"]["items"][0]["contact"] == "wx-test-001"
+
+
+@pytest.mark.asyncio
+async def test_parking_wanted_listing(client: AsyncClient, auth_headers: dict):
+    created = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "listing_type": "wanted", "area": "b", "nearby_building": "6号楼",
+            "description": "希望靠近楼栋入口", "contact": "wx-wanted",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 200
+    item = created.json()["data"]
+    assert item["listing_type"] == "wanted"
+    assert item["spot_id"] is None
+    assert item["area"] == "B"
+    assert (await client.get("/api/v1/parking-rentals?listing_type=offer")).json()["data"]["total"] == 0
+    wanted = await client.get("/api/v1/parking-rentals?listing_type=wanted")
+    assert wanted.json()["data"]["items"][0]["id"] == item["id"]
+
+
+@pytest.mark.asyncio
+async def test_parking_offer_and_wanted_descriptions_are_security_checked(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """出租说明和求租需求都必须经过文本安全审核。"""
+    from app.services import content_security_service
+
+    checked: list[str] = []
+
+    async def check_text(db, user_id, content, scene):
+        checked.append(content)
+
+    monkeypatch.setattr(content_security_service, "check_public_text", check_text)
+    offer = await client.post(
+        "/api/v1/parking-rentals",
+        json={"spot_id": "B194", "description": "出租需求文本", "contact": "wx-offer"},
+        headers=auth_headers,
+    )
+    wanted = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "listing_type": "wanted", "area": "B", "nearby_building": "6#楼",
+            "description": "求租需求文本", "contact": "wx-wanted",
+        },
+        headers=auth_headers,
+    )
+
+    assert offer.status_code == 200
+    assert wanted.status_code == 200
+    assert any("出租需求文本" in content for content in checked)
+    assert any("求租需求文本" in content for content in checked)
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_owner_only_edit(client: AsyncClient, auth_headers: dict):
+    """非作者不能编辑出租信息。"""
+    created = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "A001",
+            "description": "测试车位", "contact": "owner-contact",
+        },
+        headers=auth_headers,
+    )
+    rental_id = created.json()["data"]["id"]
+    other_login = await client.post("/api/v1/auth/login", json={"code": "other-rental-user"})
+    other_headers = {"Authorization": f"Bearer {other_login.json()['data']['token']}"}
+    response = await client.patch(
+        f"/api/v1/parking-rentals/{rental_id}", json={"description": "无权修改"}, headers=other_headers
+    )
+    assert response.json()["code"] == 40301
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_rejects_unknown_spot(client: AsyncClient, auth_headers: dict):
+    """API 不能绕过前端选择器发布地图中不存在的车位。"""
+    response = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B9999",
+            "description": "不存在的车位", "contact": "owner-contact",
+        },
+        headers=auth_headers,
+    )
+    assert response.json() == {"code": 40021, "message": "车位编号不存在，请从地图车位中选择"}
+
+
+@pytest.mark.asyncio
+async def test_parking_rental_image_hidden_until_callback(
+    client: AsyncClient, auth_headers: dict, monkeypatch
+):
+    """带图出租先仅作者可见，微信回调通过后才进入游客列表。"""
+    from app.config import settings
+    from app.services import content_security_service
+
+    submitted_urls = []
+
+    async def submit(media_url, openid, scene):
+        submitted_urls.append(media_url)
+        assert openid.startswith("mock_openid_")
+        assert scene == 3
+        return f"trace-rental-{len(submitted_urls)}"
+
+    monkeypatch.setattr(content_security_service.wechat_client, "media_check_async", submit)
+    monkeypatch.setattr(settings, "WECHAT_APPID", "wx_dev_appid")
+    response = await client.post(
+        "/api/v1/parking-rentals",
+        json={
+            "spot_id": "B194",
+            "description": "带图车位", "contact": "wx-rental",
+            "images": ["cloud://test-env/parking-rentals/a.jpg"],
+            "image_urls": ["https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert submitted_urls == ["https://test-env.tcb.qcloud.la/parking-rentals/a.jpg"]
+    assert response.json()["data"]["moderation_status"] == "pending"
+    assert response.json()["data"]["image_moderation_statuses"] == ["pending"]
+    assert (await client.get("/api/v1/parking-rentals")).json()["data"]["total"] == 0
+    owner_list = await client.get("/api/v1/parking-rentals", headers=auth_headers)
+    assert owner_list.json()["data"]["total"] == 1
+    assert owner_list.json()["data"]["items"][0]["image_moderation_statuses"] == ["pending"]
+    mine = await client.get("/api/v1/parking-rentals?mine=true", headers=auth_headers)
+    assert mine.json()["data"]["items"][0]["image_moderation_statuses"] == ["pending"]
+
+    callback = await client.post(
+        "/api/v1/wechat/events",
+        json={
+            "Event": "wxa_media_check", "appid": "wx_dev_appid",
+            "trace_id": "trace-rental-1", "errcode": 0,
+            "result": {"suggest": "pass"},
+        },
+    )
+    assert callback.status_code == 200
+    guest = await client.get("/api/v1/parking-rentals")
+    assert guest.json()["data"]["total"] == 1
+    assert guest.json()["data"]["items"][0]["image_moderation_statuses"] == []
+
+    updated = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={
+            "images": [
+                "cloud://test-env/parking-rentals/a.jpg",
+                "cloud://test-env/parking-rentals/b.jpg",
+            ],
+            "image_urls": [
+                "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg",
+                "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    assert submitted_urls == [
+        "https://test-env.tcb.qcloud.la/parking-rentals/a.jpg",
+        "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+    ]
+    assert updated.json()["data"]["image_moderation_statuses"] == ["passed", "pending"]
+
+    await client.post(
+        "/api/v1/wechat/events",
+        json={
+            "Event": "wxa_media_check", "appid": "wx_dev_appid",
+            "trace_id": "trace-rental-2", "errcode": 0,
+            "result": {"suggest": "pass"},
+        },
+    )
+    replaced = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={
+            "images": [
+                "cloud://test-env/parking-rentals/b.jpg",
+                "cloud://test-env/parking-rentals/c.jpg",
+            ],
+            "image_urls": [
+                "https://test-env.tcb.qcloud.la/parking-rentals/b.jpg",
+                "https://test-env.tcb.qcloud.la/parking-rentals/c.jpg",
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert submitted_urls[-1] == "https://test-env.tcb.qcloud.la/parking-rentals/c.jpg"
+    assert replaced.json()["data"]["image_moderation_statuses"] == ["passed", "pending"]
+
+    cleared = await client.patch(
+        f"/api/v1/parking-rentals/{response.json()['data']['id']}",
+        json={"images": [], "image_urls": []},
+        headers=auth_headers,
+    )
+    assert cleared.json()["data"]["images"] == []
+    assert cleared.json()["data"]["moderation_status"] == "approved"
 
 
 @pytest.mark.asyncio

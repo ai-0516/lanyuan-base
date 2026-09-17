@@ -292,3 +292,62 @@ page {
 .route-actions { display: flex; justify-content: flex-end; gap: 20rpx; margin-top: 10rpx; }
 .route-action { color: #6b7f61; font-size: 22rpx; }
 .route-action-clear { color: #a58878; }
+
+.service-area {
+  flex: none;
+  height: 184rpx;
+  padding: 16rpx 24rpx 20rpx;
+  box-sizing: border-box;
+  background: var(--warm-white);
+  border-top: 1rpx solid rgba(61, 43, 31, 0.07);
+}
+
+.service-heading {
+  display: block;
+  margin-bottom: 12rpx;
+  color: #8e8177;
+  font-size: 22rpx;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 104rpx;
+  padding: 0 18rpx;
+  box-sizing: border-box;
+  background: var(--cream);
+  border-radius: 20rpx;
+}
+
+.service-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 18rpx;
+  color: #fff;
+  background: var(--terracotta);
+  font-size: 27rpx;
+  font-weight: 500;
+}
+
+.service-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  margin-left: 16rpx;
+}
+
+.service-title { color: var(--bark); font-size: 26rpx; font-weight: 500; }
+.service-subtitle { margin-top: 4rpx; color: #9c8f84; font-size: 19rpx; }
+.service-arrow { flex: none; margin-left: 8rpx; color: #b9ada3; font-size: 34rpx; }

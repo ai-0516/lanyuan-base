@@ -331,7 +331,7 @@ async def get_my_profile(
   等展平为独立字段进 schema，执行时按字段重建 model 实例
 - 隐私保护承担者与 v1 一致：**formatter 删减**（`result_formatter` 参数）
 - **search_history 不迁移**——v2 历史搜索由 DSH session-query 能力覆盖；
-  其余 19 个业务工具全部 @mcp_tool 注册（M2 review 用户定：工具面全量铺开）
+  其余 26 个业务工具全部 @mcp_tool 注册（含 5 个车位租赁工具，工具面全量铺开）
 - MCP server（tools/mcp_server/main.py）不 import 业务模块——注册由 app.main
   import 业务文件触发（装饰器执行即注册，无注册表遍历/无 v1 依赖）
 
