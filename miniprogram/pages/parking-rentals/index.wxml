@@ -14,11 +14,11 @@
   <view class="rental-card {{item.listing_type === 'wanted' ? 'wanted-card' : ''}}" wx:for="{{items}}" wx:key="id">
     <view class="card-head">
       <view wx:if="{{item.listing_type === 'offer'}}"><text class="spot-id">{{item.spot_id}}</text><text class="spot-area">{{item.area}}区</text></view>
-      <view wx:else><view class="wanted-heading"><text class="wanted-badge">求租</text><text class="wanted-title">{{item.area}}区</text></view><text class="spot-area">{{item.nearby_building || '楼栋不限'}}</text></view>
+      <view wx:else><view class="wanted-heading"><text class="wanted-badge">求租</text><text class="wanted-title">{{item.nearby_building || '楼栋未填写'}}</text><text class="wanted-title-suffix">附近车位</text></view></view>
     </view>
     <scroll-view class="image-row" scroll-x wx:if="{{item.listing_type === 'offer' && item.images.length}}">
       <view class="rental-image-wrap" wx:for="{{item.images}}" wx:for-item="image" wx:for-index="imageIndex" wx:key="*this">
-        <image class="rental-image" src="{{image}}" mode="aspectFill" />
+        <image class="rental-image" src="{{image}}" mode="aspectFill" data-id="{{item.id}}" data-index="{{imageIndex}}" bindtap="previewRentalImage" />
         <text class="image-review-label" wx:if="{{item.image_moderation_statuses[imageIndex] === 'pending'}}">图片审核中</text>
         <text class="image-review-label image-review-rejected" wx:elif="{{item.image_moderation_statuses[imageIndex] === 'rejected'}}">审核未通过</text>
       </view>

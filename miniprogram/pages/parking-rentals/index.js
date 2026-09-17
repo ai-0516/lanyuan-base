@@ -52,6 +52,12 @@ Page({
     if (auth.checkLogin(target)) wx.navigateTo({ url: target });
   },
   editRental(e) { wx.navigateTo({ url: `${PAGES.PARKING_RENTAL_FORM}?id=${e.currentTarget.dataset.id}` }); },
+  previewRentalImage(e) {
+    const rental = this.data.items.find(item => item.id === Number(e.currentTarget.dataset.id));
+    const urls = rental?.images || [];
+    const current = urls[Number(e.currentTarget.dataset.index)];
+    if (current) wx.previewImage({ current, urls });
+  },
   locateRental(e) {
     wx.setStorageSync(STORAGE_KEYS.PARKING_TARGET_ID, e.currentTarget.dataset.spot);
     wx.switchTab({ url: TAB_PAGES.PARKING });

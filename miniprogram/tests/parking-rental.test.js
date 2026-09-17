@@ -67,3 +67,17 @@ describe('parking rental map handoff', () => {
     expect(wx.switchTab).toHaveBeenCalledWith({ url: '/pages/parking/index' });
   });
 });
+
+describe('parking rental image preview', () => {
+  test('previews all images starting from the tapped image', () => {
+    const page = loadPage(listPath);
+    page.setData({ items: [{ id: 7, images: ['cloud://one', 'cloud://two'] }] });
+
+    page.previewRentalImage({ currentTarget: { dataset: { id: 7, index: 1 } } });
+
+    expect(wx.previewImage).toHaveBeenCalledWith({
+      current: 'cloud://two',
+      urls: ['cloud://one', 'cloud://two'],
+    });
+  });
+});

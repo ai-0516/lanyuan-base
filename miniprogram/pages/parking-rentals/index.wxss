@@ -17,6 +17,7 @@ page { background: var(--cream); }
 .wanted-heading { display: flex; align-items: center; }
 .wanted-badge { padding: 5rpx 10rpx; border-radius: 9rpx; color: #fff; background: #6b8e5a; font-size: 20rpx; }
 .wanted-title { margin-left: 12rpx; color: var(--bark); font-size: 36rpx; font-weight: 600; }
+.wanted-title-suffix { padding-left: 20rpx; color: var(--bark); font-size: 30rpx; font-weight: 600; }
 .wanted-card { border-left: 5rpx solid #829d75; }
 .description { display: block; margin-top: 20rpx; color: var(--bark); font-size: 27rpx; line-height: 1.6; }
 .image-row { width: 100%; margin-top: 20rpx; white-space: nowrap; }
