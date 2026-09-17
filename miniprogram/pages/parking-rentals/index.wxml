@@ -25,7 +25,10 @@
     </scroll-view>
     <text class="description">{{item.description}}</text>
     <view class="owner-row">
-      <text>{{item.user.nickname}}</text>
+      <view class="publisher">
+        <image class="publisher-avatar" src="{{item.user.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <text class="publisher-name">{{item.user.nickname}}</text>
+      </view>
       <view class="owner-meta">
         <text wx:if="{{item.moderationText}}" class="review-label">{{item.moderationText}}</text>
         <text wx:if="{{item.is_owner && item.contact}}" class="contact-text">{{item.contact}}</text>
