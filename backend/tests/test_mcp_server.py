@@ -217,6 +217,22 @@ class TestModelFlatten:
 
 class TestParkingRentalTools:
     @pytest.mark.asyncio
+    async def test_descriptions_identify_parking_domain_and_actions(self):
+        """车位工具说明应让 AI 明确领域、供需类型和具体动作。"""
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        expected_actions = {
+            "list_parking_rentals": "查询",
+            "create_parking_rental": "发布",
+            "get_parking_rental": "详情",
+            "update_parking_rental": "编辑",
+            "get_parking_rental_contact": "联系方式",
+        }
+        for name, action in expected_actions.items():
+            description = tools[name].description
+            assert "车位" in description, f"{name} 应明确属于车位领域"
+            assert action in description, f"{name} 应明确工具动作 {action}"
+
+    @pytest.mark.asyncio
     async def test_list_injects_optional_user_and_formats_result(self):
         """get_optional_user 同样从 _meta 注入；formatter 删除头像并保留业务字段。"""
         fake = FakeSession(FakeScalarResult([]))

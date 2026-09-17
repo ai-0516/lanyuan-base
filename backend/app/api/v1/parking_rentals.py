@@ -56,7 +56,12 @@ async def list_parking_rentals(
     db: AsyncSession = Depends(get_db),
     user_id: int | None = Depends(get_optional_user),
 ):
-    """游客可浏览公开出租信息；mine=true 时仅返回本人发布。"""
+    """查询兰园停车场的车位出租或求租信息列表。
+
+    listing_type="offer" 查询业主发布的可出租车位，"wanted" 查询住户发布的
+    求租需求；可按停车区域或附近楼栋筛选。mine=true 时只查询当前用户自己发布
+    的车位信息（包括待审核内容），适合回答“我发布过哪些车位出租/求租”。
+    """
     if mine and user_id is None:
         return api_error(40101, "请先登录", status_code=401)
     result = await parking_rental_service.list_rentals(
@@ -73,7 +78,13 @@ async def create_parking_rental(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """发布车位出租或求租信息。"""
+    """在兰园停车场发布一条车位出租或求租信息。
+
+    listing_type="offer" 表示出租，必须提供地图中的真实 spot_id，可附最多 9 张
+    车位图片；listing_type="wanted" 表示求租，需要提供期望区域和附近楼栋，不能
+    上传图片。description 是出租说明或求租需求，contact 是供其他登录用户联系
+    发布者的方式。文本和图片都会经过微信内容安全审核。
+    """
     if (
         data.listing_type == ParkingRentalListingType.OFFER
         and not parking_rental_service.is_valid_spot(data.spot_id or "")
@@ -118,6 +129,11 @@ async def get_parking_rental(
     db: AsyncSession = Depends(get_db),
     user_id: int | None = Depends(get_optional_user),
 ):
+    """根据 ID 查询一条兰园停车场车位出租或求租信息的详情。
+
+    出租详情包含具体车位号，可用于停车地图定位；求租详情包含期望楼栋。发布者
+    本人还能看到自己的联系方式、待审核或审核未通过的图片状态。
+    """
     result = await parking_rental_service.get(db, rental_id, user_id)
     return api_success(result)
 
@@ -131,7 +147,12 @@ async def update_parking_rental(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """编辑或上下架本人出租信息。"""
+    """编辑或下架当前用户自己发布的兰园停车场车位出租/求租信息。
+
+    只传需要修改的字段；status="inactive" 表示下架。出租图片使用 images 与
+    image_urls 同步更新，保留图片沿用原审核结果，新增图片单独送审。不能修改他人
+    发布的车位信息。
+    """
     if not await parking_rental_service.is_owner(db, rental_id, user_id):
         return api_error(40301, "无权编辑此出租信息")
     changed_text = "\n".join(
@@ -180,7 +201,11 @@ async def get_parking_rental_contact(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    """登录后按需读取联系方式，游客列表和详情不返回该字段。"""
+    """获取一条兰园停车场车位出租或求租信息的发布者联系方式。
+
+    用于用户决定联系出租方或求租方之后按需查询；需要登录，且目标车位信息必须
+    仍然公开可见，发布者本人也可以读取自己已发布信息的联系方式。
+    """
     contact = await parking_rental_service.contact(db, rental_id, user_id)
     if contact is None:
         return api_error(40401, "出租信息不存在或已下架", status_code=404)
