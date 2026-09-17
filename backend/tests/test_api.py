@@ -119,6 +119,52 @@ async def test_login_with_wx_openid_header(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_local_mock_openid_is_stable_across_login_codes(client: AsyncClient, monkeypatch):
+    """本地固定 mock openid：不同 wx.login code 仍复用同一个模拟用户。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", False)
+    monkeypatch.setattr(settings, "WECHAT_MOCK_OPENID", "mock_parking_viewer_002")
+
+    first = await client.post("/api/v1/auth/login", json={"code": "code-one"})
+    second = await client.post("/api/v1/auth/login", json={"code": "code-two"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["data"]["user"]["id"] == second.json()["data"]["user"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_cloud_login_ignores_local_mock_openid(client: AsyncClient, monkeypatch):
+    """云托管只信任平台 header，不能被本地 mock 配置覆盖。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WECHAT_CLOUD_DEPLOYMENT", True)
+    monkeypatch.setattr(settings, "WECHAT_MOCK_OPENID", "mock_must_not_be_used")
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"code": "ignored"},
+        headers={"x-wx-openid": "cloud_real_openid_003"},
+    )
+    assert response.status_code == 200
+
+    from sqlalchemy import select
+
+    from app.core.database import async_session_factory
+    from app.models.user import User
+
+    async with async_session_factory() as session:
+        cloud_user = (await session.execute(
+            select(User).where(User.openid == "cloud_real_openid_003")
+        )).scalar_one_or_none()
+        mock_user = (await session.execute(
+            select(User).where(User.openid == "mock_must_not_be_used")
+        )).scalar_one_or_none()
+    assert cloud_user is not None
+    assert mock_user is None
+
+
+@pytest.mark.asyncio
 async def test_login_wx_openid_invalid_format_rejected(client: AsyncClient, monkeypatch):
     """非法 openid（超长/非法字符）→ 400 拒绝、不落库
 

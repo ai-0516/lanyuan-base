@@ -37,6 +37,13 @@ async def login(data: dict, request: Request, db: AsyncSession = Depends(get_db)
         if not _OPENID_RE.fullmatch(raw):
             api_error(40013, "登录参数错误，请重试")
         wx_openid = raw
+    elif settings.WECHAT_MOCK_OPENID:
+        # 本地联调可固定模拟身份，便于切换用户验证“他人发布”的展示效果。
+        # 云托管分支不会读取该配置，生产身份仍只信任平台注入的 header。
+        mock_openid = settings.WECHAT_MOCK_OPENID.strip()
+        if not _OPENID_RE.fullmatch(mock_openid):
+            api_error(50013, "WECHAT_MOCK_OPENID 配置无效", status_code=500)
+        wx_openid = mock_openid
     result = await auth_service.login(db, code, nickname, avatar, openid=wx_openid)
     return api_success(result)
 

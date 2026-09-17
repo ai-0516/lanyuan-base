@@ -350,6 +350,11 @@ code2session、不调 api.weixin.qq.com**（绕开云托管平台代理的自签
 内容安全与登录模式分开：本地登录是真实 code2session，但内容安全 API 使用 mock；
 云托管登录使用可信 header，内容安全 API 才调用微信云托管内部地址。
 
+本地需要模拟不同用户时，可在 `.env` 设置 `WECHAT_MOCK_OPENID=mock_user_001`。
+该值非空且 `WECHAT_CLOUD_DEPLOYMENT=False` 时，后端跳过 code2session，并以固定
+openid 查/建用户；修改值、重启后端、清除小程序登录状态后即可切换模拟用户。
+云托管模式始终忽略此配置，生产身份仍只来自可信 `x-wx-openid`。
+
 **场景 B：AI 对话流程（SSE 流式 + 工具调用）**
 
 **B-0 初始化（进入 AI Tab 时）：**
