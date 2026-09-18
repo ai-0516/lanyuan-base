@@ -31,3 +31,12 @@
   4. 镜像构建 — .dockerignore 放行 docs/wiki（忽略注释行）、Dockerfile 含 COPY docs/wiki
 - SCHEMA.md 增「校验（编译后必跑）」节：编译后须 `cd backend && uv run python scripts/review/wiki_kb/review.py` 全绿（exit 0）才可提交
 - 判别力验证：人为破坏 5 处（断链/错条款 99/sha256 漂移/index 不一致/dockerignore 真行移除仅留注释）脚本全部抓出 ❌，还原后全绿 ✅
+
+## [2026-09-18] add | 2025 年东方兰园车库管理方案与历史车位位置
+
+- 源资料：2025 年 10 月《东方兰园车辆管理公告》Word 文档及“可出租车位明细”图片
+- 新增知识页 3 个：parking-management-rules / parking-space-fees-and-rental / parking-space-location-reference
+- 完整转录历史公告中的管理原则、违停措施、车辆登记、费用、租期和车位出售后的处理规则
+- 录入 A/B/C/D 四区共 56 个车位及对应楼栋或通道位置
+- 时效确认：资料提供者于 2026-09-18 确认，附件所列 56 个车位均已出租；清单仅作历史公告核对和位置参考，不作为当前可租信息
+- 车位容量：按 parking_spots_buildings_gates_roads.json 统计 A 区 234、B 区 228、C 区 324、D 区 244、F 区 355，JSON 小计 1385 个；资料提供者确认另有 10 个 W 编号车位未纳入 JSON，停车场合计 1395 个；所有 W 车位均无精确坐标，公告仅提供其中 4 个编号的大致方位文字，其余 6 个编号待补充
