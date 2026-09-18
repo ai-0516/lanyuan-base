@@ -16,5 +16,5 @@
 
 - [[parking-management-rules]] — 地下车库通行、停车、车辆登记和违停处理规则
 - [[parking-space-fees-and-rental]] — 2025 年车位管理费、租赁费用与期限；历史开放车位现均已租出
-- [[parking-space-location-reference]] — 2025 年 56 个历史出租车位与附近楼栋位置对应表（仅作位置参考）
+- [[parking-property-rental-announcement-2025]] — 2025 年物业开放出租的 56 个车位公告清单；仅用于回答该批物业出租车位及公告所写位置
 - [[parking-area-capacity]] — 停车场 1395 个车位的分区数量，以及 10 个尚无精确坐标的 W 车位

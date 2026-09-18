@@ -29,4 +29,4 @@ sources: [raw/dongfang-lanyuan-parking-management-2025.md]
 
 已购车位和租赁车位均按登记车牌录入车辆管理系统，实行**一个车位录入一辆车**。车位还应悬挂车牌号码，以便保安巡查并避免他人占用。
 
-收费和租赁期限见 [[parking-space-fees-and-rental]]；2025 年公告附件中的车位位置见 [[parking-space-location-reference]]；地图数据中的各区域车位数量见 [[parking-area-capacity]]。
+收费和租赁期限见 [[parking-space-fees-and-rental]]；2025 年物业公告中的出租车位清单见 [[parking-property-rental-announcement-2025]]；地图数据中的各区域车位数量见 [[parking-area-capacity]]。

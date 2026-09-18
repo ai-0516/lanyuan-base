@@ -40,4 +40,4 @@ AI 回答时应区分总量和地图数据：
 - 引述 2025 年公告的出售车位和人防车位时，使用公告中的 1039 个和 356 个；
 - 不得把任一口径解释为当前可租或空闲车位数。
 
-历史开放出租车位及其当前状态见 [[parking-space-fees-and-rental]]；车位与楼栋位置参考见 [[parking-space-location-reference]]。
+历史开放出租车位及其当前状态见 [[parking-space-fees-and-rental]]；2025 年物业公告中的出租车位清单见 [[parking-property-rental-announcement-2025]]。

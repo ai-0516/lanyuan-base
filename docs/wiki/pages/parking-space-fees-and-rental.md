@@ -31,4 +31,4 @@ sources: [raw/dongfang-lanyuan-parking-management-2025.md]
 
 **当前状态：资料提供者于 2026 年 9 月 18 日确认，上述 56 个车位均已租出。** 因此 AI 不应把附件中的任何车位回答为“当前可租”，也不应根据该历史清单承诺能够办理租赁。
 
-完整历史清单和位置关系见 [[parking-space-location-reference]]；车库通行和违停规则见 [[parking-management-rules]]。
+2025 年物业开放出租的完整历史清单见 [[parking-property-rental-announcement-2025]]；车库通行和违停规则见 [[parking-management-rules]]。
