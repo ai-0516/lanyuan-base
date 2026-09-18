@@ -12,5 +12,8 @@ uploads/
 # 其余文档（PRD/TECH_SPEC/design 等）不进构建上下文
 docs/*
 !docs/wiki/
+!docs/parking/
+docs/parking/*
+!docs/parking/parking_spots_buildings_gates_roads.json
 spike/
 test_lanyuan.db

@@ -25,8 +25,8 @@ import app.main  # noqa: F401  # 触发全部 @mcp_tool 注册（业务文件 im
 from app.models.user import User
 from tools.mcp_server.decorator import _REGISTERED_TOOLS, _user_id_from_meta, mcp
 
-# MCP 工具面 = 26 个业务工具（search_history 不迁移，v2 用 DSH session-query；
-# wiki_index/wiki_read = issue #103 小区知识库只读工具；车位租赁 5 个）
+# MCP 工具面 = 27 个业务工具（search_history 不迁移，v2 用 DSH session-query；
+# wiki_index/wiki_read = issue #103 小区知识库只读工具；车位租赁 5 个；停车位置 1 个）
 ALL_TOOLS = {
     "get_my_profile", "update_my_profile", "get_user_public",
     "list_posts", "create_post", "get_post", "delete_post", "like_post", "unlike_post",
@@ -36,6 +36,7 @@ ALL_TOOLS = {
     "wiki_index", "wiki_read",
     "list_parking_rentals", "create_parking_rental", "get_parking_rental",
     "update_parking_rental", "get_parking_rental_contact",
+    "get_parking_location",
 }
 
 
@@ -261,6 +262,36 @@ class TestParkingRentalTools:
         assert captured["user_id"] == 42
         assert data["items"][0]["spot_id"] == "B194"
         assert "avatar" not in data["items"][0]["user"]
+
+
+class TestParkingLocationTool:
+    @pytest.mark.asyncio
+    async def test_description_requires_authoritative_map_data(self):
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        description = tools["get_parking_location"].description
+        assert "车位" in description
+        assert "楼栋" in description
+        assert "出入口" in description
+        assert "必须优先调用" in description
+        assert "W 开头" in description
+        assert "仅供你内部" in description
+        assert "绝对不能展示" in description and "像素" in description
+
+    @pytest.mark.asyncio
+    async def test_tool_returns_formatted_location(self):
+        result = await _REGISTERED_TOOLS["get_parking_location"](
+            ctx=_ctx_with_meta(SimpleNamespace(user_id=42)),
+            query="B194",
+        )
+        data = json.loads(result)
+        assert data["status"] == "found"
+        assert data["results"][0]["id"] == "B194"
+        assert data["results"][0]["coordinates_available"] is True
+        assert data["results"][0]["nearest_buildings"][0]["id"] == "6#"
+        assert data["results"][0]["center"]["x"] == pytest.approx(2166.39)
+        assert data["results"][0]["bounds"]["left"] == pytest.approx(2153.89)
+        assert data["results"][0]["coordinate_system"]["units"] == "pixels"
+        assert data["results"][0]["nearest_buildings"][0]["distance_pixels"] > 0
 
 
 class TestHttpEndpoint:

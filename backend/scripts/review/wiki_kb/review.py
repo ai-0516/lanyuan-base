@@ -103,7 +103,7 @@ def verify_structure():
         if missing or bad_type or bad_src:
             fm_issues.append(f"{slug}: missing={missing} type={fm.get('type')} bad_src={bad_src}")
     record("frontmatter 五键齐全 / type 合法 / sources 指向存在 raw", not fm_issues,
-           "; ".join(fm_issues) if fm_issues else "6 pages OK")
+           "; ".join(fm_issues) if fm_issues else f"{len(pages)} pages OK")
 
 
 def verify_raw_sha256():

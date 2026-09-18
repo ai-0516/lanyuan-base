@@ -11,7 +11,10 @@ from app.config import settings
 from app.core.database import init_db, close_db
 from app.logger import setup_logging
 from app.ai.dsh_runtime import dsh_runtime
-from app.api.v1 import auth, posts, comments, notifications, profile, ai, memory, wechat_events, parking_rentals
+from app.api.v1 import (
+    ai, auth, comments, memory, notifications, parking_locations, parking_rentals,
+    posts, profile, wechat_events,
+)
 # wiki：纯工具模块（无 endpoint/router），import 仅用于触发 @mcp_tool/@tool 注册副作用
 from app.api.v1 import wiki  # noqa: F401
 # v2 AI 对话（§9.1）；业务工具 @mcp_tool 定义在 v1 业务文件里（v1/v2 仅限 /ai/chat，
@@ -66,6 +69,7 @@ app.include_router(ai.router, prefix="/api/v1")
 app.include_router(memory.router, prefix="/api/v1")
 app.include_router(wechat_events.router, prefix="/api/v1")
 app.include_router(parking_rentals.router, prefix="/api/v1")
+app.include_router(parking_locations.router, prefix="/api/v1")
 
 # v2（DSH 重写 agent，TECH_SPEC §9.1）——v2 只新增 /api/v2/ai/chat；
 # 业务工具 @mcp_tool 挂在 v1 业务 endpoint 上（v1/v2 仅限 /ai/chat）
