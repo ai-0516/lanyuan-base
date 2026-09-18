@@ -2,7 +2,7 @@
 
 覆盖：
 1. v1/v2 双注册（@tool → registry、@mcp_tool → MCP）
-2. wiki_index：列出知识页（真实 docs/wiki，供热条例 6 页）
+2. wiki_index：列出知识页（真实 docs/wiki，供热与停车页面）
 3. wiki_read：读整页完整 markdown、缺失页 → None（业务失败≠系统异常）、
    slug 白名单防路径穿越
 4. formatter：无删减、JSON 结构原样返回
@@ -26,6 +26,10 @@ EXPECTED_PAGES = [
     "heating-season-and-standard",
     "heating-user-rules",
     "heating-warranty-transfer",
+    "parking-area-capacity",
+    "parking-management-rules",
+    "parking-property-rental-announcement-2025",
+    "parking-space-fees-and-rental",
 ]
 
 
