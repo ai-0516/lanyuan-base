@@ -85,6 +85,9 @@ COPY backend/tools ./tools/
 #    后续 AI 只读工具按 /app/docs/wiki/ 读取（本 COPY 以 WORKDIR /app 为根）。
 COPY docs/wiki ./docs/wiki/
 
+# 停车位置 MCP tool 的唯一地图数据源。只复制 322 KB JSON，不复制 7 MB 地图图片。
+COPY docs/parking/parking_spots_buildings_gates_roads.json ./docs/parking/parking_spots_buildings_gates_roads.json
+
 # 依赖已 pip 装进系统 python（/usr/local），uvicorn 直接从 PATH 取，无需 venv PATH
 
 # PR #98 review 修复（阻塞①③）：

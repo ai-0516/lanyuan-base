@@ -13,3 +13,11 @@ class ParkingRentalStatus(str, Enum):
 class ParkingRentalListingType(str, Enum):
     OFFER = "offer"
     WANTED = "wanted"
+
+
+class ParkingLocationEntityType(str, Enum):
+    """停车地图中可查询的位置实体。"""
+
+    SPOT = "spot"
+    BUILDING = "building"
+    GATE = "gate"
