@@ -20,6 +20,7 @@ def test_spot_location_comes_from_map_and_has_landmarks():
     assert spot["id"] == "B194"
     assert spot["area"] == "B区"
     assert spot["coordinate_system"]["origin"] == "top_left"
+    assert spot["map_region"] == "地图北部"
     assert spot["center"]["x"] == pytest.approx(2166.39, abs=0.02)
     assert spot["center"]["y"] == pytest.approx(1209.71, abs=0.02)
     assert spot["bounds"] == {"left": 2153.89, "top": 1182.71, "width": 25.0, "height": 54.0}

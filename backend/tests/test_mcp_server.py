@@ -274,6 +274,7 @@ class TestParkingLocationTool:
         assert "出入口" in description
         assert "必须优先调用" in description
         assert "W 开头" in description
+        assert "禁止" in description and "像素" in description
 
     @pytest.mark.asyncio
     async def test_tool_returns_formatted_location(self):
@@ -285,6 +286,11 @@ class TestParkingLocationTool:
         assert data["status"] == "found"
         assert data["results"][0]["id"] == "B194"
         assert data["results"][0]["coordinates_available"] is True
+        assert data["results"][0]["nearest_buildings"][0]["id"] == "6#"
+        assert "center" not in data["results"][0]
+        assert "bounds" not in data["results"][0]
+        assert "coordinate_system" not in data["results"][0]
+        assert "distance_pixels" not in result
 
 
 class TestHttpEndpoint:

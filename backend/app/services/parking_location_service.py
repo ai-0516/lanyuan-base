@@ -63,12 +63,15 @@ def _nearest(center_x: float, center_y: float, source_key: str, count: int) -> l
 
 def _base_result(entity_type: str, item_id: str, title: str, subtitle: str,
                  center_x: float, center_y: float) -> dict:
+    horizontal = "西部" if center_x < _IMAGE_WIDTH / 3 else "东部" if center_x > _IMAGE_WIDTH * 2 / 3 else ""
+    vertical = "北部" if center_y < _IMAGE_HEIGHT / 3 else "南部" if center_y > _IMAGE_HEIGHT * 2 / 3 else "中部"
     return {
         "entity_type": entity_type,
         "id": item_id,
         "title": title,
         "subtitle": subtitle,
         "coordinates_available": True,
+        "map_region": f"地图{horizontal}{vertical}",
         "coordinate_system": {
             "origin": "top_left",
             "units": "pixels",
