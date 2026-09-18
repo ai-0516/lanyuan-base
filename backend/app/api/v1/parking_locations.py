@@ -14,34 +14,8 @@ router = APIRouter(prefix="/parking-locations", tags=["停车位置"])
 
 
 def _format_get_parking_location(data) -> str:
-    """面向 AI 删除地图渲染细节，只保留可自然表达的位置和附近地标。"""
-    formatted = {
-        key: data[key]
-        for key in ("query", "normalized_query", "status", "message")
-        if key in data
-    }
-    formatted["results"] = []
-    for item in data.get("results", []):
-        result = {
-            key: item[key]
-            for key in (
-                "entity_type", "id", "title", "subtitle", "coordinates_available",
-                "verified_id", "area", "orientation", "map_region",
-            )
-            if key in item
-        }
-        if "nearest_buildings" in item:
-            result["nearest_buildings"] = [
-                {"id": building["id"], "title": building["title"]}
-                for building in item["nearest_buildings"]
-            ]
-        if "nearest_gate" in item:
-            result["nearest_gate"] = {
-                "id": item["nearest_gate"]["id"],
-                "title": item["nearest_gate"]["title"],
-            }
-        formatted["results"].append(result)
-    return dumps(formatted)
+    """无删减：坐标供 LLM 内部定位推理，工具说明约束其不得向用户直接展示。"""
+    return dumps(data)
 
 
 @router.get("/search")
@@ -56,8 +30,9 @@ async def get_parking_location(
     用户询问具体车位在哪里、某栋楼或停车场出入口的位置时，必须优先调用本工具，
     不要使用 Wiki 中物业出租公告的大致方位代替地图数据。query 传准确车位号
     （如 B194）、楼栋号（如 6#、6号楼）或出入口名称（西门、北门、东门）；
-    entity_type 可选 spot、building、gate，用于限定实体类型。返回区域、地图方位、车位
-    方向及附近地标；禁止在给用户的回答中提及像素坐标或像素距离。W 开头的车位未录入
-    地图，本工具会明确返回无精确坐标，禁止推测。
+    entity_type 可选 spot、building、gate，用于限定实体类型。返回坐标、区域、地图方位、
+    车位方向及附近地标。坐标和像素距离仅供你内部定位与比较；最终给用户的回答必须转换
+    为自然语言，只描述区域、附近楼栋、出入口和相对方位，绝对不能展示任何像素坐标或
+    像素距离。W 开头的车位未录入地图，本工具会明确返回无精确坐标，禁止推测。
     """
     return api_success(parking_location_service.search(query, entity_type))
